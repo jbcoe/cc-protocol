@@ -1,0 +1,34 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+cc_binary(
+    name = "indirect_benchmark",
+    srcs = [
+        "indirect_benchmark.cc",
+    ],
+    deps = [
+        "//:indirect",
+        "@com_github_google_benchmark//:benchmark_main",
+    ],
+)
+
+build_test(
+    name = "indirect_benchmark_build_test",
+    targets = ["indirect_benchmark"],
+)
+
+cc_binary(
+    name = "polymorphic_benchmark",
+    srcs = [
+        "polymorphic_benchmark.cc",
+    ],
+    deps = [
+        "//:polymorphic",
+        "@com_github_google_benchmark//:benchmark_main",
+    ],
+)
+
+build_test(
+    name = "polymorphic_benchmark_build_test",
+    targets = ["polymorphic_benchmark"],
+)

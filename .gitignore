@@ -1,0 +1,9 @@
+.idea/
+.venv/
+.vs/
+_build
+_deps
+bazel-*
+build*/
+out/
+.cache

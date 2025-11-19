@@ -1,0 +1,12 @@
+{
+    "files.exclude": {
+        ".git": true,
+        ".venv": true,
+        "bazel-*": true,
+        "build": true,
+    },
+    "files.associations": {
+        "array": "cpp"
+    },
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"
+}

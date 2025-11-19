@@ -1,0 +1,47 @@
+name: Bazel test
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bazel.yml" # This file
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/BUILD.bazel"
+      - "**/MODULE.bazel"
+      - ".bazelrc"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/bazel.yml" # This file
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/BUILD.bazel"
+      - "**/MODULE.bazel"
+      - ".bazelrc"
+jobs:
+  build:
+    name: ${{ matrix.settings.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        settings:
+          - { name: "Bazel test: debug", flags: "-c dbg" }
+          - { name: "Bazel test: optimized", flags: "-c opt" }
+          - { name: "Bazel test: address sanitizer", flags: "--config=asan" }
+          - {
+              name: "Bazel test: undefined behaviour sanitizer",
+              flags: "--config=ubsan",
+            }
+          - { name: "Bazel test: thread sanitizer", flags: "--config=tsan" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bazelbuild/setup-bazelisk@v3
+      - name: Mount bazel cache # Optional
+        uses: actions/cache@v3
+        with:
+          path: "~/.cache/bazel"
+          key: bazel
+      - run: bazel test -k --action_env=BAZEL_CXXOPTS="-std=c++20" ${{matrix.settings.flags}} //...

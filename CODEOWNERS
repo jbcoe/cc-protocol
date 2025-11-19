@@ -1,0 +1,11 @@
+# Global owners
+* @jbcoe @twon
+
+# CMake
+CMakeLists.txt @twon
+
+# Bazel
+*.bazel @jbcoe
+
+# Documents
+*.md @jbcoe @twon @nbx8

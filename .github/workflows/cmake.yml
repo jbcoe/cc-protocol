@@ -1,0 +1,186 @@
+name: CMake test
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cmake.yml" # This file
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/CMakeLists.txt"
+      - "CMakePresets.json"
+      - "cmake/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cmake.yml" # This file
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/CMakeLists.txt"
+      - "CMakePresets.json"
+      - "cmake/**"
+
+jobs:
+  build:
+    name: ${{ matrix.settings.name }} ${{ matrix.configuration }}
+    runs-on: ${{ matrix.settings.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: ["Release", "Debug"]
+        settings:
+          - {
+              name: "Ubuntu GCC-11",
+              os: ubuntu-24.04,
+              compiler:
+                {
+                  type: GCC,
+                  version: 11,
+                  cc: "gcc-11",
+                  cxx: "g++-11",
+                  std: 20,
+                },
+              lib: "libstdc++11",
+            }
+          - {
+              name: "Ubuntu GCC-12",
+              os: ubuntu-24.04,
+              compiler:
+                {
+                  type: GCC,
+                  version: 12,
+                  cc: "gcc-12",
+                  cxx: "g++-12",
+                  std: 20,
+                },
+              lib: "libstdc++12",
+            }
+          - {
+              name: "Ubuntu GCC-13",
+              os: ubuntu-24.04,
+              compiler:
+                {
+                  type: GCC,
+                  version: 13,
+                  cc: "gcc-13",
+                  cxx: "g++-13",
+                  std: 20,
+                },
+              lib: "libstdc++13",
+            }
+          - {
+              name: "Ubuntu GCC-14",
+              os: ubuntu-24.04,
+              compiler:
+                {
+                  type: GCC,
+                  version: 14,
+                  cc: "gcc-14",
+                  cxx: "g++-14",
+                  std: 20,
+                },
+              lib: "libstdc++14",
+            }
+          - {
+              name: "Ubuntu Clang-17 + libc++",
+              os: ubuntu-24.04,
+              compiler:
+                {
+                  type: CLANG,
+                  version: 17,
+                  cc: "clang-17",
+                  cxx: "clang++-17",
+                  std: 20,
+                },
+              lib: "libc++17",
+            }
+          - {
+              name: "Ubuntu Clang-18 + libc++",
+              os: ubuntu-24.04,
+              compiler:
+                {
+                  type: CLANG,
+                  version: 18,
+                  cc: "clang-18",
+                  cxx: "clang++-18",
+                  std: 20,
+                },
+              lib: "libc++18",
+            }
+          - {
+              name: "Ubuntu Clang-19 + libc++",
+              os: ubuntu-24.04,
+              compiler:
+                {
+                  type: CLANG,
+                  version: 19,
+                  cc: "clang-19",
+                  cxx: "clang++-19",
+                  std: 20,
+                },
+              lib: "libc++19",
+            }
+          - {
+              name: "Visual Studio 2019",
+              os: windows-latest,
+              compiler: { type: VISUAL, version: 16, cc: "cl", cxx: "cl" },
+            }
+          - {
+              name: "Visual Studio 2022 v17",
+              os: windows-latest,
+              compiler: { type: VISUAL, version: 17, cc: "cl", cxx: "cl" },
+            }
+          - {
+              name: "Visual Studio 2022 v18",
+              os: windows-latest,
+              compiler: { type: VISUAL, version: 18, cc: "cl", cxx: "cl" },
+            }
+          - {
+              name: "Visual Studio 2022 v19",
+              os: windows-latest,
+              compiler: { type: VISUAL, version: 19, cc: "cl", cxx: "cl" },
+            }
+          - {
+              name: "MacOS Apple Clang 15",
+              os: macos-14,
+              compiler:
+                {
+                  type: APPLE_CLANG,
+                  version: "15.0",
+                  cc: "clang",
+                  cxx: "clang++",
+                  std: 20,
+                },
+            }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: seanmiddleditch/gha-setup-ninja@master
+      - name: Add msbuild to PATH
+        if: matrix.settings.os == 'windows-latest'
+        uses: microsoft/setup-msbuild@v2
+        with:
+          vs-version: "16.5"
+      - name: Install Latest GCC
+        if: matrix.settings.compiler.type == 'GCC'
+        uses: egor-tensin/setup-gcc@v1
+        with:
+          version: ${{ matrix.settings.compiler.version }}
+          platform: x64
+      - name: Install Clang
+        if: matrix.settings.compiler.type == 'CLANG'
+        uses: egor-tensin/setup-clang@v1
+        with:
+          version: ${{ matrix.settings.compiler.version }}
+          platform: x64
+      - name: Configure CMake
+        run: cmake --preset ${{ matrix.configuration }}
+      - name: Build
+        # Build your program with the given configuration
+        run: cmake --build --preset ${{ matrix.configuration }}
+
+      - name: Test
+        # Execute tests defined by the CMake configuration.
+        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+        run: ctest --preset ${{ matrix.configuration }}

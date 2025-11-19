@@ -1,0 +1,9 @@
+{
+	"name": "xyz.value-types",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"mounts": [
+		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/root/.ssh,readonly"
+	  ]
+}
