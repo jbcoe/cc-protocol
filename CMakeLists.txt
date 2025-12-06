@@ -3,12 +3,12 @@ cmake_policy(SET CMP0127 NEW)
 cmake_policy(SET CMP0135 NEW)
 
 if(NOT DEFINED PROJECT_NAME)
-    set(XYZ_VALUE_TYPES_IS_NOT_SUBPROJECT ON)
+    set(XYZ_PROTOCOL_IS_NOT_SUBPROJECT ON)
 endif()
 
-set(XYZ_VALUE_TYPES_VERSION 0.0.1)
+set(XYZ_PROTOCOL_VERSION 0.0.1)
 
-project(value_types LANGUAGES CXX VERSION ${XYZ_VALUE_TYPES_VERSION})
+project(protocol LANGUAGES CXX VERSION ${XYZ_PROTOCOL_VERSION})
 
 include(CTest)
 include(FetchContent)
@@ -28,125 +28,21 @@ include(xyz_add_test)
 include(xyz_add_object_library)
 
 xyz_add_library(
-    NAME xyz_value_types
-    ALIAS xyz_value_types::value_types
+    NAME protocol
+    ALIAS xyz_value_types::protocol
 )
-target_sources(xyz_value_types
+target_sources(protocol
     INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/indirect.h>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/polymorphic.h>
-)
-
-xyz_add_library(
-    NAME indirect
-    ALIAS xyz_value_types::indirect
-)
-target_sources(indirect
-    INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/indirect.h>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.h>
 )
 
 xyz_add_object_library(
-    NAME indirect_cc
-    FILES indirect.cc
-    LINK_LIBRARIES indirect
+    NAME protocol_cc
+    FILES protocol.cc
+    LINK_LIBRARIES protocol
 )
 
-xyz_add_library(
-    NAME indirect_cxx14
-    ALIAS xyz_value_types::indirect_cxx14
-    DEFINITIONS XYZ_INDIRECT_CXX_14
-    VERSION 14
-)
-target_sources(indirect_cxx14
-    INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/indirect_cxx14.h>
-)
-xyz_add_object_library(
-    NAME indirect_cxx14_cc
-    FILES indirect_cxx14.cc
-    LINK_LIBRARIES indirect_cxx14
-)
-
-xyz_add_library(
-    NAME indirect_cxx17
-    ALIAS xyz_value_types::indirect_cxx17
-    DEFINITIONS XYZ_INDIRECT_CXX_14
-    VERSION 17
-)
-target_sources(indirect_cxx17
-    INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/indirect_cxx14.h>
-)
-
-xyz_add_library(
-    NAME polymorphic
-    ALIAS xyz_value_types::polymorphic
-)
-target_sources(polymorphic
-    INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/polymorphic.h>
-)
-
-xyz_add_object_library(
-    NAME polymorphic_cc
-    FILES polymorphic.cc
-    LINK_LIBRARIES polymorphic
-)
-
-xyz_add_library(
-    NAME polymorphic_cxx14
-    ALIAS xyz_value_types::polymorphic_cxx14
-    DEFINITIONS XYZ_POLYMORPHIC_CXX_14
-    VERSION 14
-)
-target_sources(polymorphic_cxx14
-    INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/polymorphic_cxx14.h>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/polymorphic_cxx14.cc>
-)
-
-xyz_add_object_library(
-    NAME polymorphic_cxx14_cc
-    FILES polymorphic_cxx14.cc
-    LINK_LIBRARIES polymorphic_cxx14
-)
-
-xyz_add_library(
-    NAME polymorphic_cxx17
-    ALIAS xyz_value_types::polymorphic_cxx17
-    DEFINITIONS XYZ_POLYMORPHIC_CXX_14
-    VERSION 17
-)
-target_sources(polymorphic_cxx17
-    INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/polymorphic_cxx14.h>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/polymorphic_cxx14.cc>
-)
-
-xyz_add_library(
-    NAME polymorphic_no_vtable
-    ALIAS xyz_value_types::polymorphic_no_vtable
-    DEFINITIONS XYZ_POLYMORPHIC_NO_VTABLE
-    VERSION 14
-)
-target_sources(polymorphic_no_vtable
-    INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/polymorphic_no_vtable.h>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/polymorphic_no_vtable.cc>
-)
-
-xyz_add_object_library(
-    NAME polymorphic_no_vtable_cc
-    FILES polymorphic_no_vtable.cc
-    LINK_LIBRARIES polymorphic_no_vtable
-)
-
-if (${XYZ_VALUE_TYPES_IS_NOT_SUBPROJECT})
-
-    add_subdirectory(benchmarks)
-    add_subdirectory(compile_checks)
-    add_subdirectory(exploration)
+if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
 
     if (${BUILD_TESTING})
         FetchContent_Declare(
@@ -169,49 +65,9 @@ if (${XYZ_VALUE_TYPES_IS_NOT_SUBPROJECT})
         enable_testing()
 
         xyz_add_test(
-            NAME indirect_test
-            LINK_LIBRARIES indirect
-            FILES indirect_test.cc
-        )
-
-        xyz_add_test(
-            NAME indirect_cxx14_test
-            LINK_LIBRARIES indirect_cxx14
-            FILES indirect_test.cc
-            VERSION 14
-        )
-
-        xyz_add_test(
-            NAME indirect_cxx17_test
-            LINK_LIBRARIES indirect_cxx17
-            FILES indirect_test.cc
-            VERSION 17
-        )
-
-        xyz_add_test(
-            NAME polymorphic_test
-            LINK_LIBRARIES polymorphic
-            FILES polymorphic_test.cc
-        )
-
-        xyz_add_test(
-            NAME polymorphic_cxx14_test
-            LINK_LIBRARIES polymorphic_cxx14
-            FILES polymorphic_test.cc
-            VERSION 14
-        )
-
-        xyz_add_test(
-            NAME polymorphic_cxx17_test
-            LINK_LIBRARIES polymorphic_cxx17
-            FILES polymorphic_test.cc
-            VERSION 17
-        )
-
-        xyz_add_test(
-            NAME polymorphic_no_vtable_test
-            LINK_LIBRARIES polymorphic_no_vtable
-            FILES polymorphic_test.cc
+            NAME protocol_test
+            LINK_LIBRARIES protocol
+            FILES protocol_test.cc
         )
 
         if (ENABLE_CODE_COVERAGE)
@@ -220,54 +76,4 @@ if (${XYZ_VALUE_TYPES_IS_NOT_SUBPROJECT})
 
     endif(${BUILD_TESTING})
 
-    install(
-        FILES
-            "${CMAKE_CURRENT_SOURCE_DIR}/indirect.h"
-            "${CMAKE_CURRENT_SOURCE_DIR}/polymorphic.h"
-        DESTINATION
-            ${CMAKE_INSTALL_INCLUDEDIR}
-    )
-
-    install(
-        FILES
-            "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt"
-        DESTINATION
-            "${CMAKE_INSTALL_DATAROOTDIR}/licenses/xyz_value_types"
-    )
-
-    install(
-        TARGETS xyz_value_types
-        EXPORT xyz_value_types-export-set
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
-
-    install(
-        EXPORT xyz_value_types-export-set
-        NAMESPACE xyz_value_types::
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/xyz_value_types"
-    )
-
-    configure_package_config_file(
-        ${CMAKE_CURRENT_LIST_DIR}/xyz_value_types-config.cmake.in
-        ${CMAKE_CURRENT_BINARY_DIR}/xyz_value_types-config.cmake
-        INSTALL_DESTINATION
-            "${CMAKE_INSTALL_LIBDIR}/cmake/xyz_value_types"
-    )
-
-    write_basic_package_version_file(
-        ${CMAKE_CURRENT_BINARY_DIR}/xyz_value_types-version.cmake
-        VERSION ${XYZ_VALUE_TYPES_VERSION}
-        COMPATIBILITY SameMajorVersion
-        ARCH_INDEPENDENT
-    )
-
-    install(
-        FILES
-            ${CMAKE_CURRENT_BINARY_DIR}/xyz_value_types-config.cmake
-            ${CMAKE_CURRENT_BINARY_DIR}/xyz_value_types-version.cmake
-        DESTINATION
-            "${CMAKE_INSTALL_LIBDIR}/cmake/xyz_value_types"
-    )
 endif()

@@ -1,6 +1,4 @@
-The MIT License (MIT)
-
-Copyright (c) 2025 The XYZ Protocol Authors. All Rights Reserved.
+/* Copyright (c) 2025 The XYZ Protocol Authors. All Rights Reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -18,3 +16,21 @@ FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
 COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+==============================================================================*/
+
+#ifndef XYZ_PROTOCOL_H_
+#define XYZ_PROTOCOL_H_
+#include <memory>
+
+namespace xyz {
+
+template <typename T, typename A = std::allocator<T>>
+class protocol {
+ public:
+  constexpr bool valueless_after_move() const noexcept {
+    return false;  // Placeholder implementation
+  }
+};
+}  // namespace xyz
+
+#endif  // XYZ_PROTOCOL_H_
