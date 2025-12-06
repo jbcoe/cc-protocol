@@ -2,12 +2,8 @@
 // structurally compatible interface.
 
 struct A {
- public:
   void foo() const;
   int bar();
-
- private:
-  int value();
 };
 
 // Ideally we'd write `xyz::protocol<A>` and the code below would be generated
@@ -32,7 +28,6 @@ class protocol_A {
    public:
     virtual void foo() const = 0;
     virtual int bar() = 0;
-    virtual int value() = 0;
     // END Structurally compatible interface.
   };
 
@@ -59,12 +54,13 @@ class protocol_A {
       // TODO: Implement cloning. Base this on polymorphic.
     }
 
+    // BEGIN Structurally compatible interface.
    public:
     override void foo() const { return storage_.t_.foo(); }
 
     override int bar() { return storage_.t_.bar(); }
 
-    override int value() { return storage_.t_.value(); }
+    // END Structurally compatible interface.
   };
 
   control_block* p_;
@@ -78,13 +74,13 @@ class protocol_A {
 
   constexpr bool valueless_after_move() const noexcept { return p_ == nullptr; }
 
+  // BEGIN Structurally compatible interface.
  public:
   void foo() const { return p_->foo(); }
 
   int bar() { return p_->bar(); }
 
- private:
-  int value() { return p_->value(); }
+  // END Structurally compatible interface.
 };
 }  // namespace xyz
 
