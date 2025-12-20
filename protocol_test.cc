@@ -19,6 +19,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==============================================================================*/
 
 #include "protocol.h"
+#include "post_instantiation_example.h"
 
 #include <gtest/gtest.h>
 
