@@ -67,7 +67,7 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
         xyz_add_test(
             NAME protocol_test
             LINK_LIBRARIES protocol
-            FILES protocol_test.cc
+            FILES protocol_test.cc post_instantiation_example.h
         )
 
         if (ENABLE_CODE_COVERAGE)
