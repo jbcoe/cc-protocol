@@ -29,14 +29,35 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace {
 
-struct ALike {
-  std::string_view name() const { return "ALike"; }
-  int count() { return 42; }
+class ALike {
+  int x_ = 42;
+  std::string name_ = "ALike";
+
+ public:
+  ALike() = default;
+  ALike(int x) : x_(x) {};
+  ALike(std::string_view name) : name_(name) {};
+  ALike(int x, std::string_view name) : x_(x), name_(name) {};
+
+  std::string_view name() const { return name_; }
+
+  int count() { return x_; }
 };
 
-TEST(ProtocolTest, InPlaceCtor) {
+TEST(ProtocolTest, InPlaceCtorNoArgs) {
   xyz::protocol_A<> a(std::in_place_type<ALike>);
   EXPECT_FALSE(a.valueless_after_move());
+}
+
+TEST(ProtocolTest, InPlaceCtorSingleArg) {
+  xyz::protocol_A<> a(std::in_place_type<ALike>, 42);
+  EXPECT_FALSE(a.valueless_after_move());
+}
+
+TEST(ProtocolTest, InPlaceCtorMultipleArgs) {
+  xyz::protocol_A<> a(std::in_place_type<ALike>, 180, "CustomName");
+  EXPECT_EQ(a.name(), "CustomName");
+  EXPECT_EQ(a.count(), 180);
 }
 
 TEST(ProtocolTest, MemberFunctions) {
@@ -45,4 +66,19 @@ TEST(ProtocolTest, MemberFunctions) {
   EXPECT_EQ(a.count(), 42);
 }
 
+TEST(ProtocolTest, CopyCtor) {
+  xyz::protocol_A<> a(std::in_place_type<ALike>, 100, "Original");
+  xyz::protocol_A<> aa(a);
+  EXPECT_EQ(aa.name(), "Original");
+  EXPECT_EQ(aa.count(), 100);
+  EXPECT_FALSE(a.valueless_after_move());
+}
+
+TEST(ProtocolTest, MoveCtor) {
+  xyz::protocol_A<> a(std::in_place_type<ALike>, 100, "Original");
+  xyz::protocol_A<> aa(std::move(a));
+  EXPECT_EQ(aa.name(), "Original");
+  EXPECT_EQ(aa.count(), 100);
+  EXPECT_TRUE(a.valueless_after_move());
+}
 }  // namespace

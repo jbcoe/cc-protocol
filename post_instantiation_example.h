@@ -219,7 +219,7 @@ class protocol_A {
                        const protocol_A& other)
       : alloc_(alloc) {
     if (!other.valueless_after_move()) {
-      cb_ = other.cb_->clone(alloc_);
+      cb_ = other.cb_->xyz_protocol_clone(alloc_);
     } else {
       cb_ = nullptr;
     }
@@ -236,7 +236,7 @@ class protocol_A {
         cb_ = std::exchange(other.cb_, nullptr);
       } else {
         if (!other.valueless_after_move()) {
-          cb_ = other.cb_->move(alloc_);
+          cb_ = other.cb_->xyz_protocol_move(alloc_);
         } else {
           cb_ = nullptr;
         }
