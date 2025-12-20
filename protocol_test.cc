@@ -19,18 +19,30 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==============================================================================*/
 
 #include "protocol.h"
-#include "post_instantiation_example.h"
 
 #include <gtest/gtest.h>
 
+#include <string_view>
+#include <utility>
+
+#include "post_instantiation_example.h"
 
 namespace {
 
-struct EmptyInterface {};
+struct ALike {
+  std::string_view name() const { return "ALike"; }
+  int count() { return 42; }
+};
 
-TEST(ProtocolTest, DefaultConstructor) {
-  xyz::protocol<EmptyInterface> p;
-  EXPECT_FALSE(p.valueless_after_move());
+TEST(ProtocolTest, InPlaceCtor) {
+  xyz::protocol_A<> a(std::in_place_type<ALike>);
+  EXPECT_FALSE(a.valueless_after_move());
 }
 
-} // namespace
+TEST(ProtocolTest, MemberFunctions) {
+  xyz::protocol_A<> a(std::in_place_type<ALike>);
+  EXPECT_EQ(a.name(), "ALike");
+  EXPECT_EQ(a.count(), 42);
+}
+
+}  // namespace

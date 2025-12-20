@@ -3,15 +3,19 @@
 
 #include <concepts>
 #include <memory>
+#include <string_view>
+#include <utility>
+
+namespace xyz {
 
 struct A {
-  void foo() const;
-  int bar();
+  std::string_view name() const;
+  int count();
 };
 
-// Ideally we'd write `xyz::protocol<A>` and the code below would be generated
-// using reflection. For now, we manually write protocol_A. Next we'll write
-// some AST-based tooling to generate protocol_A.
+// Ideally we'd write `xyz::protocol<Allocator>` and the code below would be
+// generated using reflection. For now, we manually write protocol_A. Next we'll
+// write some AST-based tooling to generate protocol_A.
 //
 // `A` must be a complete type for reflection/AST inspection to be able to
 // generate our interface.
@@ -19,11 +23,10 @@ struct A {
 // BEGIN Generated code for protocol_A
 template <typename T>
 concept xyz_protocol_concept_A = requires(T& t) {
-  { std::as_const(t).foo() } -> std::same_as<void>;
-  { t.bar() } -> std::same_as<int>;
+  { std::as_const(t).name() } -> std::same_as<std::string_view>;
+  { t.count() } -> std::same_as<int>;
 };
 
-namespace xyz {
 template <typename Allocator = std::allocator<std::byte>>
 class protocol_A {
   class control_block {
@@ -35,8 +38,8 @@ class protocol_A {
 
     // BEGIN Structurally compatible interface.
    public:
-    virtual void foo() const = 0;
-    virtual int bar() = 0;
+    virtual std::string_view name() const = 0;
+    virtual int count() = 0;
     // END Structurally compatible interface.
   };
 
@@ -60,7 +63,6 @@ class protocol_A {
       cb_allocator cb_alloc(alloc);
       cb_alloc_traits::construct(cb_alloc, std::addressof(storage_.t_),
                                  std::forward<Ts>(ts)...);
-      control_block::cb_ = std::addressof(storage_.t_);
     }
 
     control_block* xyz_protocol_clone(const Allocator& alloc) {
@@ -96,9 +98,9 @@ class protocol_A {
 
     // BEGIN Structurally compatible interface.
    public:
-    void foo() const { return storage_.t_.foo(); }
+    std::string_view name() const { return storage_.t_.name(); }
 
-    int bar() { return storage_.t_.bar(); }
+    int count() { return storage_.t_.count(); }
 
     // END Structurally compatible interface.
   };
@@ -147,9 +149,9 @@ class protocol_A {
   explicit constexpr protocol_A(std::in_place_type_t<U>, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
              std::constructible_from<U, Ts&&...> &&
-             std::copy_constructible<U> && std::default_initializable<A> &&
-             xyz_protocol_concept_A<U>
-      : protocol_A(std::allocator_arg_t{}, A{}, std::in_place_type<U>,
+             std::copy_constructible<U> &&
+             std::default_initializable<Allocator> && xyz_protocol_concept_A<U>
+      : protocol_A(std::allocator_arg_t{}, Allocator{}, std::in_place_type<U>,
                    std::forward<Ts>(ts)...) {}
 
   template <class U, class I, class... Ts>
@@ -157,10 +159,10 @@ class protocol_A {
                                 std::initializer_list<I> ilist, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
              std::constructible_from<U, std::initializer_list<I>, Ts&&...> &&
-             std::copy_constructible<U> && std::default_initializable<A> &&
-             xyz_protocol_concept_A<U>
-      : protocol_A(std::allocator_arg_t{}, A{}, std::in_place_type<U>, ilist,
-                   std::forward<Ts>(ts)...) {}
+             std::copy_constructible<U> &&
+             std::default_initializable<Allocator> && xyz_protocol_concept_A<U>
+      : protocol_A(std::allocator_arg_t{}, Allocator{}, std::in_place_type<U>,
+                   ilist, std::forward<Ts>(ts)...) {}
 
   constexpr protocol_A(const protocol_A& other)
       : protocol_A(std::allocator_arg_t{},
@@ -248,12 +250,12 @@ class protocol_A {
 
   // BEGIN Structurally compatible interface.
  public:
-  void foo() const { return cb_->foo(); }
+  std::string_view name() const { return cb_->name(); }
 
-  int bar() { return cb_->bar(); }
+  int count() { return cb_->count(); }
 
   // END Structurally compatible interface.
 };
-}  // namespace xyz
 
 // END Generated code for protocol_A
+}  // namespace xyz
