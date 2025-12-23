@@ -79,6 +79,7 @@ TEST(ProtocolTest, MoveCtor) {
   xyz::protocol_A<> aa(std::move(a));
   EXPECT_EQ(aa.name(), "Original");
   EXPECT_EQ(aa.count(), 100);
-  EXPECT_TRUE(a.valueless_after_move());
+  EXPECT_TRUE(
+      a.valueless_after_move());  // NOLINT(clang-analyzer-cplusplus.Move)
 }
 }  // namespace
