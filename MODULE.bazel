@@ -1,0 +1,24 @@
+module(
+    name = "xyz_value_types",
+    version = "head",
+)
+
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+
+bazel_dep(
+    name = "google_benchmark",
+    version = "1.9.4",
+    dev_dependency = True,
+    repo_name = "com_github_google_benchmark",
+)
+
+bazel_dep(
+    name = "googletest",
+    version = "1.15.2",
+    repo_name = "com_google_googletest",
+)
+bazel_dep(
+    name = "rules_cc",
+    version = "0.1.1",
+    repo_name = "rules_cc",
+)
