@@ -11,7 +11,7 @@ if [ -z "$GEMINI_API_KEY" ]; then
     exit 1
 fi
 
-IMAGE_NAME="value-types-sandbox"
+IMAGE_NAME="cc-protocol-gemini-sandbox"
 DOCKERFILE="docker/Dockerfile"
 
 # Build the image

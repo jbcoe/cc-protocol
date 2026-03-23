@@ -5,5 +5,10 @@ description = "development support tools for value-types"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "jinja2>=3.1.6",
     "pre-commit>=4.2.0",
+    "xyz-cppmodel",
 ]
+
+[tool.uv.sources]
+xyz-cppmodel = { git = "https://github.com/jbcoe/py_cppmodel.git" }

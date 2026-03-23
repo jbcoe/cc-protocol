@@ -30,6 +30,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "post_instantiation_example.h"
 #include "interface_B.h"
 #include "generated_protocol_B.h"
+#include "interface_C.h"
+#include "generated_protocol_C.h"
 
 namespace {
 
@@ -59,6 +61,13 @@ class BLike {
   }
   std::vector<int> get_results() const { return results_; }
   bool is_ready() const { return ready_; }
+};
+
+class CLike {
+ public:
+  int compute(int x) { return x * 2; }
+  double compute(double x) { return x * 3.0; }
+  std::string compute(const std::string& x) const { return x + x; }
 };
 
 TEST(ProtocolTest, InPlaceCtorNoArgs) {
@@ -119,6 +128,16 @@ TEST(ProtocolTest, ProtocolBMultipleCalls) {
   ASSERT_EQ(results.size(), 2);
   EXPECT_EQ(results[0], 5);
   EXPECT_EQ(results[1], 12);
+}
+
+TEST(ProtocolTest, ProtocolCOverloads) {
+  xyz::protocol_C<> c(std::in_place_type<CLike>);
+  
+  EXPECT_EQ(c.compute(5), 10);
+  EXPECT_EQ(c.compute(5.0), 15.0);
+  
+  const auto& const_c = c;
+  EXPECT_EQ(const_c.compute(std::string("A")), "AA");
 }
 
 }  // namespace
