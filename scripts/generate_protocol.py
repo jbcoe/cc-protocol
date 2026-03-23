@@ -5,6 +5,14 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 import clang.cindex
 from xyz.cppmodel import Model
 
+# Try to set the library path explicitly for environments like Bazel where LD_LIBRARY_PATH isn't carried over
+try:
+    import clang.native
+    import os
+    clang.cindex.Config.set_library_path(os.path.dirname(clang.native.__file__))
+except Exception:
+    pass
+
 def get_compiler_args():
     args = ['-x', 'c++', '-std=c++20']
     try:
