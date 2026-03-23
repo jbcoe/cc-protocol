@@ -25,6 +25,14 @@ genrule(
     tools = ["scripts/generate_protocol.py"],
 )
 
+genrule(
+    name = "generate_protocol_C",
+    srcs = ["interface_C.h", "scripts/protocol.j2", "scripts/generate_protocol.py"],
+    outs = ["generated_protocol_C.h"],
+    cmd = "uv run python $(location scripts/generate_protocol.py) $(location interface_C.h) $(location generated_protocol_C.h) --class_name C --template $(location scripts/protocol.j2)",
+    tools = ["scripts/generate_protocol.py"],
+)
+
 cc_test(
     name = "protocol_test",
     size = "small",
@@ -34,10 +42,24 @@ cc_test(
         "generated_protocol_A.h",
         "interface_B.h",
         "generated_protocol_B.h",
+        "interface_C.h",
+        "generated_protocol_C.h",
         "protocol_test.cc",
     ],
     deps = [
         "protocol",
         "@com_google_googletest//:gtest_main",
+    ],
+)
+
+sh_test(
+    name = "concept_errors_test",
+    size = "small",
+    srcs = ["scripts/run_concept_errors_test.sh"],
+    data = [
+        "scripts/test_concept_errors.py",
+        "test_concept_errors.cc",
+        "interface_A.h",
+        "generated_protocol_A.h",
     ],
 )

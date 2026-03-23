@@ -90,12 +90,40 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
         )
         set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h PROPERTIES GENERATED TRUE)
 
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h
+            COMMAND uv run python ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
+                    ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h
+                    --class_name C
+                    --template ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+        )
+        set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h PROPERTIES GENERATED TRUE)
+
+        add_custom_target(generate_protocols
+            DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h
+                    ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h
+                    ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h
+        )
+
         xyz_add_test(
             NAME protocol_test
             LINK_LIBRARIES protocol
-            FILES protocol_test.cc post_instantiation_example.h interface_A.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h interface_B.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h
+            FILES protocol_test.cc post_instantiation_example.h interface_A.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h interface_B.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h interface_C.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h
         )
+        add_dependencies(protocol_test generate_protocols)
         target_include_directories(protocol_test PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+        add_test(
+            NAME concept_errors_test
+            COMMAND uv run python ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_concept_errors.py
+                --compiler ${CMAKE_CXX_COMPILER}
+                --source ${CMAKE_CURRENT_SOURCE_DIR}/test_concept_errors.cc
+                -- -std=c++20 -I${CMAKE_CURRENT_SOURCE_DIR} -I${CMAKE_CURRENT_BINARY_DIR}
+        )
 
         if (ENABLE_CODE_COVERAGE)
             enable_code_coverage()
