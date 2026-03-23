@@ -64,11 +64,38 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
 
         enable_testing()
 
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h
+            COMMAND uv run python ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
+                    ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h
+                    --class_name A
+                    --template ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+        )
+        set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h PROPERTIES GENERATED TRUE)
+
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h
+            COMMAND uv run python ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
+                    ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h
+                    --class_name B
+                    --template ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+        )
+        set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h PROPERTIES GENERATED TRUE)
+
         xyz_add_test(
             NAME protocol_test
             LINK_LIBRARIES protocol
-            FILES protocol_test.cc post_instantiation_example.h
+            FILES protocol_test.cc post_instantiation_example.h interface_A.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h interface_B.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h
         )
+        target_include_directories(protocol_test PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
         if (ENABLE_CODE_COVERAGE)
             enable_code_coverage()

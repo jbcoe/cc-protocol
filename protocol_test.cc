@@ -24,8 +24,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <string_view>
 #include <utility>
+#include <vector>
+#include <string>
 
 #include "post_instantiation_example.h"
+#include "interface_B.h"
+#include "generated_protocol_B.h"
 
 namespace {
 
@@ -42,6 +46,19 @@ class ALike {
   std::string_view name() const { return name_; }
 
   int count() { return x_; }
+};
+
+class BLike {
+  std::vector<int> results_;
+  bool ready_ = false;
+
+ public:
+  void process(const std::string& input) {
+    results_.push_back(input.length());
+    ready_ = true;
+  }
+  std::vector<int> get_results() const { return results_; }
+  bool is_ready() const { return ready_; }
 };
 
 TEST(ProtocolTest, InPlaceCtorNoArgs) {
@@ -82,4 +99,26 @@ TEST(ProtocolTest, MoveCtor) {
   EXPECT_TRUE(
       a.valueless_after_move());  // NOLINT(clang-analyzer-cplusplus.Move)
 }
+
+TEST(ProtocolTest, ProtocolBMemberFunctions) {
+  xyz::protocol_B<> b(std::in_place_type<BLike>);
+  EXPECT_FALSE(b.is_ready());
+  b.process("hello world");
+  EXPECT_TRUE(b.is_ready());
+  auto results = b.get_results();
+  ASSERT_EQ(results.size(), 1);
+  EXPECT_EQ(results[0], 11);
+}
+
+TEST(ProtocolTest, ProtocolBMultipleCalls) {
+  xyz::protocol_B<> b(std::in_place_type<BLike>);
+  b.process("test1");
+  b.process("test2_longer");
+  
+  auto results = b.get_results();
+  ASSERT_EQ(results.size(), 2);
+  EXPECT_EQ(results[0], 5);
+  EXPECT_EQ(results[1], 12);
+}
+
 }  // namespace

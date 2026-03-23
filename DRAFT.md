@@ -72,3 +72,15 @@ Until code injection is standardized, protocol implementation requires external 
 ## Acknowledgements
 
 ## References
+
+[PEP 544] *Protocols: Structural subtyping (static duck typing)*.
+https://peps.python.org/pep-0544/
+
+[P3019] *std::indirect and std::polymorphic*.
+https://isocpp.org/files/papers/P3019R4.html
+
+[P2996] *Reflection for C++26*.
+https://isocpp.org/files/papers/P2996R4.html
+
+[py_cppmodel] *Python wrappers for clang's parsing of C++ to simplify AST analysis*.
+https://github.com/jbcoe/py_cppmodel

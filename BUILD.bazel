@@ -9,11 +9,31 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+genrule(
+    name = "generate_protocol_A",
+    srcs = ["interface_A.h", "scripts/protocol.j2", "scripts/generate_protocol.py"],
+    outs = ["generated_protocol_A.h"],
+    cmd = "uv run python $(location scripts/generate_protocol.py) $(location interface_A.h) $(location generated_protocol_A.h) --class_name A --template $(location scripts/protocol.j2)",
+    tools = ["scripts/generate_protocol.py"],
+)
+
+genrule(
+    name = "generate_protocol_B",
+    srcs = ["interface_B.h", "scripts/protocol.j2", "scripts/generate_protocol.py"],
+    outs = ["generated_protocol_B.h"],
+    cmd = "uv run python $(location scripts/generate_protocol.py) $(location interface_B.h) $(location generated_protocol_B.h) --class_name B --template $(location scripts/protocol.j2)",
+    tools = ["scripts/generate_protocol.py"],
+)
+
 cc_test(
     name = "protocol_test",
     size = "small",
     srcs = [
+        "interface_A.h",
         "post_instantiation_example.h",
+        "generated_protocol_A.h",
+        "interface_B.h",
+        "generated_protocol_B.h",
         "protocol_test.cc",
     ],
     deps = [
