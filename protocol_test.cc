@@ -55,7 +55,11 @@ class ALike {
 
   std::string_view name() const { return name_; }
 
-  int count() { return x_; }
+  int count() {
+    int ret = x_;
+    x_++;
+    return ret;
+  }
 };
 
 class BLike {
@@ -281,4 +285,184 @@ TEST(ProtocolTest,
   EXPECT_EQ(dealloc_counter, 3);
 }
 
+
 }  // namespace
+TEST(ProtocolTest, CopiesAreDistinct) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  auto pp = p;
+  EXPECT_EQ(p.count(), 42);
+  EXPECT_EQ(pp.count(), 42);
+}
+
+TEST(ProtocolTest, CopiesOfDerivedObjectsAreDistinct) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  auto pp = p;
+  pp.count();
+  EXPECT_NE(p.count(), pp.count());
+}
+
+TEST(ProtocolTest, MoveRendersSourceValueless) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  auto pp = std::move(p);
+  EXPECT_TRUE(p.valueless_after_move());
+}
+
+TEST(ProtocolTest, ConstPropagation) {
+  const xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  EXPECT_EQ(p.name(), "ALike");
+}
+
+TEST(ProtocolTest, CopyAssignment) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  xyz::protocol_A<> pp(std::in_place_type<ALike>, 101);
+  p = pp;
+  EXPECT_EQ(p.count(), 101);
+}
+
+TEST(ProtocolTest, CopyAssignmentSelf) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  p = p;
+  EXPECT_FALSE(p.valueless_after_move());
+  EXPECT_EQ(p.count(), 42);
+}
+
+TEST(ProtocolTest, MoveAssignment) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  xyz::protocol_A<> pp(std::in_place_type<ALike>, 101);
+  p = std::move(pp);
+  EXPECT_TRUE(pp.valueless_after_move());
+  EXPECT_EQ(p.count(), 101);
+}
+
+TEST(ProtocolTest, MoveAssignmentSelf) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  p = std::move(p);
+  EXPECT_FALSE(p.valueless_after_move());
+  EXPECT_EQ(p.count(), 42);
+}
+
+TEST(ProtocolTest, NonMemberSwap) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  xyz::protocol_A<> pp(std::in_place_type<ALike>, 101);
+  using std::swap;
+  swap(p, pp);
+  EXPECT_EQ(p.count(), 101);
+  EXPECT_EQ(pp.count(), 42);
+}
+
+TEST(ProtocolTest, MemberSwap) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  xyz::protocol_A<> pp(std::in_place_type<ALike>, 101);
+  p.swap(pp);
+  EXPECT_EQ(p.count(), 101);
+  EXPECT_EQ(pp.count(), 42);
+}
+
+TEST(ProtocolTest, MemberSwapWithSelf) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  p.swap(p);
+  EXPECT_FALSE(p.valueless_after_move());
+  EXPECT_EQ(p.count(), 42);
+}
+
+template <typename T>
+struct POCSTrackingAllocator : xyz::TrackingAllocator<T> {
+  using xyz::TrackingAllocator<T>::TrackingAllocator;
+  using propagate_on_container_swap = std::true_type;
+
+  template <typename Other>
+  struct rebind {
+    using other = POCSTrackingAllocator<Other>;
+  };
+};
+
+TEST(ProtocolTest, NonMemberSwapWhenAllocatorsDontCompareEqual) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol_A<POCSTrackingAllocator<std::byte>> p(
+        std::allocator_arg,
+        POCSTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    xyz::protocol_A<POCSTrackingAllocator<std::byte>> pp(
+        std::allocator_arg,
+        POCSTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 101);
+    using std::swap;
+    swap(p, pp);
+    EXPECT_EQ(p.count(), 101);
+    EXPECT_EQ(pp.count(), 42);
+  }
+}
+
+TEST(ProtocolTest, MemberSwapWhenAllocatorsDontCompareEqual) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol_A<POCSTrackingAllocator<std::byte>> p(
+        std::allocator_arg,
+        POCSTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    xyz::protocol_A<POCSTrackingAllocator<std::byte>> pp(
+        std::allocator_arg,
+        POCSTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 101);
+    p.swap(pp);
+    EXPECT_EQ(p.count(), 101);
+    EXPECT_EQ(pp.count(), 42);
+  }
+}
+
+TEST(ProtocolTest, CopyFromValueless) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  xyz::protocol_A<> pp(std::move(p));
+  xyz::protocol_A<> ppp(p);
+  EXPECT_TRUE(ppp.valueless_after_move());
+}
+
+TEST(ProtocolTest, MoveFromValueless) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  xyz::protocol_A<> pp(std::move(p));
+  xyz::protocol_A<> ppp(std::move(p));
+  EXPECT_TRUE(ppp.valueless_after_move());
+}
+
+TEST(ProtocolTest, AllocatorExtendedCopyFromValueless) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  xyz::protocol_A<> pp(std::move(p));
+  xyz::protocol_A<> ppp(std::allocator_arg, std::allocator<std::byte>(), p);
+  EXPECT_TRUE(ppp.valueless_after_move());
+}
+
+TEST(ProtocolTest, AllocatorExtendedMoveFromValueless) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  xyz::protocol_A<> pp(std::move(p));
+  xyz::protocol_A<> ppp(std::allocator_arg, std::allocator<std::byte>(), std::move(p));
+  EXPECT_TRUE(ppp.valueless_after_move());
+}
+
+TEST(ProtocolTest, AssignFromValueless) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  xyz::protocol_A<> pp(std::move(p));
+  xyz::protocol_A<> ppp(std::in_place_type<ALike>, 101);
+  ppp = p;
+  EXPECT_TRUE(ppp.valueless_after_move());
+}
+
+TEST(ProtocolTest, MoveAssignFromValueless) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  xyz::protocol_A<> pp(std::move(p));
+  xyz::protocol_A<> ppp(std::in_place_type<ALike>, 101);
+  ppp = std::move(p);
+  EXPECT_TRUE(ppp.valueless_after_move());
+}
+
+TEST(ProtocolTest, SwapFromValueless) {
+  xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
+  xyz::protocol_A<> pp(std::move(p));
+  xyz::protocol_A<> ppp(std::in_place_type<ALike>, 101);
+  using std::swap;
+  swap(p, ppp);
+  EXPECT_FALSE(p.valueless_after_move());
+  EXPECT_TRUE(ppp.valueless_after_move());
+}

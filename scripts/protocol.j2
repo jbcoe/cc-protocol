@@ -258,6 +258,19 @@ class protocol_{{ c.name }} {
     return *this;
   }
 
+  void swap(protocol_{{ c.name }}& other) noexcept(
+      allocator_traits::is_always_equal::value) {
+    std::swap(cb_, other.cb_);
+    if constexpr (!allocator_traits::is_always_equal::value) {
+      std::swap(alloc_, other.alloc_);
+    }
+  }
+
+  friend void swap(protocol_{{ c.name }}& lhs, protocol_{{ c.name }}& rhs) noexcept(
+      allocator_traits::is_always_equal::value) {
+    lhs.swap(rhs);
+  }
+
  public:
 {% for m in c.methods %}
   {% set params = [] %}
