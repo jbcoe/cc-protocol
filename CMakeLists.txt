@@ -31,6 +31,7 @@ include(coverage)
 include(xyz_add_library)
 include(xyz_add_test)
 include(xyz_add_object_library)
+include(xyz_generate_protocol)
 
 xyz_add_library(NAME protocol ALIAS xyz_protocol::protocol)
 target_sources(
@@ -64,53 +65,18 @@ if(${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
 
     enable_testing()
 
-    add_custom_command(
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h
-      COMMAND
-        uv run python ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
-        ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
-        ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h --class_name A
-        --template ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2 --compiler
-        ${CMAKE_CXX_COMPILER}
-      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
-              ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
-              ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    set_source_files_properties(
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h PROPERTIES GENERATED
-                                                                    TRUE)
-
-    add_custom_command(
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h
-      COMMAND
-        uv run python ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
-        ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
-        ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h --class_name B
-        --template ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2 --compiler
-        ${CMAKE_CXX_COMPILER}
-      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
-              ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
-              ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    set_source_files_properties(
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h PROPERTIES GENERATED
-                                                                    TRUE)
-
-    add_custom_command(
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h
-      COMMAND
-        uv run python ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
-        ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
-        ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h --class_name C
-        --template ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2 --compiler
-        ${CMAKE_CXX_COMPILER}
-      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
-              ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
-              ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    set_source_files_properties(
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h PROPERTIES GENERATED
-                                                                    TRUE)
+    xyz_generate_protocol(
+      CLASS_NAME A
+      INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h)
+    xyz_generate_protocol(
+      CLASS_NAME B
+      INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h)
+    xyz_generate_protocol(
+      CLASS_NAME C
+      INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h)
 
     add_custom_target(
       generate_protocols
