@@ -1,4 +1,4 @@
-# `protocol`: Structural Subtyping for C++ with Reflection
+# `protocol`: Structural Subtyping for C++
 
 ISO/IEC JTC1 SC22 WG21 Programming Language C++
 
