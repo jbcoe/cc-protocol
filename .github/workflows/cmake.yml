@@ -11,7 +11,7 @@ on:
       - "**/*.h"
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
-      - "cmake/**"
+      - "**/*.cmake"
   pull_request:
     branches: [main]
     paths:
@@ -20,7 +20,7 @@ on:
       - "**/*.h"
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
-      - "cmake/**"
+      - "**/*.cmake"
 
 jobs:
   build:
