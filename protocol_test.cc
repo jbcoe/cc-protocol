@@ -49,9 +49,9 @@ class ALike {
 
  public:
   ALike() = default;
-  ALike(int x) : x_(x){};
-  ALike(std::string_view name) : name_(name){};
-  ALike(int x, std::string_view name) : x_(x), name_(name){};
+  ALike(int x) : x_(x) {};
+  ALike(std::string_view name) : name_(name) {};
+  ALike(int x, std::string_view name) : x_(x), name_(name) {};
 
   std::string_view name() const { return name_; }
 
@@ -285,8 +285,8 @@ TEST(ProtocolTest,
   EXPECT_EQ(dealloc_counter, 3);
 }
 
-
 }  // namespace
+
 TEST(ProtocolTest, CopiesAreDistinct) {
   xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
   auto pp = p;
@@ -437,7 +437,8 @@ TEST(ProtocolTest, AllocatorExtendedCopyFromValueless) {
 TEST(ProtocolTest, AllocatorExtendedMoveFromValueless) {
   xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
   xyz::protocol_A<> pp(std::move(p));
-  xyz::protocol_A<> ppp(std::allocator_arg, std::allocator<std::byte>(), std::move(p));
+  xyz::protocol_A<> ppp(std::allocator_arg, std::allocator<std::byte>(),
+                        std::move(p));
   EXPECT_TRUE(ppp.valueless_after_move());
 }
 

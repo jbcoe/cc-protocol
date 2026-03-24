@@ -266,6 +266,7 @@ dependencies = [
     { name = "cmake-format" },
     { name = "jinja2" },
     { name = "pre-commit" },
+    { name = "pyyaml" },
     { name = "ruff" },
     { name = "xyz-cppmodel" },
 ]
@@ -276,6 +277,7 @@ requires-dist = [
     { name = "cmake-format", specifier = ">=0.6.13" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "pre-commit", specifier = ">=4.2.0" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "ruff", specifier = ">=0.15.7" },
     { name = "xyz-cppmodel", git = "https://github.com/jbcoe/py_cppmodel.git" },
 ]

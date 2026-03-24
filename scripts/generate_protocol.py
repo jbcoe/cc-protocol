@@ -1,8 +1,8 @@
 import argparse
+import hashlib
 import os
 import subprocess
 import sys
-import hashlib
 
 import clang.cindex
 from jinja2 import Environment
@@ -17,6 +17,7 @@ try:
     clang.cindex.Config.set_library_path(os.path.dirname(clang.native.__file__))
 except Exception:
     pass
+
 
 def get_method_signature(m):
     args = ",".join(a.type.name for a in m.arguments)
@@ -103,7 +104,10 @@ def main():
     )
     template = env.get_template(template_name)
 
-    method_guids = [hashlib.md5(get_method_signature(m).encode()).hexdigest()[:8] for m in target_class.methods]
+    method_guids = [
+        hashlib.md5(get_method_signature(m).encode()).hexdigest()[:8]
+        for m in target_class.methods
+    ]
 
     # Render
     result = template.render(c=target_class, method_guids=method_guids)
