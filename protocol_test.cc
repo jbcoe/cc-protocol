@@ -27,6 +27,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <utility>
 #include <vector>
 
+#include "tracking_allocator.h"
+
 // The order of these includes is (currently) important to ensure the generated
 // headers are included after the interfaces.
 // clang-format off
@@ -148,6 +150,135 @@ TEST(ProtocolTest, ProtocolCOverloads) {
 
   const auto& const_c = c;
   EXPECT_EQ(const_c.compute(std::string("A")), "AA");
+}
+
+TEST(ProtocolTest, CountAllocationsForInPlaceConstruction) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol_A<xyz::TrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    EXPECT_EQ(alloc_counter, 1);
+    EXPECT_EQ(dealloc_counter, 0);
+  }
+  EXPECT_EQ(alloc_counter, 1);
+  EXPECT_EQ(dealloc_counter, 1);
+}
+
+TEST(ProtocolTest, CountAllocationsForCopyConstruction) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol_A<xyz::TrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    EXPECT_EQ(alloc_counter, 1);
+    EXPECT_EQ(dealloc_counter, 0);
+    xyz::protocol_A<xyz::TrackingAllocator<std::byte>> aa(a);
+  }
+  EXPECT_EQ(alloc_counter, 2);
+  EXPECT_EQ(dealloc_counter, 2);
+}
+
+TEST(ProtocolTest, CountAllocationsForCopyAssignment) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol_A<xyz::TrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    xyz::protocol_A<xyz::TrackingAllocator<std::byte>> aa(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 101);
+    EXPECT_EQ(alloc_counter, 2);
+    EXPECT_EQ(dealloc_counter, 0);
+    aa = a;
+  }
+  EXPECT_EQ(alloc_counter, 3);
+  EXPECT_EQ(dealloc_counter, 3);
+}
+
+TEST(ProtocolTest, CountAllocationsForMoveConstruction) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol_A<xyz::TrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    EXPECT_EQ(alloc_counter, 1);
+    EXPECT_EQ(dealloc_counter, 0);
+    xyz::protocol_A<xyz::TrackingAllocator<std::byte>> aa(std::move(a));
+  }
+  EXPECT_EQ(alloc_counter, 1);
+  EXPECT_EQ(dealloc_counter, 1);
+}
+
+TEST(ProtocolTest, CountAllocationsForMoveAssignment) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol_A<xyz::TrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    xyz::protocol_A<xyz::TrackingAllocator<std::byte>> aa(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 101);
+    EXPECT_EQ(alloc_counter, 2);
+    EXPECT_EQ(dealloc_counter, 0);
+    aa = std::move(a);
+  }
+  EXPECT_EQ(alloc_counter, 2);
+  EXPECT_EQ(dealloc_counter, 2);
+}
+
+template <typename T>
+struct NonEqualTrackingAllocator : xyz::TrackingAllocator<T> {
+  using xyz::TrackingAllocator<T>::TrackingAllocator;
+  using propagate_on_container_move_assignment = std::true_type;
+
+  template <typename Other>
+  struct rebind {
+    using other = NonEqualTrackingAllocator<Other>;
+  };
+
+  friend bool operator==(const NonEqualTrackingAllocator&,
+                         const NonEqualTrackingAllocator&) noexcept {
+    return false;
+  }
+
+  friend bool operator!=(const NonEqualTrackingAllocator&,
+                         const NonEqualTrackingAllocator&) noexcept {
+    return true;
+  }
+};
+
+TEST(ProtocolTest,
+     CountAllocationsForMoveAssignmentWhenAllocatorsDontCompareEqual) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol_A<NonEqualTrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        NonEqualTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    xyz::protocol_A<NonEqualTrackingAllocator<std::byte>> aa(
+        std::allocator_arg,
+        NonEqualTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 101);
+    EXPECT_EQ(alloc_counter, 2);
+    EXPECT_EQ(dealloc_counter, 0);
+    aa = std::move(a);  // This will copy as allocators don't compare equal.
+  }
+  EXPECT_EQ(alloc_counter, 3);
+  EXPECT_EQ(dealloc_counter, 3);
 }
 
 }  // namespace
