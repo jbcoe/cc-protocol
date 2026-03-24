@@ -1,21 +1,27 @@
 macro(xyz_generate_protocol)
-  set(options "")
+  set(options MANUAL_VTABLE)
   set(oneValueArgs CLASS_NAME INTERFACE OUTPUT)
   set(multiValueArgs "")
-  cmake_parse_arguments(XYZ_GEN "${options}" "${oneValueArgs}"
+  cmake_parse_arguments(XYZ_GENERATE "${options}" "${oneValueArgs}"
                         "${multiValueArgs}" ${ARGN})
 
+  if(XYZ_GENERATE_MANUAL_VTABLE)
+    set(TEMPLATE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol_manual_vtable.j2)
+  else()
+    set(TEMPLATE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2)
+  endif()
+
   add_custom_command(
-    OUTPUT ${XYZ_GEN_OUTPUT}
+    OUTPUT ${XYZ_GENERATE_OUTPUT}
     COMMAND
       ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
-      ${XYZ_GEN_INTERFACE} ${XYZ_GEN_OUTPUT} --class_name ${XYZ_GEN_CLASS_NAME}
-      --template ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2 --compiler
+      ${XYZ_GENERATE_INTERFACE} ${XYZ_GENERATE_OUTPUT} --class_name ${XYZ_GENERATE_CLASS_NAME}
+      --template ${TEMPLATE_FILE} --compiler
       ${CMAKE_CXX_COMPILER}
-    DEPENDS ${XYZ_GEN_INTERFACE}
+    DEPENDS ${XYZ_GENERATE_INTERFACE}
             ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
-            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+            ${TEMPLATE_FILE}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  set_source_files_properties(${XYZ_GEN_OUTPUT} PROPERTIES GENERATED TRUE)
+  set_source_files_properties(${XYZ_GENERATE_OUTPUT} PROPERTIES GENERATED TRUE)
 endmacro()

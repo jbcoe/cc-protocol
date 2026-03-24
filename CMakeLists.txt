@@ -90,15 +90,22 @@ if(${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
 
     enable_testing()
 
+    option(XYZ_PROTOCOL_GENERATE_MANUAL_VTABLE "Generate manual vtable template" OFF)
+
+    set(OPT_MANUAL_VTABLE "")
+    if(XYZ_PROTOCOL_GENERATE_MANUAL_VTABLE)
+      set(OPT_MANUAL_VTABLE MANUAL_VTABLE)
+    endif()
+
     xyz_generate_protocol(
       CLASS_NAME A INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h OUTPUT
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h)
+      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h ${OPT_MANUAL_VTABLE})
     xyz_generate_protocol(
       CLASS_NAME B INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h OUTPUT
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h)
+      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h ${OPT_MANUAL_VTABLE})
     xyz_generate_protocol(
       CLASS_NAME C INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h OUTPUT
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h)
+      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h ${OPT_MANUAL_VTABLE})
 
     add_custom_target(
       generate_protocols
