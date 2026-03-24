@@ -7,7 +7,7 @@ macro(xyz_generate_protocol)
   add_custom_command(
     OUTPUT ${XYZ_GEN_OUTPUT}
     COMMAND
-      uv run python ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
+      ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
       ${XYZ_GEN_INTERFACE}
       ${XYZ_GEN_OUTPUT} --class_name ${XYZ_GEN_CLASS_NAME}
       --template ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2 --compiler

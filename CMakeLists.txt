@@ -23,6 +23,29 @@ option(ENABLE_SANITIZERS
        "Enable Address Sanitizer and Undefined Behaviour Sanitizer if available"
        OFF)
 
+# Set up Python discovery
+set(Python3_FIND_VIRTUALENV FIRST)
+if(DEFINED ENV{UV_PROJECT_ENVIRONMENT})
+  set(Python3_ROOT_DIR "$ENV{UV_PROJECT_ENVIRONMENT}")
+elseif(DEFINED ENV{VIRTUAL_ENV})
+  set(Python3_ROOT_DIR "$ENV{VIRTUAL_ENV}")
+elseif(EXISTS "${PROJECT_SOURCE_DIR}/.venv")
+  set(Python3_ROOT_DIR "${PROJECT_SOURCE_DIR}/.venv")
+endif()
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+# Verify required modules
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} -c "import jinja2; import clang; import xyz.cppmodel"
+  RESULT_VARIABLE PYTHON_MODULES_FOUND
+  ERROR_QUIET
+)
+if(NOT PYTHON_MODULES_FOUND EQUAL 0)
+  message(FATAL_ERROR "Python interpreter missing required modules (jinja2, clang, xyz.cppmodel). "
+                      "Please run 'uv sync' or install them manually.")
+endif()
+
 # Include necessary submodules
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
@@ -104,7 +127,7 @@ if(${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
     add_test(
       NAME concept_errors_test
       COMMAND
-        uv run python ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_concept_errors.py
+        ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_concept_errors.py
         --compiler ${CMAKE_CXX_COMPILER} --source
         ${CMAKE_CURRENT_SOURCE_DIR}/test_concept_errors.cc -- -std=c++20
         -I${CMAKE_CURRENT_BINARY_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}
