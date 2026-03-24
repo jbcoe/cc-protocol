@@ -79,15 +79,6 @@ if(${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
         CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
 
-    FetchContent_Declare(
-      benchmark
-      GIT_REPOSITORY https://github.com/google/benchmark.git
-      GIT_TAG v1.9.4)
-    set(BENCHMARK_ENABLE_TESTING
-        OFF
-        CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(benchmark)
-
     enable_testing()
 
     option(XYZ_PROTOCOL_GENERATE_MANUAL_VTABLE "Generate manual vtable template" OFF)
@@ -129,11 +120,6 @@ if(${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
     add_dependencies(protocol_test generate_protocols)
     target_include_directories(protocol_test
                                PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-
-    add_executable(protocol_benchmark protocol_benchmark.cc)
-    add_dependencies(protocol_benchmark generate_protocols)
-    target_include_directories(protocol_benchmark PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(protocol_benchmark PRIVATE protocol benchmark::benchmark)
 
     add_test(
       NAME concept_errors_test
