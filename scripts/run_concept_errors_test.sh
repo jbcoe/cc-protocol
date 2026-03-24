@@ -1,5 +1,12 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+
 # Find the directory containing the generated header
-GEN_DIR=$(dirname $(find . -name generated_protocol_A.h | head -n 1))
-python3 scripts/test_concept_errors.py --compiler c++ --source test_concept_errors.cc -- -std=c++20 -I. -I"$GEN_DIR"
+HEADER_FILE=$(find . -name "generated_protocol_A.h" | head -n 1)
+if [ -z "$HEADER_FILE" ]; then
+    echo "Error: generated_protocol_A.h not found" >&2
+    exit 1
+fi
+GEN_DIR=$(dirname "$HEADER_FILE")
+
+python3 scripts/test_concept_errors.py --compiler c++ --source test_concept_errors.cc -- -std=c++20 -I"$GEN_DIR" -I.

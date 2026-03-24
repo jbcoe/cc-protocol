@@ -71,6 +71,7 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
                     ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h
                     --class_name A
                     --template ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+                    --compiler ${CMAKE_CXX_COMPILER}
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
@@ -84,6 +85,7 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
                     ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h
                     --class_name B
                     --template ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+                    --compiler ${CMAKE_CXX_COMPILER}
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
@@ -97,6 +99,7 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
                     ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h
                     --class_name C
                     --template ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+                    --compiler ${CMAKE_CXX_COMPILER}
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
@@ -122,7 +125,7 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
             COMMAND uv run python ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_concept_errors.py
                 --compiler ${CMAKE_CXX_COMPILER}
                 --source ${CMAKE_CURRENT_SOURCE_DIR}/test_concept_errors.cc
-                -- -std=c++20 -I${CMAKE_CURRENT_SOURCE_DIR} -I${CMAKE_CURRENT_BINARY_DIR}
+                -- -std=c++20 -I${CMAKE_CURRENT_BINARY_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}
         )
 
         if (ENABLE_CODE_COVERAGE)

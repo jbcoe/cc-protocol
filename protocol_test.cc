@@ -56,7 +56,7 @@ class BLike {
 
  public:
   void process(const std::string& input) {
-    results_.push_back(input.length());
+    results_.push_back(static_cast<int>(input.length()));
     ready_ = true;
   }
   std::vector<int> get_results() const { return results_; }

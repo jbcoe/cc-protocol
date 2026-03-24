@@ -61,6 +61,7 @@ class MyImplementation {
 We can now use `xyz::protocol_B`, an automatically generated type-erased wrapper. It copies deeply, propagates `const` correctly, and is fully allocator-aware.
 
 ```cpp
+#include "interface_B.h"
 #include "generated_protocol_B.h"
 
 void run_pipeline(xyz::protocol_B<> worker) {
@@ -86,10 +87,10 @@ Because the generated wrapper relies heavily on C++20 `requires` clauses, any st
 
 ## Dependencies
 
-The code generation script requires Python 3.10+ and `uv`.
+The code generation script requires Python 3.12+ and `uv`.
 
 ```bash
-uv add clang jinja2 git+https://github.com/jbcoe/py_cppmodel.git
+uv sync
 ```
 
 ## References

@@ -5,4 +5,4 @@
 #include <memory>
 #include <utility>
 
-#include "generated_protocol_A.h"
+#include <generated_protocol_A.h>

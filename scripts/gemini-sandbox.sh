@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # Check if GEMINI_API_KEY is set
-if [ -z "$GEMINI_API_KEY" ]; then
+if [ -z "${GEMINI_API_KEY:-}" ]; then
     echo "Error: GEMINI_API_KEY environment variable is not set."
     echo "Please set it before running this script:"
     echo "  export GEMINI_API_KEY='your_api_key_here'"

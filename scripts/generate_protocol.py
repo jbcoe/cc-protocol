@@ -13,11 +13,11 @@ try:
 except Exception:
     pass
 
-def get_compiler_args():
+def get_compiler_args(compiler='c++'):
     args = ['-x', 'c++', '-std=c++20']
     try:
         # Ask the system compiler for its standard include paths
-        result = subprocess.run(['c++', '-E', '-x', 'c++', '-', '-v'], 
+        result = subprocess.run([compiler, '-E', '-x', 'c++', '-', '-v'], 
                                 input='', capture_output=True, text=True)
         
         in_include_section = False
@@ -43,9 +43,10 @@ def main():
     parser.add_argument('output', help='Output header file')
     parser.add_argument('--template', help='Jinja template file', default='protocol.j2')
     parser.add_argument('--class_name', help='Class name to generate protocol for')
+    parser.add_argument('--compiler', help='Compiler to use for system include discovery', default='c++')
     args = parser.parse_args()
 
-    compiler_args = get_compiler_args()
+    compiler_args = get_compiler_args(compiler=args.compiler)
 
     index = clang.cindex.Index.create()
     tu = index.parse(args.input, args=compiler_args)
