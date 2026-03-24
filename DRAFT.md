@@ -69,13 +69,13 @@ A reference implementation using an AST-based Python code generator (`py_cppmode
 ## References
 
 [PEP 544] _Protocols: Structural subtyping (static duck typing)_.
-https://peps.python.org/pep-0544/
+<https://peps.python.org/pep-0544/>
 
 [P3019] _std::indirect and std::polymorphic_.
-https://isocpp.org/files/papers/P3019R14.html
+<https://isocpp.org/files/papers/P3019R14.html>
 
 [P2996] _Reflection for C++26_.
-https://isocpp.org/files/papers/P2996R4.html
+<https://isocpp.org/files/papers/P2996R13.html>
 
 [py_cppmodel] _Python wrappers for clang's parsing of C++ to simplify AST analysis_.
-https://github.com/jbcoe/py_cppmodel
+<https://github.com/jbcoe/py_cppmodel>
