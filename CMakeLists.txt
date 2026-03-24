@@ -37,13 +37,15 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # Verify required modules
 execute_process(
-  COMMAND ${Python3_EXECUTABLE} -c "import jinja2; import clang; import xyz.cppmodel"
+  COMMAND ${Python3_EXECUTABLE} -c
+          "import jinja2; import clang; import xyz.cppmodel"
   RESULT_VARIABLE PYTHON_MODULES_FOUND
-  ERROR_QUIET
-)
+  ERROR_QUIET)
 if(NOT PYTHON_MODULES_FOUND EQUAL 0)
-  message(FATAL_ERROR "Python interpreter missing required modules (jinja2, clang, xyz.cppmodel). "
-                      "Please run 'uv sync' or install them manually.")
+  message(
+    FATAL_ERROR
+      "Python interpreter missing required modules (jinja2, clang, xyz.cppmodel). "
+      "Please run 'uv sync' or install them manually.")
 endif()
 
 # Include necessary submodules
@@ -89,17 +91,14 @@ if(${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
     enable_testing()
 
     xyz_generate_protocol(
-      CLASS_NAME A
-      INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h)
+      CLASS_NAME A INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h OUTPUT
+      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h)
     xyz_generate_protocol(
-      CLASS_NAME B
-      INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h)
+      CLASS_NAME B INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h OUTPUT
+      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h)
     xyz_generate_protocol(
-      CLASS_NAME C
-      INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h)
+      CLASS_NAME C INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h OUTPUT
+      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h)
 
     add_custom_target(
       generate_protocols
@@ -127,8 +126,9 @@ if(${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
     add_test(
       NAME concept_errors_test
       COMMAND
-        ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_concept_errors.py
-        --compiler ${CMAKE_CXX_COMPILER} --source
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_concept_errors.py --compiler
+        ${CMAKE_CXX_COMPILER} --source
         ${CMAKE_CURRENT_SOURCE_DIR}/test_concept_errors.cc -- -std=c++20
         -I${CMAKE_CURRENT_BINARY_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
