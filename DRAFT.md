@@ -24,7 +24,7 @@ This paper proposes a standard library facility for structural subtyping in C++ 
 
 Traditional polymorphic interfaces in C++ require inheritance from a common base class. This tightly couples components, prevents the retroactive application of interfaces to existing types, and inherently demands reference semantics, which complicates memory management and reasoning about program state.
 
-While `std::function` provides a mechanism for structural subtyping of single invokable objects, no standardized equivalent currently exists for interfaces comprising multiple member functions. Consequently, developers frequently resort to writing bespoke type-erased wrappers to achieve polymorphism without inheritance. This practice demands substantial boilerplate for dispatch mechanisms and storage management.
+While `std::function` provides a mechanism for structural subtyping of single invokable objects, no standardized equivalent currently exists for interfaces comprising multiple member functions. Developers must resort to writing bespoke type-erased wrappers to achieve open-set polymorphism without inheritance. This practice demands substantial boilerplate for dispatch mechanisms and storage management.
 
 The concept of structural subtyping is well-established in other languages; for instance, PEP 544 introduced Protocols in Python. Under this model, a class that structurally implements the methods of a Protocol is considered a subtype without requiring explicit inheritance.
 
