@@ -1,49 +1,69 @@
-import sys
 import argparse
+import os
 import subprocess
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+import sys
+
 import clang.cindex
+from jinja2 import Environment
+from jinja2 import FileSystemLoader
+from jinja2 import select_autoescape
 from xyz.cppmodel import Model
 
 # Try to set the library path explicitly for environments like Bazel where LD_LIBRARY_PATH isn't carried over
 try:
     import clang.native
-    import os
+
     clang.cindex.Config.set_library_path(os.path.dirname(clang.native.__file__))
 except Exception:
     pass
 
-def get_compiler_args(compiler='c++'):
-    args = ['-x', 'c++', '-std=c++20']
+
+def get_compiler_args(compiler="c++"):
+    args = ["-x", "c++", "-std=c++20"]
     try:
         # Ask the system compiler for its standard include paths
-        result = subprocess.run([compiler, '-E', '-x', 'c++', '-', '-v'],
-                                input='', capture_output=True, text=True)
+        result = subprocess.run(
+            [compiler, "-E", "-x", "c++", "-", "-v"],
+            input="",
+            capture_output=True,
+            text=True,
+        )
 
         in_include_section = False
         for line in result.stderr.splitlines():
-            if line.startswith('#include <...> search starts here:'):
+            # On macOS, the compiler will also list framework directories.
+            # We want to ignore those since they won't be relevant for our parsing and could cause issues if we try to include them.
+            if "(framework directory)" in line:
+                continue
+            if line.startswith("#include <...> search starts here:"):
                 in_include_section = True
                 continue
-            elif line.startswith('End of search list.'):
+            if line.startswith("End of search list."):
                 break
 
             if in_include_section:
                 path = line.strip()
-                args.append(f'-I{path}')
+                args.append(f"-I{path}")
 
     except Exception as e:
-        print(f"Warning: Could not determine system include paths: {e}", file=sys.stderr)
+        print(
+            f"Warning: Could not determine system include paths: {e}", file=sys.stderr
+        )
 
     return args
 
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('input', help='Input header file')
-    parser.add_argument('output', help='Output header file')
-    parser.add_argument('--template', help='Jinja template file', default='protocol.j2')
-    parser.add_argument('--class_name', help='Class name to generate protocol for')
-    parser.add_argument('--compiler', help='Compiler to use for system include discovery', default='c++')
+    parser.add_argument("input", help="Input header file")
+    parser.add_argument("output", help="Output header file")
+    parser.add_argument("--template", help="Jinja template file", default="protocol.j2")
+    parser.add_argument(
+        "--class_name", help="Class name to generate protocol for", required=True
+    )
+    parser.add_argument(
+        "--compiler", help="Compiler to use for system include discovery", default="c++"
+    )
     args = parser.parse_args()
 
     compiler_args = get_compiler_args(compiler=args.compiler)
@@ -68,19 +88,21 @@ def main():
         print(f"Class {args.class_name} not found in {args.input}", file=sys.stderr)
         sys.exit(1)
 
-    import os
     template_dir = os.path.dirname(os.path.abspath(args.template))
     template_name = os.path.basename(args.template)
 
     # Setup Jinja2
-    env = Environment(loader=FileSystemLoader(template_dir), autoescape=select_autoescape())
+    env = Environment(
+        loader=FileSystemLoader(template_dir), autoescape=select_autoescape()
+    )
     template = env.get_template(template_name)
 
     # Render
     result = template.render(c=target_class)
 
-    with open(args.output, 'w') as f:
+    with open(args.output, "w") as f:
         f.write(result)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

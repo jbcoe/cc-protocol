@@ -2,6 +2,7 @@ import argparse
 import subprocess
 import sys
 
+
 def check_compile_error(compiler, flags, source, define, expected_terms):
     cmd = [compiler] + flags + [f"-D{define}", "-c", source]
     res = subprocess.run(cmd, capture_output=True, text=True)
@@ -18,18 +19,21 @@ def check_compile_error(compiler, flags, source, define, expected_terms):
             print("-----------------------")
             return False
 
-    print(f"PASS: {define} correctly emitted concept errors containing {expected_terms}")
+    print(
+        f"PASS: {define} correctly emitted concept errors containing {expected_terms}"
+    )
     return True
+
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--compiler', required=True)
-    parser.add_argument('--source', required=True)
-    parser.add_argument('flags', nargs=argparse.REMAINDER)
+    parser.add_argument("--compiler", required=True)
+    parser.add_argument("--source", required=True)
+    parser.add_argument("flags", nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
     # We want to remove the '--' if it's there
-    flags = [f for f in args.flags if f != '--']
+    flags = [f for f in args.flags if f != "--"]
 
     tests = [
         ("TEST_MISSING_METHOD", ["xyz_protocol_concept_A", "name()"]),
@@ -45,5 +49,6 @@ def main():
     if not success:
         sys.exit(1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

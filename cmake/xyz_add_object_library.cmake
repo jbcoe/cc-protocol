@@ -37,55 +37,44 @@ and allows configuration for common optional settings.
 
 #]=======================================================================]
 function(xyz_add_object_library)
-    set(options)
-    set(oneValueArgs NAME VERSION)
-    set(multiValueArgs FILES LINK_LIBRARIES DEFINITIONS)
+  set(options)
+  set(oneValueArgs NAME VERSION)
+  set(multiValueArgs FILES LINK_LIBRARIES DEFINITIONS)
 
-    cmake_parse_arguments(XYZ "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(XYZ "${options}" "${oneValueArgs}" "${multiValueArgs}"
+                        ${ARGN})
 
-    if(NOT XYZ_NAME)
-        message(FATAL_ERROR "NAME parameter must be supplied")
+  if(NOT XYZ_NAME)
+    message(FATAL_ERROR "NAME parameter must be supplied")
+  endif()
+
+  if(NOT XYZ_FILES)
+    message(FATAL_ERROR "FILES parameter must be supplied")
+  endif()
+
+  if(NOT XYZ_VERSION)
+    set(XYZ_CXX_STANDARD cxx_std_20)
+  else()
+    set(VALID_TARGET_VERSIONS 11 14 17 20 23)
+    list(FIND VALID_TARGET_VERSIONS ${XYZ_VERSION} index)
+    if(index EQUAL -1)
+      message(FATAL_ERROR "TYPE must be one of <${VALID_TARGET_VERSIONS}>")
     endif()
+    set(XYZ_CXX_STANDARD cxx_std_${XYZ_VERSION})
+  endif()
 
-    if(NOT XYZ_FILES)
-        message(FATAL_ERROR "FILES parameter must be supplied")
-    endif()
+  add_library(${XYZ_NAME} OBJECT)
 
-    if (NOT XYZ_VERSION)
-        set(XYZ_CXX_STANDARD cxx_std_20)
-    else()
-        set(VALID_TARGET_VERSIONS 11 14 17 20 23)
-        list(FIND VALID_TARGET_VERSIONS ${XYZ_VERSION} index)
-        if(index EQUAL -1)
-            message(FATAL_ERROR "TYPE must be one of <${VALID_TARGET_VERSIONS}>")
-        endif()
-        set(XYZ_CXX_STANDARD cxx_std_${XYZ_VERSION})
-    endif()
+  target_sources(${XYZ_NAME} PRIVATE ${XYZ_FILES})
 
-    add_library(${XYZ_NAME} OBJECT)
+  target_compile_features(${XYZ_NAME} PRIVATE ${XYZ_CXX_STANDARD})
 
-    target_sources(${XYZ_NAME}
-        PRIVATE
-            ${XYZ_FILES}
-    )
+  if(XYZ_LINK_LIBRARIES)
+    target_link_libraries(${XYZ_NAME} PRIVATE ${XYZ_LINK_LIBRARIES})
+  endif()
 
-    target_compile_features(${XYZ_NAME}
-        PRIVATE
-            ${XYZ_CXX_STANDARD}
-    )
-
-    if(XYZ_LINK_LIBRARIES)
-        target_link_libraries(${XYZ_NAME}
-            PRIVATE
-                ${XYZ_LINK_LIBRARIES}
-        )
-    endif()
-
-    if (XYZ_DEFINITIONS)
-        target_compile_definitions(${XYZ_NAME}
-            PRIVATE
-                ${XYZ_DEFINITIONS}
-        )
-    endif (XYZ_DEFINITIONS)
+  if(XYZ_DEFINITIONS)
+    target_compile_definitions(${XYZ_NAME} PRIVATE ${XYZ_DEFINITIONS})
+  endif(XYZ_DEFINITIONS)
 
 endfunction()

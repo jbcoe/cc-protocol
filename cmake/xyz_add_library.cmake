@@ -33,47 +33,40 @@ and allows configuration for common optional settings
 
 #]=======================================================================]
 function(xyz_add_library)
-    set(options)
-    set(oneValueArgs NAME ALIAS VERSION)
-    set(multiValueArgs DEFINITIONS)
-    cmake_parse_arguments(XYZ "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  set(options)
+  set(oneValueArgs NAME ALIAS VERSION)
+  set(multiValueArgs DEFINITIONS)
+  cmake_parse_arguments(XYZ "${options}" "${oneValueArgs}" "${multiValueArgs}"
+                        ${ARGN})
 
-    if (NOT XYZ_NAME)
-        message(FATAL_ERROR "NAME parameter must be supplied")
+  if(NOT XYZ_NAME)
+    message(FATAL_ERROR "NAME parameter must be supplied")
+  endif()
+
+  if(NOT XYZ_ALIAS)
+    message(FATAL_ERROR "ALIAS parameter must be supplied")
+  endif()
+
+  if(NOT XYZ_VERSION)
+    set(XYZ_CXX_STANDARD cxx_std_20)
+  else()
+    set(VALID_TARGET_VERSIONS 11 14 17 20 23)
+    list(FIND VALID_TARGET_VERSIONS ${XYZ_VERSION} index)
+    if(index EQUAL -1)
+      message(FATAL_ERROR "TYPE must be one of <${VALID_TARGET_VERSIONS}>")
     endif()
+    set(XYZ_CXX_STANDARD cxx_std_${XYZ_VERSION})
+  endif()
 
-    if (NOT XYZ_ALIAS)
-        message(FATAL_ERROR "ALIAS parameter must be supplied")
-    endif()
+  add_library(${XYZ_NAME} INTERFACE)
+  add_library(${XYZ_ALIAS} ALIAS ${XYZ_NAME})
+  target_include_directories(
+    ${XYZ_NAME} INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+                          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+  target_compile_features(${XYZ_NAME} INTERFACE ${XYZ_CXX_STANDARD})
 
-    if (NOT XYZ_VERSION)
-        set(XYZ_CXX_STANDARD cxx_std_20)
-    else()
-        set(VALID_TARGET_VERSIONS 11 14 17 20 23)
-        list(FIND VALID_TARGET_VERSIONS ${XYZ_VERSION} index)
-        if(index EQUAL -1)
-            message(FATAL_ERROR "TYPE must be one of <${VALID_TARGET_VERSIONS}>")
-        endif()
-        set(XYZ_CXX_STANDARD cxx_std_${XYZ_VERSION})
-    endif()
-
-    add_library(${XYZ_NAME} INTERFACE)
-    add_library(${XYZ_ALIAS} ALIAS ${XYZ_NAME})
-    target_include_directories(${XYZ_NAME}
-        INTERFACE
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    )
-    target_compile_features(${XYZ_NAME}
-        INTERFACE
-            ${XYZ_CXX_STANDARD}
-    )
-
-    if (XYZ_DEFINITIONS)
-        target_compile_definitions(${XYZ_NAME}
-            INTERFACE
-                ${XYZ_DEFINITIONS}
-        )
-    endif (XYZ_DEFINITIONS)
+  if(XYZ_DEFINITIONS)
+    target_compile_definitions(${XYZ_NAME} INTERFACE ${XYZ_DEFINITIONS})
+  endif(XYZ_DEFINITIONS)
 
 endfunction()

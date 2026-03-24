@@ -42,3 +42,13 @@ repos:
   hooks:
   - id: buildifier
   - id: buildifier-lint
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.11.2
+  hooks:
+    - id: ruff
+      args: [--fix]
+    - id: ruff-format
+- repo: https://github.com/cheshirekow/cmake-format-precommit
+  rev: v0.6.13
+  hooks:
+    - id: cmake-format
