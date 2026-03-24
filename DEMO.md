@@ -54,7 +54,7 @@ class MyImplementation {
 
 ## 3. Erase the Type with Value Semantics
 
-We can now use `xyz::protocol_B`, an automatically generated type-erased wrapper. 
+We can now use `xyz::protocol_B`, an automatically generated type-erased wrapper.
 
 Unlike `std::function` (which only wraps a single callable) or `std::unique_ptr` (which requires dynamic allocation and pointer semantics), `protocol_B` acts like a regular value. It copies deeply, propagates `const` correctly, and supports custom allocators.
 
@@ -65,7 +65,7 @@ void run_pipeline(xyz::protocol_B<> worker) {
   if (!worker.is_ready()) {
     worker.process("hello protocols");
   }
-  
+
   for (int result : worker.get_results()) {
     // ...
   }
@@ -74,7 +74,7 @@ void run_pipeline(xyz::protocol_B<> worker) {
 int main() {
   // Construct the protocol in-place with our implementation
   xyz::protocol_B<> p(std::in_place_type<MyImplementation>);
-  
+
   run_pipeline(p); // Pass by value!
   return 0;
 }
@@ -90,7 +90,7 @@ class BadImplementation {
   void process(const std::string& input);
   // ERROR: Missing get_results()
   // ERROR: is_ready() is missing 'const'
-  bool is_ready(); 
+  bool is_ready();
 };
 
 // COMPILER ERROR:
@@ -100,6 +100,6 @@ class BadImplementation {
 
 ## How It Works Under the Hood
 
-To synthesize the type-erased wrapper and virtual dispatch boilerplate automatically, this project relies on AST parsing (via Clang and `py_cppmodel`). 
+To synthesize the type-erased wrapper and virtual dispatch boilerplate automatically, this project relies on AST parsing (via Clang and `py_cppmodel`).
 
 As C++ reflection (P2996) matures and code injection capabilities are added in future standards (C++29+), this entire generation process will move directly into the compiler, making `xyz::protocol<B>` natively achievable in standard C++.

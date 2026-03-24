@@ -22,16 +22,22 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <gtest/gtest.h>
 
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <string>
 
-#include "post_instantiation_example.h"
+// The order of these includes is (currently) important to ensure the generated
+// headers are included after the interfaces.
+// clang-format off
+#include "interface_A.h"
+#include "generated_protocol_A.h"
 #include "interface_B.h"
 #include "generated_protocol_B.h"
 #include "interface_C.h"
 #include "generated_protocol_C.h"
+
+// clang-format on
 
 namespace {
 
@@ -59,14 +65,18 @@ class BLike {
     results_.push_back(static_cast<int>(input.length()));
     ready_ = true;
   }
+
   std::vector<int> get_results() const { return results_; }
+
   bool is_ready() const { return ready_; }
 };
 
 class CLike {
  public:
   int compute(int x) { return x * 2; }
+
   double compute(double x) { return x * 3.0; }
+
   std::string compute(const std::string& x) const { return x + x; }
 };
 
@@ -123,7 +133,7 @@ TEST(ProtocolTest, ProtocolBMultipleCalls) {
   xyz::protocol_B<> b(std::in_place_type<BLike>);
   b.process("test1");
   b.process("test2_longer");
-  
+
   auto results = b.get_results();
   ASSERT_EQ(results.size(), 2);
   EXPECT_EQ(results[0], 5);
@@ -132,10 +142,10 @@ TEST(ProtocolTest, ProtocolBMultipleCalls) {
 
 TEST(ProtocolTest, ProtocolCOverloads) {
   xyz::protocol_C<> c(std::in_place_type<CLike>);
-  
+
   EXPECT_EQ(c.compute(5), 10);
   EXPECT_EQ(c.compute(5.0), 15.0);
-  
+
   const auto& const_c = c;
   EXPECT_EQ(const_c.compute(std::string("A")), "AA");
 }

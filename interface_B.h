@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XYZ_PROTOCOL_INTERFACE_B_H
+#define XYZ_PROTOCOL_INTERFACE_B_H
 #include <string>
 #include <vector>
 
@@ -11,3 +12,4 @@ struct B {
 };
 
 }  // namespace xyz
+#endif  // XYZ_PROTOCOL_INTERFACE_B_H

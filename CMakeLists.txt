@@ -29,7 +29,7 @@ include(xyz_add_object_library)
 
 xyz_add_library(
     NAME protocol
-    ALIAS xyz_value_types::protocol
+    ALIAS xyz_protocol::protocol
 )
 target_sources(protocol
     INTERFACE
@@ -39,7 +39,7 @@ target_sources(protocol
 xyz_add_object_library(
     NAME protocol_cc
     FILES protocol.cc
-    LINK_LIBRARIES protocol
+    LINK_LIBRARIES xyz_protocol::protocol
 )
 
 if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
@@ -75,6 +75,7 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
         set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h PROPERTIES GENERATED TRUE)
 
@@ -89,6 +90,7 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
         set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h PROPERTIES GENERATED TRUE)
 
@@ -103,6 +105,7 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
                     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
         set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h PROPERTIES GENERATED TRUE)
 
@@ -115,7 +118,7 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
         xyz_add_test(
             NAME protocol_test
             LINK_LIBRARIES protocol
-            FILES protocol_test.cc post_instantiation_example.h interface_A.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h interface_B.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h interface_C.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h
+            FILES protocol_test.cc interface_A.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h interface_B.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h interface_C.h ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h
         )
         add_dependencies(protocol_test generate_protocols)
         target_include_directories(protocol_test PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
@@ -126,6 +129,7 @@ if (${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
                 --compiler ${CMAKE_CXX_COMPILER}
                 --source ${CMAKE_CURRENT_SOURCE_DIR}/test_concept_errors.cc
                 -- -std=c++20 -I${CMAKE_CURRENT_BINARY_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
 
         if (ENABLE_CODE_COVERAGE)

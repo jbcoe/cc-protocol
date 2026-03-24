@@ -17,9 +17,9 @@ def get_compiler_args(compiler='c++'):
     args = ['-x', 'c++', '-std=c++20']
     try:
         # Ask the system compiler for its standard include paths
-        result = subprocess.run([compiler, '-E', '-x', 'c++', '-', '-v'], 
+        result = subprocess.run([compiler, '-E', '-x', 'c++', '-', '-v'],
                                 input='', capture_output=True, text=True)
-        
+
         in_include_section = False
         for line in result.stderr.splitlines():
             if line.startswith('#include <...> search starts here:'):
@@ -27,14 +27,14 @@ def get_compiler_args(compiler='c++'):
                 continue
             elif line.startswith('End of search list.'):
                 break
-            
+
             if in_include_section:
                 path = line.strip()
                 args.append(f'-I{path}')
-                
+
     except Exception as e:
         print(f"Warning: Could not determine system include paths: {e}", file=sys.stderr)
-        
+
     return args
 
 def main():
@@ -50,7 +50,7 @@ def main():
 
     index = clang.cindex.Index.create()
     tu = index.parse(args.input, args=compiler_args)
-    
+
     try:
         model = Model(tu)
     except ValueError as e:
@@ -71,7 +71,7 @@ def main():
     import os
     template_dir = os.path.dirname(os.path.abspath(args.template))
     template_name = os.path.basename(args.template)
-    
+
     # Setup Jinja2
     env = Environment(loader=FileSystemLoader(template_dir), autoescape=select_autoescape())
     template = env.get_template(template_name)
@@ -84,4 +84,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
