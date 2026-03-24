@@ -148,14 +148,14 @@ class protocol_{{ c.name }} {
   explicit constexpr protocol_{{ c.name }}()
     requires std::default_initializable<{{ c.name }}> && xyz_protocol_concept_{{ c.name }}<{{ c.name }}> &&
              std::default_initializable<{{ c.name }}> && std::copy_constructible<{{ c.name }}>
-      : protocol_{{ c.name }}(std::allocator_arg_t{}, {{ c.name }}{}) {}
+      : protocol_{{ c.name }}(std::allocator_arg_t{}, Allocator{}) {}
 
   template <class U>
   constexpr explicit protocol_{{ c.name }}(U&& u)
     requires(!std::same_as<protocol_{{ c.name }}, std::remove_cvref_t<U>>) &&
             std::copy_constructible<std::remove_cvref_t<U>> &&
             std::default_initializable<{{ c.name }}> && xyz_protocol_concept_{{ c.name }}<U>
-      : protocol_{{ c.name }}(std::allocator_arg_t{}, {{ c.name }}{}, std::forward<U>(u)) {}
+      : protocol_{{ c.name }}(std::allocator_arg_t{}, Allocator{}, std::forward<U>(u)) {}
 
   template <class U, class... Ts>
   explicit constexpr protocol_{{ c.name }}(std::in_place_type_t<U>, Ts&&... ts)

@@ -130,6 +130,11 @@ if(${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
     target_include_directories(protocol_test
                                PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
+    add_executable(protocol_benchmark protocol_benchmark.cc)
+    add_dependencies(protocol_benchmark generate_protocols)
+    target_include_directories(protocol_benchmark PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(protocol_benchmark PRIVATE protocol benchmark::benchmark)
+
     add_test(
       NAME concept_errors_test
       COMMAND
