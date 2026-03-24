@@ -21,6 +21,30 @@ wheels = [
 ]
 
 [[package]]
+name = "cmake-format"
+version = "0.6.13"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cmakelang" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5d/3e/f1a7388ce2528b69fbfce9691e5c97f1b2b2b83c25711e0627c3e8f99e58/cmake-format-0.6.13.tar.gz", hash = "sha256:1a48b779067ecca68c498691d07d5c9d3df9803a7e0c5b641128fa6efe5ae489", size = 10484, upload-time = "2020-08-19T17:15:26.286Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4a/40/0ca7c62dc4b9af58ca32da8e6d87ee222f5bb551c17ef22900b2f81b998e/cmake_format-0.6.13-py3-none-any.whl", hash = "sha256:ec7ed949101e5f0b7bc19317d122b83ccbc28fd766c41c93094845719667c56e", size = 19725, upload-time = "2020-08-19T17:15:24.23Z" },
+]
+
+[[package]]
+name = "cmakelang"
+version = "0.6.13"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/74/c0/75d4806cf21dcb4198e9fba02f4d2fa61c8db919b7db788862d9cd5f4433/cmakelang-0.6.13.tar.gz", hash = "sha256:03982e87b00654d024d73ef972d9d9bb0e5726cdb6b8a424a15661fb6278e67f", size = 123111, upload-time = "2020-08-19T17:15:25.44Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/a8/c4676cac062d133c6b909d7def80a3194162597968953a3291b309878721/cmakelang-0.6.13-py3-none-any.whl", hash = "sha256:764b9467195c7c36453d60a829f30229720d26c7dffd41cb516b99bd9c7daf4e", size = 159803, upload-time = "2020-08-19T17:15:23.981Z" },
+]
+
+[[package]]
 name = "distlib"
 version = "0.3.9"
 source = { registry = "https://pypi.org/simple" }
@@ -225,11 +249,21 @@ wheels = [
 ]
 
 [[package]]
+name = "six"
+version = "1.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
 name = "value-types-dev-tools"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "clang" },
+    { name = "cmake-format" },
     { name = "jinja2" },
     { name = "pre-commit" },
     { name = "ruff" },
@@ -239,6 +273,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "clang", specifier = "<19.0.0" },
+    { name = "cmake-format", specifier = ">=0.6.13" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "ruff", specifier = ">=0.15.7" },
