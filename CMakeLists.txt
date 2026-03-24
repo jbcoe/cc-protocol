@@ -52,7 +52,6 @@ endif()
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 # Custom CMake Includes
-include(coverage)
 include(xyz_add_library)
 include(xyz_add_test)
 include(xyz_add_object_library)
@@ -130,10 +129,6 @@ if(${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
         ${CMAKE_CURRENT_SOURCE_DIR}/test_concept_errors.cc -- -std=c++20
         -I${CMAKE_CURRENT_BINARY_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
-    if(ENABLE_CODE_COVERAGE)
-      enable_code_coverage()
-    endif()
 
   endif(${BUILD_TESTING})
 

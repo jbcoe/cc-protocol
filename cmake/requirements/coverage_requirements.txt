@@ -1,3 +1,0 @@
-fastcov~=1.16
-lcov_cobertura~=2.1.1
-setuptools~=82.0.0
