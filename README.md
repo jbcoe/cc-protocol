@@ -33,7 +33,7 @@ A draft proposal detailing this feature can be found in `proposals/DRAFT.md`.
 
 ## Use
 
-Unlike traditional polymorphism, the interface is just a plain struct. No
+Unlike traditional polymorphism, the interface is just a struct. No
 `virtual` keywords, no `= 0`, and no base classes.
 
 ```cpp
@@ -72,8 +72,8 @@ class MyImplementation {
 ```
 
 We can now use `xyz::protocol_B`, an automatically generated type-erased
-wrapper. It copies deeply, propagates `const` correctly, and is fully
-allocator-aware.
+wrapper. It copies deeply, propagates `const` correctly, and supports custom
+allocators.
 
 ```cpp
 #include "interface_B.h"
@@ -98,7 +98,7 @@ int main() {
 }
 ```
 
-Because the generated wrapper relies heavily on C++20 `requires` clauses, any
+The generated wrapper uses C++20 concepts and `requires` clauses: any
 structural mismatch emits clear, pinpointed compile-time errors rather than
 deeply nested template instantiation failures.
 
