@@ -1,5 +1,5 @@
 [project]
-name = "value-types-dev-tools"
+name = "cc-protocol-dev-tools"
 version = "0.1.0"
 description = "development support tools for value-types"
 readme = "README.md"
