@@ -62,4 +62,4 @@ jobs:
       - name: Run CMake (Default VTable)
         run: ./scripts/cmake.sh -B build_default ${{ env.BUILD_TYPE }} -DCLANG_TIDY_ENABLE=1
       - name: Run CMake (Manual VTable)
-        run: ./scripts/cmake.sh -B build_manual --manual-vtable ${{ env.BUILD_TYPE }}
+        run: ./scripts/cmake.sh -B build_manual --manual-vtable ${{ env.BUILD_TYPE }} -DCLANG_TIDY_ENABLE=1
