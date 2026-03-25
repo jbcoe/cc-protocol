@@ -27,15 +27,8 @@ void test() {
 }
 #endif
 
-#ifdef TEST_MISSING_CONST
-class BadALike_MissingConst {
- public:
-  std::string_view name() { return "name"; }  // missing const
+#ifdef TEST_PRIMARY_TEMPLATE_INSTANTIATION
+struct NoSpecialization {};
 
-  int count() { return 42; }
-};
-
-void test() {
-  xyz::protocol<xyz::A> a(std::in_place_type<BadALike_MissingConst>);
-}
+void test() { xyz::protocol<NoSpecialization> p; }
 #endif

@@ -26,6 +26,29 @@ namespace xyz {
 
 template <typename T, typename A = std::allocator<T>>
 class protocol {
+  static_assert(
+      sizeof(T) == 0,
+      "The primary xyz::protocol template cannot be instantiated. "
+      "A partial specialization for T must be generated as a build "
+      "step. Use the xyz_generate_protocol CMake macro to produce "
+      "the required specialization.\n\n"
+      "Arguments:\n"
+      "  CLASS_NAME: The name of the class to be generated.\n"
+      "  INTERFACE: The path to the header file containing the interface "
+      "definition.\n"
+      "  HEADER: The name of the header file to be included in the generated "
+      "file.\n"
+      "  OUTPUT: The path where the generated header should be written.\n"
+      "  MANUAL_VTABLE (optional): If set, use the manual vtable template.\n\n"
+      "Example usage:\n"
+      "  xyz_generate_protocol(\n"
+      "    CLASS_NAME MyInterface\n"
+      "    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/my_interface.h\n"
+      "    HEADER my_interface.h\n"
+      "    OUTPUT "
+      "${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_MyInterface.h\n"
+      "  )");
+
  public:
   constexpr bool valueless_after_move() const noexcept {
     return false;  // Placeholder implementation
