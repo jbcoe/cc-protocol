@@ -24,6 +24,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef XYZ_TAGGED_ALLOCATOR_H
 #define XYZ_TAGGED_ALLOCATOR_H
 
+#include <cstddef>
+#include <memory>
+#include <new>
+#include <utility>
+
 namespace xyz {
 
 template <typename T>
