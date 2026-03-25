@@ -143,7 +143,7 @@ value semantics properties required by this proposal.
 <https://peps.python.org/pep-0544/>
 
 [P3019] _std::indirect and std::polymorphic_.
-<https://isocpp.org/files/papers/P3019R14.html>
+<https://isocpp.org/files/papers/P3019R14.pdf>
 
 [P2996] _Reflection for C++26_. <https://isocpp.org/files/papers/P2996R13.html>
 
