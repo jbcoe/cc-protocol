@@ -11,8 +11,10 @@ macro(xyz_generate_protocol)
     set(TEMPLATE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2)
   endif()
 
+  get_filename_component(XYZ_GENERATE_OUTPUT_DIR "${XYZ_GENERATE_OUTPUT}" DIRECTORY)
   add_custom_command(
     OUTPUT ${XYZ_GENERATE_OUTPUT}
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${XYZ_GENERATE_OUTPUT_DIR}"
     COMMAND
       ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py

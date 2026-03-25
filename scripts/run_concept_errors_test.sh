@@ -9,4 +9,4 @@ if [ -z "$HEADER_FILE" ]; then
 fi
 GEN_DIR=$(dirname "$HEADER_FILE")
 
-python3 scripts/test_concept_errors.py --compiler c++ --source test_concept_errors.cc -- -std=c++20 -I"$GEN_DIR" -I.
+python3 scripts/test_concept_errors.py --compiler c++ --source test_concept_errors.cc -- -std=c++20 -I"$(dirname "$GEN_DIR")" -I.

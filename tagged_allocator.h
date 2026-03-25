@@ -21,8 +21,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // Based on boilerplate from:
 // https://howardhinnant.github.io/allocator_boilerplate.html
 
-#ifndef XYZ_TAGGED_ALLOCATOR_H
-#define XYZ_TAGGED_ALLOCATOR_H
+#ifndef XYZ_TAGGED_ALLOCATOR_H_
+#define XYZ_TAGGED_ALLOCATOR_H_
 
 #include <cstddef>
 #include <memory>
