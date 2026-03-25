@@ -276,8 +276,6 @@ TEST(ProtocolTest,
   EXPECT_EQ(dealloc_counter, 3);
 }
 
-}  // namespace
-
 TEST(ProtocolTest, CopiesAreDistinct) {
   xyz::protocol_A<> p(std::in_place_type<ALike>, 42);
   auto pp = p;
@@ -458,3 +456,5 @@ TEST(ProtocolTest, SwapFromValueless) {
   EXPECT_FALSE(p.valueless_after_move());
   EXPECT_TRUE(ppp.valueless_after_move());
 }
+
+}  // namespace
