@@ -18,7 +18,7 @@ def main():
         "preset", nargs="?", default="Release", help="CMake preset (default: Release)"
     )
 
-    args = parser.parse_args()
+    args, extra = parser.parse_known_args()
 
     # Configure step
     configure_args = [
@@ -31,6 +31,8 @@ def main():
         configure_args.extend(["-B", args.build_dir])
     if args.clean:
         configure_args.append("--fresh")
+
+    configure_args.extend(extra)
 
     print(f"Running: {' '.join(configure_args)}")
     subprocess.check_call(configure_args)
