@@ -1,0 +1,74 @@
+name: Include What You Use
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cmake.yml" # This file
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/CMakeLists.txt"
+      - "CMakePresets.json"
+      - "cmake/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cmake.yml" # This file
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/CMakeLists.txt"
+      - "CMakePresets.json"
+      - "cmake/**"
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Debug
+  COMPILER_VERSION: 21
+
+jobs:
+  include-what-you-use:
+    # The CMake configure and build commands are platform agnostic and should work equally
+    # well on Windows or Mac.  You can convert this to a matrix build if you need
+    # cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: seanmiddleditch/gha-setup-ninja@master
+      - name: Install Clang
+        shell: bash
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh ${{ env.COMPILER_VERSION }} all
+
+          # We need to update symlink otherwise we end up with miss matched clang/clang++ and clang-tidy versions.
+          sudo rm /usr/bin/clang
+          sudo rm /usr/bin/clang++
+
+          sudo ln -s /usr/bin/clang-${{ env.COMPILER_VERSION }} /usr/bin/clang
+          sudo ln -s /usr/bin/clang++-${{ env.COMPILER_VERSION }} /usr/bin/clang++
+      - name: Install build dependencies and IWYU
+        run: |
+          sudo apt update
+          sudo apt install -y llvm-dev cmake git ninja-build libcurl4-openssl-dev libedit-dev
+          # Build and install IWYU
+          git clone https://github.com/include-what-you-use/include-what-you-use.git
+          cd include-what-you-use
+          git checkout clang_${{ env.COMPILER_VERSION }}
+          cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH=/usr/lib/llvm-${{ env.COMPILER_VERSION }} -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          sudo cmake --install build
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Set up Python
+        run: uv sync
+      - name: Run CMake (Default VTable)
+        run: ./scripts/cmake.sh -B build_default ${{ env.BUILD_TYPE }} -DIWYU_ENABLE=1
+      - name: Run CMake (Manual VTable)
+        run: ./scripts/cmake.sh -B build_manual --manual-vtable ${{ env.BUILD_TYPE }} -DIWYU_ENABLE=1

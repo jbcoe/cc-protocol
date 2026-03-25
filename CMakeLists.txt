@@ -59,6 +59,7 @@ include(xyz_add_object_library)
 include(xyz_generate_protocol)
 
 find_package(ClangTidy)
+find_package(IWYU)
 xyz_add_library(NAME protocol ALIAS xyz_protocol::protocol)
 target_sources(
   protocol INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.h>)
