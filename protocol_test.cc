@@ -613,6 +613,7 @@ TEST(ProtocolViewTest, ViewCopiesAreShallow) {
   EXPECT_EQ(copies, 0);
 
   xyz::protocol_view<xyz::A> view3(view2);
+  EXPECT_EQ(view3.count(), 0);
   EXPECT_EQ(copies, 0);
 }
 
