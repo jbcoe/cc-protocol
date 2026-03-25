@@ -39,78 +39,71 @@ associates patterns and allows configuration for common optional settings
 
 #]=======================================================================]
 function(xyz_add_test)
-    set(options MANUAL)
-    set(oneValueArgs NAME VERSION)
-    set(multiValueArgs LINK_LIBRARIES FILES)
-    cmake_parse_arguments(XYZ "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-    if (NOT XYZ_NAME)
-        message(FATAL_ERROR "NAME parameter must be supplied")
+  set(options MANUAL)
+  set(oneValueArgs NAME VERSION)
+  set(multiValueArgs LINK_LIBRARIES FILES)
+  cmake_parse_arguments(XYZ "${options}" "${oneValueArgs}" "${multiValueArgs}"
+                        ${ARGN})
+  if(NOT XYZ_NAME)
+    message(FATAL_ERROR "NAME parameter must be supplied")
+  endif()
+  if(NOT XYZ_VERSION)
+    set(XYZ_VERSION 20)
+  else()
+    set(VALID_TARGET_VERSIONS 11 14 17 20 23)
+    list(FIND VALID_TARGET_VERSIONS ${XYZ_VERSION} index)
+    if(index EQUAL -1)
+      message(FATAL_ERROR "TYPE must be one of <${VALID_TARGET_VERSIONS}>")
     endif()
-    if (NOT XYZ_VERSION)
-        set(XYZ_VERSION 20)
-    else()
-        set(VALID_TARGET_VERSIONS 11 14 17 20 23)
-        list(FIND VALID_TARGET_VERSIONS ${XYZ_VERSION} index)
-        if(index EQUAL -1)
-            message(FATAL_ERROR "TYPE must be one of <${VALID_TARGET_VERSIONS}>")
-        endif()
-    endif()
+  endif()
 
-    if (NOT TARGET common_compiler_settings)
-        add_library(common_compiler_settings INTERFACE)
-        target_compile_options(common_compiler_settings
-            INTERFACE
-                $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
-                $<$<CXX_COMPILER_ID:MSVC>:/W4>
-                $<$<CXX_COMPILER_ID:MSVC>:/bigobj>
-                $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>>:-Werror;-Wall;-Wno-self-assign-overloaded;-Wno-delete-non-abstract-non-virtual-dtor;-Wno-unknown-warning-option;-Wno-self-move;-Wno-self-assign-overloaded>
-        )
-
-    endif (NOT TARGET common_compiler_settings)
-
-    include(sanitizers)
-
-    add_executable(${XYZ_NAME} "")
-    target_sources(${XYZ_NAME}
-       PRIVATE
-            ${XYZ_FILES}
+  if(NOT TARGET common_compiler_settings)
+    add_library(common_compiler_settings INTERFACE)
+    target_compile_options(
+      common_compiler_settings
+      INTERFACE
+        $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
+        $<$<CXX_COMPILER_ID:MSVC>:/W4>
+        $<$<CXX_COMPILER_ID:MSVC>:/bigobj>
+        $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>>:-Werror;-Wall;-Wno-self-assign-overloaded;-Wno-delete-non-abstract-non-virtual-dtor;-Wno-unknown-warning-option;-Wno-self-move;-Wno-self-assign-overloaded>
     )
-    target_link_libraries(${XYZ_NAME}
-        PRIVATE
-            ${XYZ_LINK_LIBRARIES}
-            GTest::gtest_main
-            common_compiler_settings
+
+  endif(NOT TARGET common_compiler_settings)
+
+  include(sanitizers)
+
+  add_executable(${XYZ_NAME} "")
+  target_sources(${XYZ_NAME} PRIVATE ${XYZ_FILES})
+  target_link_libraries(
+    ${XYZ_NAME}
+    PRIVATE ${XYZ_LINK_LIBRARIES} GTest::gtest_main common_compiler_settings
             $<$<BOOL:${COMPILER_SUPPORTS_ASAN}>:asan>
-            $<$<BOOL:${COMPILER_SUPPORTS_USAN}>:ubsan>
-    )
+            $<$<BOOL:${COMPILER_SUPPORTS_UBSAN}>:ubsan>)
 
-    set_target_properties(${XYZ_NAME} PROPERTIES
-        CXX_STANDARD ${XYZ_VERSION}
-        CXX_STANDARD_REQUIRED YES
-        CXX_EXTENSIONS NO
-        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
-        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-    )
+  set_target_properties(
+    ${XYZ_NAME}
+    PROPERTIES CXX_STANDARD ${XYZ_VERSION}
+               CXX_STANDARD_REQUIRED YES
+               CXX_EXTENSIONS NO
+               ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+               LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+               RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-    target_compile_options(${XYZ_NAME}
-        PRIVATE
-            $<$<CXX_COMPILER_ID:MSVC>:/Zc:__cplusplus>
-    )
+  target_compile_options(${XYZ_NAME}
+                         PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Zc:__cplusplus>)
 
-    if(${XYZ_MANUAL})
-        message(STATUS "Manual test: ${XYZ_NAME}")
-    else()
+  if(${XYZ_MANUAL})
+    message(STATUS "Manual test: ${XYZ_NAME}")
+  else()
 
-        include(GoogleTest)
-        gtest_discover_tests(${XYZ_NAME}
-            WORKING_DIRECTORY $<TARGET_FILE_DIR:${XYZ_NAME}>
-        )
+    include(GoogleTest)
+    gtest_discover_tests(${XYZ_NAME}
+                         WORKING_DIRECTORY $<TARGET_FILE_DIR:${XYZ_NAME}>)
 
-    endif()
+  endif()
 
-    if (ENABLE_CODE_COVERAGE)
-        add_coverage(${XYZ_NAME})
-    endif()
+  if(ENABLE_CODE_COVERAGE)
+    add_coverage(${XYZ_NAME})
+  endif()
 
 endfunction()
