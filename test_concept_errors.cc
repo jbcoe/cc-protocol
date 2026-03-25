@@ -19,7 +19,7 @@ class BadALike_WrongReturnType {
  public:
   std::string_view name() const { return "name"; }
 
-  double count() { return 42.0; }  // wrong return type
+  std::string count() { return "42"; }  // not convertible to int
 };
 
 void test() {

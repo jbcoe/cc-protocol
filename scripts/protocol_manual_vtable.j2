@@ -22,9 +22,17 @@ concept protocol_concept_{{ c.name }} = requires(T& t) {
   {% endfor %}
   {% set args_str = declvals | join(", ") %}
   {% if m.is_const %}
-  { std::as_const(t).{{ m.name }}({{ args_str }}) } -> std::same_as<{{ m.return_type.name }}>;
+    {% if m.return_type.name == 'void' %}
+  { std::as_const(t).{{ m.name }}({{ args_str }}) };
+    {% else %}
+  { std::as_const(t).{{ m.name }}({{ args_str }}) } -> std::convertible_to<{{ m.return_type.name }}>;
+    {% endif %}
   {% else %}
-  { t.{{ m.name }}({{ args_str }}) } -> std::same_as<{{ m.return_type.name }}>;
+    {% if m.return_type.name == 'void' %}
+  { t.{{ m.name }}({{ args_str }}) };
+    {% else %}
+  { t.{{ m.name }}({{ args_str }}) } -> std::convertible_to<{{ m.return_type.name }}>;
+    {% endif %}
   {% endif %}
 {% endfor %}
 };
@@ -109,10 +117,17 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
+  {% if m.return_type.name == 'void' %}
+    static {{ m.return_type.name }} {{ m.name }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}) {
+      auto* self = static_cast<direct_control_block*>(cb);
+      self->storage_.t_.{{ m.name }}({{ passes_str }});
+    }
+  {% else %}
     static {{ m.return_type.name }} {{ m.name }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}) {
       auto* self = static_cast<direct_control_block*>(cb);
       return self->storage_.t_.{{ m.name }}({{ passes_str }});
     }
+  {% endif %}
 {% endfor %}
 
     static constexpr vtable vtable_ = {
