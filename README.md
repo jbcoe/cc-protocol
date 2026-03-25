@@ -105,13 +105,23 @@ The generated wrapper uses C++20 concepts and `requires` clauses: any
 structural mismatch emits clear, pinpointed compile-time errors rather than
 deeply nested template instantiation failures.
 
-## Dependencies
+```cpp
+class BadImplementation {
+ public:
+  void process(const std::string& input);
+  // ERROR: Missing get_results()
+  // ERROR: is_ready() is missing 'const'
+  bool is_ready();
+};
 
-The code generation script requires Python 3.12+ and `uv`.
-
-```bash
-uv sync
+// COMPILER ERROR:
+// constraints not satisfied
+// the required expression 'std::as_const(t).is_ready()' is invalid
 ```
+
+## Contributing and Development
+
+For instructions on how to build, test, and contribute to this project, as well as a deeper look into the code generation architecture, please refer to the [Developer Guide](CONTRIBUTING.md).
 
 ## References
 

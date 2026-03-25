@@ -1,21 +1,6 @@
 # Developer Guide for C++ Protocol Library
 
-This document explains how to set up, build, and understand the C++ protocol
-library. It is a proof-of-concept implementation for structural subtyping using
-type erasure.
-
-## Project Overview
-
-The C++ protocol library is a code generation system that enables structural
-subtyping for C++. It allows C++ types to satisfy an interface based on their
-structure, meaning the presence of conforming member functions, rather than
-requiring explicit inheritance. This is achieved using type erasure, value
-semantics, and custom allocator awareness.
-
-The library aims to provide a mechanism similar to Python's Protocols. Its core
-objectives are to implement structural subtyping in C++, achieve type erasure
-for interfaces without inheritance, and maintain value semantics,
-const-correctness, and allocator awareness.
+This document explains how to set up, build, and understand the internals of the C++ protocol library. For a high-level overview of structural subtyping, library design principles, and code examples, please refer to the [README](README.md).
 
 ## Getting Started
 
