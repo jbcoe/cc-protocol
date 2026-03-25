@@ -9,7 +9,9 @@ class BadALike_MissingMethod {
   int count() { return 42; }
 };
 
-void test() { xyz::protocol_A<> a(std::in_place_type<BadALike_MissingMethod>); }
+void test() {
+  xyz::protocol<xyz::A> a(std::in_place_type<BadALike_MissingMethod>);
+}
 #endif
 
 #ifdef TEST_WRONG_RETURN_TYPE
@@ -21,7 +23,7 @@ class BadALike_WrongReturnType {
 };
 
 void test() {
-  xyz::protocol_A<> a(std::in_place_type<BadALike_WrongReturnType>);
+  xyz::protocol<xyz::A> a(std::in_place_type<BadALike_WrongReturnType>);
 }
 #endif
 
@@ -33,5 +35,7 @@ class BadALike_MissingConst {
   int count() { return 42; }
 };
 
-void test() { xyz::protocol_A<> a(std::in_place_type<BadALike_MissingConst>); }
+void test() {
+  xyz::protocol<xyz::A> a(std::in_place_type<BadALike_MissingConst>);
+}
 #endif

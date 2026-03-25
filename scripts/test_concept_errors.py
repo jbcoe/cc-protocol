@@ -36,9 +36,9 @@ def main():
     flags = [f for f in args.flags if f != "--"]
 
     tests = [
-        ("TEST_MISSING_METHOD", ["xyz_protocol_concept_A", "name()"]),
-        ("TEST_WRONG_RETURN_TYPE", ["xyz_protocol_concept_A", "count()"]),
-        ("TEST_MISSING_CONST", ["xyz_protocol_concept_A", "name()"]),
+        ("TEST_MISSING_METHOD", ["protocol_concept_A", "name()"]),
+        ("TEST_WRONG_RETURN_TYPE", ["protocol_concept_A", "count()"]),
+        ("TEST_MISSING_CONST", ["protocol_concept_A", "name()"]),
     ]
 
     success = True

@@ -9,11 +9,12 @@
 #include "protocol.h"
 #include "{{ header }}"
 
-{% if c.namespace %}
-namespace {{ c.namespace }} {
-{% endif %}
+{% set full_class_name = "::" ~ c.namespace ~ "::" ~ c.name if c.namespace else c.name %}
+
+namespace xyz {
+
 template <typename T>
-concept xyz_protocol_concept_{{ c.name }} = requires(T& t) {
+concept protocol_concept_{{ c.name }} = requires(T& t) {
 {% for m in c.methods %}
   {% set declvals = [] %}
   {% for a in m.arguments %}
@@ -28,8 +29,8 @@ concept xyz_protocol_concept_{{ c.name }} = requires(T& t) {
 {% endfor %}
 };
 
-template <typename Allocator = std::allocator<std::byte>>
-class protocol_{{ c.name }} {
+template <typename Allocator>
+class protocol<{{ full_class_name }}, Allocator> {
   class control_block {
    public:
     virtual control_block* xyz_protocol_clone(const Allocator& alloc) = 0;
@@ -136,86 +137,86 @@ class protocol_{{ c.name }} {
   [[no_unique_address]] Allocator alloc_;
 
  public:
-  explicit constexpr protocol_{{ c.name }}()
-    requires std::default_initializable<{{ c.name }}> && xyz_protocol_concept_{{ c.name }}<{{ c.name }}> &&
-             std::default_initializable<{{ c.name }}> && std::copy_constructible<{{ c.name }}>
-      : protocol_{{ c.name }}(std::allocator_arg_t{}, Allocator{}) {}
+  explicit constexpr protocol()
+    requires std::default_initializable<{{ full_class_name }}> && protocol_concept_{{ c.name }}<{{ full_class_name }}> &&
+             std::copy_constructible<{{ full_class_name }}>
+      : protocol(std::allocator_arg_t{}, Allocator{}) {}
 
   template <class U>
-  constexpr explicit protocol_{{ c.name }}(U&& u)
-    requires(!std::same_as<protocol_{{ c.name }}, std::remove_cvref_t<U>>) &&
+  constexpr explicit protocol(U&& u)
+    requires(!std::same_as<protocol, std::remove_cvref_t<U>>) &&
             std::copy_constructible<std::remove_cvref_t<U>> &&
-            std::default_initializable<{{ c.name }}> && xyz_protocol_concept_{{ c.name }}<U>
-      : protocol_{{ c.name }}(std::allocator_arg_t{}, Allocator{}, std::forward<U>(u)) {}
+            protocol_concept_{{ c.name }}<U>
+      : protocol(std::allocator_arg_t{}, Allocator{}, std::forward<U>(u)) {}
 
   template <class U, class... Ts>
-  explicit constexpr protocol_{{ c.name }}(std::in_place_type_t<U>, Ts&&... ts)
+  explicit constexpr protocol(std::in_place_type_t<U>, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
              std::constructible_from<U, Ts&&...> &&
              std::copy_constructible<U> &&
-             std::default_initializable<Allocator> && xyz_protocol_concept_{{ c.name }}<U>
-      : protocol_{{ c.name }}(std::allocator_arg_t{}, Allocator{}, std::in_place_type<U>,
+             std::default_initializable<Allocator> && protocol_concept_{{ c.name }}<U>
+      : protocol(std::allocator_arg_t{}, Allocator{}, std::in_place_type<U>,
                    std::forward<Ts>(ts)...) {}
 
   template <class U, class I, class... Ts>
-  explicit constexpr protocol_{{ c.name }}(std::in_place_type_t<U>,
+  explicit constexpr protocol(std::in_place_type_t<U>,
                                 std::initializer_list<I> ilist, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
              std::constructible_from<U, std::initializer_list<I>, Ts&&...> &&
              std::copy_constructible<U> &&
-             std::default_initializable<Allocator> && xyz_protocol_concept_{{ c.name }}<U>
-      : protocol_{{ c.name }}(std::allocator_arg_t{}, Allocator{}, std::in_place_type<U>,
+             std::default_initializable<Allocator> && protocol_concept_{{ c.name }}<U>
+      : protocol(std::allocator_arg_t{}, Allocator{}, std::in_place_type<U>,
                    ilist, std::forward<Ts>(ts)...) {}
 
-  constexpr protocol_{{ c.name }}(const protocol_{{ c.name }}& other)
-      : protocol_{{ c.name }}(std::allocator_arg_t{},
+  constexpr protocol(const protocol& other)
+      : protocol(std::allocator_arg_t{},
                    allocator_traits::select_on_container_copy_construction(
                        other.alloc_),
                    other) {}
 
-  constexpr protocol_{{ c.name }}(protocol_{{ c.name }}&& other) noexcept(
+  constexpr protocol(protocol&& other) noexcept(
       allocator_traits::is_always_equal::value)
-      : protocol_{{ c.name }}(std::allocator_arg_t{}, other.alloc_, std::move(other)) {}
+      : protocol(std::allocator_arg_t{}, other.alloc_, std::move(other)) {}
 
-  explicit constexpr protocol_{{ c.name }}(std::allocator_arg_t, const Allocator& alloc)
-    requires std::default_initializable<{{ c.name }}> && std::copy_constructible<{{ c.name }}>
+  explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc)
+    requires std::default_initializable<{{ full_class_name }}> && std::copy_constructible<{{ full_class_name }}>
       : alloc_(alloc) {
-    cb_ = create_control_block<{{ c.name }}>();
+    cb_ = create_control_block<{{ full_class_name }}>();
   }
 
   template <class U>
-  constexpr explicit protocol_{{ c.name }}(std::allocator_arg_t, const Allocator& alloc,
+  constexpr explicit protocol(std::allocator_arg_t, const Allocator& alloc,
                                 U&& u)
-    requires(not std::same_as<protocol_{{ c.name }}, std::remove_cvref_t<U>>) &&
+    requires(not std::same_as<protocol, std::remove_cvref_t<U>>) &&
             std::copy_constructible<std::remove_cvref_t<U>> &&
-            xyz_protocol_concept_{{ c.name }}<U>
+            protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
     cb_ = create_control_block<std::remove_cvref_t<U>>(std::forward<U>(u));
   }
 
   template <class U, class... Ts>
-  explicit constexpr protocol_{{ c.name }}(std::allocator_arg_t, const Allocator& alloc,
+  explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
                                 std::in_place_type_t<U>, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
              std::constructible_from<U, Ts&&...> &&
-             std::copy_constructible<U> && xyz_protocol_concept_{{ c.name }}<U>
+             std::copy_constructible<U> && protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
     cb_ = create_control_block<U>(std::forward<Ts>(ts)...);
   }
 
   template <class U, class I, class... Ts>
-  explicit constexpr protocol_{{ c.name }}(std::allocator_arg_t, const Allocator& alloc,
+  explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
                                 std::in_place_type_t<U>,
                                 std::initializer_list<I> ilist, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
              std::constructible_from<U, std::initializer_list<I>, Ts&&...> &&
-             std::copy_constructible<U> && xyz_protocol_concept_{{ c.name }}<U>
+             std::copy_constructible<U> && protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
     cb_ = create_control_block<U>(ilist, std::forward<Ts>(ts)...);
   }
 
-  constexpr protocol_{{ c.name }}(std::allocator_arg_t, const Allocator& alloc,
-                       const protocol_{{ c.name }}& other)
+  constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                       const protocol& other)
       : alloc_(alloc) {
     if (!other.valueless_after_move()) {
       cb_ = other.cb_->xyz_protocol_clone(alloc_);
@@ -224,9 +225,9 @@ class protocol_{{ c.name }} {
     }
   }
 
-  constexpr protocol_{{ c.name }}(
+  constexpr protocol(
       std::allocator_arg_t, const Allocator& alloc,
-      protocol_{{ c.name }}&& other) noexcept(allocator_traits::is_always_equal::value)
+      protocol&& other) noexcept(allocator_traits::is_always_equal::value)
       : alloc_(alloc) {
     if constexpr (allocator_traits::is_always_equal::value) {
       cb_ = std::exchange(other.cb_, nullptr);
@@ -247,13 +248,13 @@ class protocol_{{ c.name }} {
     return cb_ == nullptr;
   }
 
-  ~protocol_{{ c.name }}() {
+  ~protocol() {
     if (cb_ != nullptr) {
       cb_->xyz_protocol_destroy(alloc_);
     }
   }
 
-  protocol_{{ c.name }}& operator=(protocol_{{ c.name }} other) noexcept(
+  protocol& operator=(protocol other) noexcept(
       allocator_traits::is_always_equal::value) {
     std::swap(cb_, other.cb_);
     if constexpr (!allocator_traits::is_always_equal::value) {
@@ -262,7 +263,7 @@ class protocol_{{ c.name }} {
     return *this;
   }
 
-  void swap(protocol_{{ c.name }}& other) noexcept(
+  void swap(protocol& other) noexcept(
       allocator_traits::is_always_equal::value) {
     std::swap(cb_, other.cb_);
     if constexpr (!allocator_traits::is_always_equal::value) {
@@ -270,7 +271,7 @@ class protocol_{{ c.name }} {
     }
   }
 
-  friend void swap(protocol_{{ c.name }}& lhs, protocol_{{ c.name }}& rhs) noexcept(
+  friend void swap(protocol& lhs, protocol& rhs) noexcept(
       allocator_traits::is_always_equal::value) {
     lhs.swap(rhs);
   }
@@ -289,7 +290,6 @@ class protocol_{{ c.name }} {
 {% endfor %}
 
 };
-{% if c.namespace %}
-}  // namespace {{ c.namespace }}
-{% endif %}
+
+}  // namespace xyz
 // END Generated code for protocol_{{ c.name }}
