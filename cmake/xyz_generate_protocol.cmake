@@ -1,6 +1,6 @@
 macro(xyz_generate_protocol)
   set(options MANUAL_VTABLE)
-  set(oneValueArgs CLASS_NAME INTERFACE OUTPUT)
+  set(oneValueArgs CLASS_NAME INTERFACE OUTPUT HEADER)
   set(multiValueArgs "")
   cmake_parse_arguments(XYZ_GENERATE "${options}" "${oneValueArgs}"
                         "${multiValueArgs}" ${ARGN})
@@ -18,7 +18,7 @@ macro(xyz_generate_protocol)
       ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
       ${XYZ_GENERATE_INTERFACE} ${XYZ_GENERATE_OUTPUT} --class_name ${XYZ_GENERATE_CLASS_NAME}
       --template ${TEMPLATE_FILE} --compiler
-      ${CMAKE_CXX_COMPILER}
+      ${CMAKE_CXX_COMPILER} --header ${XYZ_GENERATE_HEADER}
     DEPENDS ${XYZ_GENERATE_INTERFACE}
             ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_protocol.py
             ${TEMPLATE_FILE}

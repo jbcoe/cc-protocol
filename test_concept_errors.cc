@@ -1,9 +1,7 @@
-// The order of these includes is (currently) important to ensure the generated
-// headers are included after the interfaces.
-// clang-format off
-#include "interface_A.h"
-#include "generated_protocol_A.h"
-# clang-format on
+
+#include <utility>
+
+#include "generated/protocol_A.h"
 
 #ifdef TEST_MISSING_METHOD
 class BadALike_MissingMethod {

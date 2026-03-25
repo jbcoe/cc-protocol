@@ -71,7 +71,7 @@ like a regular value. It copies deeply, propagates `const` correctly, and
 supports custom allocators.
 
 ```cpp
-#include "generated_protocol_B.h"
+#include "generated/protocol_B.h"
 
 void run_pipeline(xyz::protocol_B<> worker) {
   if (!worker.is_ready()) {

@@ -77,7 +77,7 @@ allocators.
 
 ```cpp
 #include "interface_B.h"
-#include "generated_protocol_B.h"
+#include "generated/protocol_B.h"
 
 void run_pipeline(xyz::protocol_B<> worker) {
   if (!worker.is_ready()) {

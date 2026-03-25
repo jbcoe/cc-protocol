@@ -71,6 +71,11 @@ def main():
     parser.add_argument(
         "--compiler", help="Compiler to use for system include discovery", default="c++"
     )
+    parser.add_argument(
+        "--header",
+        help="Header file to include in the generated protocol",
+        required=True,
+    )
     args = parser.parse_args()
 
     compiler_args = get_compiler_args(compiler=args.compiler)
@@ -110,7 +115,9 @@ def main():
     ]
 
     # Render
-    result = template.render(c=target_class, method_guids=method_guids)
+    result = template.render(
+        c=target_class, method_guids=method_guids, header=args.header
+    )
 
     with open(args.output, "w") as f:
         f.write(result)

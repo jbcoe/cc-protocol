@@ -88,20 +88,23 @@ if(${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
     endif()
 
     xyz_generate_protocol(
-      CLASS_NAME A INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h OUTPUT
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h ${OPT_MANUAL_VTABLE})
+      CLASS_NAME A INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
+      HEADER interface_A.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h ${OPT_MANUAL_VTABLE})
     xyz_generate_protocol(
-      CLASS_NAME B INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h OUTPUT
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h ${OPT_MANUAL_VTABLE})
+      CLASS_NAME B INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
+      HEADER interface_B.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h ${OPT_MANUAL_VTABLE})
     xyz_generate_protocol(
-      CLASS_NAME C INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h OUTPUT
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h ${OPT_MANUAL_VTABLE})
+      CLASS_NAME C INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
+      HEADER interface_C.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h ${OPT_MANUAL_VTABLE})
 
     add_custom_target(
       generate_protocols
-      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h)
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
 
     xyz_add_test(
       NAME
@@ -111,11 +114,11 @@ if(${XYZ_PROTOCOL_IS_NOT_SUBPROJECT})
       FILES
       protocol_test.cc
       interface_A.h
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_A.h
+      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h
       interface_B.h
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_B.h
+      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
       interface_C.h
-      ${CMAKE_CURRENT_BINARY_DIR}/generated_protocol_C.h)
+      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
     add_dependencies(protocol_test generate_protocols)
     target_include_directories(protocol_test
                                PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

@@ -27,19 +27,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <utility>
 #include <vector>
 
+#include "generated/protocol_A.h"
+#include "generated/protocol_B.h"
+#include "generated/protocol_C.h"
 #include "tracking_allocator.h"
-
-// The order of these includes is (currently) important to ensure the generated
-// headers are included after the interfaces.
-// clang-format off
-#include "interface_A.h"
-#include "generated_protocol_A.h"
-#include "interface_B.h"
-#include "generated_protocol_B.h"
-#include "interface_C.h"
-#include "generated_protocol_C.h"
-
-// clang-format on
 
 namespace {
 
