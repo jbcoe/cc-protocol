@@ -9,10 +9,9 @@
       {
         "name": "ninja",
         "hidden": true,
-        "generator": "Ninja Multi-Config",
+        "generator": "Ninja",
         "cacheVariables": {
-          "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-          "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
+          "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
         }
       },
       {
