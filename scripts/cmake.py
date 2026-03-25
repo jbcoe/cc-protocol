@@ -17,8 +17,15 @@ def main():
     parser.add_argument(
         "preset", nargs="?", default="Release", help="CMake preset (default: Release)"
     )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose logging"
+    )
 
     args = parser.parse_args()
+
+    def log(msg):
+        if args.verbose:
+            print(msg)
 
     # Configure step
     configure_args = [
@@ -32,7 +39,7 @@ def main():
     if args.clean:
         configure_args.append("--fresh")
 
-    print(f"Running: {' '.join(configure_args)}")
+    log(f"Running: {' '.join(configure_args)}")
     subprocess.check_call(configure_args)
 
     # Build step
@@ -44,7 +51,7 @@ def main():
     if args.clean:
         build_args.append("--clean-first")
 
-    print(f"Running: {' '.join(build_args)}")
+    log(f"Running: {' '.join(build_args)}")
     subprocess.check_call(build_args)
 
     # Test step
@@ -54,7 +61,7 @@ def main():
     else:
         test_args.extend(["--preset", args.preset])
 
-    print(f"Running: {' '.join(test_args)}")
+    log(f"Running: {' '.join(test_args)}")
     subprocess.check_call(test_args)
 
 
