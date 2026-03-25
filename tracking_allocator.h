@@ -21,6 +21,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef XYZ_TRACKING_ALLOCATOR_H_
 #define XYZ_TRACKING_ALLOCATOR_H_
 
+#include <cstddef>
+#include <memory>
+
 namespace xyz {
 
 template <typename T>
