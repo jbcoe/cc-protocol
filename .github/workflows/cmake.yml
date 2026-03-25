@@ -11,7 +11,7 @@ on:
       - "**/*.h"
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
-      - "cmake/**"
+      - "**/*.cmake"
   pull_request:
     branches: [main]
     paths:
@@ -20,7 +20,7 @@ on:
       - "**/*.h"
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
-      - "cmake/**"
+      - "**/*.cmake"
 
 jobs:
   build:
@@ -226,13 +226,13 @@ jobs:
         with:
           version: ${{ matrix.settings.compiler.version }}
           platform: x64
-      - name: Configure CMake
-        run: cmake --preset ${{ matrix.configuration }}
-      - name: Build
-        # Build your program with the given configuration
-        run: cmake --build --preset ${{ matrix.configuration }}
-
-      - name: Test
-        # Execute tests defined by the CMake configuration.
-        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-        run: ctest --preset ${{ matrix.configuration }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Set up Python
+        run: uv sync
+      - name: Run CMake (Default VTable)
+        run: ./scripts/cmake.sh -B build_default ${{ matrix.configuration }}
+      - name: Run CMake (Manual VTable)
+        run: ./scripts/cmake.sh -B build_manual --manual-vtable ${{ matrix.configuration }}

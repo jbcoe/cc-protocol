@@ -1,0 +1,320 @@
+// BEGIN Generated code for protocol_{{ c.name }}
+#include <concepts>
+#include <cstddef>
+#include <initializer_list>
+#include <memory>
+#include <type_traits>
+#include <utility>
+
+#include "protocol.h"
+#include "{{ header }}"
+
+{% set full_class_name = "::" ~ c.namespace ~ "::" ~ c.name if c.namespace else c.name %}
+
+namespace xyz {
+
+template <typename T>
+concept protocol_concept_{{ c.name }} = requires(T& t) {
+{% for m in c.methods %}
+  {% set declvals = [] %}
+  {% for a in m.arguments %}
+    {% set _ = declvals.append("std::declval<" ~ a.type.name ~ ">()") %}
+  {% endfor %}
+  {% set args_str = declvals | join(", ") %}
+  {% if m.is_const %}
+  { std::as_const(t).{{ m.name }}({{ args_str }}) } -> std::same_as<{{ m.return_type.name }}>;
+  {% else %}
+  { t.{{ m.name }}({{ args_str }}) } -> std::same_as<{{ m.return_type.name }}>;
+  {% endif %}
+{% endfor %}
+};
+
+template <typename Allocator>
+class protocol<{{ full_class_name }}, Allocator> {
+  struct vtable {
+    void* (*xyz_protocol_clone)(void* cb, const Allocator& alloc);
+    void* (*xyz_protocol_move)(void* cb, const Allocator& alloc);
+    void (*xyz_protocol_destroy)(void* cb, const Allocator& alloc);
+{% for m in c.methods %}
+  {% set params = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name) %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+    {{ m.return_type.name }} (*{{ m.name }}_{{ method_guids[loop.index0] }})(void* cb{% if params %}, {% endif %}{{ params_str }});
+{% endfor %}
+  };
+
+  template <typename T>
+  class direct_control_block {
+    union uninitialized_storage {
+      T t_;
+      constexpr uninitialized_storage() {}
+      constexpr ~uninitialized_storage() {}
+    } storage_;
+
+    using cb_allocator = typename std::allocator_traits<
+        Allocator>::template rebind_alloc<direct_control_block<T>>;
+    using cb_alloc_traits = std::allocator_traits<cb_allocator>;
+
+   public:
+    template <class... Ts>
+    constexpr direct_control_block(const Allocator& alloc, Ts&&... ts) {
+      cb_allocator cb_alloc(alloc);
+      cb_alloc_traits::construct(cb_alloc, std::addressof(storage_.t_),
+                                 std::forward<Ts>(ts)...);
+    }
+
+    static void* xyz_protocol_clone(void* cb, const Allocator& alloc) {
+      auto* self = static_cast<direct_control_block*>(cb);
+      cb_allocator cb_alloc(alloc);
+      auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
+      try {
+        cb_alloc_traits::construct(cb_alloc, mem, alloc, self->storage_.t_);
+        return mem;
+      } catch (...) {
+        cb_alloc_traits::deallocate(cb_alloc, mem, 1);
+        throw;
+      }
+    }
+
+    static void* xyz_protocol_move(void* cb, const Allocator& alloc) {
+      auto* self = static_cast<direct_control_block*>(cb);
+      cb_allocator cb_alloc(alloc);
+      auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
+      try {
+        cb_alloc_traits::construct(cb_alloc, mem, alloc,
+                                   std::move(self->storage_.t_));
+        return mem;
+      } catch (...) {
+        cb_alloc_traits::deallocate(cb_alloc, mem, 1);
+        throw;
+      }
+    }
+
+    static void xyz_protocol_destroy(void* cb, const Allocator& alloc) {
+      auto* self = static_cast<direct_control_block*>(cb);
+      cb_allocator cb_alloc(alloc);
+      cb_alloc_traits::destroy(cb_alloc, std::addressof(self->storage_.t_));
+      cb_alloc_traits::deallocate(cb_alloc, self, 1);
+    }
+
+   public:
+{% for m in c.methods %}
+  {% set params = [] %}
+  {% set passes = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+    {% set _ = passes.append("std::forward<decltype(a" ~ loop.index0 ~ ")>(a" ~ loop.index0 ~ ")") %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+  {% set passes_str = passes | join(", ") %}
+    static {{ m.return_type.name }} {{ m.name }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}) {
+      auto* self = static_cast<direct_control_block*>(cb);
+      return self->storage_.t_.{{ m.name }}({{ passes_str }});
+    }
+{% endfor %}
+
+    static constexpr vtable vtable_ = {
+      xyz_protocol_clone,
+      xyz_protocol_move,
+      xyz_protocol_destroy,
+{% for m in c.methods %}
+      {{ m.name }}_{{ method_guids[loop.index0] }}{% if not loop.last %},{% endif %}
+{% endfor %}
+    };
+  };
+
+  using allocator_traits = std::allocator_traits<Allocator>;
+
+  template <class U, class... Ts>
+  [[nodiscard]] constexpr void* create_control_block(
+      Ts&&... ts) const {
+    using cb_allocator = typename std::allocator_traits<
+        Allocator>::template rebind_alloc<direct_control_block<U>>;
+    cb_allocator cb_alloc(alloc_);
+    using cb_alloc_traits = std::allocator_traits<cb_allocator>;
+    auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
+    try {
+      cb_alloc_traits::construct(cb_alloc, mem, alloc_,
+                                 std::forward<Ts>(ts)...);
+      return mem;
+    } catch (...) {
+      cb_alloc_traits::deallocate(cb_alloc, mem, 1);
+      throw;
+    }
+  }
+
+  void* cb_;
+  const vtable* vtable_;
+  [[no_unique_address]] Allocator alloc_;
+
+ public:
+  explicit constexpr protocol()
+    requires std::default_initializable<{{ full_class_name }}> && protocol_concept_{{ c.name }}<{{ full_class_name }}> &&
+             std::copy_constructible<{{ full_class_name }}>
+      : protocol(std::allocator_arg_t{}, Allocator{}) {}
+
+  template <class U>
+  constexpr explicit protocol(U&& u)
+    requires(!std::same_as<protocol, std::remove_cvref_t<U>>) &&
+            std::copy_constructible<std::remove_cvref_t<U>> &&
+            protocol_concept_{{ c.name }}<U>
+      : protocol(std::allocator_arg_t{}, Allocator{}, std::forward<U>(u)) {}
+
+  template <class U, class... Ts>
+  explicit constexpr protocol(std::in_place_type_t<U>, Ts&&... ts)
+    requires std::same_as<std::remove_cvref_t<U>, U> &&
+             std::constructible_from<U, Ts&&...> &&
+             std::copy_constructible<U> &&
+             std::default_initializable<Allocator> && protocol_concept_{{ c.name }}<U>
+      : protocol(std::allocator_arg_t{}, Allocator{}, std::in_place_type<U>,
+                   std::forward<Ts>(ts)...) {}
+
+  template <class U, class I, class... Ts>
+  explicit constexpr protocol(std::in_place_type_t<U>,
+                                std::initializer_list<I> ilist, Ts&&... ts)
+    requires std::same_as<std::remove_cvref_t<U>, U> &&
+             std::constructible_from<U, std::initializer_list<I>, Ts&&...> &&
+             std::copy_constructible<U> &&
+             std::default_initializable<Allocator> && protocol_concept_{{ c.name }}<U>
+      : protocol(std::allocator_arg_t{}, Allocator{}, std::in_place_type<U>,
+                   ilist, std::forward<Ts>(ts)...) {}
+
+  constexpr protocol(const protocol& other)
+      : protocol(std::allocator_arg_t{},
+                   allocator_traits::select_on_container_copy_construction(
+                       other.alloc_),
+                   other) {}
+
+  constexpr protocol(protocol&& other) noexcept(
+      allocator_traits::is_always_equal::value)
+      : protocol(std::allocator_arg_t{}, other.alloc_, std::move(other)) {}
+
+  explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc)
+    requires std::default_initializable<{{ full_class_name }}> && std::copy_constructible<{{ full_class_name }}>
+      : alloc_(alloc) {
+    cb_ = create_control_block<{{ full_class_name }}>();
+    vtable_ = &direct_control_block<{{ full_class_name }}>::vtable_;
+  }
+
+  template <class U>
+  constexpr explicit protocol(std::allocator_arg_t, const Allocator& alloc,
+                                U&& u)
+    requires(not std::same_as<protocol, std::remove_cvref_t<U>>) &&
+            std::copy_constructible<std::remove_cvref_t<U>> &&
+            protocol_concept_{{ c.name }}<U>
+      : alloc_(alloc) {
+    cb_ = create_control_block<std::remove_cvref_t<U>>(std::forward<U>(u));
+    vtable_ = &direct_control_block<std::remove_cvref_t<U>>::vtable_;
+  }
+
+  template <class U, class... Ts>
+  explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                                std::in_place_type_t<U>, Ts&&... ts)
+    requires std::same_as<std::remove_cvref_t<U>, U> &&
+             std::constructible_from<U, Ts&&...> &&
+             std::copy_constructible<U> && protocol_concept_{{ c.name }}<U>
+      : alloc_(alloc) {
+    cb_ = create_control_block<U>(std::forward<Ts>(ts)...);
+    vtable_ = &direct_control_block<U>::vtable_;
+  }
+
+  template <class U, class I, class... Ts>
+  explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                                std::in_place_type_t<U>,
+                                std::initializer_list<I> ilist, Ts&&... ts)
+    requires std::same_as<std::remove_cvref_t<U>, U> &&
+             std::constructible_from<U, std::initializer_list<I>, Ts&&...> &&
+             std::copy_constructible<U> && protocol_concept_{{ c.name }}<U>
+      : alloc_(alloc) {
+    cb_ = create_control_block<U>(ilist, std::forward<Ts>(ts)...);
+    vtable_ = &direct_control_block<U>::vtable_;
+  }
+
+  constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                       const protocol& other)
+      : alloc_(alloc) {
+    if (!other.valueless_after_move()) {
+      cb_ = other.vtable_->xyz_protocol_clone(other.cb_, alloc_);
+      vtable_ = other.vtable_;
+    } else {
+      cb_ = nullptr;
+      vtable_ = nullptr;
+    }
+  }
+
+  constexpr protocol(
+      std::allocator_arg_t, const Allocator& alloc,
+      protocol&& other) noexcept(allocator_traits::is_always_equal::value)
+      : alloc_(alloc) {
+    if constexpr (allocator_traits::is_always_equal::value) {
+      cb_ = std::exchange(other.cb_, nullptr);
+      vtable_ = std::exchange(other.vtable_, nullptr);
+    } else {
+      if (alloc_ == other.alloc_) {
+        cb_ = std::exchange(other.cb_, nullptr);
+        vtable_ = std::exchange(other.vtable_, nullptr);
+      } else {
+        if (!other.valueless_after_move()) {
+          cb_ = other.vtable_->xyz_protocol_move(other.cb_, alloc_);
+          vtable_ = other.vtable_;
+        } else {
+          cb_ = nullptr;
+          vtable_ = nullptr;
+        }
+      }
+    }
+  }
+
+  constexpr bool valueless_after_move() const noexcept {
+    return cb_ == nullptr;
+  }
+
+  ~protocol() {
+    if (cb_ != nullptr) {
+      vtable_->xyz_protocol_destroy(cb_, alloc_);
+    }
+  }
+
+  protocol& operator=(protocol other) noexcept(
+      allocator_traits::is_always_equal::value) {
+    std::swap(cb_, other.cb_);
+    std::swap(vtable_, other.vtable_);
+    if constexpr (!allocator_traits::is_always_equal::value) {
+      std::swap(alloc_, other.alloc_);
+    }
+    return *this;
+  }
+
+  void swap(protocol& other) noexcept(
+      allocator_traits::is_always_equal::value) {
+    std::swap(cb_, other.cb_);
+    std::swap(vtable_, other.vtable_);
+    if constexpr (!allocator_traits::is_always_equal::value) {
+      std::swap(alloc_, other.alloc_);
+    }
+  }
+
+  friend void swap(protocol& lhs, protocol& rhs) noexcept(
+      allocator_traits::is_always_equal::value) {
+    lhs.swap(rhs);
+  }
+
+ public:
+{% for m in c.methods %}
+  {% set params = [] %}
+  {% set passes = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+    {% set _ = passes.append("std::forward<decltype(a" ~ loop.index0 ~ ")>(a" ~ loop.index0 ~ ")") %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+  {% set passes_str = passes | join(", ") %}
+  {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %} { return vtable_->{{ m.name }}_{{ method_guids[loop.index0] }}(cb_{% if passes %}, {% endif %}{{ passes_str }}); }
+{% endfor %}
+
+};
+
+}  // namespace xyz
+// END Generated code for protocol_{{ c.name }}

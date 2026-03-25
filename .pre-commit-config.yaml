@@ -20,7 +20,7 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v4.5.0
+  rev: v6.0.0
   hooks:
   - id: check-yaml
   - id: end-of-file-fixer
@@ -28,7 +28,7 @@ repos:
   - id: requirements-txt-fixer
   - id: trailing-whitespace
 - repo: https://github.com/pre-commit/mirrors-clang-format
-  rev: v17.0.4
+  rev: v22.1.1
   hooks:
   - id: clang-format
     types_or: [c++, c]
@@ -38,7 +38,17 @@ repos:
   - id: dockerfilelint
     stages: [pre-commit]
 - repo: https://github.com/keith/pre-commit-buildifier
-  rev: 8.0.1
+  rev: 8.5.1
   hooks:
   - id: buildifier
   - id: buildifier-lint
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.15.7
+  hooks:
+    - id: ruff
+      args: [--fix]
+    - id: ruff-format
+# - repo: https://github.com/cheshirekow/cmake-format-precommit
+#   rev: v0.6.13
+#   hooks:
+#     - id: cmake-format
