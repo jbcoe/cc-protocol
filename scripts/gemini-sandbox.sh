@@ -12,20 +12,21 @@ if [ -z "${GEMINI_API_KEY:-}" ]; then
 fi
 
 IMAGE_NAME="cc-protocol-gemini-sandbox"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKERFILE="docker/Dockerfile"
 
 # Build the image
 echo "--- Building Docker Sandbox: $IMAGE_NAME ---"
-docker build -t "$IMAGE_NAME" -f "$DOCKERFILE" .
+docker build -t "$IMAGE_NAME" -f "$PROJECT_ROOT/$DOCKERFILE" "$PROJECT_ROOT"
 
 # Run the container
 echo "--- Starting Sandboxed Gemini Session ---"
-echo "Note: Your current directory $(pwd) is mounted to /workspace"
+echo "Note: Your current directory $PROJECT_ROOT is mounted to /workspace"
 
 docker run -it --rm \
-    -v "$(pwd):/workspace" \
+    -v "$PROJECT_ROOT:/workspace" \
     -e GEMINI_API_KEY="$GEMINI_API_KEY" \
     -e TERM=${TERM:-} \
     -e COLORTERM=${COLORTERM:-} \
     "$IMAGE_NAME" \
-    gemini
+    bash -c "npm install -g @google/gemini-cli@latest --silent && gemini"

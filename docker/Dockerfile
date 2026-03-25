@@ -21,6 +21,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
 && rm -rf /var/lib/apt/lists/*
 
+# Install newer CMake from kitware.
+RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null \
+&& apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ noble main' \
+&& apt-get update && apt-get install -y --no-install-recommends cmake \
+&& rm -rf /var/lib/apt/lists/*
+
 # Install bazelisk.
 RUN ARCH=$(dpkg --print-architecture) && \
     wget https://github.com/bazelbuild/bazelisk/releases/download/v1.25.0/bazelisk-linux-${ARCH} -O /usr/local/bin/bazelisk \
@@ -37,12 +43,17 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Gemini CLI globally
-RUN npm install -g @google/gemini-cli
+# Set up npm to install globally in vscode's home directory
+ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
+ENV PATH="/home/vscode/.npm-global/bin:${PATH}"
 
 # Switch to non-root user
 USER vscode
 WORKDIR /workspace
+
+# Install Gemini CLI
+RUN mkdir -p /home/vscode/.npm-global \
+    && npm install -g @google/gemini-cli
 
 # Set up uv and Python environment
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
