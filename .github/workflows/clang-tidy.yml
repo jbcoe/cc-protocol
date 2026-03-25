@@ -1,26 +1,11 @@
 name: Clang Tidy
 
-on:
-  schedule:
-    - cron: "0 1 * * *"
-  push:
-    branches: [main]
-    paths-ignore:
-      - CODEOWNERS
-      - LICENSE.txt
-      - .pre-commit-config.yaml
-      - "**/*.md"
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - CODEOWNERS
-      - LICENSE.txt
-      - .pre-commit-config.yaml
-      - "**/*.md"
+on: workflow_dispatch
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Debug
+  COMPILER_VERSION: 21
 
 jobs:
   clang-tidy:
@@ -33,15 +18,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: seanmiddleditch/gha-setup-ninja@master
-
-      - name: Configure CMake # We need `compile_commands.json` to be generated.
-        run: cmake --preset Release
-
-      - name: clang-tidy
+      - name: Install Clang
+        shell: bash
         run: |
-          python scripts/reduce_compile_commands.py build/compile_commands.json > compile_commands.json
-          PROJECT_SOURCE_FILES="$(python scripts/reduce_compile_commands.py build/compile_commands.json \
-              --names-only \
-              --exclude_dirs build exploration compile_checks benchmarks)"
-          echo $PROJECT_SOURCE_FILES \
-            | xargs clang-tidy -warnings-as-errors="*" -p compile_commands.json
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh ${{ env.COMPILER_VERSION }} all
+
+          # We need to update symlink otherwise we end up with miss matched clang/clang++ and clang-tidy versions.
+          sudo rm /usr/bin/clang
+          sudo rm /usr/bin/clang++
+          sudo rm /usr/bin/clang-tidy
+
+          sudo ln -s /usr/bin/clang-${{ env.COMPILER_VERSION }} /usr/bin/clang
+          sudo ln -s /usr/bin/clang++-${{ env.COMPILER_VERSION }} /usr/bin/clang++
+          sudo ln -s /usr/bin/clang-tidy-${{ env.COMPILER_VERSION }} /usr/bin/clang-tidy
+      - name: Configure CMake
+        run: cmake --preset ${{ matrix.configuration }} -DCLANG_TIDY_ENABLE=1
+      - name: Build
+        # Build your program with the given configuration
+        run: cmake --build --preset ${{ matrix.configuration }}

@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.22.4 FATAL_ERROR)
 cmake_policy(SET CMP0127 NEW)
 cmake_policy(SET CMP0135 NEW)
+cmake_policy(SET CMP0140 NEW)
 
 if(NOT DEFINED PROJECT_NAME)
     set(XYZ_PROTOCOL_IS_NOT_SUBPROJECT ON)
@@ -19,13 +20,15 @@ include(CMakePackageConfigHelpers)
 option(ENABLE_SANITIZERS "Enable Address Sanitizer and Undefined Behaviour Sanitizer if available" OFF)
 
 # Include necessary submodules
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Custom CMake Includes
 include(coverage)
 include(xyz_add_library)
 include(xyz_add_test)
 include(xyz_add_object_library)
+
+find_package(ClangTidy)
 
 xyz_add_library(
     NAME protocol
