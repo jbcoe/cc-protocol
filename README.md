@@ -56,6 +56,8 @@ Write your concrete type. It does **not** need to inherit from `xyz::B`. It only
 needs to structurally provide the methods defined in the interface.
 
 ```cpp
+namespace xyz {
+
 class MyImplementation {
   std::vector<int> results_;
   bool ready_ = false;
@@ -69,17 +71,18 @@ class MyImplementation {
   std::vector<int> get_results() const { return results_; }
   bool is_ready() const { return ready_; }
 };
+
+}  // namespace xyz
 ```
 
-We can now use `xyz::protocol_B`, an automatically generated type-erased
+We can now use `xyz::protocol<xyz::B>`, an automatically generated type-erased
 wrapper. It copies deeply, propagates `const` correctly, and supports custom
 allocators.
 
 ```cpp
-#include "interface_B.h"
 #include "generated/protocol_B.h"
 
-void run_pipeline(xyz::protocol_B<> worker) {
+void run_pipeline(xyz::protocol<xyz::B> worker) {
   if (!worker.is_ready()) {
     worker.process("hello protocols");
   }
@@ -91,7 +94,7 @@ void run_pipeline(xyz::protocol_B<> worker) {
 
 int main() {
   // Construct the protocol in-place with our implementation
-  xyz::protocol_B<> p(std::in_place_type<MyImplementation>);
+  xyz::protocol<xyz::B> p(std::in_place_type<xyz::MyImplementation>);
 
   run_pipeline(p); // Pass by value!
   return 0;
