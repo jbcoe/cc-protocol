@@ -38,7 +38,10 @@ def main():
     tests = [
         ("TEST_MISSING_METHOD", ["protocol_concept_A", "name()"]),
         ("TEST_WRONG_RETURN_TYPE", ["protocol_concept_A", "count()"]),
-        ("TEST_MISSING_CONST", ["protocol_concept_A", "name()"]),
+        (
+            "TEST_PRIMARY_TEMPLATE_INSTANTIATION",
+            ["The primary xyz::protocol template cannot be instantiated"],
+        ),
     ]
 
     success = True

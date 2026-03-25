@@ -21,7 +21,7 @@ def main():
         "-v", "--verbose", action="store_true", help="Enable verbose logging"
     )
 
-    args = parser.parse_args()
+    args, extra = parser.parse_known_args()
 
     def log(msg):
         if args.verbose:
@@ -38,6 +38,8 @@ def main():
         configure_args.extend(["-B", args.build_dir])
     if args.clean:
         configure_args.append("--fresh")
+
+    configure_args.extend(extra)
 
     log(f"Running: {' '.join(configure_args)}")
     subprocess.check_call(configure_args)

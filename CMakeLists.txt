@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.22.4 FATAL_ERROR)
 cmake_policy(SET CMP0127 NEW)
 cmake_policy(SET CMP0135 NEW)
+cmake_policy(SET CMP0140 NEW)
 
 if(NOT DEFINED PROJECT_NAME)
   set(XYZ_PROTOCOL_IS_NOT_SUBPROJECT ON)
@@ -49,7 +50,7 @@ if(NOT PYTHON_MODULES_FOUND EQUAL 0)
 endif()
 
 # Include necessary submodules
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Custom CMake Includes
 include(xyz_add_library)
@@ -57,6 +58,7 @@ include(xyz_add_test)
 include(xyz_add_object_library)
 include(xyz_generate_protocol)
 
+find_package(ClangTidy)
 xyz_add_library(NAME protocol ALIAS xyz_protocol::protocol)
 target_sources(
   protocol INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.h>)
