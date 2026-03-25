@@ -6,9 +6,15 @@ DXXXX-R0
 
 Working Group: Library Evolution, Library
 
-Date: 2026-03-24
+Date: 2026-03-25
 
 _Jonathan Coe \<<jonathanbcoe@gmail.com>\>_
+
+_Hana Dusikova \<<hanicka@hanicka.net>\>_
+
+_Antony Peacock \<<ant.peacock@gmail.com>\>_
+
+_Philip Craig \<<philip@pobox.com>\>_
 
 ## Abstract
 
