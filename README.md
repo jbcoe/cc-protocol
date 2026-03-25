@@ -127,7 +127,7 @@ For instructions on how to build, test, and contribute to this project, as well 
 
 - PEP 544: [Protocols: Structural subtyping (static duck typing)](https://peps.python.org/pep-0544/)
 
-- P3019: [std::indirect and std::polymorphic](https://isocpp.org/files/papers/P3019R10.html)
+- P3019: [std::indirect and std::polymorphic](https://isocpp.org/files/papers/P3019R14.pdf)
 
 - P2996: [Reflection for C++26](https://isocpp.org/files/papers/P2996R13.html)
 
