@@ -32,3 +32,34 @@ struct NoSpecialization {};
 
 void test() { xyz::protocol<NoSpecialization> p; }
 #endif
+
+#ifdef TEST_VIEW_CONST_TO_MUTABLE_CONCRETE
+struct MutALike {
+  std::string_view name() const { return "name"; }
+
+  int count() { return 1; }
+};
+
+void test() {
+  const MutALike a;
+  xyz::protocol_view<xyz::A> view(a);
+}
+#endif
+
+#ifdef TEST_VIEW_CONST_TO_MUTABLE_PROTOCOL
+void test() {
+  const xyz::protocol<xyz::A> a;
+  xyz::protocol_view<xyz::A> view(a);
+}
+#endif
+
+#ifdef TEST_VIEW_CONST_ALIKE_TO_MUTABLE
+struct ConstALike {
+  std::string_view name() const { return "name"; }
+};
+
+void test() {
+  ConstALike a;
+  xyz::protocol_view<xyz::A> view(a);
+}
+#endif

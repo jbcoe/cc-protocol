@@ -53,6 +53,19 @@ class ALike {
   }
 };
 
+class ConstALike {
+  std::string name_ = "ConstALike";
+
+ public:
+  ConstALike() = default;
+
+  ConstALike(std::string_view name) : name_(name) {}
+
+  std::string_view name() const { return name_; }
+
+  // Notice: no count() method!
+};
+
 class BLike {
   std::vector<int> results_;
   bool ready_ = false;
@@ -75,6 +88,30 @@ class CLike {
   double compute(double x) { return x * 3.0; }
 
   std::string compute(const std::string& x) const { return x + x; }
+};
+
+class CopyCounter {
+ public:
+  int* copies_;
+
+  CopyCounter(int* copies) : copies_(copies) {}
+
+  CopyCounter(const CopyCounter& other) : copies_(other.copies_) {
+    if (copies_) (*copies_)++;
+  }
+
+  CopyCounter& operator=(const CopyCounter& other) {
+    copies_ = other.copies_;
+    if (copies_) (*copies_)++;
+    return *this;
+  }
+
+  CopyCounter(CopyCounter&&) = default;
+  CopyCounter& operator=(CopyCounter&&) = default;
+
+  std::string_view name() const { return "CopyCounter"; }
+
+  int count() { return 0; }
 };
 
 TEST(ProtocolTest, InPlaceCtorNoArgs) {
@@ -492,6 +529,101 @@ TEST(ProtocolTest, CovariantReturns) {
   EXPECT_EQ(results[0], 1);
   EXPECT_EQ(results[1], 2);
   EXPECT_EQ(results[2], 3);
+}
+
+TEST(ProtocolTest, AllocatorAwareRequirements) {
+  using proto_a = xyz::protocol<xyz::A>;
+  static_assert(std::same_as<proto_a::allocator_type, std::allocator<xyz::A>>);
+  EXPECT_TRUE((std::uses_allocator_v<proto_a, std::allocator<xyz::A>>));
+
+  proto_a a(std::in_place_type<ALike>);
+  EXPECT_EQ(a.get_allocator(), std::allocator<xyz::A>{});
+}
+
+TEST(ProtocolViewTest, ViewFromMutableConcrete) {
+  ALike a(10, "view_test");
+  xyz::protocol_view<xyz::A> view(a);
+  EXPECT_EQ(view.name(), "view_test");
+  EXPECT_EQ(view.count(), 10);
+  EXPECT_EQ(a.count(), 11);  // Ensure view mutated `a` directly.
+}
+
+TEST(ProtocolViewTest, ViewFromMutableProtocol) {
+  xyz::protocol<xyz::A> a(std::in_place_type<ALike>, 20, "proto_view");
+  xyz::protocol_view<xyz::A> view(a);
+  EXPECT_EQ(view.name(), "proto_view");
+  EXPECT_EQ(view.count(), 20);
+  EXPECT_EQ(a.count(), 21);  // Ensure view mutated `a` directly.
+}
+
+TEST(ProtocolViewTest, ConstViewFromMutableConcrete) {
+  ALike a(10, "view_test");
+  xyz::protocol_view<const xyz::A> view(a);
+  EXPECT_EQ(view.name(), "view_test");
+}
+
+TEST(ProtocolViewTest, ConstViewFromConstConcrete) {
+  const ALike a(10, "view_test");
+  xyz::protocol_view<const xyz::A> view(a);
+  EXPECT_EQ(view.name(), "view_test");
+}
+
+TEST(ProtocolViewTest, ConstViewFromMutableProtocol) {
+  xyz::protocol<xyz::A> a(std::in_place_type<ALike>, 20, "proto_view");
+  xyz::protocol_view<const xyz::A> view(a);
+  EXPECT_EQ(view.name(), "proto_view");
+}
+
+TEST(ProtocolViewTest, ConstViewFromConstProtocol) {
+  const xyz::protocol<xyz::A> a(std::in_place_type<ALike>, 20, "proto_view");
+  xyz::protocol_view<const xyz::A> view(a);
+  EXPECT_EQ(view.name(), "proto_view");
+}
+
+TEST(ProtocolViewTest, ConstViewFromMutableConstALike) {
+  ConstALike a("const_alike");
+  xyz::protocol_view<const xyz::A> view(a);
+  EXPECT_EQ(view.name(), "const_alike");
+}
+
+TEST(ProtocolViewTest, ConstViewFromConstConstALike) {
+  const ConstALike a("const_alike");
+  xyz::protocol_view<const xyz::A> view(a);
+  EXPECT_EQ(view.name(), "const_alike");
+}
+
+TEST(ProtocolViewTest, ViewConstnessRouting) {
+  BLike b;
+  xyz::protocol_view<xyz::B> view(b);
+  EXPECT_FALSE(view.is_ready());
+  view.process("view processing");
+  EXPECT_TRUE(view.is_ready());
+  auto results = view.get_results();
+  ASSERT_EQ(results.size(), 1u);
+  EXPECT_EQ(results[0], 15);
+}
+
+TEST(ProtocolViewTest, ViewCopiesAreShallow) {
+  int copies = 0;
+  CopyCounter c(&copies);
+  xyz::protocol_view<xyz::A> view(c);
+  EXPECT_EQ(copies, 0);
+
+  xyz::protocol_view<xyz::A> view2 = view;
+  EXPECT_EQ(copies, 0);
+
+  xyz::protocol_view<xyz::A> view3(view2);
+  EXPECT_EQ(copies, 0);
+}
+
+TEST(ProtocolViewTest, ViewMoveIsStandard) {
+  ALike a(10, "move_test");
+  xyz::protocol_view<xyz::A> view(a);
+  xyz::protocol_view<xyz::A> view2 = std::move(view);
+
+  // Moved-from view is still valid (it's just a pointer copy)
+  EXPECT_EQ(view.name(), "move_test");
+  EXPECT_EQ(view2.name(), "move_test");
 }
 
 }  // namespace

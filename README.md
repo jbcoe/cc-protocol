@@ -119,6 +119,34 @@ class BadImplementation {
 // the required expression 'std::as_const(t).is_ready()' is invalid
 ```
 
+## `protocol_view`: Non-Owning Structural Subtyping
+
+Alongside `protocol`, the code generator also produces a `protocol_view` specialization. While `protocol` manages the lifecycle of the underlying object (with deep-copy value semantics), `protocol_view` provides a lightweight, non-owning reference. It functions similarly to `std::string_view` or `std::span` but for protocols.
+
+```cpp
+// `view` observes the object without owning or copying it.
+void inspect(xyz::protocol_view<xyz::B> view) {
+  if (view.is_ready()) {
+    // ...
+  }
+}
+
+int main() {
+  xyz::MyImplementation impl;
+
+  // Implicitly constructs a view over `impl` since it fulfills the structural requirements.
+  inspect(impl);
+
+  xyz::protocol<xyz::B> p(std::in_place_type<xyz::MyImplementation>);
+  // Implicitly constructs a view over `p` as the protocol itself satisfies the requirements!
+  inspect(p);
+
+  return 0;
+}
+```
+
+A `protocol_view` provides true zero-overhead duck-typing at function boundaries, decoupling types while avoiding the cost of allocations and deep copies.
+
 ## Contributing and Development
 
 For instructions on how to build, test, and contribute to this project, as well as a deeper look into the code generation architecture, please refer to the [Developer Guide](CONTRIBUTING.md).

@@ -56,6 +56,15 @@ these protocols maintain value semantics, enforce const-propagation, and provide
 full allocator awareness, consistent with the design principles of P3019
 (`std::polymorphic`).
 
+Furthermore, while nominal subtyping naturally allows for non-owning polymorphic
+views via simple raw pointers or references (e.g., `Base*` or `Base&`),
+structural subtyping lacks a native language equivalent. To pass an object to a
+function expecting a structural interface without transferring ownership or
+triggering an allocation (a deep copy), a non-owning type-erased wrapper is
+required. We propose `protocol_view` to fill this role. `protocol_view` acts
+as a lightweight, zero-overhead reference to any structurally conforming type,
+analogous to `std::string_view` or `std::span`.
+
 ## Design requirements
 
 The proposed protocol facility is guided by several core design requirements. It
@@ -64,14 +73,20 @@ conforming member functions and signatures, without requiring explicit
 inheritance. Protocols must provide value semantics, where copying a protocol
 object performs a deep copy of the underlying erased type.
 
+To support efficient observation at function boundaries without allocation or
+ownership transfer, the facility must generate a non-owning `protocol_view`.
+This view must be constructible from any structurally conforming type (including
+the owning `protocol` itself) and route method calls through a synthesized
+vtable.
+
 Const correctness must be strictly maintained; a const-qualified protocol object
-must only permit the invocation of const-qualified member functions on the
-underlying erased object. The implementation of the type-erased wrapper should
-be generated automatically by the compiler using reflection, eliminating the
-need for manual boilerplate. The wrapper must be fully allocator-aware, properly
-supporting `std::allocator_traits`. Finally, to support efficient move
-operations without necessarily allocating memory, the protocol must define a
-valueless-after-move state.
+or a `protocol_view<const I>` must only permit the invocation of const-qualified
+member functions on the underlying erased object. The implementation of the
+type-erased wrappers should be generated automatically by the compiler using
+reflection, eliminating the need for manual boilerplate. The owning protocol
+must be fully allocator-aware, properly supporting `std::allocator_traits`.
+Finally, to support efficient move operations without necessarily allocating
+memory, the owning protocol must define a valueless-after-move state.
 
 ## Impact on the standard library
 

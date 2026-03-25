@@ -42,6 +42,9 @@ def main():
             "TEST_PRIMARY_TEMPLATE_INSTANTIATION",
             ["The primary xyz::protocol template cannot be instantiated"],
         ),
+        ("TEST_VIEW_CONST_TO_MUTABLE_CONCRETE", ["protocol_concept_A"]),
+        ("TEST_VIEW_CONST_TO_MUTABLE_PROTOCOL", ["protocol_concept_A"]),
+        ("TEST_VIEW_CONST_ALIKE_TO_MUTABLE", ["protocol_concept_A"]),
     ]
 
     success = True
