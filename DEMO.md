@@ -62,18 +62,18 @@ class MyImplementation {
 
 ## 3. Erase the Type with Value Semantics
 
-We can now use `xyz::protocol_B`, an automatically generated type-erased
+We can now use `xyz::protocol<xyz::B>`, an automatically generated type-erased
 wrapper.
 
 Unlike `std::function` (which only wraps a single callable) or `std::unique_ptr`
-(which requires dynamic allocation and pointer semantics), `protocol_B` acts
+(which requires dynamic allocation and pointer semantics), `xyz::protocol<xyz::B>` acts
 like a regular value. It copies deeply, propagates `const` correctly, and
 supports custom allocators.
 
 ```cpp
 #include "generated/protocol_B.h"
 
-void run_pipeline(xyz::protocol_B<> worker) {
+void run_pipeline(xyz::protocol<xyz::B> worker) {
   if (!worker.is_ready()) {
     worker.process("hello protocols");
   }
@@ -85,7 +85,7 @@ void run_pipeline(xyz::protocol_B<> worker) {
 
 int main() {
   // Construct the protocol in-place with our implementation
-  xyz::protocol_B<> p(std::in_place_type<MyImplementation>);
+  xyz::protocol<xyz::B> p(std::in_place_type<xyz::MyImplementation>);
 
   run_pipeline(p); // Pass by value!
   return 0;
