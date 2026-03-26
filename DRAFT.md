@@ -69,19 +69,23 @@ analogous to `std::span`.
 
 The following examples demonstrate the use of `protocol` for ownership and
 `protocol_view` for non-owning observation using a conceptual `Drawable`
-interface. Note that `Shape` does not inherit from `Drawable`; it satisfies the
+interface. Note that `Circle` does not inherit from `Drawable`; it satisfies the
 interface structurally.
 
 ```cpp
 struct Drawable {
   std::string_view name() const;
   void draw();
+  int draw_count() const;
 };
 
 struct Circle {
   std::string_view name() const { return "Circle"; }
-  void draw() { ++draw_count; }
-  int draw_count = 0;
+  void draw() { ++draw_count_; }
+  int draw_count() const { return draw_count_; }
+
+private:
+  int draw_count_ = 0;
 };
 ```
 
@@ -101,8 +105,9 @@ void use_protocol() {
   p1.draw();
   p1.draw();
 
-  assert(p1.draw_count() == 2); // Assuming a draw_count() accessor
-  assert(p2.draw_count() == 0); // p2 remains unaffected by changes to p1
+  // p1 and p2 are independent
+  assert(p1.draw_count() == 2);
+  assert(p2.draw_count() == 0);
 }
 ```
 
@@ -128,19 +133,20 @@ void use_view() {
   // View a concrete object directly without allocation or ownership transfer
   print_info(circle);
   do_work(circle);
-  assert(circle.draw_count == 1);
+  assert(circle.draw_count() == 1);
 
   xyz::protocol<Drawable> p(std::in_place_type<Circle>);
 
   // View an owning protocol object
   print_info(p);
   do_work(p);
+  assert(p.draw_count() == 1);
 
   // Copying a view is a shallow operation
   xyz::protocol_view<Drawable> v1(circle);
   xyz::protocol_view<Drawable> v2 = v1; // v2 points to the same 'circle' as v1
   v2.draw();
-  assert(circle.draw_count == 2);
+  assert(circle.draw_count() == 2);
 }
 ```
 
