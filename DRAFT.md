@@ -95,20 +95,18 @@ private:
 Copying a `protocol` object performs a deep copy of the underlying type.
 
 ```cpp
-void use_protocol() {
-  // Construct in-place
-  xyz::protocol<Drawable> p1(std::in_place_type<Circle>);
+// Construct in-place
+xyz::protocol<Drawable> p1(std::in_place_type<Circle>);
 
-  // p2 is a deep copy of p1, including the underlying Circle object
-  xyz::protocol<Drawable> p2 = p1;
+// p2 is a deep copy of p1, including the underlying Circle object
+xyz::protocol<Drawable> p2 = p1;
 
-  p1.draw();
-  p1.draw();
+p1.draw();
+p1.draw();
 
-  // p1 and p2 are independent
-  assert(p1.draw_count() == 2);
-  assert(p2.draw_count() == 0);
-}
+// p1 and p2 are independent
+assert(p1.draw_count() == 2);
+assert(p2.draw_count() == 0);
 ```
 
 ### `protocol_view` and reference semantics
@@ -117,37 +115,26 @@ void use_protocol() {
 interface `I`. It is analogous to `std::span`.
 
 ```cpp
-void print_info(xyz::protocol_view<const Drawable> view) {
+void print_name(xyz::protocol_view<const Drawable> view) {
   // const view only allows calling const member functions
   std::cout << "Name: " << view.name() << "\n";
 }
 
-void do_work(xyz::protocol_view<Drawable> view) {
-  // mutable view allows calling non-const member functions
-  view.draw();
-}
+Circle circle;
 
-void use_view() {
-  Circle circle;
+// View a concrete object directly without allocation or ownership transfer
+print_name(circle);
 
-  // View a concrete object directly without allocation or ownership transfer
-  print_info(circle);
-  do_work(circle);
-  assert(circle.draw_count() == 1);
+xyz::protocol<Drawable> p(std::in_place_type<Circle>);
 
-  xyz::protocol<Drawable> p(std::in_place_type<Circle>);
+// View an owning protocol object
+print_name(p);
 
-  // View an owning protocol object
-  print_info(p);
-  do_work(p);
-  assert(p.draw_count() == 1);
-
-  // Copying a view is a shallow operation
-  xyz::protocol_view<Drawable> v1(circle);
-  xyz::protocol_view<Drawable> v2 = v1; // v2 points to the same 'circle' as v1
-  v2.draw();
-  assert(circle.draw_count() == 2);
-}
+// Copying a view is a shallow operation
+xyz::protocol_view<Drawable> v1(circle);
+xyz::protocol_view<Drawable> v2 = v1; // v2 points to the same 'circle' as v1
+v2.draw();
+assert(circle.draw_count() == 1);
 ```
 
 ## Design requirements
