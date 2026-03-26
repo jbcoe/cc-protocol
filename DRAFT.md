@@ -63,7 +63,7 @@ function expecting a structural interface without transferring ownership or
 triggering an allocation (a deep copy), a non-owning type-erased wrapper is
 required. We propose `protocol_view` to fill this role. `protocol_view` acts
 as a lightweight, zero-overhead reference to any structurally conforming type,
-analogous to `std::string_view` or `std::span`.
+analogous to `std::span`.
 
 ## Examples
 
@@ -109,7 +109,7 @@ void use_protocol() {
 ### `protocol_view` and reference semantics
 
 `xyz::protocol_view<I>` is a non-owning view of any type that satisfies the
-interface `I`. It is analogous to `std::string_view`.
+interface `I`. It is analogous to `std::span`.
 
 ```cpp
 void print_info(xyz::protocol_view<const Drawable> view) {
