@@ -130,14 +130,13 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       add_test(
         NAME concept_errors_test
         COMMAND
-          ${Python3_EXECUTABLE}
-          ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_concept_errors.py --compiler
-          ${CMAKE_CXX_COMPILER} --source
-          ${CMAKE_CURRENT_SOURCE_DIR}/test_concept_errors.cc -- -std=c++20
-          -I${CMAKE_CURRENT_BINARY_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}
+          ${Python3_EXECUTABLE} -m pytest
+          ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_concept_errors.py
+          --compiler=${CMAKE_CXX_COMPILER} --flags=-std=c++20
+          --flags=-I${CMAKE_CURRENT_BINARY_DIR}
+          --flags=-I${CMAKE_CURRENT_SOURCE_DIR}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     endif()
-
   endif(${BUILD_TESTING})
 
 endif()

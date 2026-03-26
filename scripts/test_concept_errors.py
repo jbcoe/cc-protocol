@@ -1,57 +1,171 @@
-import argparse
+"""Tests for compiler error messages when protocol concepts are violated.
+
+These tests verify that the C++ concepts and static asserts provide meaningful feedback.
+
+These tests are run from CMake using CTest and require flags to be passed at run-time.
+"""
+
+import os
+import re
 import subprocess
-import sys
+import tempfile
+
+import pytest
 
 
-def check_compile_error(compiler, flags, source, define, expected_terms):
-    cmd = [compiler] + flags + [f"-D{define}", "-c", source]
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    if res.returncode == 0:
-        print(f"FAIL: {define} compiled successfully but should have failed.")
-        return False
+def pytest_addoption(parser):
+    parser.addoption("--compiler", action="store", default="g++")
+    parser.addoption("--flags", action="append", default=[])
 
-    output = res.stderr + res.stdout
-    for term in expected_terms:
-        if term not in output:
-            print(f"FAIL: {define} missing expected term '{term}' in output.")
-            print("--- COMPILER OUTPUT ---")
-            print(output)
-            print("-----------------------")
-            return False
 
-    print(
-        f"PASS: {define} correctly emitted concept errors containing {expected_terms}"
+@pytest.fixture
+def compiler(request):
+    return request.config.getoption("--compiler")
+
+
+@pytest.fixture
+def flags(request):
+    return request.config.getoption("--flags")
+
+
+def run_compiler(compiler, flags, source_code):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        source_file = os.path.join(tmpdir, "test.cc")
+        obj_file = os.path.join(tmpdir, "test.o")
+
+        with open(source_file, "w") as f:
+            f.write(source_code)
+
+        cmd = [compiler] + flags + ["-c", source_file, "-o", obj_file]
+        return subprocess.run(cmd, capture_output=True, text=True)
+
+
+@pytest.fixture
+def compile_check(compiler, flags):
+    def check(source, expected_patterns):
+        res = run_compiler(compiler, flags, source)
+        assert res.returncode != 0, "Compilation should have failed"
+        output = res.stderr + res.stdout
+        for pattern in expected_patterns:
+            assert re.search(pattern, output), (
+                f"Expected pattern '{pattern}' not found in compiler output.\n"
+                "--- Compiler Output ---\n"
+                f"{output}\n"
+                "-----------------------"
+            )
+
+    return check
+
+
+def test_missing_method(compile_check):
+    """Test that a class missing a required method fails to satisfy the protocol concept."""
+    source = """
+    #include "generated/protocol_A.h"
+    #include "interface_A.h"
+    #include <utility>
+
+    class BadALike_MissingMethod {
+    public:
+        int count() { return 42; }
+    };
+
+    void test() {
+        xyz::protocol<xyz::A> a(std::in_place_type<BadALike_MissingMethod>);
+    }
+    """
+    compile_check(
+        source,
+        [
+            r"protocol_concept_A",
+            r".name\(\)",
+        ],
     )
-    return True
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--compiler", required=True)
-    parser.add_argument("--source", required=True)
-    parser.add_argument("flags", nargs=argparse.REMAINDER)
-    args = parser.parse_args()
+def test_wrong_return_type(compile_check):
+    """Test that a class with a method having a wrong return type fails to satisfy the protocol concept."""
+    source = """
+    #include "generated/protocol_A.h"
+    #include "interface_A.h"
+    #include <utility>
+    #include <string>
 
-    # We want to remove the '--' if it's there
-    flags = [f for f in args.flags if f != "--"]
+    class BadALike_WrongReturnType {
+    public:
+        std::string_view name() const { return "name"; }
+        std::string count() { return "42"; }  // not convertible to int
+    };
 
-    tests = [
-        ("TEST_MISSING_METHOD", ["protocol_concept_A", "name()"]),
-        ("TEST_WRONG_RETURN_TYPE", ["protocol_concept_A", "count()"]),
-        (
-            "TEST_PRIMARY_TEMPLATE_INSTANTIATION",
-            ["The primary xyz::protocol template cannot be instantiated"],
-        ),
-    ]
-
-    success = True
-    for define, terms in tests:
-        if not check_compile_error(args.compiler, flags, args.source, define, terms):
-            success = False
-
-    if not success:
-        sys.exit(1)
+    void test() {
+        xyz::protocol<xyz::A> a(std::in_place_type<BadALike_WrongReturnType>);
+    }
+    """
+    compile_check(source, [r"protocol_concept_A", r"count\(\)"])
 
 
-if __name__ == "__main__":
-    main()
+def test_primary_template_instantiation(compile_check):
+    """Test that the primary protocol template cannot be instantiated."""
+    source = """
+    #include "protocol.h"
+    struct NoSpecialization {};
+    void test() { xyz::protocol<NoSpecialization> p; }
+    """
+    compile_check(
+        source,
+        [
+            r"static assertion failed",
+            r"The primary xyz::protocol template cannot be instantiated",
+        ],
+    )
+
+
+def test_view_const_to_mutable_concrete(compile_check):
+    """Test that a protocol_view for a mutable interface cannot be constructed from a const object."""
+    source = """
+    #include "generated/protocol_A.h"
+    #include "interface_A.h"
+
+    struct MutALike {
+        std::string_view name() const { return "name"; }
+        int count() { return 1; } // Non-const
+    };
+
+    void test() {
+        const MutALike a;
+        xyz::protocol_view<xyz::A> view(a);
+    }
+    """
+    # The error should indicate that protocol_concept_A is not satisfied because count() is not const
+    compile_check(source, [r"protocol_concept_A", r"t.count\(\)"])
+
+
+def test_view_const_to_mutable_protocol(compile_check):
+    """Test that a protocol_view for a mutable interface cannot be constructed from a const protocol."""
+    source = """
+    #include "generated/protocol_A.h"
+    #include "interface_A.h"
+
+    void test() {
+        const xyz::protocol<xyz::A> a;
+        xyz::protocol_view<xyz::A> view(a);
+    }
+    """
+    compile_check(source, [r"protocol_concept_A", r"t.count\(\)"])
+
+
+def test_view_const_alike_to_mutable(compile_check):
+    """Test that a protocol_view for a mutable interface cannot be constructed from an object missing mutable methods."""
+    source = """
+    #include "generated/protocol_A.h"
+    #include "interface_A.h"
+
+    struct ConstALike {
+        std::string_view name() const { return "name"; }
+    };
+
+    void test() {
+        ConstALike a;
+        xyz::protocol_view<xyz::A> view(a);
+    }
+    """
+    compile_check(source, [r"protocol_concept_A", r"t.count\(\)"])
