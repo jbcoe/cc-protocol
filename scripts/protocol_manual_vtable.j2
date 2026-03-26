@@ -183,10 +183,6 @@ class protocol<{{ full_class_name }}, Allocator> {
   [[no_unique_address]] Allocator alloc_;
 
  public:
-  using allocator_type = Allocator;
-
-  constexpr allocator_type get_allocator() const noexcept { return alloc_; }
-
   explicit constexpr protocol()
     requires std::default_initializable<{{ full_class_name }}> && protocol_concept_{{ c.name }}<{{ full_class_name }}> &&
              std::copy_constructible<{{ full_class_name }}>

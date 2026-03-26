@@ -531,15 +531,6 @@ TEST(ProtocolTest, CovariantReturns) {
   EXPECT_EQ(results[2], 3);
 }
 
-TEST(ProtocolTest, AllocatorAwareRequirements) {
-  using proto_a = xyz::protocol<xyz::A>;
-  static_assert(std::same_as<proto_a::allocator_type, std::allocator<xyz::A>>);
-  EXPECT_TRUE((std::uses_allocator_v<proto_a, std::allocator<xyz::A>>));
-
-  proto_a a(std::in_place_type<ALike>);
-  EXPECT_EQ(a.get_allocator(), std::allocator<xyz::A>{});
-}
-
 TEST(ProtocolViewTest, ViewFromMutableConcrete) {
   ALike a(10, "view_test");
   xyz::protocol_view<xyz::A> view(a);

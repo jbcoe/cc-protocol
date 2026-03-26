@@ -1,9 +1,11 @@
 {
     "files.exclude": {
+        "__pycache__": true,
         ".git": true,
+        ".pytest_cache": true,
+        ".ruff_cache": true,
         ".venv": true,
-        "bazel-*": true,
-        "build": true,
+
     },
     "files.associations": {
         "array": "cpp",
