@@ -37,6 +37,24 @@ concept protocol_concept_{{ c.name }} = requires(T& t) {
 {% endfor %}
 };
 
+template <typename T>
+concept protocol_const_concept_{{ c.name }} = requires(const T& t) {
+{% for m in c.methods %}
+  {% if m.is_const %}
+    {% set declvals = [] %}
+    {% for a in m.arguments %}
+      {% set _ = declvals.append("std::declval<" ~ a.type.name ~ ">()") %}
+    {% endfor %}
+    {% set args_str = declvals | join(", ") %}
+    {% if m.return_type.name == 'void' %}
+  { t.{{ m.name }}({{ args_str }}) };
+    {% else %}
+  { t.{{ m.name }}({{ args_str }}) } -> std::convertible_to<{{ m.return_type.name }}>;
+    {% endif %}
+  {% endif %}
+{% endfor %}
+};
+
 template <typename Allocator>
 class protocol<{{ full_class_name }}, Allocator> {
   struct vtable {
@@ -329,6 +347,128 @@ class protocol<{{ full_class_name }}, Allocator> {
   {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %} { return vtable_->{{ m.name }}_{{ method_guids[loop.index0] }}(cb_{% if passes %}, {% endif %}{{ passes_str }}); }
 {% endfor %}
 
+};
+
+template <>
+class protocol_view<{{ full_class_name }}> {
+  struct vtable {
+{% for m in c.methods %}
+  {% set params = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name) %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+    {{ m.return_type.name }} (*{{ m.name }}_{{ method_guids[loop.index0] }})(void* ptr{% if params %}, {% endif %}{{ params_str }});
+{% endfor %}
+  };
+
+  template <typename T>
+  static constexpr vtable vtable_for = {
+{% for m in c.methods %}
+  {% set params = [] %}
+  {% set passes = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+    {% set _ = passes.append("std::forward<decltype(a" ~ loop.index0 ~ ")>(a" ~ loop.index0 ~ ")") %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+  {% set passes_str = passes | join(", ") %}
+    [](void* ptr{% if params %}, {% endif %}{{ params_str }}) -> {{ m.return_type.name }} {
+      {% if m.return_type.name != 'void' %}return {% endif %}static_cast<{% if m.is_const %}const {% endif %}T*>(ptr)->{{ m.name }}({{ passes_str }});
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+  };
+
+  void* ptr_;
+  const vtable* vptr_;
+
+ public:
+  template <typename T>
+    requires protocol_concept_{{ c.name }}<T> && (!std::same_as<std::remove_cvref_t<T>, protocol_view>)
+  constexpr protocol_view(T& obj) noexcept
+      : ptr_(std::addressof(obj)),
+        vptr_(&vtable_for<std::remove_cvref_t<T>>) {}
+
+  constexpr protocol_view(const protocol_view&) noexcept = default;
+  constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
+
+{% for m in c.methods %}
+  {% set params = [] %}
+  {% set passes = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+    {% set _ = passes.append("std::forward<decltype(a" ~ loop.index0 ~ ")>(a" ~ loop.index0 ~ ")") %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+  {% set passes_str = passes | join(", ") %}
+  {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const {
+    {% if m.return_type.name != 'void' %}return {% endif %}vptr_->{{ m.name }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
+  }
+{% endfor %}
+};
+
+template <>
+class protocol_view<const {{ full_class_name }}> {
+  struct vtable {
+{% for m in c.methods %}
+  {% if m.is_const %}
+  {% set params = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name) %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+    {{ m.return_type.name }} (*{{ m.name }}_{{ method_guids[loop.index0] }})(const void* ptr{% if params %}, {% endif %}{{ params_str }});
+  {% endif %}
+{% endfor %}
+  };
+
+  template <typename T>
+  static constexpr vtable vtable_for = {
+{% set const_methods = [] %}
+{% for m in c.methods %}{% if m.is_const %}{% set _ = const_methods.append(m) %}{% endif %}{% endfor %}
+{% for m in const_methods %}
+  {% set params = [] %}
+  {% set passes = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+    {% set _ = passes.append("std::forward<decltype(a" ~ loop.index0 ~ ")>(a" ~ loop.index0 ~ ")") %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+  {% set passes_str = passes | join(", ") %}
+    [](const void* ptr{% if params %}, {% endif %}{{ params_str }}) -> {{ m.return_type.name }} {
+      {% if m.return_type.name != 'void' %}return {% endif %}static_cast<const T*>(ptr)->{{ m.name }}({{ passes_str }});
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+  };
+
+  const void* ptr_;
+  const vtable* vptr_;
+
+ public:
+  template <typename T>
+    requires protocol_const_concept_{{ c.name }}<T> && (!std::same_as<std::remove_cvref_t<T>, protocol_view>)
+  constexpr protocol_view(const T& obj) noexcept
+      : ptr_(std::addressof(obj)),
+        vptr_(&vtable_for<std::remove_cvref_t<T>>) {}
+
+  constexpr protocol_view(const protocol_view&) noexcept = default;
+  constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
+
+{% for m in c.methods %}
+  {% if m.is_const %}
+  {% set params = [] %}
+  {% set passes = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+    {% set _ = passes.append("std::forward<decltype(a" ~ loop.index0 ~ ")>(a" ~ loop.index0 ~ ")") %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+  {% set passes_str = passes | join(", ") %}
+  {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const {
+    {% if m.return_type.name != 'void' %}return {% endif %}vptr_->{{ m.name }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
+  }
+  {% endif %}
+{% endfor %}
 };
 
 }  // namespace xyz

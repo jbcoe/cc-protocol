@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <initializer_list>
 #include <memory>
+#include <new>
 #include <type_traits>
 #include <utility>
 
@@ -28,6 +29,24 @@ concept protocol_concept_{{ c.name }} = requires(T& t) {
   { std::as_const(t).{{ m.name }}({{ args_str }}) } -> std::convertible_to<{{ m.return_type.name }}>;
     {% endif %}
   {% else %}
+    {% if m.return_type.name == 'void' %}
+  { t.{{ m.name }}({{ args_str }}) };
+    {% else %}
+  { t.{{ m.name }}({{ args_str }}) } -> std::convertible_to<{{ m.return_type.name }}>;
+    {% endif %}
+  {% endif %}
+{% endfor %}
+};
+
+template <typename T>
+concept protocol_const_concept_{{ c.name }} = requires(const T& t) {
+{% for m in c.methods %}
+  {% if m.is_const %}
+    {% set declvals = [] %}
+    {% for a in m.arguments %}
+      {% set _ = declvals.append("std::declval<" ~ a.type.name ~ ">()") %}
+    {% endfor %}
+    {% set args_str = declvals | join(", ") %}
     {% if m.return_type.name == 'void' %}
   { t.{{ m.name }}({{ args_str }}) };
     {% else %}
@@ -301,6 +320,144 @@ class protocol<{{ full_class_name }}, Allocator> {
   {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %} { return cb_->{{ m.name }}({{ passes_str }}); }
 {% endfor %}
 
+};
+
+template <>
+class protocol_view<{{ full_class_name }}> {
+  class control_block {
+   public:
+    constexpr virtual ~control_block() = default;
+{% for m in c.methods %}
+  {% set params = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+    virtual {{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const = 0;
+{% endfor %}
+  };
+
+  template <typename T>
+  class direct_control_block final : public control_block {
+   public:
+    constexpr direct_control_block() = default;
+    constexpr ~direct_control_block() override = default;
+{% for m in c.methods %}
+  {% set params = [] %}
+  {% set passes = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+    {% set _ = passes.append("std::forward<decltype(a" ~ loop.index0 ~ ")>(a" ~ loop.index0 ~ ")") %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+  {% set passes_str = passes | join(", ") %}
+    {{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const override {
+      {% if m.return_type.name != 'void' %}return {% endif %}static_cast<{% if m.is_const %}const {% endif %}T*>(ptr)->{{ m.name }}({{ passes_str }});
+    }
+{% endfor %}
+  };
+
+  template <typename T>
+  static constexpr direct_control_block<T> cb_obj{};
+
+  void* ptr_;
+  const control_block* cb_;
+
+ public:
+  template <typename T>
+    requires protocol_concept_{{ c.name }}<T> && (!std::same_as<std::remove_cvref_t<T>, protocol_view>)
+  constexpr protocol_view(T& obj) noexcept
+      : ptr_(std::addressof(obj)),
+        cb_(&cb_obj<std::remove_cvref_t<T>>) {}
+
+  constexpr protocol_view(const protocol_view&) noexcept = default;
+  constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
+
+{% for m in c.methods %}
+  {% set params = [] %}
+  {% set passes = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+    {% set _ = passes.append("std::forward<decltype(a" ~ loop.index0 ~ ")>(a" ~ loop.index0 ~ ")") %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+  {% set passes_str = passes | join(", ") %}
+  {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const {
+    {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
+  }
+{% endfor %}
+};
+
+template <>
+class protocol_view<const {{ full_class_name }}> {
+  class control_block {
+   public:
+    constexpr virtual ~control_block() = default;
+{% for m in c.methods %}
+  {% if m.is_const %}
+  {% set params = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+    virtual {{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const = 0;
+  {% endif %}
+{% endfor %}
+  };
+
+  template <typename T>
+  class direct_control_block final : public control_block {
+   public:
+    constexpr direct_control_block() = default;
+    constexpr ~direct_control_block() override = default;
+{% set const_methods = [] %}
+{% for m in c.methods %}{% if m.is_const %}{% set _ = const_methods.append(m) %}{% endif %}{% endfor %}
+{% for m in const_methods %}
+  {% set params = [] %}
+  {% set passes = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+    {% set _ = passes.append("std::forward<decltype(a" ~ loop.index0 ~ ")>(a" ~ loop.index0 ~ ")") %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+  {% set passes_str = passes | join(", ") %}
+    {{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const override {
+      {% if m.return_type.name != 'void' %}return {% endif %}static_cast<const T*>(ptr)->{{ m.name }}({{ passes_str }});
+    }
+{% endfor %}
+  };
+
+  template <typename T>
+  static constexpr direct_control_block<T> cb_obj{};
+
+  const void* ptr_;
+  const control_block* cb_;
+
+ public:
+  template <typename T>
+    requires protocol_const_concept_{{ c.name }}<T> && (!std::same_as<std::remove_cvref_t<T>, protocol_view>)
+  constexpr protocol_view(const T& obj) noexcept
+      : ptr_(std::addressof(obj)),
+        cb_(&cb_obj<std::remove_cvref_t<T>>) {}
+
+  constexpr protocol_view(const protocol_view&) noexcept = default;
+  constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
+
+{% for m in c.methods %}
+  {% if m.is_const %}
+  {% set params = [] %}
+  {% set passes = [] %}
+  {% for a in m.arguments %}
+    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+    {% set _ = passes.append("std::forward<decltype(a" ~ loop.index0 ~ ")>(a" ~ loop.index0 ~ ")") %}
+  {% endfor %}
+  {% set params_str = params | join(", ") %}
+  {% set passes_str = passes | join(", ") %}
+  {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const {
+    {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
+  }
+  {% endif %}
+{% endfor %}
 };
 
 }  // namespace xyz

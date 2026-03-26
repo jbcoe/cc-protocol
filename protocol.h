@@ -54,6 +54,19 @@ class protocol {
     return false;  // Placeholder implementation
   }
 };
+
+template <typename T>
+class protocol_view {
+  static_assert(
+      sizeof(T) == 0,
+      "The primary xyz::protocol_view template cannot be instantiated. "
+      "A partial specialization for T must be generated as a build "
+      "step. Use the xyz_generate_protocol CMake macro to produce "
+      "the required specialization.\n\n"
+      "Note: protocol_view specializations are automatically generated "
+      "alongside protocol specializations.");
+};
+
 }  // namespace xyz
 
 #endif  // XYZ_PROTOCOL_H_
