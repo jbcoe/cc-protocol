@@ -65,6 +65,85 @@ required. We propose `protocol_view` to fill this role. `protocol_view` acts
 as a lightweight, zero-overhead reference to any structurally conforming type,
 analogous to `std::string_view` or `std::span`.
 
+## Examples
+
+The following examples demonstrate the use of `protocol` for ownership and
+`protocol_view` for non-owning observation using a conceptual `Drawable`
+interface. Note that `Shape` does not inherit from `Drawable`; it satisfies the
+interface structurally.
+
+```cpp
+struct Drawable {
+  std::string_view name() const;
+  void draw();
+};
+
+struct Circle {
+  std::string_view name() const { return "Circle"; }
+  void draw() { ++draw_count; }
+  int draw_count = 0;
+};
+```
+
+### `protocol` and value semantics
+
+`xyz::protocol<I>` owns its contained object and provides value semantics.
+Copying a `protocol` object performs a deep copy of the underlying type.
+
+```cpp
+void use_protocol() {
+  // Construct in-place
+  xyz::protocol<Drawable> p1(std::in_place_type<Circle>);
+
+  // p2 is a deep copy of p1, including the underlying Circle object
+  xyz::protocol<Drawable> p2 = p1;
+
+  p1.draw();
+  p1.draw();
+
+  assert(p1.draw_count() == 2); // Assuming a draw_count() accessor
+  assert(p2.draw_count() == 0); // p2 remains unaffected by changes to p1
+}
+```
+
+### `protocol_view` and reference semantics
+
+`xyz::protocol_view<I>` is a non-owning view of any type that satisfies the
+interface `I`. It is analogous to `std::string_view`.
+
+```cpp
+void print_info(xyz::protocol_view<const Drawable> view) {
+  // const view only allows calling const member functions
+  std::cout << "Name: " << view.name() << "\n";
+}
+
+void do_work(xyz::protocol_view<Drawable> view) {
+  // mutable view allows calling non-const member functions
+  view.draw();
+}
+
+void use_view() {
+  Circle circle;
+
+  // View a concrete object directly without allocation or ownership transfer
+  print_info(circle);
+  do_work(circle);
+  assert(circle.draw_count == 1);
+
+  xyz::protocol<Drawable> p(std::in_place_type<Circle>);
+
+  // View an owning protocol object
+  print_info(p);
+  do_work(p);
+
+  // Copying a view is a shallow operation
+  xyz::protocol_view<Drawable> v1(circle);
+  xyz::protocol_view<Drawable> v2 = v1; // v2 points to the same 'circle' as v1
+  v2.draw();
+  assert(circle.draw_count == 2);
+}
+```
+
 ## Design requirements
 
 The proposed protocol facility is guided by several core design requirements. It
