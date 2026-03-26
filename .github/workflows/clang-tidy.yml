@@ -6,7 +6,7 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/cmake.yml" # This file
+      - ".github/workflows/clang-tidy.yml" # This file
       - "**/*.cc"
       - "**/*.h"
       - "**/CMakeLists.txt"
@@ -15,7 +15,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - ".github/workflows/cmake.yml" # This file
+      - ".github/workflows/clang-tidy.yml" # This file
       - "**/*.cc"
       - "**/*.h"
       - "**/CMakeLists.txt"
