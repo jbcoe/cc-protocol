@@ -146,10 +146,9 @@ void use_view() {
 
 ## Design requirements
 
-The proposed protocol facility is guided by several core design requirements. It
-must allow types to satisfy an interface based solely on the presence of
+`protocol` must allow types to satisfy an interface based solely on the presence of
 conforming member functions and signatures, without requiring explicit
-inheritance. Protocols must provide value semantics, where copying a protocol
+inheritance. `protocol` must provide value semantics, where copying a `protocol`
 object performs a deep copy of the underlying erased type.
 
 To support efficient observation at function boundaries without allocation or
@@ -165,7 +164,7 @@ type-erased wrappers should be generated automatically by the compiler using
 reflection, eliminating the need for manual boilerplate. The owning protocol
 must be fully allocator-aware, properly supporting `std::allocator_traits`.
 Finally, to support efficient move operations without necessarily allocating
-memory, the owning protocol must define a valueless-after-move state.
+memory, the owning `protocol` must define a valueless-after-move state.
 
 ## Impact on the standard library
 
