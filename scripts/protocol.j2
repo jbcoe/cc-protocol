@@ -345,6 +345,7 @@ class protocol_view<{{ full_class_name }}> {
   class direct_control_block final : public control_block {
    public:
     constexpr direct_control_block() = default;
+    constexpr ~direct_control_block() override = default;
 {% for m in c.methods %}
   {% set params = [] %}
   {% set passes = [] %}
@@ -412,6 +413,7 @@ class protocol_view<const {{ full_class_name }}> {
   class direct_control_block final : public control_block {
    public:
     constexpr direct_control_block() = default;
+    constexpr ~direct_control_block() override = default;
 {% set const_methods = [] %}
 {% for m in c.methods %}{% if m.is_const %}{% set _ = const_methods.append(m) %}{% endif %}{% endfor %}
 {% for m in const_methods %}
