@@ -1,3 +1,42 @@
+include_guard(GLOBAL)
+
+#[=======================================================================[.rst:
+xyz_generate_protocol
+------------------
+
+Overview
+^^^^^^^^
+Generates a protocol implementation based on a provided interface header using
+a Jinja2 template and a Python generation script.
+
+.. code-block:: cmake
+
+  xyz_generate_protocol(
+      [CLASS_NAME <name>]
+      [INTERFACE <header_file>]
+      [OUTPUT <output_file>]
+      [HEADER <include_header>]
+      [MANUAL_VTABLE]
+  )
+   -- Configures a custom command to generate protocol source files.
+
+  ``CLASS_NAME``
+    The name of the class to be generated.
+
+  ``INTERFACE``
+    The input interface header file defining the protocol's structure.
+
+  ``OUTPUT``
+    The path to the generated output source file.
+
+  ``HEADER``
+    The header file to be included in the generated source file.
+
+  ``MANUAL_VTABLE``
+    If specified, uses the manual vtable template for generation instead of the
+    default.
+
+#]=======================================================================]
 macro(xyz_generate_protocol)
   set(options MANUAL_VTABLE)
   set(oneValueArgs CLASS_NAME INTERFACE OUTPUT HEADER)
