@@ -1,6 +1,6 @@
 {
     "files.exclude": {
-        "**/__pycache__": true,
+        "__pycache__": true,
         ".git": true,
         ".pytest_cache": true,
         ".ruff_cache": true,
