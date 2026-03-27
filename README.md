@@ -147,6 +147,20 @@ int main() {
 
 A `protocol_view` provides true zero-overhead duck-typing at function boundaries, decoupling types while avoiding the cost of allocations and deep copies.
 
+## Implementation Details and Benchmarks
+
+The `protocol` code generator supports two different underlying dispatch strategies:
+
+1. **Virtual Dispatch (Default):** Generates a traditional C++ polymorphic class hierarchy with `virtual` methods. The type-erased wrapper heap-allocates a control block derived from a common interface.
+2. **Explicit Manual Vtables:** Generates a struct-of-function-pointers representing the vtable. This approach manually manages type-erasure and dispatch via pointer indirection.
+
+Both implementations enforce identical constraints (value semantics, `const` correctness, and custom allocators). The library builds both versions to ensure they are strictly equivalent and offers a `protocol_benchmark` target to directly compare their performance for allocations, copies, moves, and member function calls.
+
+```bash
+# Build and run the benchmark comparing the two implementations
+./scripts/cmake.sh --benchmark
+```
+
 ## Contributing and Development
 
 For instructions on how to build, test, and contribute to this project, as well as a deeper look into the code generation architecture, please refer to the [Developer Guide](CONTRIBUTING.md).

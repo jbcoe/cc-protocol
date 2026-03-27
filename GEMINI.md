@@ -20,11 +20,8 @@ general defaults for this repository.
 ## Workflow Mandates
 
 - **Tooling:** Always use `uv` for Python dependency management (`uv run ...`).
-- **Build & Test:** Use `scripts/cmake.sh` for all build and test operations. It
-  manages multi-configuration builds (e.g., virtual vs. manual vtable
-  strategies) in isolated directories to prevent cache contamination.
-- **Verification:** All changes must be verified against both default and manual
-  vtable configurations.
+- **Build & Test:** Use `scripts/cmake.sh` for all build and test operations.
+- **Verification:** All changes must be verified against both the default (virtual dispatch) and manual vtable configurations. The `scripts/cmake.sh` script must be run twice: once without any flags, and a second time with the `--manual-vtable` flag to build and test the alternative implementation.
 - **Post-Change Checks:** Tests and pre-commit checks MUST be run after any
   modifications to the codebase.
 - **Concept Error Testing:** Use `scripts/test_concept_errors.py` to verify that

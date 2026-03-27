@@ -91,7 +91,7 @@ The library uses a code generation strategy to create the `protocol` wrappers.
 
 ### Using the `xyz_generate_protocol` Macro
 
-The `xyz_generate_protocol` CMake macro automates code generation.
+The `xyz_generate_protocol` CMake macro automates code generation and supports emitting two different implementation strategies: virtual dispatch and explicit manual vtables.
 
 - Location: The macro is defined in `cmake/xyz_generate_protocol.cmake`.
 - Documentation: This file contains inline documentation that details the
@@ -101,16 +101,34 @@ The `xyz_generate_protocol` CMake macro automates code generation.
   might look like this:
 
   ```cmake
-  # Example snippet (refer to the actual file for exact parameters)
+  # Generate standard virtual-dispatch based protocol
   xyz_generate_protocol(
-      INTERFACE_HEADER "path/to/your/Interface.h"
-      OUTPUT_DIR "${CMAKE_BINARY_DIR}/generated"
-      # ... other parameters
+      CLASS_NAME MyInterface
+      INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/MyInterface.h"
+      HEADER "MyInterface.h"
+      OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_MyInterface.h"
+  )
+
+  # Generate explicit manual vtable-based protocol
+  xyz_generate_protocol(
+      CLASS_NAME MyInterface_manual
+      INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/MyInterface.h"
+      HEADER "MyInterface.h"
+      OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_MyInterface_manual.h"
+      MANUAL_VTABLE
   )
   ```
 
   This macro ensures that the Python script runs during the CMake configuration
   or build phase to generate the necessary C++ source files for the protocol.
+
+## Performance and Benchmarks
+
+The project builds both the standard virtual-dispatch protocol and the explicit `MANUAL_VTABLE` protocol implementation alongside each other to ensure behavior matches. You can directly compare the performance of member function dispatch, copying, and moving by running the `protocol_benchmark` target via the wrapper script:
+
+```bash
+./scripts/cmake.sh --benchmark
+```
 
 ## Usage Examples
 

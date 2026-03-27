@@ -74,12 +74,18 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       googletest
       GIT_REPOSITORY https://github.com/google/googletest.git
       GIT_TAG v1.15.2)
+    FetchContent_Declare(
+      google_benchmark
+      GIT_REPOSITORY https://github.com/google/benchmark.git
+      GIT_TAG v1.9.1)
     # For Windows: Prevent overriding the parent project's compiler/linker
     # settings
     set(gtest_force_shared_crt
         ON
         CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest)
+    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest google_benchmark)
 
     enable_testing()
 
@@ -95,6 +101,14 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       HEADER interface_A.h
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h ${OPT_MANUAL_VTABLE})
     xyz_generate_protocol(
+      CLASS_NAME A_virtual INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_benchmark.h
+      HEADER interface_benchmark.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_virtual.h)
+    xyz_generate_protocol(
+      CLASS_NAME A_manual INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_benchmark.h
+      HEADER interface_benchmark.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_manual.h MANUAL_VTABLE)
+    xyz_generate_protocol(
       CLASS_NAME B INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
       HEADER interface_B.h
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h ${OPT_MANUAL_VTABLE})
@@ -106,6 +120,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
     add_custom_target(
       generate_protocols
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_virtual.h
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_manual.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
 
@@ -125,6 +141,18 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
     add_dependencies(protocol_test generate_protocols)
     target_include_directories(protocol_test
                                PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+    add_executable(protocol_benchmark protocol_benchmark.cc)
+    target_link_libraries(protocol_benchmark PRIVATE protocol benchmark::benchmark)
+    add_dependencies(protocol_benchmark generate_protocols)
+    target_include_directories(protocol_benchmark PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+    add_custom_target(run_benchmark
+      COMMAND protocol_benchmark
+      DEPENDS protocol_benchmark
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+      USES_TERMINAL
+    )
 
     if(NOT MSVC)
       add_test(

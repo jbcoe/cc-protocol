@@ -20,6 +20,9 @@ def main():
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging"
     )
+    parser.add_argument(
+        "--benchmark", action="store_true", help="Run benchmarks after building"
+    )
 
     args, extra = parser.parse_known_args()
 
@@ -65,6 +68,18 @@ def main():
 
     log(f"Running: {' '.join(test_args)}")
     subprocess.check_call(test_args)
+
+    # Benchmark step
+    if args.benchmark:
+        benchmark_cmd = ["cmake", "--build"]
+        if args.build_dir:
+            benchmark_cmd.extend([args.build_dir, "--config", args.preset])
+        else:
+            benchmark_cmd.extend(["--preset", args.preset])
+        benchmark_cmd.extend(["--target", "run_benchmark"])
+
+        log(f"Running: {' '.join(benchmark_cmd)}")
+        subprocess.check_call(benchmark_cmd)
 
 
 if __name__ == "__main__":
