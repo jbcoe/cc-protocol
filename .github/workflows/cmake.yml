@@ -22,6 +22,9 @@ on:
       - "CMakePresets.json"
       - "**/*.cmake"
 
+env:
+  UV_FROZEN: 1
+
 jobs:
   build:
     name: ${{ matrix.settings.name }} ${{ matrix.configuration }}
