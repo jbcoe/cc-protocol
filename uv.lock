@@ -26,7 +26,7 @@ requires-dist = [
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "ruff", specifier = ">=0.15.7" },
-    { name = "xyz-cppmodel", git = "https://github.com/jbcoe/py_cppmodel.git" },
+    { name = "xyz-cppmodel", git = "https://github.com/jbcoe/py_cppmodel.git?rev=eeb0921173dcde828eeb3940d1fdd4f64eaf7e6d" },
 ]
 
 [[package]]
@@ -309,7 +309,7 @@ wheels = [
 [[package]]
 name = "xyz-cppmodel"
 version = "0.0.1"
-source = { git = "https://github.com/jbcoe/py_cppmodel.git#49d2c5c2b9540160dede55b1fdbe47b5505ec079" }
+source = { git = "https://github.com/jbcoe/py_cppmodel.git?rev=eeb0921173dcde828eeb3940d1fdd4f64eaf7e6d#eeb0921173dcde828eeb3940d1fdd4f64eaf7e6d" }
 dependencies = [
     { name = "clang" },
     { name = "libclang" },

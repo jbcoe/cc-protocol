@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-xyz-cppmodel = { git = "https://github.com/jbcoe/py_cppmodel.git" }
+xyz-cppmodel = { git = "https://github.com/jbcoe/py_cppmodel.git", rev = "eeb0921173dcde828eeb3940d1fdd4f64eaf7e6d" }
 
 
 [tool.ruff]
