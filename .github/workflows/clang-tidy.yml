@@ -6,7 +6,7 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/cmake.yml" # This file
+      - ".github/workflows/clang-tidy.yml" # This file
       - "**/*.cc"
       - "**/*.h"
       - "**/CMakeLists.txt"
@@ -15,7 +15,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - ".github/workflows/cmake.yml" # This file
+      - ".github/workflows/clang-tidy.yml" # This file
       - "**/*.cc"
       - "**/*.h"
       - "**/CMakeLists.txt"
@@ -59,7 +59,21 @@ jobs:
           python-version: "3.12"
       - name: Set up Python
         run: uv sync
+      - uses: reviewdog/action-setup@v1.5.0
+        with:
+          reviewdog_version: latest # Optional. [latest,nightly,v.X.Y.Z]
       - name: Run CMake (Default VTable)
-        run: ./scripts/cmake.sh -B build_default ${{ env.BUILD_TYPE }} -DCLANG_TIDY_ENABLE=1
+        run: |
+          ./scripts/cmake.sh -B build_default ${{ env.BUILD_TYPE }} -DCLANG_TIDY_ENABLE=1 2>&1 | tee build1.log
+      - name: Run reviewdog (Default VTable)
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat build1.log | reviewdog -reporter=github-pr-review -efm="%W%f:%l:%c: warning: %m" -efm="%E%f:%l:%c: error: %m"
       - name: Run CMake (Manual VTable)
-        run: ./scripts/cmake.sh -B build_manual --manual-vtable ${{ env.BUILD_TYPE }} -DCLANG_TIDY_ENABLE=1
+        run: ./scripts/cmake.sh -B build_manual --manual-vtable ${{ env.BUILD_TYPE }} -DCLANG_TIDY_ENABLE=1 2>&1 | tee build2.log
+      - name: Run reviewdog (Manual VTable)
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat build2.log | reviewdog -reporter=github-pr-review -efm="%W%f:%l:%c: warning: %m" -efm="%E%f:%l:%c: error: %m"
