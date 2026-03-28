@@ -6,6 +6,16 @@ import subprocess
 def main():
     parser = argparse.ArgumentParser(description="CMake helper script")
     parser.add_argument(
+        "mode",
+        nargs="?",
+        default="test",
+        choices=["build", "test", "benchmark", "b", "t", "bm"],
+        help="Target mode: build (b), test (t), benchmark (bm) (default: test)",
+    )
+    parser.add_argument(
+        "preset", nargs="?", default="Release", help="CMake preset (default: Release)"
+    )
+    parser.add_argument(
         "--manual-vtable",
         action="store_true",
         help="Set XYZ_PROTOCOL_GENERATE_MANUAL_VTABLE=ON",
@@ -15,16 +25,21 @@ def main():
         "--clean", action="store_true", help="Fresh configuration and clean-first build"
     )
     parser.add_argument(
-        "preset", nargs="?", default="Release", help="CMake preset (default: Release)"
-    )
-    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging"
-    )
-    parser.add_argument(
-        "--benchmark", action="store_true", help="Run benchmarks after building"
     )
 
     args, extra = parser.parse_known_args()
+
+    # Map abbreviations to full mode names
+    mode_map = {
+        "b": "build",
+        "t": "test",
+        "bm": "benchmark",
+        "build": "build",
+        "test": "test",
+        "benchmark": "benchmark",
+    }
+    mode = mode_map[args.mode]
 
     def log(msg):
         if args.verbose:
@@ -47,7 +62,7 @@ def main():
     log(f"Running: {' '.join(configure_args)}")
     subprocess.check_call(configure_args)
 
-    # Build step
+    # Build step (required for build, test, benchmark)
     build_args = ["cmake", "--build"]
     if args.build_dir:
         build_args.extend([args.build_dir, "--config", args.preset])
@@ -60,17 +75,18 @@ def main():
     subprocess.check_call(build_args)
 
     # Test step
-    test_args = ["ctest"]
-    if args.build_dir:
-        test_args.extend(["--test-dir", args.build_dir, "-C", args.preset])
-    else:
-        test_args.extend(["--preset", args.preset])
+    if mode == "test":
+        test_args = ["ctest"]
+        if args.build_dir:
+            test_args.extend(["--test-dir", args.build_dir, "-C", args.preset])
+        else:
+            test_args.extend(["--preset", args.preset])
 
-    log(f"Running: {' '.join(test_args)}")
-    subprocess.check_call(test_args)
+        log(f"Running: {' '.join(test_args)}")
+        subprocess.check_call(test_args)
 
     # Benchmark step
-    if args.benchmark:
+    if mode == "benchmark":
         benchmark_cmd = ["cmake", "--build"]
         if args.build_dir:
             benchmark_cmd.extend([args.build_dir, "--config", args.preset])
