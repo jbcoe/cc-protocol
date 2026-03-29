@@ -91,7 +91,7 @@ def main():
 
     # Test step
     if mode == "test":
-        test_args = ["ctest"]
+        test_args = ["ctest", "--output-on-failure"]
         if args.build_dir:
             test_args.extend(["--test-dir", args.build_dir, "-C", preset])
         else:

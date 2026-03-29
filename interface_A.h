@@ -5,7 +5,7 @@
 namespace xyz {
 
 struct A {
-  std::string_view name() const;
+  std::string_view name() const noexcept;
   int count();
 };
 

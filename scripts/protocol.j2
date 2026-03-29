@@ -24,15 +24,15 @@ concept protocol_concept_{{ c.name }} = requires(T& t) {
   {% set args_str = declvals | join(", ") %}
   {% if m.is_const %}
     {% if m.return_type.name == 'void' %}
-  { std::as_const(t).{{ m.name }}({{ args_str }}) };
+  { std::as_const(t).{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %};
     {% else %}
-  { std::as_const(t).{{ m.name }}({{ args_str }}) } -> std::convertible_to<{{ m.return_type.name }}>;
+  { std::as_const(t).{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %} -> std::convertible_to<{{ m.return_type.name }}>;
     {% endif %}
   {% else %}
     {% if m.return_type.name == 'void' %}
-  { t.{{ m.name }}({{ args_str }}) };
+  { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %};
     {% else %}
-  { t.{{ m.name }}({{ args_str }}) } -> std::convertible_to<{{ m.return_type.name }}>;
+  { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %} -> std::convertible_to<{{ m.return_type.name }}>;
     {% endif %}
   {% endif %}
 {% endfor %}
@@ -48,9 +48,9 @@ concept protocol_const_concept_{{ c.name }} = requires(const T& t) {
     {% endfor %}
     {% set args_str = declvals | join(", ") %}
     {% if m.return_type.name == 'void' %}
-  { t.{{ m.name }}({{ args_str }}) };
+  { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %};
     {% else %}
-  { t.{{ m.name }}({{ args_str }}) } -> std::convertible_to<{{ m.return_type.name }}>;
+  { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %} -> std::convertible_to<{{ m.return_type.name }}>;
     {% endif %}
   {% endif %}
 {% endfor %}
@@ -71,7 +71,7 @@ class protocol<{{ full_class_name }}, Allocator> {
     {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
   {% endfor %}
   {% set params_str = params | join(", ") %}
-    virtual {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %} = 0;
+    virtual {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} = 0;
 {% endfor %}
   };
 
@@ -95,7 +95,7 @@ class protocol<{{ full_class_name }}, Allocator> {
                                  std::forward<Ts>(ts)...);
     }
 
-    control_block* xyz_protocol_clone(const Allocator& alloc) {
+    control_block* xyz_protocol_clone(const Allocator& alloc) override {
       cb_allocator cb_alloc(alloc);
       auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
       try {
@@ -107,7 +107,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       }
     }
 
-    control_block* xyz_protocol_move(const Allocator& alloc) {
+    control_block* xyz_protocol_move(const Allocator& alloc) override {
       cb_allocator cb_alloc(alloc);
       auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
       try {
@@ -120,7 +120,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       }
     }
 
-    void xyz_protocol_destroy(const Allocator& alloc) {
+    void xyz_protocol_destroy(const Allocator& alloc) override {
       cb_allocator cb_alloc(alloc);
       cb_alloc_traits::destroy(cb_alloc, std::addressof(storage_.t_));
       cb_alloc_traits::deallocate(cb_alloc, this, 1);
@@ -137,9 +137,9 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
   {% if m.return_type.name == 'void' %}
-    {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %} { storage_.t_.{{ m.name }}({{ passes_str }}); }
+    {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} override { storage_.t_.{{ m.name }}({{ passes_str }}); }
   {% else %}
-    {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %} { return storage_.t_.{{ m.name }}({{ passes_str }}); }
+    {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} override { return storage_.t_.{{ m.name }}({{ passes_str }}); }
   {% endif %}
 {% endfor %}
   };
@@ -317,7 +317,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %} { return cb_->{{ m.name }}({{ passes_str }}); }
+  {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} { return cb_->{{ m.name }}({{ passes_str }}); }
 {% endfor %}
 
 };
@@ -333,7 +333,7 @@ class protocol_view<{{ full_class_name }}> {
     {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
   {% endfor %}
   {% set params_str = params | join(", ") %}
-    virtual {{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const = 0;
+    virtual {{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
 {% endfor %}
   };
 
@@ -351,7 +351,7 @@ class protocol_view<{{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-    {{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const override {
+    {{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
       {% if m.return_type.name != 'void' %}return {% endif %}static_cast<{% if m.is_const %}const {% endif %}T*>(ptr)->{{ m.name }}({{ passes_str }});
     }
 {% endfor %}
@@ -382,7 +382,7 @@ class protocol_view<{{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const {
+  {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
     {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
   }
 {% endfor %}
@@ -400,7 +400,7 @@ class protocol_view<const {{ full_class_name }}> {
     {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
   {% endfor %}
   {% set params_str = params | join(", ") %}
-    virtual {{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const = 0;
+    virtual {{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
   {% endif %}
 {% endfor %}
   };
@@ -421,7 +421,7 @@ class protocol_view<const {{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-    {{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const override {
+    {{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
       {% if m.return_type.name != 'void' %}return {% endif %}static_cast<const T*>(ptr)->{{ m.name }}({{ passes_str }});
     }
 {% endfor %}
@@ -453,7 +453,7 @@ class protocol_view<const {{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const {
+  {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
     {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
   }
   {% endif %}
