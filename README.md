@@ -52,7 +52,7 @@ struct B {
 }  // namespace xyz
 ```
 
-Write your concrete type. It does **not** need to inherit from `xyz::B`. It only
+Write your concrete type. It does not need to inherit from `xyz::B`. It only
 needs to structurally provide the methods defined in the interface.
 
 ```cpp
