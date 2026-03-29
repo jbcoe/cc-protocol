@@ -370,9 +370,6 @@ class protocol_view<{{ full_class_name }}> {
       : ptr_(std::addressof(obj)),
         cb_(&cb_obj<std::remove_cvref_t<T>>) {}
 
-  constexpr protocol_view(const protocol_view&) noexcept = default;
-  constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
-
 {% for m in c.methods %}
   {% set params = [] %}
   {% set passes = [] %}
@@ -439,9 +436,6 @@ class protocol_view<const {{ full_class_name }}> {
   constexpr protocol_view(const T& obj) noexcept
       : ptr_(std::addressof(obj)),
         cb_(&cb_obj<std::remove_cvref_t<T>>) {}
-
-  constexpr protocol_view(const protocol_view&) noexcept = default;
-  constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
 
 {% for m in c.methods %}
   {% if m.is_const %}
