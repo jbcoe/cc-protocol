@@ -91,7 +91,7 @@ class protocol<{{ full_class_name }}, Allocator> {
                                  std::forward<Ts>(ts)...);
     }
 
-    static XYZ_ERASED_CONSTEXPR void* xyz_protocol_clone(void* cb, const Allocator& alloc) {
+    static XYZ_CONSTEXPR void* xyz_protocol_clone(void* cb, const Allocator& alloc) {
       auto* self = static_cast<direct_control_block*>(cb);
       cb_allocator cb_alloc(alloc);
       auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
@@ -104,7 +104,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       }
     }
 
-    static XYZ_ERASED_CONSTEXPR void* xyz_protocol_move(void* cb, const Allocator& alloc) {
+    static XYZ_CONSTEXPR void* xyz_protocol_move(void* cb, const Allocator& alloc) {
       auto* self = static_cast<direct_control_block*>(cb);
       cb_allocator cb_alloc(alloc);
       auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
@@ -118,7 +118,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       }
     }
 
-    static XYZ_ERASED_CONSTEXPR void xyz_protocol_destroy(void* cb, const Allocator& alloc) {
+    static XYZ_CONSTEXPR void xyz_protocol_destroy(void* cb, const Allocator& alloc) {
       auto* self = static_cast<direct_control_block*>(cb);
       cb_allocator cb_alloc(alloc);
       cb_alloc_traits::destroy(cb_alloc, std::addressof(self->storage_.t_));
@@ -136,12 +136,12 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
   {% if m.return_type.name == 'void' %}
-    {% if m.is_constexpr %}XYZ_ERASED_CONSTEXPR {% endif %}static {{ m.return_type.name }} {{ m.name }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} {
+    {% if m.is_constexpr %}XYZ_CONSTEXPR {% endif %}static {{ m.return_type.name }} {{ m.name }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} {
       auto* self = static_cast<direct_control_block*>(cb);
       self->storage_.t_.{{ m.name }}({{ passes_str }});
     }
   {% else %}
-    {% if m.is_constexpr %}XYZ_ERASED_CONSTEXPR {% endif %}static {{ m.return_type.name }} {{ m.name }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} {
+    {% if m.is_constexpr %}XYZ_CONSTEXPR {% endif %}static {{ m.return_type.name }} {{ m.name }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} {
       auto* self = static_cast<direct_control_block*>(cb);
       return self->storage_.t_.{{ m.name }}({{ passes_str }});
     }
@@ -214,17 +214,17 @@ class protocol<{{ full_class_name }}, Allocator> {
       : protocol(std::allocator_arg_t{}, Allocator{}, std::in_place_type<U>,
                    ilist, std::forward<Ts>(ts)...) {}
 
-  constexpr protocol(const protocol& other)
+  XYZ_CONSTEXPR protocol(const protocol& other)
       : protocol(std::allocator_arg_t{},
                    allocator_traits::select_on_container_copy_construction(
                        other.alloc_),
                    other) {}
 
-  constexpr protocol(protocol&& other) noexcept(
+  XYZ_CONSTEXPR protocol(protocol&& other) noexcept(
       allocator_traits::is_always_equal::value)
       : protocol(std::allocator_arg_t{}, other.alloc_, std::move(other)) {}
 
-  explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc)
+  explicit XYZ_CONSTEXPR protocol(std::allocator_arg_t, const Allocator& alloc)
     requires std::default_initializable<{{ full_class_name }}> && std::copy_constructible<{{ full_class_name }}>
       : alloc_(alloc) {
     cb_ = create_control_block<{{ full_class_name }}>();
@@ -232,7 +232,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   }
 
   template <class U>
-  constexpr explicit protocol(std::allocator_arg_t, const Allocator& alloc,
+  XYZ_CONSTEXPR explicit protocol(std::allocator_arg_t, const Allocator& alloc,
                                 U&& u)
     requires(not std::same_as<protocol, std::remove_cvref_t<U>>) &&
             std::copy_constructible<std::remove_cvref_t<U>> &&
@@ -243,7 +243,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   }
 
   template <class U, class... Ts>
-  explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+  explicit XYZ_CONSTEXPR protocol(std::allocator_arg_t, const Allocator& alloc,
                                 std::in_place_type_t<U>, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
              std::constructible_from<U, Ts&&...> &&
@@ -254,7 +254,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   }
 
   template <class U, class I, class... Ts>
-  explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+  explicit XYZ_CONSTEXPR protocol(std::allocator_arg_t, const Allocator& alloc,
                                 std::in_place_type_t<U>,
                                 std::initializer_list<I> ilist, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
@@ -265,7 +265,7 @@ class protocol<{{ full_class_name }}, Allocator> {
     vtable_ = &direct_control_block<U>::vtable_;
   }
 
-  constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+  XYZ_CONSTEXPR protocol(std::allocator_arg_t, const Allocator& alloc,
                        const protocol& other)
       : alloc_(alloc) {
     if (!other.valueless_after_move()) {
@@ -277,7 +277,7 @@ class protocol<{{ full_class_name }}, Allocator> {
     }
   }
 
-  constexpr protocol(
+  XYZ_CONSTEXPR protocol(
       std::allocator_arg_t, const Allocator& alloc,
       protocol&& other) noexcept(allocator_traits::is_always_equal::value)
       : alloc_(alloc) {
@@ -304,13 +304,13 @@ class protocol<{{ full_class_name }}, Allocator> {
     return cb_ == nullptr;
   }
 
-  constexpr ~protocol() {
+  XYZ_CONSTEXPR ~protocol() {
     if (cb_ != nullptr) {
       vtable_->xyz_protocol_destroy(cb_, alloc_);
     }
   }
 
-  constexpr protocol& operator=(protocol other) noexcept(
+  XYZ_CONSTEXPR protocol& operator=(protocol other) noexcept(
       allocator_traits::is_always_equal::value) {
     std::swap(cb_, other.cb_);
     std::swap(vtable_, other.vtable_);
@@ -320,7 +320,7 @@ class protocol<{{ full_class_name }}, Allocator> {
     return *this;
   }
 
-  constexpr void swap(protocol& other) noexcept(
+  XYZ_CONSTEXPR void swap(protocol& other) noexcept(
       allocator_traits::is_always_equal::value) {
     std::swap(cb_, other.cb_);
     std::swap(vtable_, other.vtable_);
@@ -329,7 +329,7 @@ class protocol<{{ full_class_name }}, Allocator> {
     }
   }
 
-  constexpr friend void swap(protocol& lhs, protocol& rhs) noexcept(
+  XYZ_CONSTEXPR friend void swap(protocol& lhs, protocol& rhs) noexcept(
       allocator_traits::is_always_equal::value) {
     lhs.swap(rhs);
   }
@@ -344,7 +344,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {% if m.is_constexpr %}XYZ_ERASED_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} { return vtable_->{{ m.name }}_{{ method_guids[loop.index0] }}(cb_{% if passes %}, {% endif %}{{ passes_str }}); }
+  {% if m.is_constexpr %}XYZ_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} { return vtable_->{{ m.name }}_{{ method_guids[loop.index0] }}(cb_{% if passes %}, {% endif %}{{ passes_str }}); }
 {% endfor %}
 
 };
@@ -385,12 +385,12 @@ class protocol_view<{{ full_class_name }}> {
  public:
   template <typename T>
     requires protocol_concept_{{ c.name }}<T> && (!std::same_as<std::remove_cvref_t<T>, protocol_view>)
-  constexpr protocol_view(T& obj) noexcept
+  XYZ_CONSTEXPR protocol_view(T& obj) noexcept
       : ptr_(std::addressof(obj)),
         vptr_(&vtable_for<std::remove_cvref_t<T>>) {}
 
-  constexpr protocol_view(const protocol_view&) noexcept = default;
-  constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
+  XYZ_CONSTEXPR protocol_view(const protocol_view&) noexcept = default;
+  XYZ_CONSTEXPR protocol_view& operator=(const protocol_view&) noexcept = default;
 
 {% for m in c.methods %}
   {% set params = [] %}
@@ -401,7 +401,7 @@ class protocol_view<{{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {% if m.is_constexpr %}XYZ_ERASED_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
+  {% if m.is_constexpr %}XYZ_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
     {% if m.return_type.name != 'void' %}return {% endif %}vptr_->{{ m.name }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
   }
 {% endfor %}
@@ -447,12 +447,12 @@ class protocol_view<const {{ full_class_name }}> {
  public:
   template <typename T>
     requires protocol_const_concept_{{ c.name }}<T> && (!std::same_as<std::remove_cvref_t<T>, protocol_view>)
-  constexpr protocol_view(const T& obj) noexcept
+  XYZ_CONSTEXPR protocol_view(const T& obj) noexcept
       : ptr_(std::addressof(obj)),
         vptr_(&vtable_for<std::remove_cvref_t<T>>) {}
 
-  constexpr protocol_view(const protocol_view&) noexcept = default;
-  constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
+  XYZ_CONSTEXPR protocol_view(const protocol_view&) noexcept = default;
+  XYZ_CONSTEXPR protocol_view& operator=(const protocol_view&) noexcept = default;
 
 {% for m in c.methods %}
   {% if m.is_const %}
@@ -464,7 +464,7 @@ class protocol_view<const {{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {% if m.is_constexpr %}XYZ_ERASED_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
+  {% if m.is_constexpr %}XYZ_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
     {% if m.return_type.name != 'void' %}return {% endif %}vptr_->{{ m.name }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
   }
   {% endif %}

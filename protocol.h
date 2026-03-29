@@ -22,9 +22,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define XYZ_PROTOCOL_H_
 
 #if defined(__cpp_constexpr) && __cpp_constexpr >= 202306L
-#define XYZ_ERASED_CONSTEXPR constexpr
+#define XYZ_CONSTEXPR constexpr
 #else
-#define XYZ_ERASED_CONSTEXPR
+#define XYZ_CONSTEXPR
 #endif
 
 #include <memory>
