@@ -92,7 +92,7 @@ def test_wrong_return_type(compile_check):
 
     class BadALike_WrongReturnType {
     public:
-        std::string_view name() const { return "name"; }
+        std::string_view name() const noexcept { return "name"; }
         std::string count() { return "42"; }  // not convertible to int
     };
 
@@ -126,7 +126,7 @@ def test_view_const_to_mutable_concrete(compile_check):
     #include "interface_A.h"
 
     struct MutALike {
-        std::string_view name() const { return "name"; }
+        std::string_view name() const noexcept { return "name"; }
         int count() { return 1; } // Non-const
     };
 
@@ -160,7 +160,7 @@ def test_view_const_alike_to_mutable(compile_check):
     #include "interface_A.h"
 
     struct ConstALike {
-        std::string_view name() const { return "name"; }
+        std::string_view name() const noexcept { return "name"; }
     };
 
     void test() {
@@ -169,3 +169,23 @@ def test_view_const_alike_to_mutable(compile_check):
     }
     """
     compile_check(source, [r"protocol_concept_A", r"t.count\(\)"])
+
+
+def test_noexcept_violation(compile_check):
+    """Test that a class with a method missing noexcept fails to satisfy the protocol concept."""
+    source = """
+    #include "generated/protocol_A.h"
+    #include "interface_A.h"
+    #include <utility>
+
+    class BadALike_NoExceptViolation {
+    public:
+        std::string_view name() const { return "name"; } // Missing noexcept
+        int count() { return 42; }
+    };
+
+    void test() {
+        xyz::protocol<xyz::A> a(std::in_place_type<BadALike_NoExceptViolation>);
+    }
+    """
+    compile_check(source, [r"protocol_concept_A", r"name\(\)"])
