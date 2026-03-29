@@ -29,7 +29,13 @@ As C++ reflection (P2996) matures and advanced code injection capabilities are
 added in future standards (C++29+), the generation process demonstrated here via
 `py_cppmodel` will be achievable natively within the language.
 
-A draft proposal detailing this feature can be found in `proposals/DRAFT.md`.
+A draft proposal detailing this feature can be found in `DRAFT.md`.
+
+## Constexpr Support
+
+The generated `protocol` wrappers natively support `constexpr` execution in C++20 (utilizing transient dynamic allocations) for all methods explicitly marked as `constexpr` in the interface definition.
+
+However, `protocol_view` relies on type-erased `void*` pointer casts to maintain a lightweight, non-owning reference. Casting from `void*` is only permitted in constant expressions starting with C++26 via [P2738](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2738r1.pdf). The code generator automatically and conditionally applies `constexpr` based on compiler version and standard support (`__cpp_constexpr >= 202306L`) to ensure maximal compatibility across C++20, C++23, and C++26.
 
 ## Use
 
@@ -184,6 +190,8 @@ as a deeper look into the code generation architecture, please refer to the
 [Developer Guide](CONTRIBUTING.md).
 
 ## References
+
+- P2738: [constexpr cast from void*: towards constexpr type-erasure](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2738r1.pdf)
 
 - PEP 544: [Protocols: Structural subtyping (static duck
   typing)](https://peps.python.org/pep-0544/)

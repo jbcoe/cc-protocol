@@ -136,12 +136,12 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
   {% if m.return_type.name == 'void' %}
-    static {{ m.return_type.name }} {{ m.name }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} {
+    {% if m.is_constexpr %}XYZ_ERASED_CONSTEXPR {% endif %}static {{ m.return_type.name }} {{ m.name }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} {
       auto* self = static_cast<direct_control_block*>(cb);
       self->storage_.t_.{{ m.name }}({{ passes_str }});
     }
   {% else %}
-    static {{ m.return_type.name }} {{ m.name }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} {
+    {% if m.is_constexpr %}XYZ_ERASED_CONSTEXPR {% endif %}static {{ m.return_type.name }} {{ m.name }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} {
       auto* self = static_cast<direct_control_block*>(cb);
       return self->storage_.t_.{{ m.name }}({{ passes_str }});
     }
@@ -304,13 +304,13 @@ class protocol<{{ full_class_name }}, Allocator> {
     return cb_ == nullptr;
   }
 
-  ~protocol() {
+  constexpr ~protocol() {
     if (cb_ != nullptr) {
       vtable_->xyz_protocol_destroy(cb_, alloc_);
     }
   }
 
-  protocol& operator=(protocol other) noexcept(
+  constexpr protocol& operator=(protocol other) noexcept(
       allocator_traits::is_always_equal::value) {
     std::swap(cb_, other.cb_);
     std::swap(vtable_, other.vtable_);
@@ -320,7 +320,7 @@ class protocol<{{ full_class_name }}, Allocator> {
     return *this;
   }
 
-  void swap(protocol& other) noexcept(
+  constexpr void swap(protocol& other) noexcept(
       allocator_traits::is_always_equal::value) {
     std::swap(cb_, other.cb_);
     std::swap(vtable_, other.vtable_);
@@ -329,7 +329,7 @@ class protocol<{{ full_class_name }}, Allocator> {
     }
   }
 
-  friend void swap(protocol& lhs, protocol& rhs) noexcept(
+  constexpr friend void swap(protocol& lhs, protocol& rhs) noexcept(
       allocator_traits::is_always_equal::value) {
     lhs.swap(rhs);
   }
@@ -344,7 +344,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} { return vtable_->{{ m.name }}_{{ method_guids[loop.index0] }}(cb_{% if passes %}, {% endif %}{{ passes_str }}); }
+  {% if m.is_constexpr %}XYZ_ERASED_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} { return vtable_->{{ m.name }}_{{ method_guids[loop.index0] }}(cb_{% if passes %}, {% endif %}{{ passes_str }}); }
 {% endfor %}
 
 };
@@ -401,7 +401,7 @@ class protocol_view<{{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
+  {% if m.is_constexpr %}XYZ_ERASED_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
     {% if m.return_type.name != 'void' %}return {% endif %}vptr_->{{ m.name }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
   }
 {% endfor %}
@@ -464,7 +464,7 @@ class protocol_view<const {{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
+  {% if m.is_constexpr %}XYZ_ERASED_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
     {% if m.return_type.name != 'void' %}return {% endif %}vptr_->{{ m.name }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
   }
   {% endif %}

@@ -30,6 +30,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "generated/protocol_A.h"
 #include "generated/protocol_B.h"
 #include "generated/protocol_C.h"
+#include "generated/protocol_constexpr.h"
+#include "generated/protocol_constexpr_manual.h"
 #include "tracking_allocator.h"
 
 namespace {
@@ -625,5 +627,36 @@ TEST(ProtocolViewTest, ViewMoveIsStandard) {
   EXPECT_EQ(view.name(), "move_test");
   EXPECT_EQ(view2.name(), "move_test");
 }
+
+#if defined(__cpp_constexpr) && __cpp_constexpr >= 202306L
+struct ConstexprALike {
+  constexpr std::string_view name() const noexcept { return "ConstexprALike"; }
+
+  constexpr int count() { return 42; }
+};
+
+constexpr int test_protocol_constexpr() {
+  xyz::protocol<xyz::ConstexprInterface> p(std::in_place_type<ConstexprALike>);
+  return p.count();
+}
+
+constexpr int test_protocol_view_constexpr() {
+  ConstexprALike a;
+  xyz::protocol_view<xyz::ConstexprInterface> v(a);
+  return v.count();
+}
+
+static_assert(test_protocol_constexpr() == 42);
+static_assert(test_protocol_view_constexpr() == 42);
+
+constexpr int test_protocol_manual_constexpr() {
+  xyz::protocol<xyz::ConstexprInterface_manual> p(
+      std::in_place_type<ConstexprALike>);
+  return p.count();
+}
+
+static_assert(test_protocol_manual_constexpr() == 42);
+
+#endif
 
 }  // namespace

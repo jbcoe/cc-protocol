@@ -20,6 +20,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #ifndef XYZ_PROTOCOL_H_
 #define XYZ_PROTOCOL_H_
+
+#if defined(__cpp_constexpr) && __cpp_constexpr >= 202306L
+#define XYZ_ERASED_CONSTEXPR constexpr
+#else
+#define XYZ_ERASED_CONSTEXPR
+#endif
+
 #include <memory>
 
 namespace xyz {
