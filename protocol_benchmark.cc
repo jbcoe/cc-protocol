@@ -149,6 +149,17 @@ static void ProtocolView_Manual_Call(benchmark::State& state) {
 
 BENCHMARK(ProtocolView_Manual_Call);
 
+static void RawPointer_Call(benchmark::State& state) {
+  ALike alike;
+  ALike* ptr = &alike;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(ptr->name());
+    benchmark::DoNotOptimize(ptr->count());
+  }
+}
+
+BENCHMARK(RawPointer_Call);
+
 }  // namespace
 
 BENCHMARK_MAIN();
