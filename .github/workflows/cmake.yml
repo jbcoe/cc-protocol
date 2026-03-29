@@ -12,6 +12,7 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "**/*.cmake"
+      - "**/*.j2"
   pull_request:
     branches: [main]
     paths:
