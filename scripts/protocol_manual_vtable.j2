@@ -417,7 +417,7 @@ class protocol_view<const {{ full_class_name }}> {
     {% set _ = params.append(a.type.name) %}
   {% endfor %}
   {% set params_str = params | join(", ") %}
-    {{ m.return_type.name }} (*{{ m.name }}_{{ method_guids[loop.index0] }})(const void* ptr{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} ;
+    {{ m.return_type.name }} (*{{ m.name }}_{{ method_guids[loop.index0] }})(const void* ptr{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %};
   {% endif %}
 {% endfor %}
   };
