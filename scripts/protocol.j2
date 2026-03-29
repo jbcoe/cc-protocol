@@ -333,7 +333,7 @@ class protocol_view<{{ full_class_name }}> {
     {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
   {% endfor %}
   {% set params_str = params | join(", ") %}
-    virtual {% if m.is_constexpr %}XYZ_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
+    virtual {% if m.is_constexpr %}XYZ_2026_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
 {% endfor %}
   };
 
@@ -351,7 +351,7 @@ class protocol_view<{{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-    {% if m.is_constexpr %}XYZ_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
+    {% if m.is_constexpr %}XYZ_2026_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
       {% if m.return_type.name != 'void' %}return {% endif %}static_cast<{% if m.is_const %}const {% endif %}T*>(ptr)->{{ m.name }}({{ passes_str }});
     }
 {% endfor %}
@@ -382,7 +382,7 @@ class protocol_view<{{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {% if m.is_constexpr %}XYZ_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
+  {% if m.is_constexpr %}XYZ_2026_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
     {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
   }
 {% endfor %}
@@ -400,7 +400,7 @@ class protocol_view<const {{ full_class_name }}> {
     {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
   {% endfor %}
   {% set params_str = params | join(", ") %}
-    virtual {% if m.is_constexpr %}XYZ_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
+    virtual {% if m.is_constexpr %}XYZ_2026_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
   {% endif %}
 {% endfor %}
   };
@@ -421,7 +421,7 @@ class protocol_view<const {{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-    {% if m.is_constexpr %}XYZ_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
+    {% if m.is_constexpr %}XYZ_2026_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
       {% if m.return_type.name != 'void' %}return {% endif %}static_cast<const T*>(ptr)->{{ m.name }}({{ passes_str }});
     }
 {% endfor %}
@@ -453,7 +453,7 @@ class protocol_view<const {{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {% if m.is_constexpr %}XYZ_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
+  {% if m.is_constexpr %}XYZ_2026_CONSTEXPR {% endif %}{{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
     {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
   }
   {% endif %}

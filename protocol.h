@@ -22,9 +22,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define XYZ_PROTOCOL_H_
 
 #if defined(__cpp_constexpr) && __cpp_constexpr >= 202306L
-#define XYZ_CONSTEXPR constexpr
+// Casting void* to T* in a constexpr context requires
+// https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2738r1.pdf
+#define XYZ_2026_CONSTEXPR constexpr
 #else
-#define XYZ_CONSTEXPR
+#define XYZ_2026_CONSTEXPR
 #endif
 
 #include <memory>
