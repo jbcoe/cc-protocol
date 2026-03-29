@@ -31,7 +31,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "generated/protocol_B.h"
 #include "generated/protocol_C.h"
 #include "generated/protocol_constexpr.h"
-#include "generated/protocol_constexpr_manual.h"
 #include "tracking_allocator.h"
 
 namespace {

@@ -100,13 +100,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
     xyz_generate_protocol(
       CLASS_NAME ConstexprInterface INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_constexpr.h
       HEADER interface_constexpr.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_constexpr.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_constexpr_manual.h ${OPT_MANUAL_VTABLE})
-    xyz_generate_protocol(
-      CLASS_NAME ConstexprInterface_manual INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_constexpr.h
-      HEADER interface_constexpr.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_constexpr_manual.h MANUAL_VTABLE)
-
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_constexpr.h ${OPT_MANUAL_VTABLE})
     xyz_generate_protocol(
       CLASS_NAME A INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
       HEADER interface_A.h
@@ -134,6 +128,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_virtual.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_manual.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_constexpr.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
 
     xyz_add_test(VERSION ${XYZ_PROTOCOL_CXX_STANDARD}
@@ -145,7 +140,6 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       protocol_test.cc
       interface_constexpr.h
       ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_constexpr.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_constexpr_manual.h
       interface_A.h
       ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h
       interface_B.h
