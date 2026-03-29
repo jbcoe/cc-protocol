@@ -77,4 +77,8 @@ function(xyz_add_object_library)
     target_compile_definitions(${XYZ_NAME} PRIVATE ${XYZ_DEFINITIONS})
   endif(XYZ_DEFINITIONS)
 
+  if(CLANG_TIDY_ENABLE AND ClangTidy_FOUND)
+    set_target_properties(${XYZ_NAME} PROPERTIES CXX_CLANG_TIDY "${XYZ_CLANG_TIDY}")
+  endif()
+
 endfunction()

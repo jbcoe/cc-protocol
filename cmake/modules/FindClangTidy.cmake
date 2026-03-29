@@ -20,7 +20,7 @@
 #
 include_guard(GLOBAL)
 
-option(CLANG_TIDY_ENABLE "Build with support for Include What You Use" OFF)
+option(CLANG_TIDY_ENABLE "Build with support for clang-tidy" OFF)
 
 set(ClangTidy_VERBOSITY_LEVEL 3 CACHE STRING "Clang Tidy verbosity level (the higher the level, the more output)")
 
@@ -134,6 +134,11 @@ function(enable_clang_tidy)
         return()
     endif()
 
+    if(NOT ClangTidy_FOUND)
+        _clang_tidy_log("clang-tidy not found")
+        return()
+    endif()
+
     if(CLANG_TIDY_ARGS_CONFIG_FILE)
         if(NOT EXISTS ${CLANG_TIDY_ARGS_CONFIG_FILE})
             message(FATAL_ERROR "clang-tidy: Config file '${CLANG_TIDY_ARGS_CONFIG_FILE}' does not exist")
@@ -141,11 +146,11 @@ function(enable_clang_tidy)
         _clang_tidy_args_append("--config-file=${CLANG_TIDY_ARGS_CONFIG_FILE}")
     endif()
 
-    set(CMAKE_CXX_CLANG_TIDY "${ClangTidy_EXECUTABLE};-p=${CMAKE_BINARY_DIR};${_clang_tidy_args}" PARENT_SCOPE)
+    set(XYZ_CLANG_TIDY "${ClangTidy_EXECUTABLE};-p=${CMAKE_BINARY_DIR};${_clang_tidy_args}" CACHE INTERNAL "clang-tidy command")
 
     _clang_tidy_log("  Arguments: ${_clang_tidy_args}")
     _clang_tidy_log("Enabling clang-tidy - done")
-    _clang_tidy_log("CLANG_TIDY = ${CMAKE_CXX_CLANG_TIDY}")
+    _clang_tidy_log("XYZ_CLANG_TIDY = ${XYZ_CLANG_TIDY}")
 endfunction()
 
 if (CLANG_TIDY_ENABLE)

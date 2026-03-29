@@ -146,6 +146,9 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
     target_link_libraries(protocol_benchmark PRIVATE protocol benchmark::benchmark)
     add_dependencies(protocol_benchmark generate_protocols)
     target_include_directories(protocol_benchmark PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+    if(CLANG_TIDY_ENABLE AND ClangTidy_FOUND)
+      set_target_properties(protocol_benchmark PROPERTIES CXX_CLANG_TIDY "${XYZ_CLANG_TIDY}")
+    endif()
 
     add_custom_target(run_benchmark
       COMMAND protocol_benchmark
