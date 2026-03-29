@@ -131,11 +131,10 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_constexpr.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
 
-    xyz_add_test(VERSION ${XYZ_PROTOCOL_CXX_STANDARD}
-      NAME
-      protocol_test
-      LINK_LIBRARIES
-      protocol
+    xyz_add_test(
+      NAME protocol_test
+      VERSION ${XYZ_PROTOCOL_CXX_STANDARD}
+      LINK_LIBRARIES protocol
       FILES
       protocol_test.cc
       interface_constexpr.h
