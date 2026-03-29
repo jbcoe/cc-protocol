@@ -44,7 +44,7 @@ class ALike {
   ALike(std::string_view name) : name_(name) {};
   ALike(int x, std::string_view name) : x_(x), name_(name) {};
 
-  std::string_view name() const { return name_; }
+  std::string_view name() const noexcept { return name_; }
 
   int count() {
     int ret = x_;
@@ -61,10 +61,18 @@ class ConstALike {
 
   ConstALike(std::string_view name) : name_(name) {}
 
-  std::string_view name() const { return name_; }
+  std::string_view name() const noexcept { return name_; }
 
   // Notice: no count() method!
 };
+
+static_assert(noexcept(std::declval<xyz::protocol_view<xyz::A>>().name()));
+static_assert(
+    noexcept(std::declval<xyz::protocol_view<const xyz::A>>().name()));
+static_assert(!noexcept(std::declval<xyz::protocol_view<xyz::A>>().count()));
+
+static_assert(noexcept(std::declval<xyz::protocol<xyz::A>>().name()));
+static_assert(!noexcept(std::declval<xyz::protocol<xyz::A>>().count()));
 
 class BLike {
   std::vector<int> results_;
@@ -109,7 +117,7 @@ class CopyCounter {
   CopyCounter(CopyCounter&&) = default;
   CopyCounter& operator=(CopyCounter&&) = default;
 
-  std::string_view name() const { return "CopyCounter"; }
+  std::string_view name() const noexcept { return "CopyCounter"; }
 
   int count() { return 0; }
 };
