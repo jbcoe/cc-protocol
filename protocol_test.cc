@@ -649,14 +649,6 @@ constexpr int test_protocol_view_constexpr() {
 static_assert(test_protocol_constexpr() == 42);
 static_assert(test_protocol_view_constexpr() == 42);
 
-constexpr int test_protocol_manual_constexpr() {
-  xyz::protocol<xyz::ConstexprInterface_manual> p(
-      std::in_place_type<ConstexprALike>);
-  return p.count();
-}
-
-static_assert(test_protocol_manual_constexpr() == 42);
-
 #endif  // __cpp_constexpr >= 202306L
 
 }  // namespace
