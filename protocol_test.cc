@@ -27,9 +27,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <utility>
 #include <vector>
 
+#ifndef XYZ_PROTOCOL_COMPILER_WRAPPER
 #include "generated/protocol_A.h"
 #include "generated/protocol_B.h"
 #include "generated/protocol_C.h"
+#endif  // XYZ_PROTOCOL_COMPILER_WRAPPER
 #include "tracking_allocator.h"
 
 namespace {

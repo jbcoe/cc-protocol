@@ -79,26 +79,33 @@ We can now use `xyz::protocol<xyz::B>`, an automatically generated type-erased
 wrapper. It copies deeply, propagates `const` correctly, and supports custom
 allocators.
 
+### Automatic Protocol Generation (Experimental)
+
+Instead of explicitly generating headers as a build step, you can use the
+included compiler wrapper `scripts/protocol_compiler_wrapper.py`. It acts as a drop-in
+proxy for `g++` or `clang++`, automatically discovering protocol usages in your
+source code and injecting the required specializations on the fly.
+
 ```cpp
-#include "generated/protocol_B.h"
+#include "interface_B.h"
+#include "protocol.h"
+
+// No need to include "generated/protocol_B.h" when using the wrapper!
 
 void run_pipeline(xyz::protocol<xyz::B> worker) {
-  if (!worker.is_ready()) {
-    worker.process("hello protocols");
-  }
-
-  for (int result : worker.get_results()) {
-    // ...
-  }
+  // ...
 }
+```
 
-int main() {
-  // Construct the protocol in-place with our implementation
-  xyz::protocol<xyz::B> p(std::in_place_type<xyz::MyImplementation>);
+To compile with the wrapper:
+```bash
+PYTHONPATH=. uv run scripts/protocol_compiler_wrapper.py -std=c++20 -I. my_source.cc -o my_app
+```
 
-  run_pipeline(p); // Pass by value!
-  return 0;
-}
+Alternatively, you can include the generated header explicitly if you prefer a
+traditional build-time generation step:
+```cpp
+#include "generated/protocol_B.h"
 ```
 
 The generated wrapper uses C++20 concepts and `requires` clauses: any structural

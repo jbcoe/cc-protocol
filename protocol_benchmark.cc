@@ -3,8 +3,10 @@
 #include <string_view>
 #include <utility>
 
+#ifndef XYZ_PROTOCOL_COMPILER_WRAPPER
 #include "generated/protocol_A_manual.h"
 #include "generated/protocol_A_virtual.h"
+#endif  // XYZ_PROTOCOL_COMPILER_WRAPPER
 #include "interface_benchmark.h"
 
 namespace {

@@ -60,6 +60,39 @@ def get_compiler_args(compiler="c++"):
     return args
 
 
+def generate_protocol_from_tu(tu, class_name, template_path, header_to_include):
+    model = Model(tu)
+
+    # Find target class
+    target_class = None
+    for c in model.classes:
+        if c.name == class_name or c.qualified_name == class_name:
+            target_class = c
+            break
+
+    if not target_class:
+        raise ValueError(f"Class {class_name} not found in translation unit")
+
+    template_dir = os.path.dirname(os.path.abspath(template_path))
+    template_name = os.path.basename(template_path)
+
+    # Setup Jinja2
+    env = Environment(
+        loader=FileSystemLoader(template_dir), autoescape=select_autoescape()
+    )
+    template = env.get_template(template_name)
+
+    method_guids = [
+        hashlib.md5(get_method_signature(m).encode()).hexdigest()[:8]
+        for m in target_class.methods
+    ]
+
+    # Render
+    return template.render(
+        c=target_class, method_guids=method_guids, header=header_to_include
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("input", help="Input header file")
@@ -84,44 +117,15 @@ def main():
     tu = index.parse(args.input, args=compiler_args)
 
     try:
-        model = Model(tu)
-    except ValueError as e:
-        print(f"Error parsing {args.input}: {e}", file=sys.stderr)
+        result = generate_protocol_from_tu(
+            tu, args.class_name, args.template, args.header
+        )
+        os.makedirs(os.path.dirname(args.output), exist_ok=True)
+        with open(args.output, "w") as f:
+            f.write(result)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-
-    # Find target class
-    target_class = None
-    for c in model.classes:
-        if c.name == args.class_name:
-            target_class = c
-            break
-
-    if not target_class:
-        print(f"Class {args.class_name} not found in {args.input}", file=sys.stderr)
-        sys.exit(1)
-
-    template_dir = os.path.dirname(os.path.abspath(args.template))
-    template_name = os.path.basename(args.template)
-
-    # Setup Jinja2
-    env = Environment(
-        loader=FileSystemLoader(template_dir), autoescape=select_autoescape()
-    )
-    template = env.get_template(template_name)
-
-    method_guids = [
-        hashlib.md5(get_method_signature(m).encode()).hexdigest()[:8]
-        for m in target_class.methods
-    ]
-
-    # Render
-    result = template.render(
-        c=target_class, method_guids=method_guids, header=args.header
-    )
-
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
-    with open(args.output, "w") as f:
-        f.write(result)
 
 
 if __name__ == "__main__":

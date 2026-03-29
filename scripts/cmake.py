@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import subprocess
 
 
@@ -31,6 +32,11 @@ def main():
         "--manual-vtable",
         action="store_true",
         help="Set XYZ_PROTOCOL_GENERATE_MANUAL_VTABLE=ON",
+    )
+    parser.add_argument(
+        "--wrapper",
+        action="store_true",
+        help="Use protocol compiler wrapper (experimental)",
     )
     parser.add_argument("-B", "--build-dir", help="Build directory")
     parser.add_argument(
@@ -67,6 +73,12 @@ def main():
         preset,
         f"-DXYZ_PROTOCOL_GENERATE_MANUAL_VTABLE={'ON' if args.manual_vtable else 'OFF'}",
     ]
+    if args.wrapper:
+        wrapper_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "protocol_compiler_wrapper.py"
+        )
+        configure_args.append(f"-DCMAKE_CXX_COMPILER={wrapper_path}")
+
     if args.build_dir:
         configure_args.extend(["-B", args.build_dir])
     if args.clean:

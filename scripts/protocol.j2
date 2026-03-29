@@ -95,7 +95,7 @@ class protocol<{{ full_class_name }}, Allocator> {
                                  std::forward<Ts>(ts)...);
     }
 
-    control_block* xyz_protocol_clone(const Allocator& alloc) {
+    control_block* xyz_protocol_clone(const Allocator& alloc) override {
       cb_allocator cb_alloc(alloc);
       auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
       try {
@@ -107,7 +107,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       }
     }
 
-    control_block* xyz_protocol_move(const Allocator& alloc) {
+    control_block* xyz_protocol_move(const Allocator& alloc) override {
       cb_allocator cb_alloc(alloc);
       auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
       try {
@@ -120,7 +120,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       }
     }
 
-    void xyz_protocol_destroy(const Allocator& alloc) {
+    void xyz_protocol_destroy(const Allocator& alloc) override {
       cb_allocator cb_alloc(alloc);
       cb_alloc_traits::destroy(cb_alloc, std::addressof(storage_.t_));
       cb_alloc_traits::deallocate(cb_alloc, this, 1);
@@ -137,9 +137,9 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
   {% if m.return_type.name == 'void' %}
-    {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %} { storage_.t_.{{ m.name }}({{ passes_str }}); }
+    {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %} override { storage_.t_.{{ m.name }}({{ passes_str }}); }
   {% else %}
-    {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %} { return storage_.t_.{{ m.name }}({{ passes_str }}); }
+    {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %} override { return storage_.t_.{{ m.name }}({{ passes_str }}); }
   {% endif %}
 {% endfor %}
   };

@@ -60,7 +60,9 @@ def compile_check(compiler, flags):
 def test_missing_method(compile_check):
     """Test that a class missing a required method fails to satisfy the protocol concept."""
     source = """
+#ifndef XYZ_PROTOCOL_COMPILER_WRAPPER
     #include "generated/protocol_A.h"
+#endif
     #include "interface_A.h"
     #include <utility>
 
@@ -85,7 +87,9 @@ def test_missing_method(compile_check):
 def test_wrong_return_type(compile_check):
     """Test that a class with a method having a wrong return type fails to satisfy the protocol concept."""
     source = """
+#ifndef XYZ_PROTOCOL_COMPILER_WRAPPER
     #include "generated/protocol_A.h"
+#endif
     #include "interface_A.h"
     #include <utility>
     #include <string>
@@ -122,7 +126,9 @@ def test_primary_template_instantiation(compile_check):
 def test_view_const_to_mutable_concrete(compile_check):
     """Test that a protocol_view for a mutable interface cannot be constructed from a const object."""
     source = """
+#ifndef XYZ_PROTOCOL_COMPILER_WRAPPER
     #include "generated/protocol_A.h"
+#endif
     #include "interface_A.h"
 
     struct MutALike {
@@ -142,7 +148,9 @@ def test_view_const_to_mutable_concrete(compile_check):
 def test_view_const_to_mutable_protocol(compile_check):
     """Test that a protocol_view for a mutable interface cannot be constructed from a const protocol."""
     source = """
+#ifndef XYZ_PROTOCOL_COMPILER_WRAPPER
     #include "generated/protocol_A.h"
+#endif
     #include "interface_A.h"
 
     void test() {
@@ -156,7 +164,9 @@ def test_view_const_to_mutable_protocol(compile_check):
 def test_view_const_alike_to_mutable(compile_check):
     """Test that a protocol_view for a mutable interface cannot be constructed from an object missing mutable methods."""
     source = """
+#ifndef XYZ_PROTOCOL_COMPILER_WRAPPER
     #include "generated/protocol_A.h"
+#endif
     #include "interface_A.h"
 
     struct ConstALike {
