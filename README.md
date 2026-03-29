@@ -33,8 +33,8 @@ A draft proposal detailing this feature can be found in `proposals/DRAFT.md`.
 
 ## Use
 
-Unlike traditional polymorphism, the interface is just a struct. No
-`virtual` keywords, no `= 0`, and no base classes.
+Unlike traditional polymorphism, the interface is just a struct. No `virtual`
+keywords, no `= 0`, and no base classes.
 
 ```cpp
 #pragma once
@@ -101,9 +101,9 @@ int main() {
 }
 ```
 
-The generated wrapper uses C++20 concepts and `requires` clauses: any
-structural mismatch emits clear, pinpointed compile-time errors rather than
-deeply nested template instantiation failures.
+The generated wrapper uses C++20 concepts and `requires` clauses: any structural
+mismatch emits clear, pinpointed compile-time errors rather than deeply nested
+template instantiation failures.
 
 ```cpp
 class BadImplementation {
@@ -121,7 +121,11 @@ class BadImplementation {
 
 ## `protocol_view`: Non-Owning Structural Subtyping
 
-Alongside `protocol`, the code generator also produces a `protocol_view` specialization. While `protocol` manages the lifecycle of the underlying object (with deep-copy value semantics), `protocol_view` provides a lightweight, non-owning reference. It functions similarly to `std::string_view` or `std::span` but for protocols.
+Alongside `protocol`, the code generator also produces a `protocol_view`
+specialization. While `protocol` manages the lifecycle of the underlying object
+(with deep-copy value semantics), `protocol_view` provides a lightweight,
+non-owning reference. It functions similarly to `std::string_view` or
+`std::span` but for protocols.
 
 ```cpp
 // `view` observes the object without owning or copying it.
@@ -145,16 +149,28 @@ int main() {
 }
 ```
 
-A `protocol_view` provides true zero-overhead duck-typing at function boundaries, decoupling types while avoiding the cost of allocations and deep copies.
+A `protocol_view` provides true zero-overhead duck-typing at function
+boundaries, decoupling types while avoiding the cost of allocations and deep
+copies.
 
 ## Implementation Details and Benchmarks
 
-The `protocol` code generator supports two different underlying dispatch strategies:
+The `protocol` code generator supports two different underlying dispatch
+strategies:
 
-1. **Virtual Dispatch (Default):** Generates a traditional C++ polymorphic class hierarchy with `virtual` methods. The type-erased wrapper heap-allocates a control block derived from a common interface.
-2. **Explicit Manual Vtables:** Generates a struct-of-function-pointers representing the vtable. This approach manually manages type-erasure and dispatch via pointer indirection.
+1. Virtual Dispatch (Default): Generates a traditional C++ polymorphic class
+   hierarchy with `virtual` methods. The type-erased wrapper heap-allocates a
+   control block derived from a common interface.
 
-Both implementations enforce identical constraints (value semantics, `const` correctness, and custom allocators). The library builds both versions to ensure they are strictly equivalent and offers a `protocol_benchmark` target to directly compare their performance for allocations, copies, moves, and member function calls.
+2. Explicit Manual Vtables: Generates a struct-of-function-pointers representing
+   the vtable. This approach manually manages type-erasure and dispatch via
+   pointer indirection.
+
+Both implementations enforce identical constraints (value semantics, `const`
+correctness, and custom allocators). The library builds both versions to ensure
+they are strictly equivalent and offers a `protocol_benchmark` target to
+directly compare their performance for allocations, copies, moves, and member
+function calls.
 
 ```bash
 # Build and run the benchmark comparing the two implementations
@@ -163,14 +179,19 @@ Both implementations enforce identical constraints (value semantics, `const` cor
 
 ## Contributing and Development
 
-For instructions on how to build, test, and contribute to this project, as well as a deeper look into the code generation architecture, please refer to the [Developer Guide](CONTRIBUTING.md).
+For instructions on how to build, test, and contribute to this project, as well
+as a deeper look into the code generation architecture, please refer to the
+[Developer Guide](CONTRIBUTING.md).
 
 ## References
 
-- PEP 544: [Protocols: Structural subtyping (static duck typing)](https://peps.python.org/pep-0544/)
+- PEP 544: [Protocols: Structural subtyping (static duck
+  typing)](https://peps.python.org/pep-0544/)
 
-- P3019: [std::indirect and std::polymorphic](https://isocpp.org/files/papers/P3019R14.pdf)
+- P3019: [std::indirect and
+  std::polymorphic](https://isocpp.org/files/papers/P3019R14.pdf)
 
 - P2996: [Reflection for C++26](https://isocpp.org/files/papers/P2996R13.html)
 
-- py_cppmodel: [Python wrappers for clang's parsing of C++](https://github.com/jbcoe/py_cppmodel)
+- py_cppmodel: [Python wrappers for clang's parsing of
+  C++](https://github.com/jbcoe/py_cppmodel)
