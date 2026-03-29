@@ -53,7 +53,7 @@ function(xyz_add_test)
     set(VALID_TARGET_VERSIONS 11 14 17 20 23 26)
     list(FIND VALID_TARGET_VERSIONS ${XYZ_VERSION} index)
     if(index EQUAL -1)
-      message(FATAL_ERROR "TYPE must be one of <${VALID_TARGET_VERSIONS}>")
+      message(FATAL_ERROR "VERSION must be one of <${VALID_TARGET_VERSIONS}> (got: ${XYZ_VERSION})")
     endif()
   endif()
 
