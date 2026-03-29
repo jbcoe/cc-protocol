@@ -174,7 +174,7 @@ function calls.
 
 ```bash
 # Build and run the benchmark comparing the two implementations
-./scripts/cmake.sh --benchmark
+./scripts/cmake.sh benchmark
 ```
 
 ## Contributing and Development
