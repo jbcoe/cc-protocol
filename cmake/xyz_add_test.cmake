@@ -60,18 +60,14 @@ function(xyz_add_test)
   if(NOT TARGET common_compiler_settings)
     add_library(common_compiler_settings INTERFACE)
 
-    # Common flags for GCC and Clang
-    set(COMMON_GNU_FLAGS -Werror -Wall -Wno-delete-non-abstract-non-virtual-dtor -Wno-self-move)
-
-    # Clang-specific flags
-    set(CLANG_ONLY_FLAGS -Wno-unknown-warning-option -Wno-self-assign-overloaded)
-
     target_compile_options(
       common_compiler_settings
       INTERFACE
-        $<$<CXX_COMPILER_ID:MSVC>:/EHsc; /W4; /bigobj>
-        $<$<CXX_COMPILER_ID:GNU>:${COMMON_GNU_FLAGS}>
-        $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>>:${COMMON_GNU_FLAGS};${CLANG_ONLY_FLAGS}>
+        $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
+        $<$<CXX_COMPILER_ID:MSVC>:/W4>
+        $<$<CXX_COMPILER_ID:MSVC>:/bigobj>
+        $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>>:-Werror;-Wall;-Wno-self-move>
+        $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>>:-Wno-unknown-warning-option;-Wno-self-assign-overloaded;-Wno-delete-non-abstract-non-virtual-dtor>
     )
 
   endif(NOT TARGET common_compiler_settings)

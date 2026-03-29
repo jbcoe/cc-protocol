@@ -91,7 +91,7 @@ class protocol<{{ full_class_name }}, Allocator> {
                                  std::forward<Ts>(ts)...);
     }
 
-    static void* xyz_protocol_clone(void* cb, const Allocator& alloc) {
+    static XYZ_ERASED_CONSTEXPR void* xyz_protocol_clone(void* cb, const Allocator& alloc) {
       auto* self = static_cast<direct_control_block*>(cb);
       cb_allocator cb_alloc(alloc);
       auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
@@ -104,7 +104,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       }
     }
 
-    static void* xyz_protocol_move(void* cb, const Allocator& alloc) {
+    static XYZ_ERASED_CONSTEXPR void* xyz_protocol_move(void* cb, const Allocator& alloc) {
       auto* self = static_cast<direct_control_block*>(cb);
       cb_allocator cb_alloc(alloc);
       auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
@@ -118,7 +118,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       }
     }
 
-    static void xyz_protocol_destroy(void* cb, const Allocator& alloc) {
+    static XYZ_ERASED_CONSTEXPR void xyz_protocol_destroy(void* cb, const Allocator& alloc) {
       auto* self = static_cast<direct_control_block*>(cb);
       cb_allocator cb_alloc(alloc);
       cb_alloc_traits::destroy(cb_alloc, std::addressof(self->storage_.t_));
@@ -374,7 +374,7 @@ class protocol_view<{{ full_class_name }}> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
     [](void* ptr{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} -> {{ m.return_type.name }} {
-      {% if m.return_type.name != 'void' %}return {% endif %}static_cast<{% if m.is_const %}const {% endif %}T*>(ptr)->{{ m.name }}({{ passes_str }});
+      return static_cast<{% if m.is_const %}const {% endif %}T*>(ptr)->{{ m.name }}({{ passes_str }});
     }{% if not loop.last %},{% endif %}
 {% endfor %}
   };
@@ -417,7 +417,7 @@ class protocol_view<const {{ full_class_name }}> {
     {% set _ = params.append(a.type.name) %}
   {% endfor %}
   {% set params_str = params | join(", ") %}
-    {{ m.return_type.name }} (*{{ m.name }}_{{ method_guids[loop.index0] }})(const void* ptr{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %};
+    {{ m.return_type.name }} (*{{ m.name }}_{{ method_guids[loop.index0] }})(const void* ptr{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} ;
   {% endif %}
 {% endfor %}
   };
@@ -436,7 +436,7 @@ class protocol_view<const {{ full_class_name }}> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
     [](const void* ptr{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} -> {{ m.return_type.name }} {
-      {% if m.return_type.name != 'void' %}return {% endif %}static_cast<const T*>(ptr)->{{ m.name }}({{ passes_str }});
+      return static_cast<const T*>(ptr)->{{ m.name }}({{ passes_str }});
     }{% if not loop.last %},{% endif %}
 {% endfor %}
   };
