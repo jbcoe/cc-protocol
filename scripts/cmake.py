@@ -12,8 +12,20 @@ def main():
         choices=["build", "test", "benchmark", "b", "t", "bm"],
         help="Target mode: build (b), test (t), benchmark (bm) (default: test)",
     )
-    parser.add_argument(
-        "preset", nargs="?", default="Release", help="CMake preset (default: Release)"
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--debug",
+        action="store_const",
+        dest="preset",
+        const="Debug",
+        help="Use Debug preset",
+    )
+    group.add_argument(
+        "--release",
+        action="store_const",
+        dest="preset",
+        const="Release",
+        help="Use Release preset (default)",
     )
     parser.add_argument(
         "--manual-vtable",
@@ -29,6 +41,9 @@ def main():
     )
 
     args, extra = parser.parse_known_args()
+
+    # Determine preset: flag takes precedence, then default.
+    preset = args.preset if args.preset else "Release"
 
     # Map abbreviations to full mode names
     mode_map = {
@@ -49,7 +64,7 @@ def main():
     configure_args = [
         "cmake",
         "--preset",
-        args.preset,
+        preset,
         f"-DXYZ_PROTOCOL_GENERATE_MANUAL_VTABLE={'ON' if args.manual_vtable else 'OFF'}",
     ]
     if args.build_dir:
@@ -65,9 +80,9 @@ def main():
     # Build step (required for build, test, benchmark)
     build_args = ["cmake", "--build"]
     if args.build_dir:
-        build_args.extend([args.build_dir, "--config", args.preset])
+        build_args.extend([args.build_dir, "--config", preset])
     else:
-        build_args.extend(["--preset", args.preset])
+        build_args.extend(["--preset", preset])
     if args.clean:
         build_args.append("--clean-first")
 
@@ -78,9 +93,9 @@ def main():
     if mode == "test":
         test_args = ["ctest"]
         if args.build_dir:
-            test_args.extend(["--test-dir", args.build_dir, "-C", args.preset])
+            test_args.extend(["--test-dir", args.build_dir, "-C", preset])
         else:
-            test_args.extend(["--preset", args.preset])
+            test_args.extend(["--preset", preset])
 
         log(f"Running: {' '.join(test_args)}")
         subprocess.check_call(test_args)
@@ -89,9 +104,9 @@ def main():
     if mode == "benchmark":
         benchmark_cmd = ["cmake", "--build"]
         if args.build_dir:
-            benchmark_cmd.extend([args.build_dir, "--config", args.preset])
+            benchmark_cmd.extend([args.build_dir, "--config", preset])
         else:
-            benchmark_cmd.extend(["--preset", args.preset])
+            benchmark_cmd.extend(["--preset", preset])
         benchmark_cmd.extend(["--target", "run_benchmark"])
 
         log(f"Running: {' '.join(benchmark_cmd)}")

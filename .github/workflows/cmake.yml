@@ -234,6 +234,6 @@ jobs:
       - name: Set up Python
         run: uv sync
       - name: Run CMake (Default VTable)
-        run: ./scripts/cmake.sh -B build_default ${{ matrix.configuration }}
+        run: ./scripts/cmake.sh -B build_default --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }}
       - name: Run CMake (Manual VTable)
-        run: ./scripts/cmake.sh -B build_manual --manual-vtable ${{ matrix.configuration }}
+        run: ./scripts/cmake.sh -B build_manual --manual-vtable --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }}

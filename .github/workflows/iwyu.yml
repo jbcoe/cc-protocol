@@ -70,6 +70,6 @@ jobs:
       - name: Set up Python
         run: uv sync
       - name: Run CMake (Default VTable)
-        run: ./scripts/cmake.sh -B build_default ${{ env.BUILD_TYPE }} -DIWYU_ENABLE=1
+        run: ./scripts/cmake.sh -B build_default --debug -DIWYU_ENABLE=1
       - name: Run CMake (Manual VTable)
-        run: ./scripts/cmake.sh -B build_manual --manual-vtable ${{ env.BUILD_TYPE }} -DIWYU_ENABLE=1
+        run: ./scripts/cmake.sh -B build_manual --manual-vtable --debug -DIWYU_ENABLE=1
