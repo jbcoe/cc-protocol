@@ -628,6 +628,7 @@ TEST(ProtocolViewTest, ViewMoveIsStandard) {
 }
 
 #if defined(__cpp_constexpr) && __cpp_constexpr >= 202306L
+
 struct ConstexprALike {
   constexpr std::string_view name() const noexcept { return "ConstexprALike"; }
 
@@ -656,6 +657,6 @@ constexpr int test_protocol_manual_constexpr() {
 
 static_assert(test_protocol_manual_constexpr() == 42);
 
-#endif
+#endif  // __cpp_constexpr >= 202306L
 
 }  // namespace
