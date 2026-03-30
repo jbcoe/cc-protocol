@@ -18,7 +18,7 @@ _Philip Craig \<<philip@pobox.com>\>_
 
 ## Abstract
 
-We propose `std::protocol` and `std::protocol_view`, standard library vocabulary
+We propose `protocol` and `protocol_view`, standard library vocabulary
 types for structural subtyping in C++. Interfaces are specified as plain structs;
 any type whose member functions satisfy the interface is accepted without
 requiring explicit inheritance. The owning type, `protocol`, provides value
@@ -85,15 +85,15 @@ private:
 
 ### `protocol` and value semantics
 
-`std::protocol<I>` owns its contained object. Copying a `protocol` performs a
+`protocol<I>` owns its contained object. Copying a `protocol` performs a
 deep copy of the underlying object.
 
 ```cpp
 // Construct in-place
-std::protocol<Drawable> p1(std::in_place_type<Circle>);
+protocol<Drawable> p1(std::in_place_type<Circle>);
 
 // p2 is a deep copy of p1, including the underlying Circle object
-std::protocol<Drawable> p2 = p1;
+protocol<Drawable> p2 = p1;
 
 p1.draw();
 p1.draw();
@@ -105,12 +105,12 @@ assert(p2.draw_count() == 0);
 
 ### `protocol_view` and reference semantics
 
-`std::protocol_view<I>` is a non-owning view of any type satisfying interface
+`protocol_view<I>` is a non-owning view of any type satisfying interface
 `I`. Copying a `protocol_view` is a shallow operation; both copies refer to the
 same underlying object.
 
 ```cpp
-void print_name(std::protocol_view<const Drawable> view) {
+void print_name(protocol_view<const Drawable> view) {
   // A const view permits only const member functions.
   std::cout << "Name: " << view.name() << "\n";
 }
@@ -120,14 +120,14 @@ Circle circle;
 // Bind a view to a concrete object without allocation or ownership transfer.
 print_name(circle);
 
-std::protocol<Drawable> p(std::in_place_type<Circle>);
+protocol<Drawable> p(std::in_place_type<Circle>);
 
 // Bind a view to an owning protocol object.
 print_name(p);
 
 // Copying a view is shallow; both views refer to the same Circle.
-std::protocol_view<Drawable> v1(circle);
-std::protocol_view<Drawable> v2 = v1;
+protocol_view<Drawable> v1(circle);
+protocol_view<Drawable> v2 = v1;
 v2.draw();
 assert(circle.draw_count() == 1);
 ```
