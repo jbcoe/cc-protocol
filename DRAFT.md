@@ -18,12 +18,14 @@ _Philip Craig \<<philip@pobox.com>\>_
 
 ## Abstract
 
-We propose a standard library facility for structural subtyping in C++ using
-type erasure, value semantics, and static reflection. Building upon the
-precedent set by PEP 544 in Python and P3019 (`std::polymorphic`), it defines a
-mechanism by which interfaces can be satisfied without explicit inheritance. As
-proposed, `protocol` decouples interface from implementation while maintaining
-value semantics and providing support for custom allocators.
+We propose `std::protocol` and `std::protocol_view`, standard library vocabulary
+types for structural subtyping in C++. Interfaces are specified as plain structs;
+any type whose member functions satisfy the interface is accepted without
+requiring explicit inheritance. The owning type, `protocol`, provides value
+semantics with deep-copy behaviour. The non-owning type, `protocol_view`,
+provides a lightweight reference to any conforming type, analogous to
+`std::span`. Both types are generated automatically by the compiler using static
+reflection, eliminating hand-written type-erasure boilerplate.
 
 ## History
 
@@ -33,44 +35,36 @@ value semantics and providing support for custom allocators.
 
 ## Motivation
 
-Traditional polymorphic interfaces in C++ require inheritance from a common base
-class. This tightly couples components, prevents the retroactive application of
-interfaces to existing types, and inherently demands reference semantics, which
-complicates memory management and reasoning about program state.
+Traditional polymorphism in C++ requires inheritance from a common base class.
+This coupling prevents the retroactive application of interfaces to existing
+types and mandates reference semantics, which complicates ownership reasoning.
 
-While `std::function` provides a mechanism for structural subtyping of single
-invokable objects, no standardized equivalent currently exists for interfaces
-comprising multiple member functions. Developers must resort to writing bespoke
-type-erased wrappers to achieve open-set polymorphism without inheritance. This
-practice demands substantial boilerplate for dispatch mechanisms and storage
-management.
+`std::function` provides structural subtyping for single callable objects, but
+no standardised equivalent exists for interfaces comprising multiple member
+functions. Developers must author bespoke type-erased wrappers, incurring
+substantial boilerplate for vtable construction, storage management, and
+const-propagation. Such wrappers are difficult to write correctly and must be
+duplicated for every interface.
 
-The concept of structural subtyping is well-established in other languages; for
-instance, PEP 544 introduced Protocols in Python. Under this model, a class that
-structurally implements the methods of a Protocol is considered a subtype
-without requiring explicit inheritance.
+Structural subtyping is well-established in other languages. PEP 544 introduced
+Protocols in Python: a class that structurally provides the required methods is
+considered a subtype without explicit inheritance. We propose an equivalent
+mechanism for C++.
 
-This paper proposes a similar model for C++, leveraging reflection to synthesize
-type-erased protocol wrappers from declarative interface definitions. Crucially,
-these protocols maintain value semantics, enforce const-propagation, and provide
-full allocator awareness, consistent with the design principles of P3019
-(`std::polymorphic`).
+We propose `protocol<I>` to own an object of any type that satisfies interface
+`I`, providing value semantics and deep copy. We propose `protocol_view<I>` to
+refer non-owingly to any conforming type, enabling efficient observation at
+function boundaries without allocation or ownership transfer.
 
-Furthermore, while nominal subtyping naturally allows for non-owning polymorphic
-views via simple raw pointers or references (e.g., `Base*` or `Base&`),
-structural subtyping lacks a native language equivalent. To pass an object to a
-function expecting a structural interface without transferring ownership or
-triggering an allocation (a deep copy), a non-owning type-erased wrapper is
-required. We propose `protocol_view` to fill this role. `protocol_view` acts
-as a lightweight, zero-overhead reference to any structurally conforming type,
-analogous to `std::span`.
+Nominal subtyping allows non-owning polymorphism via raw pointers or references
+(`Base*`, `Base&`). Structural subtyping has no native equivalent. `protocol_view`
+fills this gap and is to `protocol` as `std::span` is to `std::vector`.
 
 ## Examples
 
-The following examples demonstrate the use of `protocol` for ownership and
-`protocol_view` for non-owning observation using a conceptual `Drawable`
-interface. Note that `Circle` does not inherit from `Drawable`; it satisfies the
-interface structurally.
+The following examples illustrate the use of `protocol` for value-semantic
+ownership and `protocol_view` for non-owning observation. Note that `Circle`
+does not inherit from `Drawable`; it satisfies the interface structurally.
 
 ```cpp
 struct Drawable {
@@ -91,15 +85,15 @@ private:
 
 ### `protocol` and value semantics
 
-`xyz::protocol<I>` owns its contained object and provides value semantics.
-Copying a `protocol` object performs a deep copy of the underlying type.
+`std::protocol<I>` owns its contained object. Copying a `protocol` performs a
+deep copy of the underlying object.
 
 ```cpp
 // Construct in-place
-xyz::protocol<Drawable> p1(std::in_place_type<Circle>);
+std::protocol<Drawable> p1(std::in_place_type<Circle>);
 
 // p2 is a deep copy of p1, including the underlying Circle object
-xyz::protocol<Drawable> p2 = p1;
+std::protocol<Drawable> p2 = p1;
 
 p1.draw();
 p1.draw();
@@ -111,115 +105,137 @@ assert(p2.draw_count() == 0);
 
 ### `protocol_view` and reference semantics
 
-`xyz::protocol_view<I>` is a non-owning view of any type that satisfies the
-interface `I`. It is analogous to `std::span`.
+`std::protocol_view<I>` is a non-owning view of any type satisfying interface
+`I`. Copying a `protocol_view` is a shallow operation; both copies refer to the
+same underlying object.
 
 ```cpp
-void print_name(xyz::protocol_view<const Drawable> view) {
-  // const view only allows calling const member functions
+void print_name(std::protocol_view<const Drawable> view) {
+  // A const view permits only const member functions.
   std::cout << "Name: " << view.name() << "\n";
 }
 
 Circle circle;
 
-// View a concrete object directly without allocation or ownership transfer
+// Bind a view to a concrete object without allocation or ownership transfer.
 print_name(circle);
 
-xyz::protocol<Drawable> p(std::in_place_type<Circle>);
+std::protocol<Drawable> p(std::in_place_type<Circle>);
 
-// View an owning protocol object
+// Bind a view to an owning protocol object.
 print_name(p);
 
-// Copying a view is a shallow operation
-xyz::protocol_view<Drawable> v1(circle);
-xyz::protocol_view<Drawable> v2 = v1; // v2 points to the same 'circle' as v1
+// Copying a view is shallow; both views refer to the same Circle.
+std::protocol_view<Drawable> v1(circle);
+std::protocol_view<Drawable> v2 = v1;
 v2.draw();
 assert(circle.draw_count() == 1);
 ```
 
-## Design requirements
+## Design
 
-`protocol` must allow types to satisfy an interface based solely on the presence of
-conforming member functions and signatures, without requiring explicit
-inheritance. `protocol` must provide value semantics, where copying a `protocol`
-object performs a deep copy of the underlying erased type.
+### Requirements
 
-To support efficient observation at function boundaries without allocation or
-ownership transfer, the facility must generate a non-owning `protocol_view`.
-This view must be constructible from any structurally conforming type (including
-the owning `protocol` itself) and route method calls through a synthesized
-vtable.
+We require the following properties of `protocol` and `protocol_view`.
 
-Const correctness must be strictly maintained; a const-qualified protocol object
-or a `protocol_view<const I>` must only permit the invocation of const-qualified
-member functions on the underlying erased object. The implementation of the
-type-erased wrappers should be generated automatically by the compiler using
-reflection, eliminating the need for manual boilerplate. The owning protocol
-must be fully allocator-aware, properly supporting `std::allocator_traits`.
-Finally, to support efficient move operations without necessarily allocating
-memory, the owning `protocol` must define a valueless-after-move state.
+A type satisfies an interface based solely on the presence of member functions
+with conforming signatures; explicit inheritance is not required.
 
-## Impact on the standard library
+`protocol<I>` provides value semantics. Copying a `protocol` object performs a
+deep copy of the underlying erased object. Moving a `protocol` object leaves it
+in a valid but unspecified (valueless) state, enabling efficient move operations
+without heap allocation.
 
-This is a library proposal that fundamentally relies on, and would require
-additions to, core-language reflection facilities to allow classes with member
-functions to be programmatically generated.
+`protocol_view<I>` provides non-owning reference semantics. It is constructible
+from any structurally conforming type, including `protocol<I>` itself. Method
+calls are forwarded through a synthesised vtable.
 
-While C++26 reflection (as proposed in P2996) provides the necessary
-introspection capabilities to validate structural conformity, the synthesis of a
-protocol wrapper requires generative capabilities. Specifically, it requires the
-ability to programmatically inject member functions into a class definition—a
-feature that is not yet part of the standard or the current P2996 draft. This
-proposal therefore serves as a motivating use case for, and depends on, future
-extensions to the language's reflection and code-injection facilities.
+Const-correctness is strictly maintained. A `const`-qualified `protocol` object,
+or a `protocol_view<const I>`, permits the invocation of only `const`-qualified
+member functions of the underlying erased object.
 
-## Technical specifications
+The owning `protocol` is fully allocator-aware and properly supports
+`std::allocator_traits`.
 
-The synthesis of protocol relies heavily on static reflection. While C++26
-introduces foundational reflection capabilities (P2996), implementing this
-proposal in its entirety requires features anticipated for future standards.
+The implementation of both types is generated automatically by the compiler
+using reflection, eliminating the need for manually authored boilerplate.
+
+### Design decisions
+
+**Interface specification as a plain struct.** We chose to specify interfaces as
+unannotated structs rather than introducing a new declaration syntax. This
+decision favours minimal language impact and allows existing structs to serve as
+interface definitions without modification.
+
+**Valueless-after-move state for `protocol`.** We require that a moved-from
+`protocol` enters a valueless state rather than retaining its previous value.
+This is consistent with `std::variant` and avoids the cost of constructing a
+sentinel object on move. Calling interface methods on a valueless `protocol`
+object is undefined behaviour.
+
+**`protocol_view` does not own.** We considered whether `protocol_view` should
+support owning a small buffer optimisation. We rejected this in favour of a
+strict non-owning contract, consistent with `std::string_view` and `std::span`.
+Users requiring ownership should use `protocol`.
+
+**Allocator awareness.** We require `protocol` to support `std::allocator_traits`
+for consistency with other owning standard library containers. `protocol_view`
+requires no allocation and is therefore not allocator-aware.
+
+## Impact on the Standard
+
+This is a library proposal that fundamentally depends on core-language reflection
+facilities capable of programmatic class generation.
+
+C++26 reflection (P2996) provides the introspection capabilities required to
+validate structural conformity at compile time. However, synthesising a protocol
+wrapper requires the ability to inject member functions into a class
+definition—a generative capability not present in C++26. This proposal therefore
+serves as a motivating use case for future extensions to the language's
+reflection and code-injection facilities.
+
+We anticipate that a complete implementation will be possible once member
+function injection, as discussed in P3996 and related papers, is standardised.
+
+## Technical Specifications
+
+The synthesis of `protocol` and `protocol_view` relies on static reflection.
 
 ### Elements implementable with C++26 reflection
 
-C++26 reflection provides sufficient introspection for structural validation.
-Using the reflection operator (`^`) and functions provided by the `std::meta`
-namespace, an interface struct can be inspected to extract the names,
-signatures, and const-qualifiers of its required member functions. A metaprogram
-can then verify if a concrete type structurally conforms to this interface. By
-iterating over the introspected members, the compiler can check if the concrete
-type provides matching member functions. This allows for the replacement of
-manually authored concepts with a generic, reflection-based structural
-constraint.
+C++26 reflection (P2996) provides sufficient introspection for structural
+validation. Using the reflection operator (`^`) and the `std::meta` namespace, a
+metaprogram can extract the names, signatures, and `const`-qualifiers of the
+member functions declared in an interface struct. It can then verify that a
+candidate type provides matching member functions, replacing manually authored
+concepts with a generic, reflection-driven structural constraint.
 
 ### Elements requiring post-C++26 additions
 
-C++26 reflection currently lacks generalized code injection. Several critical
-elements of the protocol implementation require future additions to the
-standard.
+C++26 reflection does not yet support generalised code injection. The following
+elements of the implementation require future standard additions.
 
-The protocol implementation relies on a virtual dispatch hierarchy or a
-synthesized vtable. Currently, `std::meta::define_class` is restricted to
-generating non-static data members. Injecting the virtual functions or function
-pointers that mirror an introspected interface requires generalized member
-function injection.
+The dispatch mechanism—whether a virtual hierarchy or a synthesised vtable—
+requires injection of virtual functions or function pointers derived from an
+introspected interface. `std::meta::define_class` is currently restricted to
+non-static data members and does not support member function injection.
 
-Generating the public-facing member functions of the protocol wrapper that
-forward calls to the erased type also requires member function injection.
-Furthermore, generating the forwarding logic requires expanding introspected
-function parameters into parameter packs. While C++26 supports basic splicing,
-complex code injection involving the range splicing of function arguments and
-return types relies on more advanced injection proposals.
+Generating the forwarding member functions of the `protocol` wrapper likewise
+requires member function injection. Expanding introspected function parameters
+into parameter packs for forwarding requires range-splicing of function arguments
+and return types, which depends on more advanced injection proposals beyond P2996.
 
-Until such code injection facilities are standardized, the practical
-implementation of this protocol mechanism requires external tooling, while C++26
-reflection handles the structural validation.
+Until such injection facilities are standardised, a practical implementation
+requires external tooling for code generation, with C++26 reflection handling
+structural validation.
 
-## Reference implementation
+## Reference Implementation
 
 A reference implementation using an AST-based Python code generator
-(`py_cppmodel`) to simulate post-C++26 code injection is available. It
-demonstrates the feasibility of the vtable generation, allocator awareness, and
-value semantics properties required by this proposal.
+(`py_cppmodel`) to simulate post-C++26 code injection is available at
+[py_cppmodel]. The implementation demonstrates the feasibility of vtable
+generation, allocator awareness, and the value semantics properties required by
+this proposal.
 
 ## Acknowledgements
 
