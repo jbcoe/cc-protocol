@@ -51,9 +51,10 @@ ENV PATH="/home/vscode/.npm-global/bin:${PATH}"
 USER vscode
 WORKDIR /workspace
 
-# Install Gemini CLI
+# Install Gemini CLI and Claude Code CLI
 RUN mkdir -p /home/vscode/.npm-global \
-    && npm install -g @google/gemini-cli
+    && npm install -g @google/gemini-cli \
+    && npm install -g @anthropic-ai/claude-code
 
 # Set up uv and Python environment
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -66,3 +67,7 @@ ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 RUN mkdir -p /home/vscode/.gemini \
     && echo '{"/workspace": "TRUST_FOLDER"}' > /home/vscode/.gemini/trustedFolders.json \
     && echo '{"security": {"auth": {"selectedType": "gemini-api-key"}}}' > /home/vscode/.gemini/settings.json
+
+# Pre-configure Claude Code CLI
+RUN mkdir -p /home/vscode/.claude \
+    && echo '{"permissions": {"allow": ["Bash(*)", "Read(*)", "Write(*)", "Edit(*)", "Glob(*)", "Grep(*)"]}}' > /home/vscode/.claude/settings.json
