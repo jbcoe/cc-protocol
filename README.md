@@ -17,7 +17,7 @@ types, and typically forces reference semantics (e.g., `std::unique_ptr`).
 Inspired by Python's `Protocol` (PEP 544), this repository explores bringing a
 similar paradigm to C++. By using AST parsing (via Clang) and code generation,
 the tool synthesizes type-erased wrappers that accept any type structurally
-conforming to an interface — without inheritance.
+conforming to an interface, without inheritance.
 
 These protocols maintain deep-copy value semantics, strict `const`-propagation,
 and allocator awareness, consistent with the design of `jbcoe/value_types`
@@ -33,7 +33,7 @@ A draft proposal is available in `DRAFT.md`.
 
 ## Use
 
-The interface is a plain struct — no `virtual` keywords, no `= 0`, no base
+The interface is a plain struct with no `virtual` keywords, no `= 0`, and no base
 classes.
 
 ```cpp
@@ -52,7 +52,7 @@ struct B {
 }  // namespace xyz
 ```
 
-Write your concrete type. It does not need to inherit from `xyz::B` — it only
+Write your concrete type. It does not need to inherit from `xyz::B`; it only
 needs to structurally provide the methods defined in the interface.
 
 ```cpp
@@ -123,7 +123,7 @@ class BadImplementation {
 Alongside `protocol`, the code generator also produces a `protocol_view`
 specialization. While `protocol` manages the lifecycle of the underlying object
 (with deep-copy value semantics), `protocol_view` is a lightweight, non-owning
-reference — analogous to `std::string_view` or `std::span`, but for protocols.
+reference, analogous to `std::string_view` or `std::span`, but for protocols.
 
 ```cpp
 // `view` observes the object without owning or copying it.
@@ -155,11 +155,11 @@ lightweight indirection.
 
 The code generator supports two dispatch strategies:
 
-1. **Virtual Dispatch (Default)**: Generates a traditional C++ polymorphic class
+1. Virtual Dispatch (Default): Generates a traditional C++ polymorphic class
    hierarchy with `virtual` methods. The type-erased wrapper heap-allocates a
    control block derived from a common interface.
 
-2. **Manual Vtables**: Generates a struct-of-function-pointers representing the
+2. Manual Vtables: Generates a struct-of-function-pointers representing the
    vtable, managing type-erasure and dispatch via pointer indirection.
 
 Both implementations enforce identical constraints (value semantics, `const`
