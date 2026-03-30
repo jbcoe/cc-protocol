@@ -29,7 +29,7 @@ As C++ reflection (P2996) matures and code injection is added in future
 standards (C++29+), the generation approach demonstrated here via `py_cppmodel`
 will be achievable natively within the language.
 
-A draft proposal is available in `proposals/DRAFT.md`.
+A draft proposal is available in `DRAFT.md`.
 
 ## Use
 
