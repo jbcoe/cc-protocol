@@ -85,7 +85,12 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
         CACHE BOOL "" FORCE)
     set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
     set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+    # Disable clang-tidy for third-party dependencies so it only runs on our
+    # own source code (which lives directly at the project root).
+    set(_SAVED_CMAKE_CXX_CLANG_TIDY "${CMAKE_CXX_CLANG_TIDY}")
+    set(CMAKE_CXX_CLANG_TIDY "")
     FetchContent_MakeAvailable(googletest google_benchmark)
+    set(CMAKE_CXX_CLANG_TIDY "${_SAVED_CMAKE_CXX_CLANG_TIDY}")
 
     enable_testing()
 
