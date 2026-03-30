@@ -147,8 +147,9 @@ int main() {
 }
 ```
 
-`protocol_view` enables zero-overhead structural dispatch at function
-boundaries, avoiding allocations and deep copies entirely.
+`protocol_view` provides non-owning, allocation-free structural dispatch at
+function boundaries, avoiding deep copies while dispatching through a
+lightweight indirection.
 
 ## Implementation Details and Benchmarks
 
