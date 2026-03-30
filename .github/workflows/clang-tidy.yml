@@ -12,6 +12,7 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "cmake/**"
+      - "**/*.j2"
   pull_request:
     branches: [main]
     paths:
@@ -21,6 +22,7 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "cmake/**"
+      - "**/*.j2"
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)

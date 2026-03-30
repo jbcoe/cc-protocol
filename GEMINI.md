@@ -15,7 +15,8 @@ general defaults for this repository.
   deterministic and stable between runs by using MD5 hashing of function
   signatures.
 - **WG21 Style:** `DRAFT.md` must adhere to ISO C++ standardization proposal
-  norms: pure Markdown, no YAML frontmatter, and no HTML blocks.
+  norms <https://www.open-std.org/jtc1/sc22/wg21/docs/papers>
+- **Paper Format:** We use pure Markdown, no YAML frontmatter, and no HTML blocks.
 
 ## Workflow Mandates
 
@@ -24,8 +25,14 @@ general defaults for this repository.
 - **Verification:** All changes must be verified against both the default (virtual dispatch) and manual vtable configurations. The `scripts/cmake.sh` script must be run twice: once without any flags, and a second time with the `--manual-vtable` flag to build and test the alternative implementation.
 - **Post-Change Checks:** Tests and pre-commit checks MUST be run after any
   modifications to the codebase.
-- **Concept Error Testing:** Use `scripts/test_concept_errors.py` to verify that
-  structural mismatches emit precise compile-time errors.
+
+## Git Usage
+
+- **Source Control:** This repository uses git.
+- **History Integrity:** NEVER use git commands that affect the git history.
+- **Commit & Branching:** Never commit changes, create, or delete branches.
+- **Human Intervention:** If git commands must be run, you MUST ask for human
+  intervention.
 
 ## Critical Paths
 
