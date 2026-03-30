@@ -53,7 +53,7 @@ mechanism for C++.
 
 We propose `protocol<I>` to own an object of any type that satisfies interface
 `I`, providing value semantics and deep copy. We propose `protocol_view<I>` to
-refer non-owingly to any conforming type, enabling efficient observation at
+refer non-owningly to any conforming type, enabling efficient observation at
 function boundaries without allocation or ownership transfer.
 
 Nominal subtyping allows non-owning polymorphism via raw pointers or references
