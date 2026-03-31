@@ -106,4 +106,8 @@ function(xyz_add_test)
     add_coverage(${XYZ_NAME})
   endif()
 
+  if(CLANG_TIDY_ENABLE AND ClangTidy_FOUND)
+    set_target_properties(${XYZ_NAME} PROPERTIES CXX_CLANG_TIDY "${XYZ_CLANG_TIDY}")
+  endif()
+
 endfunction()
