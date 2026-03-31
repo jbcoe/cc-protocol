@@ -1,4 +1,5 @@
 // BEGIN Generated code for protocol_{{ c.name }}
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <initializer_list>
@@ -443,6 +444,13 @@ class protocol_view<const {{ full_class_name }}> {
                            const const_view_vtable_{{ c.name }}* vptr) noexcept
       : ptr_(ptr), vptr_(vptr) {}
 
+  template <typename Alloc>
+  static const void* checked_ptr(
+      const protocol<{{ full_class_name }}, Alloc>& p) noexcept {
+    assert(!p.valueless_after_move());
+    return p.vtable_->xyz_protocol_get_ptr(p.cb_);
+  }
+
  public:
   // Construction from a concrete type satisfying only the const concept.
   template <typename T>
@@ -454,14 +462,15 @@ class protocol_view<const {{ full_class_name }}> {
 
   // Construction from protocol: reads get_ptr and view_vt directly from the
   // protocol vtable to reach the stored object without extra thunks.
+  // Precondition: p must not be valueless_after_move().
   template <typename Alloc>
-  constexpr protocol_view(const protocol<{{ full_class_name }}, Alloc>& p) noexcept
-      : ptr_(p.vtable_->xyz_protocol_get_ptr(p.cb_)),
+  protocol_view(const protocol<{{ full_class_name }}, Alloc>& p) noexcept
+      : ptr_(checked_ptr(p)),
         vptr_(p.vtable_->view_vt->const_view) {}
 
   template <typename Alloc>
-  constexpr protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
-      : ptr_(p.vtable_->xyz_protocol_get_ptr(p.cb_)),
+  protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
+      : ptr_(checked_ptr(p)),
         vptr_(p.vtable_->view_vt->const_view) {}
 
 {% for m in c.methods %}{% if m.is_const %}
@@ -484,6 +493,12 @@ class protocol_view<{{ full_class_name }}> {
   void* ptr_;
   const view_vtable_{{ c.name }}* vptr_;
 
+  template <typename Alloc>
+  static void* checked_ptr(protocol<{{ full_class_name }}, Alloc>& p) noexcept {
+    assert(!p.valueless_after_move());
+    return p.vtable_->xyz_protocol_get_ptr(p.cb_);
+  }
+
  public:
   // Construction from a concrete type satisfying the full (mutable) concept.
   template <typename T>
@@ -495,9 +510,10 @@ class protocol_view<{{ full_class_name }}> {
 
   // Construction from protocol: reads get_ptr and view_vt directly from the
   // protocol vtable to reach the stored object without extra thunks.
+  // Precondition: p must not be valueless_after_move().
   template <typename Alloc>
-  constexpr protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
-      : ptr_(p.vtable_->xyz_protocol_get_ptr(p.cb_)),
+  protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
+      : ptr_(checked_ptr(p)),
         vptr_(p.vtable_->view_vt) {}
 
   constexpr operator protocol_view<const {{ full_class_name }}>() const noexcept {
