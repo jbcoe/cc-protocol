@@ -22,7 +22,19 @@ general defaults for this repository.
 
 - **Tooling:** Always use `uv` for Python dependency management (`uv run ...`).
 - **Build & Test:** Use `scripts/cmake.sh` for all build and test operations.
-- **Verification:** All changes must be verified against both the default (virtual dispatch) and manual vtable configurations. The `scripts/cmake.sh` script must be run twice: once without any flags, and a second time with the `--manual-vtable` flag to build and test the alternative implementation.
+  The `scripts/cmake.sh` entrypoint supports `--debug`, `--release`,
+  `--manual-vtable`, `--asan`, `--ubsan`, `--tsan`, and `--msan`.
+- **Compiler Preferences:** Prefer Clang 19+ for sanitizer-based verification
+  and CI, as it provides superior support for MSAN and TSAN compared to
+  older GCC versions.
+- **Verification:** All changes must be verified against both the default
+  (virtual dispatch) and manual vtable configurations. The `scripts/cmake.sh`
+  script must be run twice: once without any flags, and a second time with
+  the `--manual-vtable` flag to build and test the alternative implementation.
+- **Sanitizer Verification:** When modifying memory-sensitive or concurrent
+  code, verify changes locally using at least one sanitizer (e.g.,
+  `./scripts/cmake.sh --asan` or `--tsan`). Note that ASAN, TSAN, and MSAN
+  are mutually exclusive.
 - **Post-Change Checks:** Tests and pre-commit checks MUST be run after any
   modifications to the codebase.
 

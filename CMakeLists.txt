@@ -24,6 +24,15 @@ option(ENABLE_SANITIZERS
        "Enable Address Sanitizer and Undefined Behaviour Sanitizer if available"
        OFF)
 
+option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
+option(ENABLE_UBSAN "Enable Undefined Behaviour Sanitizer" OFF)
+option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
+option(ENABLE_MSAN "Enable Memory Sanitizer" OFF)
+
+if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN OR ENABLE_MSAN)
+  set(ENABLE_SANITIZERS ON)
+endif()
+
 # Set up Python discovery
 set(Python3_FIND_VIRTUALENV FIRST)
 if(DEFINED ENV{UV_PROJECT_ENVIRONMENT})
