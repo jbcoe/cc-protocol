@@ -132,8 +132,9 @@ class protocol<{{ full_class_name }}, Allocator> {
     void* (*xyz_protocol_clone)(void* cb, const Allocator& alloc);
     void* (*xyz_protocol_move)(void* cb, const Allocator& alloc);
     void (*xyz_protocol_destroy)(void* cb, const Allocator& alloc);
-    // Returns a pointer to the stored object so views can be constructed
-    // without going through the protocol's forwarding methods.
+    // Returns a const pointer to the stored object (used to construct const views).
+    const void* (*xyz_protocol_get_const_ptr)(const void* cb) noexcept;
+    // Returns a mutable pointer to the stored object (used to construct mutable views).
     void* (*xyz_protocol_get_ptr)(void* cb) noexcept;
     const view_vtable_{{ c.name }}* view_vt;
 {% for m in c.methods %}
@@ -200,6 +201,10 @@ class protocol<{{ full_class_name }}, Allocator> {
       cb_alloc_traits::deallocate(cb_alloc, self, 1);
     }
 
+    static const void* xyz_protocol_get_const_ptr(const void* cb) noexcept {
+      return std::addressof(static_cast<const direct_control_block*>(cb)->storage_.t_);
+    }
+
     static void* xyz_protocol_get_ptr(void* cb) noexcept {
       return std::addressof(static_cast<direct_control_block*>(cb)->storage_.t_);
     }
@@ -231,6 +236,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       xyz_protocol_clone,
       xyz_protocol_move,
       xyz_protocol_destroy,
+      xyz_protocol_get_const_ptr,
       xyz_protocol_get_ptr,
       &view_vtable_{{ c.name }}_for<T>,
 {% for m in c.methods %}
@@ -448,7 +454,7 @@ class protocol_view<const {{ full_class_name }}> {
   static const void* checked_ptr(
       const protocol<{{ full_class_name }}, Alloc>& p) noexcept {
     assert(!p.valueless_after_move());
-    return p.vtable_->xyz_protocol_get_ptr(p.cb_);
+    return p.vtable_->xyz_protocol_get_const_ptr(p.cb_);
   }
 
  public:
