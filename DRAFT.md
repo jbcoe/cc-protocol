@@ -194,9 +194,6 @@ definition—a generative capability not present in C++26. This proposal therefo
 serves as a motivating use case for future extensions to the language's
 reflection and code-injection facilities.
 
-We anticipate that a complete implementation will be possible once member
-function injection, as discussed in P3996 and related papers, is standardised.
-
 ## Technical Specifications
 
 The synthesis of `protocol` and `protocol_view` relies on static reflection.
