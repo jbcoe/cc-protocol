@@ -181,24 +181,7 @@ update the Gemini CLI inside the container.
 Both scripts accept `-v` for verbose output. The Docker image is defined in
 `docker/Dockerfile`.
 
-## GitHub Workflows
-
-The following GitHub Actions workflows run on pull requests and pushes to `main`:
-
-- **pre-commit** (`pre-commit.yml`) — runs all [pre-commit](https://pre-commit.com)
-  hooks including YAML validation, trailing whitespace, clang-format, buildifier,
-  ruff, and GitHub Actions validation.
-- **CMake test** (`cmake.yml`) — builds and tests across GCC (11–14), Clang
-  (17–21), Visual Studio (2019/2022), and Apple Clang on macOS, in both Debug
-  and Release configurations. Tests both default (virtual dispatch) and manual
-  vtable implementations.
-- **clang-tidy** (`clang-tidy.yml`) — runs static analysis on project source
-  files.
-- **uv-lock** (`uv-lock.yml`) — verifies that `uv.lock` is up to date with
-  `pyproject.toml`.
-- **iwyu** (`iwyu.yml`) — runs Include What You Use analysis.
-
-### Using pre-commit Locally
+### Using pre-commit Locally to run Github Workflow checks
 
 Install pre-commit hooks into your local repository:
 
