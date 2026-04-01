@@ -116,6 +116,10 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       CLASS_NAME C INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
       HEADER interface_C.h
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h ${OPT_MANUAL_VTABLE})
+    xyz_generate_protocol(
+      CLASS_NAME Demo INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/demo.h
+      HEADER demo.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_demo.h ${OPT_MANUAL_VTABLE})
 
     add_custom_target(
       generate_protocols
@@ -123,7 +127,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_virtual.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_manual.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_demo.h)
 
     xyz_add_test(
       NAME

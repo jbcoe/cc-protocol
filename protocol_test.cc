@@ -30,6 +30,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "generated/protocol_A.h"
 #include "generated/protocol_B.h"
 #include "generated/protocol_C.h"
+#include "generated/protocol_demo.h"
 #include "tracking_allocator.h"
 
 namespace {
@@ -624,6 +625,15 @@ TEST(ProtocolViewTest, ViewMoveIsStandard) {
   // Moved-from view is still valid (it's just a pointer copy)
   EXPECT_EQ(view.name(), "move_test");
   EXPECT_EQ(view2.name(), "move_test");
+}
+
+struct Demoic {
+  int operator()(int x) const { return x * 2; }
+};
+
+TEST(ProtocolDemoTest, DemoFunction) {
+  xyz::protocol<xyz::Demo> demo(std::in_place_type<Demoic>);
+  EXPECT_EQ(demo(5), 10);
 }
 
 }  // namespace
