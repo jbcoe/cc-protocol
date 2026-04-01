@@ -152,6 +152,49 @@ This library is an active proof of concept and is subject to change.
 - Development: Use this library for understanding its concepts and
   contributing to its development. Avoid using it in production code.
 
+## AI Coding Sandboxes
+
+The repository includes Docker-based sandbox scripts for AI coding assistants.
+These mount the project into a container with all build dependencies
+pre-installed, providing an isolated environment for AI-assisted development.
+
+### Claude Code
+
+```bash
+export ANTHROPIC_API_KEY='your_key_here'
+./scripts/claude-sandbox.sh
+```
+
+Use `--rebuild-docker` to rebuild the container image and `--update-claude` to
+update the Claude Code CLI inside the container.
+
+### Gemini CLI
+
+```bash
+export GEMINI_API_KEY='your_key_here'
+./scripts/gemini-sandbox.sh
+```
+
+Use `--rebuild-docker` to rebuild the container image and `--update-gemini` to
+update the Gemini CLI inside the container.
+
+Both scripts accept `-v` for verbose output. The Docker image is defined in
+`docker/Dockerfile`.
+
+### Using pre-commit Locally to run Github Workflow checks
+
+Install pre-commit hooks into your local repository:
+
+```bash
+uv run pre-commit install
+```
+
+Run all hooks against every file:
+
+```bash
+uv run pre-commit run --all-files
+```
+
 ## Contributing and Issue Tracking
 
 - Issues: All issues, bugs, and feature requests should be tracked on the
@@ -160,4 +203,4 @@ This library is an active proof of concept and is subject to change.
 
 ---
 
-_Last updated: March 25, 2026_
+_Last updated: April 1, 2026_
