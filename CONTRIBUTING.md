@@ -152,6 +152,66 @@ This library is an active proof of concept and is subject to change.
 - Development: Use this library for understanding its concepts and
   contributing to its development. Avoid using it in production code.
 
+## AI Coding Sandboxes
+
+The repository includes Docker-based sandbox scripts for AI coding assistants.
+These mount the project into a container with all build dependencies
+pre-installed, providing an isolated environment for AI-assisted development.
+
+### Claude Code
+
+```bash
+export ANTHROPIC_API_KEY='your_key_here'
+./scripts/claude-sandbox.sh
+```
+
+Use `--rebuild-docker` to rebuild the container image and `--update-claude` to
+update the Claude Code CLI inside the container.
+
+### Gemini CLI
+
+```bash
+export GEMINI_API_KEY='your_key_here'
+./scripts/gemini-sandbox.sh
+```
+
+Use `--rebuild-docker` to rebuild the container image and `--update-gemini` to
+update the Gemini CLI inside the container.
+
+Both scripts accept `-v` for verbose output. The Docker image is defined in
+`docker/Dockerfile`.
+
+## GitHub Workflows
+
+The following GitHub Actions workflows run on pull requests and pushes to `main`:
+
+- **pre-commit** (`pre-commit.yml`) — runs all [pre-commit](https://pre-commit.com)
+  hooks including YAML validation, trailing whitespace, clang-format, buildifier,
+  ruff, and GitHub Actions validation.
+- **CMake test** (`cmake.yml`) — builds and tests across GCC (11–14), Clang
+  (17–21), Visual Studio (2019/2022), and Apple Clang on macOS, in both Debug
+  and Release configurations. Tests both default (virtual dispatch) and manual
+  vtable implementations.
+- **clang-tidy** (`clang-tidy.yml`) — runs static analysis on project source
+  files.
+- **uv-lock** (`uv-lock.yml`) — verifies that `uv.lock` is up to date with
+  `pyproject.toml`.
+- **iwyu** (`iwyu.yml`) — runs Include What You Use analysis.
+
+### Using pre-commit Locally
+
+Install pre-commit hooks into your local repository:
+
+```bash
+uv run pre-commit install
+```
+
+Run all hooks against every file:
+
+```bash
+uv run pre-commit run --all-files
+```
+
 ## Contributing and Issue Tracking
 
 - Issues: All issues, bugs, and feature requests should be tracked on the
@@ -160,4 +220,4 @@ This library is an active proof of concept and is subject to change.
 
 ---
 
-_Last updated: March 25, 2026_
+_Last updated: April 1, 2026_
