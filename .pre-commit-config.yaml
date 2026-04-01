@@ -52,3 +52,7 @@ repos:
 #   rev: v0.6.13
 #   hooks:
 #     - id: cmake-format
+- repo: https://github.com/mpalmer/action-validator
+  rev: v0.8.0
+  hooks:
+  - id: action-validator
