@@ -4,7 +4,7 @@
 namespace xyz {
 
 struct Demo {
-  int operator()(int) const;
+  int call(int) const;
 };
 
 }  // namespace xyz

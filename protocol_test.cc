@@ -628,12 +628,12 @@ TEST(ProtocolViewTest, ViewMoveIsStandard) {
 }
 
 struct Demoic {
-  int operator()(int x) const { return x * 2; }
+  int call(int x) const { return x * 2; }
 };
 
 TEST(ProtocolDemoTest, DemoFunction) {
   xyz::protocol<xyz::Demo> demo(std::in_place_type<Demoic>);
-  EXPECT_EQ(demo(5), 10);
+  EXPECT_EQ(demo.call(5), 10);
 }
 
 }  // namespace
