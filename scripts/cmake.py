@@ -32,6 +32,12 @@ def main():
         action="store_true",
         help="Set XYZ_PROTOCOL_GENERATE_MANUAL_VTABLE=ON",
     )
+    parser.add_argument("--asan", action="store_true", help="Enable Address Sanitizer")
+    parser.add_argument(
+        "--ubsan", action="store_true", help="Enable Undefined Behaviour Sanitizer"
+    )
+    parser.add_argument("--tsan", action="store_true", help="Enable Thread Sanitizer")
+    parser.add_argument("--msan", action="store_true", help="Enable Memory Sanitizer")
     parser.add_argument("-B", "--build-dir", help="Build directory")
     parser.add_argument(
         "--clean", action="store_true", help="Fresh configuration and clean-first build"
@@ -66,6 +72,10 @@ def main():
         "--preset",
         preset,
         f"-DXYZ_PROTOCOL_GENERATE_MANUAL_VTABLE={'ON' if args.manual_vtable else 'OFF'}",
+        f"-DENABLE_ASAN={'ON' if args.asan else 'OFF'}",
+        f"-DENABLE_UBSAN={'ON' if args.ubsan else 'OFF'}",
+        f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",
+        f"-DENABLE_MSAN={'ON' if args.msan else 'OFF'}",
     ]
     if args.build_dir:
         configure_args.extend(["-B", args.build_dir])

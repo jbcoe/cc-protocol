@@ -1,0 +1,70 @@
+name: Sanitizers
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sanitizers.yml"
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/CMakeLists.txt"
+      - "CMakePresets.json"
+      - "**/*.cmake"
+      - "scripts/cmake.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/sanitizers.yml"
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/CMakeLists.txt"
+      - "CMakePresets.json"
+      - "**/*.cmake"
+      - "scripts/cmake.py"
+
+env:
+  UV_FROZEN: 1
+
+jobs:
+  sanitized-tests:
+    name: ${{ matrix.sanitizer }} (Clang-${{ matrix.clang_version }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: ["asan", "tsan", "msan"]
+        clang_version: ["19"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: seanmiddleditch/gha-setup-ninja@master
+      - name: Install Clang
+        uses: egor-tensin/setup-clang@v1
+        with:
+          version: ${{ matrix.clang_version }}
+          platform: x64
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Set up Python
+        run: uv sync
+      - name: Run CMake (Default VTable)
+        run: |
+          UBSAN_FLAG=""
+          if [ "${{ matrix.sanitizer }}" = "asan" ]; then
+            UBSAN_FLAG="--ubsan"
+          fi
+          ./scripts/cmake.sh -B build_${{ matrix.sanitizer }}_default --debug --${{ matrix.sanitizer }} ${UBSAN_FLAG}
+        env:
+          CC: clang-${{ matrix.clang_version }}
+          CXX: clang++-${{ matrix.clang_version }}
+      - name: Run CMake (Manual VTable)
+        run: |
+          UBSAN_FLAG=""
+          if [ "${{ matrix.sanitizer }}" = "asan" ]; then
+            UBSAN_FLAG="--ubsan"
+          fi
+          ./scripts/cmake.sh -B build_${{ matrix.sanitizer }}_manual --debug --manual-vtable --${{ matrix.sanitizer }} ${UBSAN_FLAG}
+        env:
+          CC: clang-${{ matrix.clang_version }}
+          CXX: clang++-${{ matrix.clang_version }}

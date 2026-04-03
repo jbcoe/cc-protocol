@@ -24,6 +24,15 @@ option(ENABLE_SANITIZERS
        "Enable Address Sanitizer and Undefined Behaviour Sanitizer if available"
        OFF)
 
+option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
+option(ENABLE_UBSAN "Enable Undefined Behaviour Sanitizer" OFF)
+option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
+option(ENABLE_MSAN "Enable Memory Sanitizer" OFF)
+
+if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN OR ENABLE_MSAN)
+  set(ENABLE_SANITIZERS ON)
+endif()
+
 # Set up Python discovery
 set(Python3_FIND_VIRTUALENV FIRST)
 if(DEFINED ENV{UV_PROJECT_ENVIRONMENT})
@@ -116,6 +125,10 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       CLASS_NAME C INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
       HEADER interface_C.h
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h ${OPT_MANUAL_VTABLE})
+    xyz_generate_protocol(
+      CLASS_NAME D INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_D.h
+      HEADER interface_D.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h ${OPT_MANUAL_VTABLE})
 
     add_custom_target(
       generate_protocols
@@ -123,7 +136,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_virtual.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_manual.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
 
     xyz_add_test(
       NAME
@@ -137,7 +151,9 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       interface_B.h
       ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
       interface_C.h
-      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
+      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h
+      interface_D.h
+      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
     add_dependencies(protocol_test generate_protocols)
     target_include_directories(protocol_test
                                PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
