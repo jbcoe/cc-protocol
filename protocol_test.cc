@@ -30,6 +30,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "generated/protocol_A.h"
 #include "generated/protocol_B.h"
 #include "generated/protocol_C.h"
+#include "generated/protocol_D.h"
 #include "tracking_allocator.h"
 
 namespace {
@@ -624,6 +625,222 @@ TEST(ProtocolViewTest, ViewMoveIsStandard) {
   // Moved-from view is still valid (it's just a pointer copy)
   EXPECT_EQ(view.name(), "move_test");
   EXPECT_EQ(view2.name(), "move_test");
+}
+
+class DLike {
+  int value_ = 0;
+
+ public:
+  int operator+(int x) const { return x + 10; }
+
+  int operator-(int x) const { return x - 10; }
+
+  int operator*(int x) const { return x * 10; }
+
+  int operator/(int x) const { return x / 10; }
+
+  int operator%(int x) const { return x % 10; }
+
+  int operator^(int x) const { return x ^ 10; }
+
+  int operator&(int x) const { return x & 10; }
+
+  int operator|(int x) const { return x | 10; }
+
+  int operator~() const { return ~10; }
+
+  bool operator!() const { return !value_; }
+
+  void operator=(int x) { value_ = x; }
+
+  bool operator<(int x) const { return value_ < x; }
+
+  bool operator>(int x) const { return value_ > x; }
+
+  void operator+=(int x) { value_ += x; }
+
+  void operator-=(int x) { value_ -= x; }
+
+  void operator*=(int x) { value_ *= x; }
+
+  void operator/=(int x) { value_ /= x; }
+
+  void operator%=(int x) { value_ %= x; }
+
+  void operator^=(int x) { value_ ^= x; }
+
+  void operator&=(int x) { value_ &= x; }
+
+  void operator|=(int x) { value_ |= x; }
+
+  int operator<<(int x) const { return value_ << x; }
+
+  int operator>>(int x) const { return value_ >> x; }
+
+  void operator<<=(int x) { value_ <<= x; }
+
+  void operator>>=(int x) { value_ >>= x; }
+
+  bool operator==(int x) const { return value_ == x; }
+
+  bool operator!=(int x) const { return value_ != x; }
+
+  bool operator<=(int x) const { return value_ <= x; }
+
+  bool operator>=(int x) const { return value_ >= x; }
+
+  std::strong_ordering operator<=>(int x) const { return value_ <=> x; }
+
+  bool operator&&(bool x) const { return value_ && x; }
+
+  bool operator||(bool x) const { return value_ || x; }
+
+  void operator++() { ++value_; }
+
+  void operator--() { --value_; }
+
+  int operator,(int x) const { return x; }
+
+  int operator->*(int x) const { return x; }
+
+  int* operator->() { return &value_; }
+
+  int operator()() { return 42; }
+
+  int operator[](int x) const { return x * 2; }
+};
+
+TEST(ProtocolTest, ProtocolDOperators) {
+  xyz::protocol<xyz::D> d(std::in_place_type<DLike>);
+  EXPECT_EQ(d + 5, 15);
+  EXPECT_EQ(d - 15, 5);
+  EXPECT_EQ(d * 2, 20);
+  EXPECT_EQ(d / 100, 10);
+  EXPECT_EQ(d % 15, 5);
+  EXPECT_EQ(d ^ 5, 15);
+  EXPECT_EQ(d & 15, 10);
+  EXPECT_EQ(d | 5, 15);
+  EXPECT_EQ(~d, ~10);
+  EXPECT_TRUE(!d);
+
+  d = 5;
+  EXPECT_FALSE(!d);
+  EXPECT_TRUE(d < 10);
+  EXPECT_FALSE(d > 10);
+
+  d += 5;
+  EXPECT_TRUE(d == 10);
+  d -= 5;
+  EXPECT_TRUE(d == 5);
+  d *= 2;
+  EXPECT_TRUE(d == 10);
+  d /= 2;
+  EXPECT_TRUE(d == 5);
+  d %= 3;
+  EXPECT_TRUE(d == 2);
+  d ^= 7;
+  EXPECT_TRUE(d == 5);
+  d &= 3;
+  EXPECT_TRUE(d == 1);
+  d |= 4;
+  EXPECT_TRUE(d == 5);
+
+  EXPECT_EQ(d << 1, 10);
+  EXPECT_EQ(d >> 1, 2);
+
+  d <<= 1;
+  EXPECT_TRUE(d == 10);
+  d >>= 1;
+  EXPECT_TRUE(d == 5);
+
+  EXPECT_TRUE(d != 10);
+  EXPECT_TRUE(d <= 5);
+  EXPECT_TRUE(d >= 5);
+  EXPECT_TRUE((d <=> 5) == std::strong_ordering::equal);
+
+  EXPECT_TRUE(d && true);
+  EXPECT_TRUE(d || false);
+
+  ++d;
+  EXPECT_TRUE(d == 6);
+  --d;
+  EXPECT_TRUE(d == 5);
+
+  EXPECT_EQ((d, 10), 10);
+  EXPECT_EQ(d->*5, 5);
+
+  *d.operator->() = 10;
+  EXPECT_TRUE(d == 10);
+
+  EXPECT_EQ(d(), 42);
+  EXPECT_EQ(d[5], 10);
+}
+
+TEST(ProtocolViewTest, ProtocolViewDOperators) {
+  DLike d_obj;
+  xyz::protocol_view<xyz::D> d(d_obj);
+  EXPECT_EQ(d + 5, 15);
+  EXPECT_EQ(d - 15, 5);
+  EXPECT_EQ(d * 2, 20);
+  EXPECT_EQ(d / 100, 10);
+  EXPECT_EQ(d % 15, 5);
+  EXPECT_EQ(d ^ 5, 15);
+  EXPECT_EQ(d & 15, 10);
+  EXPECT_EQ(d | 5, 15);
+  EXPECT_EQ(~d, ~10);
+  EXPECT_TRUE(!d);
+
+  d = 5;
+  EXPECT_FALSE(!d);
+  EXPECT_TRUE(d < 10);
+  EXPECT_FALSE(d > 10);
+
+  d += 5;
+  EXPECT_TRUE(d == 10);
+  d -= 5;
+  EXPECT_TRUE(d == 5);
+  d *= 2;
+  EXPECT_TRUE(d == 10);
+  d /= 2;
+  EXPECT_TRUE(d == 5);
+  d %= 3;
+  EXPECT_TRUE(d == 2);
+  d ^= 7;
+  EXPECT_TRUE(d == 5);
+  d &= 3;
+  EXPECT_TRUE(d == 1);
+  d |= 4;
+  EXPECT_TRUE(d == 5);
+
+  EXPECT_EQ(d << 1, 10);
+  EXPECT_EQ(d >> 1, 2);
+
+  d <<= 1;
+  EXPECT_TRUE(d == 10);
+  d >>= 1;
+  EXPECT_TRUE(d == 5);
+
+  EXPECT_TRUE(d != 10);
+  EXPECT_TRUE(d <= 5);
+  EXPECT_TRUE(d >= 5);
+  EXPECT_TRUE((d <=> 5) == std::strong_ordering::equal);
+
+  EXPECT_TRUE(d && true);
+  EXPECT_TRUE(d || false);
+
+  ++d;
+  EXPECT_TRUE(d == 6);
+  --d;
+  EXPECT_TRUE(d == 5);
+
+  EXPECT_EQ((d, 10), 10);
+  EXPECT_EQ(d->*5, 5);
+
+  *d.operator->() = 10;
+  EXPECT_TRUE(d == 10);
+
+  EXPECT_EQ(d(), 42);
+  EXPECT_EQ(d[5], 10);
 }
 
 }  // namespace
