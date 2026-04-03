@@ -1,4 +1,5 @@
 // BEGIN Generated code for protocol_{{ c.name }}
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <initializer_list>
@@ -56,14 +57,6 @@ concept protocol_const_concept_{{ c.name }} = requires(const T& t) {
 {% endfor %}
 };
 
-// Shared control block hierarchy for protocol_view specialisations.
-// protocol_view_const_cb holds const methods (const void* ptr).
-// protocol_view_cb extends it with mutable methods (void* ptr).
-// protocol_view_dcb<T> is the concrete implementation used by both view types
-// and, via multiple inheritance, by protocol's own direct_control_block<T>.
-// This means constructing a view from a protocol reaches the stored object
-// directly without going through the protocol's forwarding methods.
-
 class protocol_view_const_cb_{{ c.name }} {
  public:
   constexpr virtual ~protocol_view_const_cb_{{ c.name }}() = default;
@@ -88,7 +81,6 @@ class protocol_view_cb_{{ c.name }} : public protocol_view_const_cb_{{ c.name }}
 {% endif %}{% endfor %}
 };
 
-// Not final: direct_control_block<T> inside protocol inherits from this.
 template <typename T>
 class protocol_view_dcb_{{ c.name }} : public protocol_view_cb_{{ c.name }} {
  public:
@@ -117,11 +109,6 @@ class protocol_view_dcb_{{ c.name }} : public protocol_view_cb_{{ c.name }} {
 
 template <typename T>
 inline constexpr protocol_view_dcb_{{ c.name }}<T> protocol_view_dcb_{{ c.name }}_inst{};
-
-// Const-only concrete implementation for types that satisfy only the const
-// concept. When constructing protocol_view<const C> from a protocol or a
-// mutable view, the shared protocol_view_dcb instance is reused via pointer
-// upcast and this type is not needed.
 
 template <typename T>
 class protocol_view_const_dcb_{{ c.name }} final : public protocol_view_const_cb_{{ c.name }} {
@@ -156,12 +143,9 @@ class protocol<{{ full_class_name }}, Allocator> {
     virtual control_block* xyz_protocol_clone(const Allocator& alloc) = 0;
     virtual control_block* xyz_protocol_move(const Allocator& alloc) = 0;
     virtual void xyz_protocol_destroy(const Allocator& alloc) = 0;
-    // Returns a pointer to the stored object (used to construct views directly).
-    virtual void* xyz_protocol_get_ptr() = 0;
-    // Returns a pointer to the stored object (used to construct views directly).
+    virtual const void* xyz_protocol_get_ptr() const = 0;
     virtual void* xyz_protocol_get_mutable_ptr() = 0;
-    // Returns the view dispatch interface implemented by this control block.
-    virtual const protocol_view_cb_{{ c.name }}* xyz_protocol_as_view_cb() = 0;
+    virtual const protocol_view_cb_{{ c.name }}* xyz_protocol_as_view_cb() const = 0;
 
    public:
 {% for m in c.methods %}
@@ -174,8 +158,6 @@ class protocol<{{ full_class_name }}, Allocator> {
 {% endfor %}
   };
 
-  // Inherits from protocol_view_dcb so that a view constructed from this
-  // protocol dispatches directly to the stored T without an extra thunk.
   template <typename T>
   class direct_control_block final : public control_block,
                                      public protocol_view_dcb_{{ c.name }}<T> {
@@ -190,8 +172,6 @@ class protocol<{{ full_class_name }}, Allocator> {
     using cb_alloc_traits = std::allocator_traits<cb_allocator>;
 
    public:
-    // Bring view DCB overloads (which take a void*/const void* ptr argument)
-    // into scope so the no-ptr protocol overloads below do not hide them.
 {% for m in c.methods %}
     using protocol_view_dcb_{{ c.name }}<T>::{{ m.name | mangle }}_{{ method_guids[loop.index0] }};
 {% endfor %}
@@ -233,7 +213,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       cb_alloc_traits::deallocate(cb_alloc, this, 1);
     }
 
-    void* xyz_protocol_get_ptr() override {
+    const void* xyz_protocol_get_ptr() const override {
       return std::addressof(storage_.t_);
     }
 
@@ -241,7 +221,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       return std::addressof(storage_.t_);
     }
 
-    const protocol_view_cb_{{ c.name }}* xyz_protocol_as_view_cb() override {
+    const protocol_view_cb_{{ c.name }}* xyz_protocol_as_view_cb() const override {
       return this;
     }
 
@@ -441,9 +421,6 @@ class protocol<{{ full_class_name }}, Allocator> {
 
 };
 
-// protocol_view<const C> is defined first so protocol_view<C> can reference it
-// in its conversion operator.
-
 template <>
 class protocol_view<const {{ full_class_name }}> {
   friend class protocol_view<{{ full_class_name }}>;
@@ -463,7 +440,6 @@ class protocol_view<const {{ full_class_name }}> {
   }
 
  public:
-  // Construction from a concrete type satisfying only the const concept.
   template <typename T>
     requires protocol_const_concept_{{ c.name }}<T> &&
              (!std::same_as<std::remove_cvref_t<T>, protocol_view>)
@@ -471,9 +447,6 @@ class protocol_view<const {{ full_class_name }}> {
       : ptr_(std::addressof(obj)),
         cb_(&protocol_view_const_dcb_{{ c.name }}_inst<std::remove_cvref_t<T>>) {}
 
-  // Construction from protocol: reaches the stored object directly,
-  // reusing the control block's protocol_view_dcb base (no extra thunk).
-  // Precondition: p must not be valueless_after_move().
   template <typename Alloc>
   protocol_view(const protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),
@@ -511,7 +484,6 @@ class protocol_view<{{ full_class_name }}> {
   }
 
  public:
-  // Construction from a concrete type satisfying the full (mutable) concept.
   template <typename T>
     requires protocol_concept_{{ c.name }}<T> &&
              (!std::same_as<std::remove_cvref_t<T>, protocol_view>)
@@ -519,9 +491,6 @@ class protocol_view<{{ full_class_name }}> {
       : ptr_(std::addressof(obj)),
         cb_(&protocol_view_dcb_{{ c.name }}_inst<std::remove_cvref_t<T>>) {}
 
-  // Construction from protocol: reaches the stored object directly,
-  // reusing the control block's protocol_view_dcb base (no extra thunk).
-  // Precondition: p must not be valueless_after_move().
   template <typename Alloc>
   protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),

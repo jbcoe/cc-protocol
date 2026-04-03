@@ -1,4 +1,5 @@
 // BEGIN Generated code for protocol_{{ c.name }}
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <initializer_list>
@@ -55,12 +56,6 @@ concept protocol_const_concept_{{ c.name }} = requires(const T& t) {
 {% endfor %}
 };
 
-// Const-only vtable for types that satisfy only the const concept.
-// view_vtable embeds a pointer to the const_view_vtable for its T, enabling
-// zero-extra-indirection conversion from a mutable view to a const view.
-// Both vtable types are defined before protocol so the protocol vtable can
-// embed a view_vtable pointer for thunk-free view construction.
-
 struct const_view_vtable_{{ c.name }} {
 {% for m in c.methods %}{% if m.is_const %}
   {% set params = [] %}
@@ -91,10 +86,6 @@ inline constexpr const_view_vtable_{{ c.name }} const_view_vtable_{{ c.name }}_f
   }{% if not loop.last %},{% endif %}
 {% endfor %}
 };
-
-// view_vtable holds all methods (const and mutable) plus a pointer to the
-// const sub-vtable, so that every dispatch is a single dereference and
-// converting a mutable view to a const view is a single pointer read.
 
 struct view_vtable_{{ c.name }} {
   const const_view_vtable_{{ c.name }}* const_view;
@@ -133,11 +124,7 @@ class protocol<{{ full_class_name }}, Allocator> {
     void* (*xyz_protocol_clone)(void* cb, const Allocator& alloc);
     void* (*xyz_protocol_move)(void* cb, const Allocator& alloc);
     void (*xyz_protocol_destroy)(void* cb, const Allocator& alloc);
-    // Returns a pointer to the stored object so views can be constructed
-    // without going through the protocol's forwarding methods.
-    void* (*xyz_protocol_get_ptr)(void* cb) noexcept;
-    // Returns a pointer to the stored object so views can be constructed
-    // without going through the protocol's forwarding methods.
+    const void* (*xyz_protocol_get_ptr)(const void* cb) noexcept;
     void* (*xyz_protocol_get_mutable_ptr)(void* cb) noexcept;
     const view_vtable_{{ c.name }}* view_vt;
 {% for m in c.methods %}
@@ -204,8 +191,8 @@ class protocol<{{ full_class_name }}, Allocator> {
       cb_alloc_traits::deallocate(cb_alloc, self, 1);
     }
 
-    static void* xyz_protocol_get_ptr(void* cb) noexcept {
-      return std::addressof(static_cast<direct_control_block*>(cb)->storage_.t_);
+    static const void* xyz_protocol_get_ptr(const void* cb) noexcept {
+      return std::addressof(static_cast<const direct_control_block*>(cb)->storage_.t_);
     }
 
     static void* xyz_protocol_get_mutable_ptr(void* cb) noexcept {
@@ -439,9 +426,6 @@ class protocol<{{ full_class_name }}, Allocator> {
 
 };
 
-// protocol_view<const C> is defined first so protocol_view<C> can reference it
-// in its conversion operator.
-
 template <>
 class protocol_view<const {{ full_class_name }}> {
   friend class protocol_view<{{ full_class_name }}>;
@@ -461,7 +445,6 @@ class protocol_view<const {{ full_class_name }}> {
   }
 
  public:
-  // Construction from a concrete type satisfying only the const concept.
   template <typename T>
     requires protocol_const_concept_{{ c.name }}<T> &&
              (!std::same_as<std::remove_cvref_t<T>, protocol_view>)
@@ -469,8 +452,6 @@ class protocol_view<const {{ full_class_name }}> {
       : ptr_(std::addressof(obj)),
         vptr_(&const_view_vtable_{{ c.name }}_for<std::remove_cvref_t<T>>) {}
 
-  // Construction from protocol: reads get_ptr and view_vt directly from the
-  // protocol vtable to reach the stored object without extra thunks.
   template <typename Alloc>
   protocol_view(const protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),
@@ -508,7 +489,6 @@ class protocol_view<{{ full_class_name }}> {
   }
 
  public:
-  // Construction from a concrete type satisfying the full (mutable) concept.
   template <typename T>
     requires protocol_concept_{{ c.name }}<T> &&
              (!std::same_as<std::remove_cvref_t<T>, protocol_view>)
@@ -516,8 +496,6 @@ class protocol_view<{{ full_class_name }}> {
       : ptr_(std::addressof(obj)),
         vptr_(&view_vtable_{{ c.name }}_for<std::remove_cvref_t<T>>) {}
 
-  // Construction from protocol: reads get_ptr and view_vt directly from the
-  // protocol vtable to reach the stored object without extra thunks.
   template <typename Alloc>
   protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),
