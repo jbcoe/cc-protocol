@@ -71,7 +71,7 @@ class protocol<{{ full_class_name }}, Allocator> {
     {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
   {% endfor %}
   {% set params_str = params | join(", ") %}
-    virtual {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} = 0;
+    virtual {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} = 0;
 {% endfor %}
   };
 
@@ -137,9 +137,9 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
   {% if m.return_type.name == 'void' %}
-    {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} override { storage_.t_.{{ m.name }}({{ passes_str }}); }
+    {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} override { storage_.t_.{{ m.name }}({{ passes_str }}); }
   {% else %}
-    {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} override { return storage_.t_.{{ m.name }}({{ passes_str }}); }
+    {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} override { return storage_.t_.{{ m.name }}({{ passes_str }}); }
   {% endif %}
 {% endfor %}
   };
@@ -317,7 +317,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} { return cb_->{{ m.name }}({{ passes_str }}); }
+  {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} { return cb_->{{ m.name | mangle }}_{{ method_guids[loop.index0] }}({{ passes_str }}); }
 {% endfor %}
 
 };
@@ -333,7 +333,7 @@ class protocol_view<{{ full_class_name }}> {
     {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
   {% endfor %}
   {% set params_str = params | join(", ") %}
-    virtual {{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
+    virtual {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
 {% endfor %}
   };
 
@@ -351,7 +351,7 @@ class protocol_view<{{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-    {{ m.return_type.name }} {{ m.name }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
+    {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
       {% if m.return_type.name != 'void' %}return {% endif %}static_cast<{% if m.is_const %}const {% endif %}T*>(ptr)->{{ m.name }}({{ passes_str }});
     }
 {% endfor %}
@@ -380,7 +380,7 @@ class protocol_view<{{ full_class_name }}> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
   {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
-    {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
+    {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name | mangle }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
   }
 {% endfor %}
 };
@@ -397,7 +397,7 @@ class protocol_view<const {{ full_class_name }}> {
     {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
   {% endfor %}
   {% set params_str = params | join(", ") %}
-    virtual {{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
+    virtual {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
   {% endif %}
 {% endfor %}
   };
@@ -407,9 +407,8 @@ class protocol_view<const {{ full_class_name }}> {
    public:
     constexpr direct_control_block() = default;
     constexpr ~direct_control_block() override = default;
-{% set const_methods = [] %}
-{% for m in c.methods %}{% if m.is_const %}{% set _ = const_methods.append(m) %}{% endif %}{% endfor %}
-{% for m in const_methods %}
+{% for m in c.methods %}
+  {% if m.is_const %}
   {% set params = [] %}
   {% set passes = [] %}
   {% for a in m.arguments %}
@@ -418,9 +417,10 @@ class protocol_view<const {{ full_class_name }}> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-    {{ m.return_type.name }} {{ m.name }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
+    {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
       {% if m.return_type.name != 'void' %}return {% endif %}static_cast<const T*>(ptr)->{{ m.name }}({{ passes_str }});
     }
+  {% endif %}
 {% endfor %}
   };
 
@@ -448,7 +448,7 @@ class protocol_view<const {{ full_class_name }}> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
   {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
-    {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
+    {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name | mangle }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
   }
   {% endif %}
 {% endfor %}
