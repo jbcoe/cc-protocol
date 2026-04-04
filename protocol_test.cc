@@ -574,6 +574,20 @@ TEST(ProtocolViewTest, ConstViewFromMutableProtocol) {
   EXPECT_EQ(view.name(), "proto_view");
 }
 
+TEST(ProtocolViewTest, ConstViewFromMutViewConcrete) {
+  ALike a(10, "view_test");
+  xyz::protocol_view<xyz::A> mut_view(a);
+  xyz::protocol_view<const xyz::A> const_view(mut_view);
+  EXPECT_EQ(const_view.name(), "view_test");
+}
+
+TEST(ProtocolViewTest, ConstViewFromMutViewProtocol) {
+  xyz::protocol<xyz::A> a(std::in_place_type<ALike>, 20, "proto_view");
+  xyz::protocol_view<xyz::A> mut_view(a);
+  xyz::protocol_view<const xyz::A> const_view(mut_view);
+  EXPECT_EQ(const_view.name(), "proto_view");
+}
+
 TEST(ProtocolViewTest, ConstViewFromConstProtocol) {
   const xyz::protocol<xyz::A> a(std::in_place_type<ALike>, 20, "proto_view");
   xyz::protocol_view<const xyz::A> view(a);
