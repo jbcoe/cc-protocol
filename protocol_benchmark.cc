@@ -235,7 +235,7 @@ static void ProtocolView_Virtual_Call_Jitter(benchmark::State& state) {
 
   benchmark::DoNotOptimize(views);
 
-  int i = 0;
+  size_t i = 0;
   for (auto _ : state) {
     auto& view = views[i & 1];
     benchmark::DoNotOptimize(view.name());
@@ -255,7 +255,7 @@ static void ProtocolView_Manual_Call_Jitter(benchmark::State& state) {
 
   benchmark::DoNotOptimize(views);
 
-  int i = 0;
+  size_t i = 0;
   for (auto _ : state) {
     auto& view = views[i & 1];
     benchmark::DoNotOptimize(view.name());
@@ -274,7 +274,7 @@ static void RawPointer_Call_Jitter(benchmark::State& state) {
 
   benchmark::DoNotOptimize(ptrs);
 
-  int i = 0;
+  size_t i = 0;
   for (auto _ : state) {
     auto* ptr = ptrs[i & 1];
     benchmark::DoNotOptimize(ptr->name());
