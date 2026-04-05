@@ -22,6 +22,7 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "**/*.cmake"
+      - "**/*.j2"
 
 env:
   UV_FROZEN: 1
