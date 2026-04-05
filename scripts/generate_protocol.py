@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import os
+import re
 import subprocess
 import sys
 
@@ -60,6 +61,57 @@ def get_compiler_args(compiler="c++"):
     return args
 
 
+def mangle_identifier(name):
+    if name.startswith("operator"):
+        op = name[len("operator") :].strip()
+        mapping = {
+            "+": "plus",
+            "-": "minus",
+            "*": "star",
+            "/": "slash",
+            "%": "percent",
+            "^": "caret",
+            "&": "amp",
+            "|": "pipe",
+            "~": "tilde",
+            "!": "excl",
+            "=": "equal",
+            "<": "lt",
+            ">": "gt",
+            "+=": "plus_equal",
+            "-=": "minus_equal",
+            "*=": "star_equal",
+            "/=": "slash_equal",
+            "%=": "percent_equal",
+            "^=": "caret_equal",
+            "&=": "amp_equal",
+            "|=": "pipe_equal",
+            "<<": "lshift",
+            ">>": "rshift",
+            "<<=": "lshift_equal",
+            ">>=": "rshift_equal",
+            "==": "equal_equal",
+            "!=": "not_equal",
+            "<=": "lte",
+            ">=": "gte",
+            "<=>": "spaceship",
+            "&&": "amp_amp",
+            "||": "pipe_pipe",
+            "++": "plus_plus",
+            "--": "minus_minus",
+            ",": "comma",
+            "->*": "arrow_star",
+            "->": "arrow",
+            "()": "call",
+            "[]": "subscript",
+        }
+        if op in mapping:
+            return f"__operator__{mapping[op]}__"
+        return "operator_" + re.sub(r"[^a-zA-Z0-9_]", "_", op)
+
+    return re.sub(r"[^a-zA-Z0-9_]", "_", name)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("input", help="Input header file")
@@ -107,6 +159,7 @@ def main():
     env = Environment(
         loader=FileSystemLoader(template_dir), autoescape=select_autoescape()
     )
+    env.filters["mangle"] = mangle_identifier
     template = env.get_template(template_name)
 
     method_guids = [

@@ -77,8 +77,10 @@ function(xyz_add_test)
   target_link_libraries(
     ${XYZ_NAME}
     PRIVATE ${XYZ_LINK_LIBRARIES} GTest::gtest_main common_compiler_settings
-            $<$<BOOL:${COMPILER_SUPPORTS_ASAN}>:asan>
-            $<$<BOOL:${COMPILER_SUPPORTS_UBSAN}>:ubsan>)
+            $<$<AND:$<BOOL:${COMPILER_SUPPORTS_ASAN}>,$<BOOL:${ENABLE_ASAN}>>:asan>
+            $<$<AND:$<BOOL:${COMPILER_SUPPORTS_UBSAN}>,$<BOOL:${ENABLE_UBSAN}>>:ubsan>
+            $<$<AND:$<BOOL:${COMPILER_SUPPORTS_TSAN}>,$<BOOL:${ENABLE_TSAN}>>:tsan>
+            $<$<AND:$<BOOL:${COMPILER_SUPPORTS_MSAN}>,$<BOOL:${ENABLE_MSAN}>>:msan>)
 
   set_target_properties(
     ${XYZ_NAME}
