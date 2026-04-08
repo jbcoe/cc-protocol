@@ -299,7 +299,6 @@ class protocol {
   //constexpr void swap(protocol& lhs, protocol& rhs) noexcept(noexcept(lhs.swap(rhs)));
 
  private:
-  //pointer p;                                   // exposition only
   Allocator alloc = Allocator();                 // exposition only
 };
 ```
@@ -637,16 +636,17 @@ template<class Allocator>
 constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
 ```
 
-X. _Preconditions_: ??
+7. _Preconditions_: protocol `p` is not valueless.
 
-7. _Effects_: Initializes `data_` to `std::addressof(*p)`.
+8. _Effects_: Initializes `data_` to `std::addressof(*p)`.
 
 ```cpp
 template<class Allocator>
 constexpr protocol_view(const protocol<I, Allocator>& p) noexcept;
 ```
+9. _Preconditions_: protocol `p` is not valueless.
 
-8. _Effects_: Initializes `data_` to `const_cast<I*>(std::addressof(*p))`. 
+10. _Effects_: Initializes `data_` to `const_cast<I*>(std::addressof(*p))`. 
 
 [Note: The `const_cast` is safe because when `I` is `const`-qualified, only `const` member functions will be accessible. — end note]
 
@@ -655,54 +655,57 @@ template<class U>
 constexpr protocol_view(protocol_view<U>& view) noexcept;
 ```
 
-9. _Constraints_: `const U` is implicitly convertible to `const I` (allowing different `const`-qualifications of the same interface).
+11. _Constraints_: `const U` is implicitly convertible to `const I` (allowing different `const`-qualifications of the same interface).
 
-10. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
+12. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
 
-11. _Effects_: Initializes `data_` to `view.operator->()`.
+13. _Effects_: Initializes `data_` to `view.operator->()`.
 
 ```cpp
 template<class U>
 constexpr protocol_view(const protocol_view<U>& view) noexcept;
 ```
 
-12. _Constraints_: `const U` is implicitly convertible to `const I` (allowing different `const`-qualifications of the same interface).
+14. _Constraints_: `const U` is implicitly convertible to `const I` (allowing different `const`-qualifications of the same interface).
 
-13. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
+15. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
 
-14. _Effects_: Initializes `data_` to `const_cast<I*>(view.operator->())`.
+16. _Effects_: Initializes `data_` to `const_cast<I*>(view.operator->())`.
 
-#### X.Z.3 Copy and move operations [protocol_view.copy.move]
 
 ```cpp
 constexpr protocol_view(const protocol_view& other) noexcept = default;
 ```
 
-1. _Effects_: Initializes `data_` and `vtable` with the values from `other`.
+17. _Effects_: Initializes `data_` with the values from `other`.
 
 ```cpp
 constexpr protocol_view(protocol_view&& other) noexcept = default;
 ```
 
-2. _Effects_: Initializes `data_` and `vtable` with the values from `other`. [Note: The moved-from `protocol_view` remains valid and points to the same object. — end note]
+18. _Effects_: Initializes `data_` with values from `other`. 
+
+#### X.Z.3 Assignment [protocol_view.assign]
 
 ```cpp
 constexpr protocol_view& operator=(const protocol_view& other) noexcept = default;
 ```
 
-3. _Effects_: Assigns `data_` and `vtable` from `other`.
+1. _Effects_: Assigns `data_` from `other`.
 
-4. _Returns_: `*this`.
+2. _Returns_: `*this`.
 
 ```cpp
 constexpr protocol_view& operator=(protocol_view&& other) noexcept = default;
 ```
 
-5. _Effects_: Assigns `data_` and `vtable` from `other`. 
+3. _Effects_: Assigns `data_` from `other`. 
 
-6. _Returns_: `*this`.
+4. _Returns_: `*this`.
 
 #### X.Z.4 Member access
+
+TODO:ADD ?
 
 ## Polls
 
