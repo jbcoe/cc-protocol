@@ -47,6 +47,11 @@ and code injection and focuses solely on the design of the class templates
 
 - Initial revision.
 
+## Foreword
+
+This is a very early stage design which we are sharing to further discussion
+of design differences with a series of competing proposals for structural-subtyping.
+
 ## Motivation
 
 Using `protocol`, functions can be written with run-time polymorphism
@@ -77,11 +82,67 @@ non-owning reference type. There is no base class to take a pointer to for
 `protocol_view<const T>`) which are similar to `span` and `string_view` and give
 reference semantics to structural sub-types.
 
-## Examples
+### Generated structural subtyping
 
-### Minimal API examples
+For a given struct, the corresponding `protocol` and `protocol_view` will
+implement all the public non-virtual, non-template member functions with
+identical constexpr, noexcept and const-qualification.
 
-TODO(jbcoe): Simple illustration of the API for `protocol` and `protocol_view`.
+```c++
+struct I {
+    std::string func0(std::string_view) const noexcept;
+    double func1(double);
+    int func2(int);
+    int func2(int, int); // Another overload, same name.
+};
+```
+
+We then generate a partial template specialization for `protocol` and
+template specialization for `protocol_view`.
+
+```c++
+template <typename Allocator>
+class protocol<I, Allocator=std::allocator<void>> {
+    // Constructors - see technical specification below.
+
+    // structural-subtype member functions.
+    std::string func0(std::string_view) const noexcept;
+    double func1(double) const;
+    int func2(int);
+    int func2(int, int); // Another overload, same name.
+
+    // valueless after move
+    constexpr bool valueless_after_move() const noexcept;
+};
+```
+
+```c++
+template <typename Allocator>
+class protocol_view<I> {
+    // Constructors - see technical specification below.
+
+    // structural-subtype member functions.
+    std::string func0(std::string_view) const noexcept;
+    double func1(double) const;
+    int func2(int);
+    int func2(int, int); // Another overload, same name.
+};
+```
+
+```c++
+template <typename Allocator>
+class protocol_view<const I> {
+    // Constructors - see technical specification below.
+
+    // structural-subtype const member functions.
+    std::string func0(std::string_view) const noexcept;
+    double func1(double) const;
+};
+```
+
+Code generation is currently implemented in a reference implementation with a
+custom build step but would be better implemented by a compiler extension or
+by using extended post-C++26 static reflection features.
 
 ### Function-like examples
 
