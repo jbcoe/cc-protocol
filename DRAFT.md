@@ -254,10 +254,10 @@ namespace std {
 
   namespace pmr {
     template<class I> using protocol =
-      protocol<I, polymorphic_allocator<I>>;
+      std::protocol<I, polymorphic_allocator<I>>;
 
     template<class I> using protocol_view =
-      protocol_view<I>;
+      std::protocol_view<I>;
   }
 }
 ```
