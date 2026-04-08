@@ -351,7 +351,7 @@ class protocol {
 
   constexpr protocol& operator=(protocol&& other) noexcept(see below);
 
-  constexpr allocator_type get_allocator() const;
+  constexpr allocator_type get_allocator() const noexcept;
 
   constexpr bool valueless_after_move() const noexcept;
 
