@@ -530,7 +530,7 @@ protocol& operator=(protocol&& other) noexcept(
 ```
 
 5. _Mandates_: If `allocator_traits<Allocator>​::​propagate_on_container_move_assignment​::​value` is `false`
-and `allocator_traits<Allocator>​::​is_always_equal​::​value` is `false`, `T` is a complete type.
+and `allocator_traits<Allocator>​::​is_always_equal​::​value` is `false`, `I` is a complete type.
 
 6. _Effects_: If `addressof(other) == this` is `true`, there are no effects. Otherwise:
 
@@ -694,11 +694,11 @@ template<class T>
 constexpr protocol_view(const T& t) noexcept;
 ```
 
-4. _Constraints_: `T` conforms to interface `I`.
+4. _Constraints_: `T` conforms to interface `I` and `is_const_v<I>` is `true`.
 
 5. _Preconditions_: `t` shall refer to an object that is valid and remains valid for the lifetime of `*this`.
 
-6. _Effects_: Initializes `data_` to `const_cast<I*>(std::addressof(t))`.
+6. _Effects_: Initializes `data_` with the address of `t`.
 
 ```cpp
 template<class Allocator>
@@ -713,48 +713,48 @@ constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
 template<class Allocator>
 constexpr protocol_view(const protocol<I, Allocator>& p) noexcept;
 ```
-9. _Preconditions_: protocol `p` is not valueless.
+9. _Constraints_: `is_const_v<I>` is `true`.
 
-10. _Effects_: Initializes `data_` to `const_cast<I*>(std::addressof(*p))`.
+10. _Preconditions_: protocol `p` is not valueless.
 
-[Note: The `const_cast` is safe because when `I` is `const`-qualified, only `const` member functions will be accessible. — end note]
+11. _Effects_: Initializes `data_` with the address of `*p`.
 
 ```cpp
 template<class U>
 constexpr protocol_view(protocol_view<U>& view) noexcept;
 ```
 
-11. _Constraints_: `const U` is implicitly convertible to `const I` (allowing different `const`-qualifications of the same interface).
+12. _Constraints_: `const U` is implicitly convertible to `const I` (allowing different `const`-qualifications of the same interface).
 
-12. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
+13. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
 
-13. _Effects_: Initializes `data_` to `view.operator->()`.
+14. _Effects_: Initializes `data_` with the address of the object referenced by `view`.
 
 ```cpp
 template<class U>
 constexpr protocol_view(const protocol_view<U>& view) noexcept;
 ```
 
-14. _Constraints_: `const U` is implicitly convertible to `const I` (allowing different `const`-qualifications of the same interface).
+15. _Constraints_: `const U` is implicitly convertible to `const I` and `is_const_v<I>` is `true`.
 
-15. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
+16. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
 
-16. _Effects_: Initializes `data_` to `const_cast<I*>(view.operator->())`.
+17. _Effects_: Initializes `data_` with the address of the object referenced by `view`.
 
 
 ```cpp
 constexpr protocol_view(const protocol_view& other) noexcept = default;
 ```
 
-17. _Effects_: Initializes `data_` with the values from `other`.
+18. _Effects_: Initializes `data_` with the values from `other`.
 
 ```cpp
 constexpr protocol_view(protocol_view&& other) noexcept = default;
 ```
 
-18. _Effects_: Initializes `data_` with values from `other`.
+19. _Effects_: Initializes `data_` with values from `other`.
 
-#### X.Z.3 Assignment [protocol_view.assign]
+#### X.Z.4 Assignment [protocol_view.assign]
 
 ```cpp
 constexpr protocol_view& operator=(const protocol_view& other) noexcept = default;
@@ -805,6 +805,11 @@ properties required by this proposal.
 
 [P3086R4 Proxy]
 <https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p3086r5.html>
+
+[py_cppmodel] _Python wrappers for clang's parsing of C++ to simplify AST
+analysis_. <https://github.com/jbcoe/py_cppmodel>
+
+.html>
 
 [py_cppmodel] _Python wrappers for clang's parsing of C++ to simplify AST
 analysis_. <https://github.com/jbcoe/py_cppmodel>
