@@ -269,7 +269,7 @@ but limitations of the processor used to prepare this paper means not all uses a
 
 #### X.Y.1 Class template protocol general [protocol.general]
 
-1. A `protocol` object manages the lifetime of an owned object that erases the type of a conforming 
+1. A `protocol` object manages the lifetime of an owned object that erases the type of a conforming
 implementation. A `protocol` object is _valueless_ if it has no owned object. A `protocol` object may
 become valueless only after it has been moved from.
 
@@ -348,7 +348,7 @@ class protocol {
   ~protocol();
 
   constexpr protocol& operator=(const protocol& other);
-  
+
   constexpr protocol& operator=(protocol&& other) noexcept(see below);
 
   constexpr allocator_type get_allocator() const;
@@ -379,7 +379,7 @@ constexpr protocol(const protocol& other);
 `allocator_traits<Allocator>::select_on_container_copy_construction(other.alloc)`.
 If `other` is valueless, `*this` is valueless. Otherwise, constructs an owned object
 of the same type as the owned object in `other`, with the object owned in `other`
-using the allocator `alloc`. 
+using the allocator `alloc`.
 
 ```cpp
 constexpr protocol(allocator_arg_t, const Allocator& a,
@@ -389,7 +389,7 @@ constexpr protocol(allocator_arg_t, const Allocator& a,
 4. _Effects_: `alloc` is direct-non-list-initialized with `a`. If `other` is
 valueless, `*this` is valueless. Otherwise, constructs an owned object of the same
 type as the owned object in `other`, with the object owned in `other` using
-the allocator `alloc`. 
+the allocator `alloc`.
 
 ```cpp
 constexpr protocol(protocol&& other) noexcept;
@@ -433,11 +433,11 @@ explicit constexpr protocol(allocator_arg_t, const Allocator& a,
                             in_place_type_t<T>);
 ```
 
-9. _Constraints_: 
+9. _Constraints_:
   * `is_default_constructible_v<T>` is `true`, and
   * `T` conforms to interface `I`.
 
-10. _Effects_: `alloc` is direct-non-list-initialized with `a`. Constructs an 
+10. _Effects_: `alloc` is direct-non-list-initialized with `a`. Constructs an
 owned object of type `T` with an empty argument list using the allocator `alloc`.
 
 ```cpp
@@ -465,8 +465,8 @@ explicit constexpr protocol(allocator_arg_t, const Allocator& a,
   * `is_constructible_v<T, Us...>` is `true`, and
   * `T` conforms to interface `I`.
 
-14. _Effects_: `alloc` is direct-non-list-initialized with `a`. Constructs an 
-owned object of type `T` with `std::forward<Us>(us)...` using the allocator 
+14. _Effects_: `alloc` is direct-non-list-initialized with `a`. Constructs an
+owned object of type `T` with `std::forward<Us>(us)...` using the allocator
 `alloc`.
 
 #### X.Y.4 Destruction [protocol.dtor]
@@ -475,8 +475,8 @@ owned object of type `T` with `std::forward<Us>(us)...` using the allocator
 ~protocol();
 ```
 
-1. _Effects_: If `*this` is not valueless, calls `allocator_traits<Allocator>::destroy(p)`, 
-where `p` is a pointer of type `U*` to the owned object and `U` is the type of the owned object; 
+1. _Effects_: If `*this` is not valueless, calls `allocator_traits<Allocator>::destroy(p)`,
+where `p` is a pointer of type `U*` to the owned object and `U` is the type of the owned object;
 then the storage is deallocated.
 
 
@@ -490,9 +490,9 @@ constexpr protocol& operator=(const protocol& other);
 
 2. _Effects_: If `addressof(other) == this` is `true`, there are no effects. Otherwise:
 
-Changes `*this` to a deep copy of the owned object of `other`. If 
+Changes `*this` to a deep copy of the owned object of `other`. If
 `other` is valueless, `*this` is valueless after assignment. If an exception is
-thrown, `*this` is unchanged. If `*this` already contains an owned object and 
+thrown, `*this` is unchanged. If `*this` already contains an owned object and
 `alloc == other.alloc`, the assignment is performed in-place where possible;
 otherwise the old owned object is destroyed and a new one is created.
 
@@ -501,7 +501,7 @@ otherwise the old owned object is destroyed and a new one is created.
   is `true`.
 
   2.2. If `other` is not valueless, a new owned object of type `U`, where `U` is the type of
-  the owned object in `other`, is constructed in `*this` using `allocator_traits<Allocator>::construct` 
+  the owned object in `other`, is constructed in `*this` using `allocator_traits<Allocator>::construct`
   with the owned object from `other` as the argument, using either the allocator in `*this`
   or the allocator in `other` if the allocator needs updating.
 
@@ -531,7 +531,7 @@ and `allocator_traits<Allocator>​::​is_always_equal​::​value` is `false`
   is `true`.
 
   6.2. If `other` is valueless, `*this` becomes valueless.
-  
+
   6.3 Otherwise, if the allocator needs updating or `alloc == other.alloc` is `true`, `*this`
   takes ownership of the owned object of `other`.
 
@@ -576,7 +576,7 @@ then `Allocator` meets the _Cpp17Swappable_ requirements. Otherwise `get_allocat
 
 2. _Effects_: Swaps the states of `*this` and `other`, exchanging owned objects or valueless states.
 If `allocator_traits<Allocator>​::​propagate_on_container_swap​::​value` is true, then the allocators of
-`*this` and `other` are exchanged by calling swap as described in [swappable.requirements]. Otherwise, 
+`*this` and `other` are exchanged by calling swap as described in [swappable.requirements]. Otherwise,
 the allocators are not swapped.
 
 [Note 1: Does not call swap on the owned objects directly. — end note]
@@ -615,17 +615,17 @@ constexpr allocator_type get_allocator() const;
 
 #### X.Z.1 Class template protocol_view general [protocol_view.general]
 
-1. A `protocol_view` object provides a non-owning reference to an object that conforms to an 
+1. A `protocol_view` object provides a non-owning reference to an object that conforms to an
 interface `I`. Copying a `protocol_view` produces a new view referring to the same object.
 
-2. An object of type `T` _conforms to an interface_ `I` if all member functions declared in `I` are 
-available on `T` with matching signatures and are not deleted. Const-qualifiers in the interface's 
+2. An object of type `T` _conforms to an interface_ `I` if all member functions declared in `I` are
+available on `T` with matching signatures and are not deleted. Const-qualifiers in the interface's
 member functions are required to match.
 
 3. A program that instantiates the definition of the template `protocol_view<I>`
 with a type for the `I` parameter that is a non-object type, an array type, or a cv-qualified type is ill-formed.
 
-4. The template parameter `I` of `protocol_view` shall be a complete type. The program is ill-formed if a 
+4. The template parameter `I` of `protocol_view` shall be a complete type. The program is ill-formed if a
 type instantiates `protocol_view<I>` with an incomplete type `I`.
 
 5. If a program declares an explicit or partial specialization of `protocol_view`,
@@ -641,7 +641,7 @@ class protocol_view {
 
   template<class T>
   constexpr protocol_view(T& t) noexcept;
-  
+
   template<class T>
   constexpr protocol_view(const T& t) noexcept;
 
@@ -650,10 +650,10 @@ class protocol_view {
 
   template<class Allocator>
   constexpr protocol_view(const protocol<I, Allocator>& p) noexcept;
-  
+
   template<class U>
   constexpr protocol_view(protocol_view<U>& view) noexcept;
-  
+
   template<class U>
   constexpr protocol_view(const protocol_view<U>& view) noexcept;
 
@@ -707,7 +707,7 @@ constexpr protocol_view(const protocol<I, Allocator>& p) noexcept;
 ```
 9. _Preconditions_: protocol `p` is not valueless.
 
-10. _Effects_: Initializes `data_` to `const_cast<I*>(std::addressof(*p))`. 
+10. _Effects_: Initializes `data_` to `const_cast<I*>(std::addressof(*p))`.
 
 [Note: The `const_cast` is safe because when `I` is `const`-qualified, only `const` member functions will be accessible. — end note]
 
@@ -744,7 +744,7 @@ constexpr protocol_view(const protocol_view& other) noexcept = default;
 constexpr protocol_view(protocol_view&& other) noexcept = default;
 ```
 
-18. _Effects_: Initializes `data_` with values from `other`. 
+18. _Effects_: Initializes `data_` with values from `other`.
 
 #### X.Z.3 Assignment [protocol_view.assign]
 
@@ -760,7 +760,7 @@ constexpr protocol_view& operator=(const protocol_view& other) noexcept = defaul
 constexpr protocol_view& operator=(protocol_view&& other) noexcept = default;
 ```
 
-3. _Effects_: Assigns `data_` from `other`. 
+3. _Effects_: Assigns `data_` from `other`.
 
 4. _Returns_: `*this`.
 
