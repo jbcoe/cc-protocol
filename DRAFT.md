@@ -88,6 +88,12 @@ For a given struct, the corresponding `protocol` and `protocol_view` will
 implement all the public non-virtual, non-template member functions with
 identical constexpr, noexcept and const-qualification.
 
+Unlike `polymorphic`, `protocol` and `protocol_view` do not provide `operator*`
+or `operator->` (or const-overloads) as there is no common base type to form a
+pointer or reference. Member functions from a `protocol` or `protocol_view` are
+generated so that the `protocol` or `protocol_view` is a valid stuctural subtype
+and can be called with traditional `instance.member_function(args)` syntax.
+
 ```c++
 struct I {
     std::string func0(std::string_view) const noexcept;
@@ -148,7 +154,9 @@ by using extended post-C++26 static reflection features.
 
 We can use `protocol` and `protocol_view` with appropriate
 structural types to implement and extend the standard library's
-existing set of function-objects:
+existing set of function-objects.
+
+Consider the structural types below:
 
 ```c++
 template <typename R, typename... Args>
@@ -198,27 +206,27 @@ struct MoveOnlyMutatingFunction {
 
 ```c++
 struct OverloadedFunction {
+    // All special member functions are defaulted.
     R1 operator()(Args1&&... args) const;
     R2 operator()(Args2&&... args);
     R3 operator()(Args3&&... args);
 };
 ```
 
-There is currently no function-type in the standard library that can handle an
+There is currently no function-type in the standard library that can represent an
 overload set. The table below is illustrative of how flexible `protocol` and
 `protocol_view` are.
 
-| Standard library type | Protocol equivalent |
-| :--- | :--- |
-| `std::copyable_function<R(Args...) const>` | `protocol<Function<R, Args...>>` |
-| `std::move_only_function<R(Args...) const>` | `protocol<MoveOnlyFunction<R, Args...>>` |
-| `std::function_ref<R(Args...) const>` | `protocol_view<Function<R, Args...>>` |
-| `std::copyable_function<R(Args...)>` | `protocol<MutatingFunction<R, Args...>>` |
-| `std::move_only_function<R(Args...)>` | `protocol<MoveOnlyMutatingFunction<R, Args...>>` |
-| `std::function_ref<R(Args...)>` | `protocol_view<MutatingFunction<R, Args...>>` |
-| ??? | `protocol<OverloadedFunction>` |
-| ??? | `protocol_view<OverloadedFunction>` |
-
+| Standard library type                       | Protocol equivalent                              |
+| :------------------------------------------ | :----------------------------------------------- |
+| `std::copyable_function<R(Args...) const>`  | `protocol<Function<R, Args...>>`                 |
+| `std::move_only_function<R(Args...) const>` | `protocol<MoveOnlyFunction<R, Args...>>`         |
+| `std::function_ref<R(Args...) const>`       | `protocol_view<Function<R, Args...>>`            |
+| `std::copyable_function<R(Args...)>`        | `protocol<MutatingFunction<R, Args...>>`         |
+| `std::move_only_function<R(Args...)>`       | `protocol<MoveOnlyMutatingFunction<R, Args...>>` |
+| `std::function_ref<R(Args...)>`             | `protocol_view<MutatingFunction<R, Args...>>`    |
+| ???                                         | `protocol<OverloadedFunction>`                   |
+| ???                                         | `protocol_view<OverloadedFunction>`              |
 
 ### Comparison with proxy
 
