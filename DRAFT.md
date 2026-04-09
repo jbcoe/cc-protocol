@@ -111,7 +111,7 @@ template specialization for `protocol_view`.
 ```c++
 template <typename Allocator>
 class protocol<I, Allocator=std::allocator<void>> {
-    // Constructors - see technical specification below.
+    // Constructors similar to polymorphic.
 
     // structural-subtype member functions.
     std::string func0(std::string_view) const noexcept;
@@ -127,7 +127,7 @@ class protocol<I, Allocator=std::allocator<void>> {
 ```c++
 template <typename Allocator>
 class protocol_view<I> {
-    // Constructors - see technical specification below.
+    // Constructors similar to function_ref.
 
     // structural-subtype member functions.
     std::string func0(std::string_view) const noexcept;
@@ -140,7 +140,7 @@ class protocol_view<I> {
 ```c++
 template <typename Allocator>
 class protocol_view<const I> {
-    // Constructors - see technical specification below.
+    // Constructors similar to function_ref.
 
     // structural-subtype const member functions.
     std::string func0(std::string_view) const noexcept;
@@ -229,8 +229,6 @@ overload set. The table below is illustrative of how flexible `protocol` and
 | `std::function_ref<R(Args...)>`             | `protocol_view<MutatingFunction<R, Args...>>`    |
 | ???                                         | `protocol<OverloadedFunction>`                   |
 | ???                                         | `protocol_view<OverloadedFunction>`              |
-
-### Comparison with proxy
 
 ## Impact on the Standard
 

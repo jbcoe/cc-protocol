@@ -70,115 +70,126 @@ struct short_buffer_storage {
 
 }  // namespace lifetime
 
-/*
-template <typename Source, typename Lifetime> struct protocol_builder {
+template <typename Source, typename Lifetime>
+struct protocol_builder {
   struct wrapper;
   struct vtable_type;
 
   consteval {
-    auto member_functions = members_of(^^Source) |
-std::views::filter(std::meta::is_function);
+    auto member_functions =
+        members_of(^^Source) | std::views::filter(std::meta::is_function);
 
     // VTABLE
-    auto vtable_members = wrapper_member_functions |
-transform([](std::meta::info mf) { auto params = parameters_of(mf);
-        // this:
-        const auto This = params[0]; // original this
-        auto type = ^^Lifetime;
-        if (is_const(This)) {
+    auto vtable_members =
+        wrapper_member_functions | transform([](std::meta::info mf) {
+          auto params = parameters_of(mf);
+          // this:
+          const auto This = params[0];  // original this
+          auto type = ^^Lifetime;
+          if (is_const(This)) {
             type = add_const(type);
-        }
+          }
 
-        if (is_lvalue_reference_type(This)) {
+          if (is_lvalue_reference_type(This)) {
             type = add_lvalue_reference(type);
-        } else if (is_rvalue_reference_type(This)) {
+          } else if (is_rvalue_reference_type(This)) {
             type = add_rvalue_reference(type);
-        }
+          }
 
-        params[0] = type; // new `this`, but as first argument
-        auto fptr_type = MAKE_FUNCTION_POINTER({.return_type =
-return_type_of(mf), .parameters = params, .noexcept = is_noexcept(mf)}) return
-data_member_spec{.type = fptr_type, .name = identifier_of(mf)};
-    }) | std::ranges::to<std::vector>;
+          params[0] = type;  // new `this`, but as first argument
+          auto fptr_type = MAKE_FUNCTION_POINTER(
+              {.return_type = return_type_of(mf),
+               .parameters = params,
+               .noexcept = is_noexcept(mf)}) return data_member_spec{
+              .type = fptr_type, .name = identifier_of(mf)};
+        }) |
+        std::ranges::to<std::vector>;
 
     auto vtable = define_aggregate(^^vtable_type, vtable_members);
 
     // TODO: add copy / move / assign/ destroy support
 
     // TODO assignments needs special handling
-    auto wrapper_member_functions = wrapper_member_functions |
-transform([](std::meta::info mf) { auto params = parameters_of(mf);
-        // this:
-        const auto This = params[0]; // original this
-        auto type = ^^wrapper;
-        if (is_const(This)) {
+    auto wrapper_member_functions =
+        wrapper_member_functions | transform([](std::meta::info mf) {
+          auto params = parameters_of(mf);
+          // this:
+          const auto This = params[0];  // original this
+          auto type = ^^wrapper;
+          if (is_const(This)) {
             type = add_const(type);
-        }
+          }
 
-        if (is_lvalue_reference_type(This)) {
+          if (is_lvalue_reference_type(This)) {
             type = add_lvalue_reference(type);
-        } else if (is_rvalue_reference_type(This)) {
+          } else if (is_rvalue_reference_type(This)) {
             type = add_rvalue_reference(type);
-        }
+          }
 
-        params[0] = type; // new `this`
-        return MEMBER_FUNCTION_SPEC{.return_type = return_type_of(mf), .name =
-identifier_of(mf), .parameters = params};
-    }) | std::ranges::to<std::vector>;
-
+          params[0] = type;  // new `this`
+          return MEMBER_FUNCTION_SPEC{.return_type = return_type_of(mf),
+                                      .name = identifier_of(mf),
+                                      .parameters = params};
+        }) |
+        std::ranges::to<std::vector>;
 
     // wrapper will contain:
     // pointer vtable + storage
-    std::vector<std::meta::info>
-wrapper_nonstatic_data_members{data_member_spec(add_pointer(add_const(vtable)),
-{.name = "__vtable"})};
+    std::vector<std::meta::info> wrapper_nonstatic_data_members{
+        data_member_spec(add_pointer(add_const(vtable)), {.name = "__vtable"})};
 
     if (is_default_constructible_type(^^Source)) {
-        wrapper_member_functions.push_back(CONSTRUCTOR_SPEC{});
-        wrapper_nonstatic_data_members.push_back(data_member_spec(^^Lifetime,
-{.name = "__storage", .DEFAULTED = true})); } else {
-        wrapper_nonstatic_data_members.push_back(data_member_spec(^^Lifetime,
-{.name = "__storage", .DEFAULTED = false}));
+      wrapper_member_functions.push_back(CONSTRUCTOR_SPEC{});
+      wrapper_nonstatic_data_members.push_back(data_member_spec(
+          ^^Lifetime, {
+                          .name = "__storage", .DEFAULTED = true}));
+    } else {
+      wrapper_nonstatic_data_members.push_back(data_member_spec(
+          ^^Lifetime, {
+                          .name = "__storage", .DEFAULTED = false}));
     }
 
     if (is_copy_constructible_type(^^Source)) {
-        wrapper_member_functions.push_back(CONSTRUCTOR_SPEC{.type =
-add_lvalue_reference(add_const(^^Wrapper))});
+      wrapper_member_functions.push_back(
+          CONSTRUCTOR_SPEC{.type = add_lvalue_reference(add_const(^^Wrapper))});
     }
 
     if (is_copy_constructible_type(^^Source)) {
-        wrapper_member_functions.push_back(CONSTRUCTOR_SPEC{.type =
-add_rvalue_reference(^^Wrapper)});
+      wrapper_member_functions.push_back(
+          CONSTRUCTOR_SPEC{.type = add_rvalue_reference(^^Wrapper)});
     }
 
     if (HAS_MEMBER_FUNCTION_TEMPLATE(^^Lifetime, "release_object")) {
-        wrapper_member_functions.push_back(DESTRUCTOR_SPEC{});
+      wrapper_member_functions.push_back(DESTRUCTOR_SPEC{});
     }
 
-    wrapper_member_functions.push_back(CONSTRUCTOR_SPEC{ template constructor
-taking any compatible object with Source });
+    wrapper_member_functions.push_back(CONSTRUCTOR_SPEC{
+        template constructor taking any compatible object with Source});
 
     // define class, but not only declares members!
     auto wrp = DEFINE_CLASS(^^wrapper, wrapper_member_functions,
-wrapper_nonstatic_data_members);
+                            wrapper_nonstatic_data_members);
 
-    for (const auto member: member_of(wrp) |
-std::views::filter(std::meta::is_function)) { if
-(is_default_constructor(member)) {
-            // nothing
-        } else if (is_copy_constructor(member)) {
-            DEFINE_CONSTRUCTOR(member, copy vtable pointer, and call
-Lifetime.copy_object()); } else if (is_move_constructor(member)) {
-            DEFINE_CONSTRUCTOR(member, copy vtable pointer, and call
-Lifetime.move_object()); } else if (is_constructor(member)) {
-            DEFINE_TEMPLATE_CONSTRUCTOR(member, pass auto && object to storage,
-and assign vtable pointer to specialization ); } else {
-            // API from Source
-        }
+    for (const auto member :
+         member_of(wrp) | std::views::filter(std::meta::is_function)) {
+      if (is_default_constructor(member)) {
+        // nothing
+      } else if (is_copy_constructor(member)) {
+        DEFINE_CONSTRUCTOR(member, copy vtable pointer,
+                           and call Lifetime.copy_object());
+      } else if (is_move_constructor(member)) {
+        DEFINE_CONSTRUCTOR(member, copy vtable pointer,
+                           and call Lifetime.move_object());
+      } else if (is_constructor(member)) {
+        DEFINE_TEMPLATE_CONSTRUCTOR(
+            member, pass auto &&object to storage,
+            and assign vtable pointer to specialization);
+      } else {
+        // API from Source
+      }
     }
   }
 };
-*/
 
 struct animal {
   void make_a_sound(float loudness) const;
