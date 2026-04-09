@@ -52,6 +52,8 @@ and code injection and focuses solely on the design of the class templates
 This is a very early stage design which we are sharing to further discussion
 of design differences with a series of competing proposals for structural-subtyping.
 
+This paper explores a different approach to proxy and relies on reflection rather than templates for a smaller API surface.
+
 ## Motivation
 
 Using `protocol`, functions can be written with run-time polymorphism
@@ -147,8 +149,8 @@ class protocol_view<const I> {
 ```
 
 Code generation is currently implemented in a reference implementation with a
-custom build step but would be better implemented by a compiler extension or
-by using extended post-C++26 static reflection features.
+custom build step but would be better implemented with generative reflection post
+C++26.
 
 ### Function-like examples
 
@@ -591,6 +593,16 @@ the allocators are not swapped.
 
 3. _Remarks_: This function is a no-op if both arguments are valueless before the call.
 
+#### X.Y.8 Member access [protocol.member.access]
+
+1. For each public non-static, non-template member function _f_ declared in _I_ with name _N_, return type _R_, parameter-type-list _P_, cv-qualifier-seq _cv_, and ref-qualifier _ref_, `protocol` shall contain a public non-virtual member function with the same name _N_, return type _R_, parameter-type-list _P_, and identical cv-qualifiers and ref-qualifiers.
+
+2. _Effects_: If `*this` is not valueless, calls the corresponding member function of the owned object with the provided arguments. If `*this` is valueless, the behavior is undefined.
+
+3. _Returns_: The value returned from the called function, if any.
+
+4. _Throws_: Any exception thrown by the called function.
+
 <!--
 ```cpp
 constexpr void swap(protocol& lhs, protocol& rhs) noexcept(noexcept(lhs.swap(rhs)));
@@ -650,6 +662,21 @@ class protocol_view {
   template<class T>
   constexpr protocol_view(T& t) noexcept;
 
+  template<class Allocator>
+  constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
+
+  constexpr protocol_view(const protocol_view&) noexcept = default;
+
+  constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
+ private:
+  I* data_; // exposition only
+};
+
+template <class I>
+class protocol_view<const I> {
+ public:
+  using interface_type = const I;
+
   template<class T>
   constexpr protocol_view(const T& t) noexcept;
 
@@ -659,20 +686,13 @@ class protocol_view {
   template<class Allocator>
   constexpr protocol_view(const protocol<I, Allocator>& p) noexcept;
 
-  template<class U>
-  constexpr protocol_view(protocol_view<U>& view) noexcept;
-
-  template<class U>
-  constexpr protocol_view(const protocol_view<U>& view) noexcept;
+  constexpr protocol_view(const protocol_view<I>& view) noexcept;
 
   constexpr protocol_view(const protocol_view&) noexcept = default;
 
-  constexpr protocol_view(protocol_view&&) noexcept = default;
-
   constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
-
  private:
-  I* data_; // exposition only
+  const I* data_; // exposition only
 };
 ```
 
@@ -690,91 +710,84 @@ constexpr protocol_view(T& t) noexcept;
 3. _Effects_: Initializes `data_` to `std::addressof(t)`.
 
 ```cpp
+template<class Allocator>
+constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
+```
+
+4. _Preconditions_: protocol `p` is not valueless.
+
+5. _Effects_: Initializes `data_` to `std::addressof(*p)`.
+
+```cpp
+constexpr protocol_view(const protocol_view& other) noexcept = default;
+```
+
+6. _Postconditions_: `other.data_ == data_`.
+
+#### X.Z.4 Class template partial specialization `protocol_view<const I>` constructors [protocol_view.const.ctor]
+
+```cpp
 template<class T>
 constexpr protocol_view(const T& t) noexcept;
 ```
 
-4. _Constraints_: `T` conforms to interface `I` and `is_const_v<I>` is `true`.
+1. _Constraints_: `T` conforms to interface `I`.
 
-5. _Preconditions_: `t` shall refer to an object that is valid and remains valid for the lifetime of `*this`.
+2. _Preconditions_: `t` shall refer to an object that is valid and remains valid for the lifetime of `*this`.
 
-6. _Effects_: Initializes `data_` with the address of `t`.
+3. _Effects_: Initializes `data_` with the address of `t`.
 
 ```cpp
 template<class Allocator>
 constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
 ```
 
-7. _Preconditions_: protocol `p` is not valueless.
+4. _Preconditions_: protocol `p` is not valueless.
 
-8. _Effects_: Initializes `data_` to `std::addressof(*p)`.
+5. _Effects_: Initializes `data_` to `std::addressof(*p)`.
 
 ```cpp
 template<class Allocator>
 constexpr protocol_view(const protocol<I, Allocator>& p) noexcept;
 ```
-9. _Constraints_: `is_const_v<I>` is `true`.
 
-10. _Preconditions_: protocol `p` is not valueless.
+6. _Preconditions_: protocol `p` is not valueless.
 
-11. _Effects_: Initializes `data_` with the address of `*p`.
-
-```cpp
-template<class U>
-constexpr protocol_view(protocol_view<U>& view) noexcept;
-```
-
-12. _Constraints_: `const U` is implicitly convertible to `const I` (allowing different `const`-qualifications of the same interface).
-
-13. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
-
-14. _Effects_: Initializes `data_` with the address of the object referenced by `view`.
+7. _Effects_: Initializes `data_` with the address of `*p`.
 
 ```cpp
-template<class U>
-constexpr protocol_view(const protocol_view<U>& view) noexcept;
+constexpr protocol_view(const protocol_view<I>& view) noexcept;
 ```
 
-15. _Constraints_: `const U` is implicitly convertible to `const I` and `is_const_v<I>` is `true`.
+8. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
 
-16. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
-
-17. _Effects_: Initializes `data_` with the address of the object referenced by `view`.
-
+9. _Effects_: Initializes `data_` with the address of the object referenced by `view`.
 
 ```cpp
 constexpr protocol_view(const protocol_view& other) noexcept = default;
 ```
 
-18. _Effects_: Initializes `data_` with the values from `other`.
+10. _Postconditions_: `other.data_ == data_`.
 
-```cpp
-constexpr protocol_view(protocol_view&& other) noexcept = default;
-```
-
-19. _Effects_: Initializes `data_` with values from `other`.
-
-#### X.Z.4 Assignment [protocol_view.assign]
+#### X.Z.5 Assignment [protocol_view.assign]
 
 ```cpp
 constexpr protocol_view& operator=(const protocol_view& other) noexcept = default;
 ```
 
-1. _Effects_: Assigns `data_` from `other`.
+1. _Postconditions_: `other.data_ == data_`.
 
-2. _Returns_: `*this`.
 
-```cpp
-constexpr protocol_view& operator=(protocol_view&& other) noexcept = default;
-```
 
-3. _Effects_: Assigns `data_` from `other`.
+#### X.Z.6 Member access [protocol_view.member.access]
 
-4. _Returns_: `*this`.
+1. For each public non-static, non-template member function _f_ declared in _I_, `protocol_view<I>` shall contain a public non-virtual member function with an identical signature as specified in [protocol.member.access]. For `protocol_view<const I>`, only the member functions of _I_ that have a `const` cv-qualifier are provided.
 
-#### X.Z.4 Member access
+2. _Preconditions_: `data_` does not equal `nullptr`.
 
-TODO:ADD ?
+3. _Effects_: Equivalent to calling the corresponding member function of the object referenced by `data_`.
+
+4. _Returns_: The value returned from the called function, if any.
 
 ## Polls
 
