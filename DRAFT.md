@@ -595,13 +595,15 @@ the allocators are not swapped.
 
 #### X.Y.8 Member access [protocol.member.access]
 
-1. For each public non-static, non-template member function _f_ declared in _I_ with name _N_, return type _R_, parameter-type-list _P_, cv-qualifier-seq _cv_, and ref-qualifier _ref_, `protocol` shall contain a public non-virtual member function with the same name _N_, return type _R_, parameter-type-list _P_, and identical cv-qualifiers and ref-qualifiers.
+1. For each public non-static, non-template member function _f_ declared in _I_ with name _N_, return type _R_, parameter-type-list _P_, cv-qualifier-seq _cv_, ref-qualifier _ref_, _noexcept-specifier_ _S_, and _constexpr-specifier_ _C_, `protocol` shall contain a public non-virtual member function with the same name _N_, return type _R_, parameter-type-list _P_, and identical cv-qualifiers, ref-qualifiers, _noexcept-specifier_, and _constexpr-specifier_.
 
-2. _Effects_: If `*this` is not valueless, calls the corresponding member function of the owned object with the provided arguments. If `*this` is valueless, the behavior is undefined.
+2. _Preconditions_: `*this` is not valueless.
 
-3. _Returns_: The value returned from the called function, if any.
+3. _Effects_: Calls the corresponding member function of the owned object with the provided arguments.
 
-4. _Throws_: Any exception thrown by the called function.
+4. _Returns_: The value returned from the called function, if any.
+
+5. _Throws_: Any exception thrown by the called function.
 
 <!--
 ```cpp
