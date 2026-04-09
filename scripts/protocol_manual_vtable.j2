@@ -424,10 +424,19 @@ class protocol_view<const {{ full_class_name }}> {
       : ptr_(std::addressof(obj)),
         vptr_(&const_view_vtable_{{ c.name }}_for<std::remove_cvref_t<T>>) {}
 
+  template <typename T>
+    requires protocol_const_concept_{{ c.name }}<T> &&
+             (!std::same_as<std::remove_cvref_t<T>, protocol_view<{{ full_class_name }}> >) &&
+             (!std::same_as<std::remove_cvref_t<T>, protocol_view<const {{ full_class_name }}> >)
+  protocol_view(const T&&) = delete;
+
   template <typename Alloc>
   protocol_view(const protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),
         vptr_(&p.vtable_->view_vt->const_view) {}
+
+  template <typename Alloc>
+  protocol_view(const protocol<{{ full_class_name }}, Alloc>&&) = delete;
 
   template <typename Alloc>
   protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
