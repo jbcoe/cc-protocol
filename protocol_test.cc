@@ -641,6 +641,42 @@ TEST(ProtocolViewTest, ViewMoveIsStandard) {
   EXPECT_EQ(view2.name(), "move_test");
 }
 
+TEST(ProtocolViewTest, PreventConstructionFromRValues) {
+  // A mutable view should not be constructible from an r-value concrete type
+  static_assert(!std::constructible_from<xyz::protocol_view<xyz::A>, ALike>,
+                "protocol_view should not be constructible from r-value ALike");
+
+  // A mutable view should not be constructible from an r-value protocol
+  static_assert(
+      !std::constructible_from<xyz::protocol_view<xyz::A>,
+                               xyz::protocol<xyz::A>>,
+      "protocol_view should not be constructible from r-value protocol");
+
+  // A const view should not be constructible from an r-value concrete type
+  static_assert(
+      !std::constructible_from<xyz::protocol_view<const xyz::A>, ALike>,
+      "protocol_view<const I> should not be constructible from r-value ALike");
+
+  // A const view should not be constructible from an r-value protocol
+  static_assert(!std::constructible_from<xyz::protocol_view<const xyz::A>,
+                                         xyz::protocol<xyz::A>>,
+                "protocol_view<const I> should not be constructible from "
+                "r-value protocol");
+
+  // A const view should not be constructible from an r-value const concrete
+  // type
+  static_assert(
+      !std::constructible_from<xyz::protocol_view<const xyz::A>, const ALike>,
+      "protocol_view<const I> should not be constructible from r-value const "
+      "ALike");
+
+  // A const view should not be constructible from an r-value const protocol
+  static_assert(!std::constructible_from<xyz::protocol_view<const xyz::A>,
+                                         const xyz::protocol<xyz::A>>,
+                "protocol_view<const I> should not be constructible from "
+                "r-value const protocol");
+}
+
 class DLike {
   int value_ = 0;
 

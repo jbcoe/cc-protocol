@@ -443,10 +443,19 @@ class protocol_view<const {{ full_class_name }}> {
       : ptr_(std::addressof(obj)),
         cb_(&protocol_view_const_dcb_{{ c.name }}_inst<std::remove_cvref_t<T>>) {}
 
+  template <typename T>
+    requires protocol_const_concept_{{ c.name }}<T> &&
+             (!std::same_as<std::remove_cvref_t<T>, protocol_view<{{ full_class_name }}> >) &&
+             (!std::same_as<std::remove_cvref_t<T>, protocol_view<const {{ full_class_name }}> >)
+  protocol_view(const T&&) = delete;
+
   template <typename Alloc>
   protocol_view(const protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),
         cb_(p.cb_->xyz_protocol_as_view_cb()) {}
+
+  template <typename Alloc>
+  protocol_view(const protocol<{{ full_class_name }}, Alloc>&&) = delete;
 
   template <typename Alloc>
   protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
