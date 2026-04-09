@@ -603,34 +603,6 @@ the allocators are not swapped.
 
 4. _Throws_: Any exception thrown by the called function.
 
-<!--
-```cpp
-constexpr void swap(protocol& lhs, protocol& rhs) noexcept(noexcept(lhs.swap(rhs)));
-```
-
-4. _Effects_: Equivalent to lhs.swap(rhs).
-
-??
-
-```cpp
-template<class I, class Allocator>
-void swap(protocol<I, Allocator>& x, protocol<I, Allocator>& y)
-  noexcept(noexcept(x.swap(y)));
-```
-
-4. _Effects_: Calls `x.swap(y)`.
--->
-
-<!--
-#### X.Y.9 Allocator support [protocol.alloc]
-
-```cpp
-constexpr allocator_type get_allocator() const;
-```
-
-1. _Returns_: `alloc`.
--->
-
 ### X.Z Class template protocol_view [protocol_view]
 
 #### X.Z.1 Class template protocol_view general [protocol_view.general]
@@ -662,14 +634,18 @@ class protocol_view {
   template<class T>
   constexpr protocol_view(T& t) noexcept;
 
+  template<class T>
+  protocol_view(T&&) = delete;
+
   template<class Allocator>
   constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
+
+  template<class Allocator>
+  protocol_view(protocol<I, Allocator>&&) = delete;
 
   constexpr protocol_view(const protocol_view&) noexcept = default;
 
   constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
- private:
-  I* data_; // exposition only
 };
 
 template <class I>
@@ -680,19 +656,31 @@ class protocol_view<const I> {
   template<class T>
   constexpr protocol_view(const T& t) noexcept;
 
+  template<class T>
+  protocol_view(const T&&) = delete;
+
   template<class Allocator>
   constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
 
   template<class Allocator>
+  protocol_view(protocol<I, Allocator>&&) = delete;
+
+  template<class Allocator>
   constexpr protocol_view(const protocol<I, Allocator>& p) noexcept;
 
+  template<class Allocator>
+  protocol_view(const protocol<I, Allocator>&&) = delete;
+
   constexpr protocol_view(const protocol_view<I>& view) noexcept;
+
+  protocol_view(protocol_view<I>&&) = delete;
 
   constexpr protocol_view(const protocol_view&) noexcept = default;
 
   constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
- private:
-  const I* data_; // exposition only
+ //private:
+  //void* object_ptr_;                    // exposition only
+  //const void* dispatch_table_;          // exposition only
 };
 ```
 
@@ -707,24 +695,38 @@ constexpr protocol_view(T& t) noexcept;
 
 2. _Preconditions_: `t` shall refer to an object that is valid and remains valid for the lifetime of `*this`.
 
-3. _Effects_: Initializes `data_` to `std::addressof(t)`.
+3. _Effects_: Stores a reference to the object `t`.
+
+```cpp
+template<class T>
+protocol_view(T&&) = delete;
+```
+
+4. _Remarks_: Rvalue references are deleted to prevent dangling references to temporary objects.
 
 ```cpp
 template<class Allocator>
 constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
 ```
 
-4. _Preconditions_: protocol `p` is not valueless.
+4. _Preconditions_: protocol `p` is not valueless after move.
 
-5. _Effects_: Initializes `data_` to `std::addressof(*p)`.
+6. _Effects_: Stores a reference to the object held by `p`.
+
+```cpp
+template<class Allocator>
+protocol_view(protocol<I, Allocator>&&) = delete;
+```
+
+7. _Remarks_: Rvalue references are deleted to prevent dangling references to temporary protocol objects.
 
 ```cpp
 constexpr protocol_view(const protocol_view& other) noexcept = default;
 ```
 
-6. _Postconditions_: `other.data_ == data_`.
+8. _Effects_: Initializes a new view referring to the same object as `other`.
 
-#### X.Z.4 Class template partial specialization `protocol_view<const I>` constructors [protocol_view.const.ctor]
+#### X.Z.4 Constructors for `protocol_view<const I>` [protocol_view.const.ctor]
 
 ```cpp
 template<class T>
@@ -735,39 +737,66 @@ constexpr protocol_view(const T& t) noexcept;
 
 2. _Preconditions_: `t` shall refer to an object that is valid and remains valid for the lifetime of `*this`.
 
-3. _Effects_: Initializes `data_` with the address of `t`.
+3. _Effects_: Stores a reference to the object `t`.
+
+```cpp
+template<class T>
+protocol_view(const T&&) = delete;
+```
+
+4. _Remarks_: Rvalue references are deleted to prevent dangling references to temporary objects.
 
 ```cpp
 template<class Allocator>
 constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
 ```
 
-4. _Preconditions_: protocol `p` is not valueless.
+4. _Preconditions_: protocol `p` is not valueless after move.
 
-5. _Effects_: Initializes `data_` to `std::addressof(*p)`.
+6. _Effects_: Stores a reference to the object held by `p`.
+
+```cpp
+template<class Allocator>
+protocol_view(protocol<I, Allocator>&&) = delete;
+```
+
+7. _Remarks_: Rvalue references are deleted to prevent dangling references to temporary protocol objects.
 
 ```cpp
 template<class Allocator>
 constexpr protocol_view(const protocol<I, Allocator>& p) noexcept;
 ```
 
-6. _Preconditions_: protocol `p` is not valueless.
+6. _Preconditions_: protocol `p` is not valueless after move.
 
-7. _Effects_: Initializes `data_` with the address of `*p`.
+9. _Effects_: Stores a reference to the object held by `p`.
+
+```cpp
+template<class Allocator>
+protocol_view(const protocol<I, Allocator>&&) = delete;
+```
+
+10. _Remarks_: Rvalue references are deleted to prevent dangling references to temporary protocol objects.
 
 ```cpp
 constexpr protocol_view(const protocol_view<I>& view) noexcept;
 ```
 
-8. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
+11. _Preconditions_: The object referenced by `view` remains valid for the lifetime of `*this`.
 
-9. _Effects_: Initializes `data_` with the address of the object referenced by `view`.
+12. _Effects_: Stores a reference to the object referenced by `view`.
+
+```cpp
+protocol_view(protocol_view<I>&&) = delete;
+```
+
+13. _Remarks_: Rvalue references are deleted to prevent dangling references.
 
 ```cpp
 constexpr protocol_view(const protocol_view& other) noexcept = default;
 ```
 
-10. _Postconditions_: `other.data_ == data_`.
+14. _Effects_: Initializes a new view referring to the same object as `other`.
 
 #### X.Z.5 Assignment [protocol_view.assign]
 
@@ -775,17 +804,17 @@ constexpr protocol_view(const protocol_view& other) noexcept = default;
 constexpr protocol_view& operator=(const protocol_view& other) noexcept = default;
 ```
 
-1. _Postconditions_: `other.data_ == data_`.
+1. _Effects_: Replaces the reference held by `*this` with a reference to the object referenced by `other`.
 
-
+2. _Returns_: `*this`.
 
 #### X.Z.6 Member access [protocol_view.member.access]
 
 1. For each public non-static, non-template member function _f_ declared in _I_, `protocol_view<I>` shall contain a public non-virtual member function with an identical signature as specified in [protocol.member.access]. For `protocol_view<const I>`, only the member functions of _I_ that have a `const` cv-qualifier are provided.
 
-2. _Preconditions_: `data_` does not equal `nullptr`.
+2. _Preconditions_: The stored reference is not null and refers to a valid object.
 
-3. _Effects_: Equivalent to calling the corresponding member function of the object referenced by `data_`.
+3. _Effects_: Equivalent to calling the corresponding member function of the referenced object.
 
 4. _Returns_: The value returned from the called function, if any.
 
