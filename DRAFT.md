@@ -61,14 +61,14 @@ functional programming styles. A key strength of the language is its ability
 to express different forms of polymorphism, allowing developers to select the
 most appropriate abstraction for a given context. However, this support is
 uneven: while some paradigms are directly supported by the language, others
-rely on idioms and library techniques. 
+rely on idioms and library techniques.
 
 One such case is dynamic structural polymorphism. While C++ provides strong
 support for static structural typing through concepts, it lacks a corresponding
 mechanism for runtime abstractions. In practice, this gap is addressed through
 the widespread use of type-erasure.
 
-Standard librarie facilities such as `std::function`, `std::any`, 
+Standard librarie facilities such as `std::function`, `std::any`,
 `std::ranges::any_view` and the many other type-erasure based solutions demonstrate
 that the need for dynamic structural interfaces is both real and recurring. However,
 these solutions are implemented in an ad-hoc manner, requiring significant boilerplate
@@ -87,7 +87,7 @@ viewed as a manual encoding of a structural interface, tailored to a specific us
 
 This paper proposes protocol types as a first-class library feature that fills this gap.
 Protocols unify and generalise existing type-erasure patterns, providing a consistent,
-non-intrusive mechanism for expressing dynamic structural polymorphism, while also 
+non-intrusive mechanism for expressing dynamic structural polymorphism, while also
 providing consistent support for allocators:
 
 |                   | Static       | Dynamic        |
