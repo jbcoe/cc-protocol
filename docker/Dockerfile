@@ -53,12 +53,9 @@ ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
 ENV PATH="/home/vscode/.npm-global/bin:/home/vscode/.local/bin:/usr/local/bin:${PATH}"
 RUN mkdir -p /home/vscode/.npm-global
 
-# Install the AI agent CLI.
-RUN if [ "$AGENT" = "gemini" ]; then \
-        npm install -g @google/gemini-cli; \
-    else \
-        npm install -g @anthropic-ai/claude-code; \
-    fi
+# Install both AI agent CLIs for compatibility with existing tooling that
+# may invoke either `gemini` or `claude` regardless of the AGENT build arg.
+RUN npm install -g @google/gemini-cli @anthropic-ai/claude-code
 
 # Set up uv and Python environment.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
