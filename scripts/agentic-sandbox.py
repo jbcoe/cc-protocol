@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Script to run an AI agent (Gemini CLI or Claude Code) in a Docker sandbox."""
+
+import argparse
+import os
+import subprocess
+import sys
+
+
+def main() -> None:
+    """Provide the main entry point for the agentic sandbox script."""
+    parser = argparse.ArgumentParser(
+        description="Run an AI agent (gemini or claude) in a Docker sandbox."
+    )
+    parser.add_argument(
+        "agent",
+        choices=["gemini", "claude"],
+        help="AI agent to run inside the sandbox.",
+    )
+    parser.add_argument(
+        "--update",
+        action="store_true",
+        help="Update the agent CLI inside the container before running.",
+    )
+    parser.add_argument(
+        "--rebuild-docker", action="store_true", help="Rebuild the Docker image."
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose logging."
+    )
+
+    args = parser.parse_args()
+
+    def log(msg: str) -> None:
+        """Log a message if verbose mode is enabled."""
+        if args.verbose:
+            print(msg)
+
+    project_root = subprocess.check_output(
+        ["git", "rev-parse", "--show-toplevel"], text=True
+    ).strip()
+
+    image_name = f"cc-protocol-{args.agent}-sandbox"
+
+    if args.rebuild_docker:
+        log(f"--- Building Docker Sandbox: {image_name} ---")
+        subprocess.check_call(
+            [
+                "docker",
+                "build",
+                "--build-arg",
+                f"AGENT={args.agent}",
+                "-t",
+                image_name,
+                "-f",
+                os.path.join(project_root, "docker/Dockerfile"),
+                project_root,
+            ]
+        )
+
+    log(f"--- Starting Sandboxed {args.agent.capitalize()} Session ---")
+    log(f"Note: Your current directory {project_root} is mounted to /workspace")
+
+    if args.agent == "gemini":
+        npm_package = "@google/gemini-cli"
+        agent_cmd = "gemini"
+    else:
+        npm_package = "@anthropic-ai/claude-code"
+        agent_cmd = "claude --dangerously-skip-permissions"
+
+    if args.update:
+        container_cmd = (
+            f"export NPM_CONFIG_PREFIX=~/.npm-global && "
+            f"export PATH=~/.npm-global/bin:$PATH && "
+            f"npm install -g {npm_package}@latest && {agent_cmd}"
+        )
+    else:
+        container_cmd = agent_cmd
+
+    run_args = [
+        "docker",
+        "run",
+        "-it",
+        "--rm",
+        "-v",
+        f"{project_root}:/workspace",
+    ]
+
+    if args.agent == "gemini":
+        run_args.extend(["--network", "host"])
+        gemini_config_dir = os.path.expanduser("~/.gemini")
+        os.makedirs(gemini_config_dir, mode=0o700, exist_ok=True)
+        # Seed default config files if missing so they are accessible inside the
+        # container.
+        # Use os.open with restrictive permissions to avoid exposing credentials to
+        # other local users on multi-user systems.
+        trusted_folders_path = os.path.join(gemini_config_dir, "trustedFolders.json")
+        if not os.path.exists(trusted_folders_path):
+            fd = os.open(trusted_folders_path, os.O_CREAT | os.O_WRONLY, 0o600)
+            os.write(fd, b'{"/workspace": "TRUST_FOLDER"}')
+            os.close(fd)
+        settings_path = os.path.join(gemini_config_dir, "settings.json")
+        if not os.path.exists(settings_path):
+            fd = os.open(settings_path, os.O_CREAT | os.O_WRONLY, 0o600)
+            os.write(fd, b'{"selectedAuthType": "oauth-personal"}')
+            os.close(fd)
+        run_args.extend(["-v", f"{gemini_config_dir}:/home/vscode/.gemini"])
+        run_args.extend(
+            [
+                "-e",
+                f"OLLAMA_HOST={os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')}",
+            ]
+        )
+    else:
+        host_claude_dir = os.path.expanduser("~/.claude")
+        host_claude_json = os.path.expanduser("~/.claude.json")
+        os.makedirs(host_claude_dir, mode=0o700, exist_ok=True)
+        # Ensure the file exists on the host so Docker doesn't create it as a directory.
+        # Use os.open with restrictive permissions to avoid exposing credentials to
+        # other local users on multi-user systems.
+        if not os.path.exists(host_claude_json):
+            fd = os.open(host_claude_json, os.O_CREAT | os.O_WRONLY, 0o600)
+            os.close(fd)
+        run_args.extend(["-v", f"{host_claude_dir}:/home/vscode/.claude"])
+        run_args.extend(["-v", f"{host_claude_json}:/home/vscode/.claude.json"])
+
+    if "TERM" in os.environ:
+        run_args.extend(["-e", f"TERM={os.environ['TERM']}"])
+    if "COLORTERM" in os.environ:
+        run_args.extend(["-e", f"COLORTERM={os.environ['COLORTERM']}"])
+
+    run_args.extend([image_name, "bash", "-c", container_cmd])
+
+    try:
+        subprocess.run(run_args, check=True)
+    except subprocess.CalledProcessError as e:
+        sys.exit(e.returncode)
+
+
+if __name__ == "__main__":
+    main()

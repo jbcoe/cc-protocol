@@ -1,7 +1,8 @@
-# Dockerfile for Ubuntu 24.04 with C++ development tools.
 FROM ubuntu:24.04
 
-# Install gcc, clang and some supporting tools for downloading/installing later tools.
+ARG AGENT=gemini
+
+# Install base tools and C++ development tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
     curl \
@@ -33,41 +34,36 @@ RUN ARCH=$(dpkg --print-architecture) && \
     && chmod +x /usr/local/bin/bazelisk \
     && ln -s /usr/local/bin/bazelisk /usr/local/bin/bazel
 
-# Create non-root user
+# Create non-root user.
 RUN useradd -m -s /bin/bash vscode \
     && mkdir -p /workspace \
     && chown vscode:vscode /workspace
 
-# Install Node.js (required for Gemini CLI)
+# Install Node.js (required for both Gemini CLI and Claude Code).
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Set up npm to install globally in vscode's home directory
-ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
-ENV PATH="/home/vscode/.npm-global/bin:${PATH}"
-
-# Switch to non-root user
+# Switch to non-root user.
 USER vscode
 WORKDIR /workspace
 
-# Install Gemini CLI and Claude Code CLI
-RUN mkdir -p /home/vscode/.npm-global \
-    && npm install -g @google/gemini-cli \
-    && npm install -g @anthropic-ai/claude-code
+# Configure npm for user-local global installs.
+ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
+ENV PATH="/home/vscode/.npm-global/bin:/home/vscode/.local/bin:/usr/local/bin:${PATH}"
+RUN mkdir -p /home/vscode/.npm-global
 
-# Set up uv and Python environment
+# Install the AI agent CLI.
+RUN if [ "$AGENT" = "gemini" ]; then \
+        npm install -g @google/gemini-cli; \
+    else \
+        npm install -g @anthropic-ai/claude-code; \
+    fi
+
+# Set up uv and Python environment.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Set up environment variables
-ENV PATH="/home/vscode/.local/bin:/usr/local/bin:${PATH}"
 ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 
-# Pre-configure Gemini CLI
-RUN mkdir -p /home/vscode/.gemini \
-    && echo '{"/workspace": "TRUST_FOLDER"}' > /home/vscode/.gemini/trustedFolders.json \
-    && echo '{"security": {"auth": {"selectedType": "gemini-api-key"}}}' > /home/vscode/.gemini/settings.json
-
-# Pre-configure Claude Code CLI
-RUN mkdir -p /home/vscode/.claude \
-    && echo '{"permissions": {"allow": ["Bash(*)", "Read(*)", "Write(*)", "Edit(*)", "Glob(*)", "Grep(*)"]}}' > /home/vscode/.claude/settings.json
+# For both agents, config dirs (~/.gemini / ~/.claude) are mounted from the host at runtime
+# to persist auth state between sessions. Default config files are seeded by the launch
+# script before the mount, so image-side preconfiguration is not needed here.
