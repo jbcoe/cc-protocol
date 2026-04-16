@@ -7,6 +7,18 @@ import subprocess
 import sys
 
 
+def _seed_config_file(path: str, content: bytes) -> None:
+    """Create path with content and mode 0o600, skipping silently if it already exists."""
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        return
+    try:
+        os.write(fd, content)
+    finally:
+        os.close(fd)
+
+
 def main() -> None:
     """Provide the main entry point for the agentic sandbox script."""
     parser = argparse.ArgumentParser(
@@ -93,22 +105,14 @@ def main() -> None:
         # container.
         # Use os.open with restrictive permissions to avoid exposing credentials to
         # other local users on multi-user systems.
-        trusted_folders_path = os.path.join(gemini_config_dir, "trustedFolders.json")
-        try:
-            fd = os.open(
-                trusted_folders_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
-            )
-            os.write(fd, b'{"/workspace": "TRUST_FOLDER"}')
-            os.close(fd)
-        except FileExistsError:
-            pass
-        settings_path = os.path.join(gemini_config_dir, "settings.json")
-        try:
-            fd = os.open(settings_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-            os.write(fd, b'{"selectedAuthType": "oauth-personal"}')
-            os.close(fd)
-        except FileExistsError:
-            pass
+        _seed_config_file(
+            os.path.join(gemini_config_dir, "trustedFolders.json"),
+            b'{"/workspace": "TRUST_FOLDER"}',
+        )
+        _seed_config_file(
+            os.path.join(gemini_config_dir, "settings.json"),
+            b'{"selectedAuthType": "oauth-personal"}',
+        )
         run_args.extend(["-v", f"{gemini_config_dir}:/home/vscode/.gemini"])
     else:
         host_claude_dir = os.path.expanduser("~/.claude")
@@ -118,13 +122,7 @@ def main() -> None:
         # Use os.open with restrictive permissions to avoid exposing credentials to
         # other local users on multi-user systems.
         if not os.path.isfile(host_claude_json):
-            try:
-                fd = os.open(
-                    host_claude_json, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
-                )
-                os.close(fd)
-            except FileExistsError:
-                pass
+            _seed_config_file(host_claude_json, b"")
         run_args.extend(["-v", f"{host_claude_dir}:/home/vscode/.claude"])
         run_args.extend(["-v", f"{host_claude_json}:/home/vscode/.claude.json"])
 
