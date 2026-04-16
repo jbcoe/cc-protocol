@@ -87,7 +87,6 @@ def main() -> None:
     ]
 
     if args.agent == "gemini":
-        run_args.extend(["--network", "host"])
         gemini_config_dir = os.path.expanduser("~/.gemini")
         os.makedirs(gemini_config_dir, mode=0o700, exist_ok=True)
         # Seed default config files if missing so they are accessible inside the
@@ -95,22 +94,22 @@ def main() -> None:
         # Use os.open with restrictive permissions to avoid exposing credentials to
         # other local users on multi-user systems.
         trusted_folders_path = os.path.join(gemini_config_dir, "trustedFolders.json")
-        if not os.path.exists(trusted_folders_path):
-            fd = os.open(trusted_folders_path, os.O_CREAT | os.O_WRONLY, 0o600)
+        try:
+            fd = os.open(
+                trusted_folders_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
+            )
             os.write(fd, b'{"/workspace": "TRUST_FOLDER"}')
             os.close(fd)
+        except FileExistsError:
+            pass
         settings_path = os.path.join(gemini_config_dir, "settings.json")
-        if not os.path.exists(settings_path):
-            fd = os.open(settings_path, os.O_CREAT | os.O_WRONLY, 0o600)
+        try:
+            fd = os.open(settings_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
             os.write(fd, b'{"selectedAuthType": "oauth-personal"}')
             os.close(fd)
+        except FileExistsError:
+            pass
         run_args.extend(["-v", f"{gemini_config_dir}:/home/vscode/.gemini"])
-        run_args.extend(
-            [
-                "-e",
-                f"OLLAMA_HOST={os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')}",
-            ]
-        )
     else:
         host_claude_dir = os.path.expanduser("~/.claude")
         host_claude_json = os.path.expanduser("~/.claude.json")
@@ -118,9 +117,14 @@ def main() -> None:
         # Ensure the file exists on the host so Docker doesn't create it as a directory.
         # Use os.open with restrictive permissions to avoid exposing credentials to
         # other local users on multi-user systems.
-        if not os.path.exists(host_claude_json):
-            fd = os.open(host_claude_json, os.O_CREAT | os.O_WRONLY, 0o600)
-            os.close(fd)
+        if not os.path.isfile(host_claude_json):
+            try:
+                fd = os.open(
+                    host_claude_json, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
+                )
+                os.close(fd)
+            except FileExistsError:
+                pass
         run_args.extend(["-v", f"{host_claude_dir}:/home/vscode/.claude"])
         run_args.extend(["-v", f"{host_claude_json}:/home/vscode/.claude.json"])
 
