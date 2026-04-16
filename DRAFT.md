@@ -56,14 +56,44 @@ This paper explores a different approach to proxy and relies on reflection rathe
 
 ## Motivation
 
-Using `protocol`, functions can be written with run-time polymorphism
-(supporting mutliple types) without the types being related through inheritance.
-This is useful when types come from third-party libraries and cannot be readily
-altered to fit within a user-defined type heirarchy.
+C++ is a multi-paradigm language, supporting object-oriented, generic, and
+functional programming styles. A key strength of the language is its ability
+to express different forms of polymorphism, allowing developers to select the
+most appropriate abstraction for a given context. However, this support is
+uneven: while some paradigms are directly supported by the language, others
+rely on idioms and library techniques.
 
-Currently, hand-written type-erasure or interface-specific solutions like
-`copyable_function` must be used for run-time polymorphism through structural
-subtyping.
+One such case is dynamic structural polymorphism. While C++ provides strong
+support for static structural typing through concepts, it lacks a corresponding
+mechanism for runtime abstractions. In practice, this gap is addressed through
+the widespread use of type-erasure.
+
+Standard librarie facilities such as `std::function`, `std::any`,
+`std::ranges::any_view` and the many other type-erasure based solutions demonstrate
+that the need for dynamic structural interfaces is both real and recurring. However,
+these solutions are implemented in an ad-hoc manner, requiring significant boilerplate
+and leading to inconsistent semantics across libraries.
+
+This situation can be understood in terms of the broader polymorphism design space:
+
+|                   | Static       | Dynamic        |
+|-------------------|:------------:|:--------------:|
+| Nominal typing    | Templates    | Virtual        |
+| Structural typing | Concepts     |    ---         |
+
+The absence of a language-supported mechanism for dynamic structural typing explains
+the proliferation of type-erasure-based abstractions. Each such abstraction can be
+viewed as a manual encoding of a structural interface, tailored to a specific use case.
+
+This paper proposes protocol types as a first-class library feature that fills this gap.
+Protocols unify and generalise existing type-erasure patterns, providing a consistent,
+non-intrusive mechanism for expressing dynamic structural polymorphism, while also
+providing consistent support for allocators:
+
+|                   | Static       | Dynamic        |
+|-------------------|:------------:|:--------------:|
+| Nominal typing    | Templates    | Virtual        |
+| Structural typing | Concepts     | Protocol       |
 
 ## Design
 
