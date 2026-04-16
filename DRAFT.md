@@ -2,11 +2,11 @@
 
 ISO/IEC JTC1 SC22 WG21 Programming Language C++
 
-D4148R0
+P4148R0
 
 Working Group: Library Evolution, Library
 
-Date: 2026-04-8
+Date: 2026-04-9
 
 _Jonathan Coe \<<jonathanbcoe@gmail.com>\>_
 
@@ -52,16 +52,48 @@ and code injection and focuses solely on the design of the class templates
 This is a very early stage design which we are sharing to further discussion
 of design differences with a series of competing proposals for structural-subtyping.
 
+This paper explores a different approach to proxy and relies on reflection rather than templates for a smaller API surface.
+
 ## Motivation
 
-Using `protocol`, functions can be written with run-time polymorphism
-(supporting mutliple types) without the types being related through inheritance.
-This is useful when types come from third-party libraries and cannot be readily
-altered to fit within a user-defined type heirarchy.
+C++ is a multi-paradigm language, supporting object-oriented, generic, and
+functional programming styles. A key strength of the language is its ability
+to express different forms of polymorphism, allowing developers to select the
+most appropriate abstraction for a given context. However, this support is
+uneven: while some paradigms are directly supported by the language, others
+rely on idioms and library techniques.
 
-Currently, hand-written type-erasure or interface-specific solutions like
-`copyable_function` must be used for run-time polymorphism through structural
-subtyping.
+One such case is dynamic structural polymorphism. While C++ provides strong
+support for static structural typing through concepts, it lacks a corresponding
+mechanism for runtime abstractions. In practice, this gap is addressed through
+the widespread use of type-erasure.
+
+Standard librarie facilities such as `std::function`, `std::any`,
+`std::ranges::any_view` and the many other type-erasure based solutions demonstrate
+that the need for dynamic structural interfaces is both real and recurring. However,
+these solutions are implemented in an ad-hoc manner, requiring significant boilerplate
+and leading to inconsistent semantics across libraries.
+
+This situation can be understood in terms of the broader polymorphism design space:
+
+|                   | Static       | Dynamic        |
+|-------------------|:------------:|:--------------:|
+| Nominal typing    | Templates    | Virtual        |
+| Structural typing | Concepts     |    ---         |
+
+The absence of a language-supported mechanism for dynamic structural typing explains
+the proliferation of type-erasure-based abstractions. Each such abstraction can be
+viewed as a manual encoding of a structural interface, tailored to a specific use case.
+
+This paper proposes protocol types as a first-class library feature that fills this gap.
+Protocols unify and generalise existing type-erasure patterns, providing a consistent,
+non-intrusive mechanism for expressing dynamic structural polymorphism, while also
+providing consistent support for allocators:
+
+|                   | Static       | Dynamic        |
+|-------------------|:------------:|:--------------:|
+| Nominal typing    | Templates    | Virtual        |
+| Structural typing | Concepts     | Protocol       |
 
 ## Design
 
@@ -87,6 +119,12 @@ reference semantics to structural sub-types.
 For a given struct, the corresponding `protocol` and `protocol_view` will
 implement all the public non-virtual, non-template member functions with
 identical constexpr, noexcept and const-qualification.
+
+Unlike `polymorphic`, `protocol` and `protocol_view` do not provide `operator*`
+or `operator->` (or const-overloads) as there is no common base type to form a
+pointer or reference. Member functions from a `protocol` or `protocol_view` are
+generated so that the `protocol` or `protocol_view` is a valid stuctural subtype
+and can be called with traditional `instance.member_function(args)` syntax.
 
 ```c++
 struct I {
@@ -141,14 +179,16 @@ class protocol_view<const I> {
 ```
 
 Code generation is currently implemented in a reference implementation with a
-custom build step but would be better implemented by a compiler extension or
-by using extended post-C++26 static reflection features.
+custom build step but would be better implemented with generative reflection post
+C++26.
 
 ### Function-like examples
 
 We can use `protocol` and `protocol_view` with appropriate
 structural types to implement and extend the standard library's
-existing set of function-objects:
+existing set of function-objects.
+
+Consider the structural types below:
 
 ```c++
 template <typename R, typename... Args>
@@ -198,27 +238,27 @@ struct MoveOnlyMutatingFunction {
 
 ```c++
 struct OverloadedFunction {
+    // All special member functions are defaulted.
     R1 operator()(Args1&&... args) const;
     R2 operator()(Args2&&... args);
     R3 operator()(Args3&&... args);
 };
 ```
 
-There is currently no function-type in the standard library that can handle an
+There is currently no function-type in the standard library that can represent an
 overload set. The table below is illustrative of how flexible `protocol` and
 `protocol_view` are.
 
-| Standard library type | Protocol equivalent |
-| :--- | :--- |
-| `std::copyable_function<R(Args...) const>` | `protocol<Function<R, Args...>>` |
-| `std::move_only_function<R(Args...) const>` | `protocol<MoveOnlyFunction<R, Args...>>` |
-| `std::function_ref<R(Args...) const>` | `protocol_view<Function<R, Args...>>` |
-| `std::copyable_function<R(Args...)>` | `protocol<MutatingFunction<R, Args...>>` |
-| `std::move_only_function<R(Args...)>` | `protocol<MoveOnlyMutatingFunction<R, Args...>>` |
-| `std::function_ref<R(Args...)>` | `protocol_view<MutatingFunction<R, Args...>>` |
-| ??? | `protocol<OverloadedFunction>` |
-| ??? | `protocol_view<OverloadedFunction>` |
-
+| Standard library type                       | Protocol equivalent                              |
+| :------------------------------------------ | :----------------------------------------------- |
+| `std::copyable_function<R(Args...) const>`  | `protocol<Function<R, Args...>>`                 |
+| `std::move_only_function<R(Args...) const>` | `protocol<MoveOnlyFunction<R, Args...>>`         |
+| `std::function_ref<R(Args...) const>`       | `protocol_view<Function<R, Args...>>`            |
+| `std::copyable_function<R(Args...)>`        | `protocol<MutatingFunction<R, Args...>>`         |
+| `std::move_only_function<R(Args...)>`       | `protocol<MoveOnlyMutatingFunction<R, Args...>>` |
+| `std::function_ref<R(Args...)>`             | `protocol_view<MutatingFunction<R, Args...>>`    |
+| ???                                         | `protocol<OverloadedFunction>`                   |
+| ???                                         | `protocol_view<OverloadedFunction>`              |
 
 ### Comparison with proxy
 
@@ -227,11 +267,6 @@ overload set. The table below is illustrative of how flexible `protocol` and
 This proposal is a library extension. It requires language support for code
 injection from static reflection and the addition of a new standard library
 header `<protocol>`."
-
-## Technical Specifications
-
-TODO(jbcoe): Adopt relevant wording from value-types, add wording for reflected
-methods.
 
 ## Polls
 
@@ -265,3 +300,287 @@ properties required by this proposal.
 
 [py_cppmodel] _Python wrappers for clang's parsing of C++ to simplify AST
 analysis_. <https://github.com/jbcoe/py_cppmodel>
+
+.html>
+
+[py_cppmodel] _Python wrappers for clang's parsing of C++ to simplify AST
+analysis_. <https://github.com/jbcoe/py_cppmodel>
+
+## Appendix A: Illustrative Implementation
+
+This appendix provides an illustrative example of the proposed implementation using static reflection and code injection. Identifiers in UPPER CASE denote hypothetical reflection primitives or language features that are not currently part of the C++26 reflection proposal ([P2996R13]).
+
+```cpp
+// Thoughts on how to use current and future reflection features for protocol.
+
+#include <concepts>
+#include <cstddef>
+#include <memory>
+#include <type_traits>
+#include <utility>
+
+namespace lifetime {
+
+struct allocating_storage {
+  void *ptr{nullptr};  // to make it default initializable
+
+  constexpr allocating_storage() {}
+
+  template <typename T>
+  constexpr allocating_storage(T &&obj)
+      : ptr{new std::remove_cvref_t<T>(std::forward<T>(obj))} {}
+
+  template <typename T>
+  constexpr void destroy_object(this allocating_storage &self) {
+    delete static_cast<T *>(self.ptr);
+  }
+
+  template <typename T>
+  constexpr auto &get_object(this auto &&self) {
+    return std::forward_like<decltype(self)>(*static_cast<T *>(self.ptr));
+  }
+};
+
+struct reference_storage {
+  void *ptr;
+
+  static reference_storage capture_object(auto &obj) {
+    return std::addressof(obj);
+  }
+
+  template <typename T>
+  constexpr auto &get_object(this auto &&self) {
+    return *static_cast<T *>(self.ptr);
+  }
+};
+
+template <size_t N, size_t Alignment>
+struct short_buffer_storage {
+  alignas(Alignment) std::array<char, N> data;
+
+  short_buffer_storage(auto &&obj) : data{} {
+    std::construct_at<std::remove_cvref_t<decltype(obj)>>(
+        data.data(), std::forward<decltype(obj)>(obj));
+  }
+
+  static short_buffer_storage capture_object(auto &&obj) {
+    return short_buffer_storage{std::forward<decltype(obj)>(obj)};
+  }
+
+  template <typename T>
+  constexpr void release_object(this auto &&self) {
+    delete std::start_lifetime_as<std::remove_reference_t<decltype(self)>>(
+        self.data.data());
+  }
+
+  template <typename T>
+  constexpr auto &get_object(this auto &&self) {
+    return std::forward_like<decltype(self)>(
+        *std::start_lifetime_as<std::remove_reference_t<decltype(self)>>(
+            self.data.data()));
+  }
+};
+
+}  // namespace lifetime
+
+template <typename Source, typename Lifetime>
+struct protocol_builder {
+  struct wrapper;
+  struct vtable_type;
+
+  consteval {
+    auto member_functions =
+        members_of(^^Source) | std::views::filter(std::meta::is_function);
+
+    // VTABLE
+    auto vtable_members =
+        wrapper_member_functions | transform([](std::meta::info mf) {
+          auto params = parameters_of(mf);
+          // this:
+          const auto This = params[0];  // original this
+          auto type = ^^Lifetime;
+          if (is_const(This)) {
+            type = add_const(type);
+          }
+
+          if (is_lvalue_reference_type(This)) {
+            type = add_lvalue_reference(type);
+          } else if (is_rvalue_reference_type(This)) {
+            type = add_rvalue_reference(type);
+          }
+
+          params[0] = type;  // new `this`, but as first argument
+          auto fptr_type = MAKE_FUNCTION_POINTER(
+              {.return_type = return_type_of(mf),
+               .parameters = params,
+               .noexcept = is_noexcept(mf)}) return data_member_spec{
+              .type = fptr_type, .name = identifier_of(mf)};
+        }) |
+        std::ranges::to<std::vector>;
+
+    auto vtable = define_aggregate(^^vtable_type, vtable_members);
+
+    // TODO: add copy / move / assign/ destroy support
+
+    // TODO assignments needs special handling
+    auto wrapper_member_functions =
+        wrapper_member_functions | transform([](std::meta::info mf) {
+          auto params = parameters_of(mf);
+          // this:
+          const auto This = params[0];  // original this
+          auto type = ^^wrapper;
+          if (is_const(This)) {
+            type = add_const(type);
+          }
+
+          if (is_lvalue_reference_type(This)) {
+            type = add_lvalue_reference(type);
+          } else if (is_rvalue_reference_type(This)) {
+            type = add_rvalue_reference(type);
+          }
+
+          params[0] = type;  // new `this`
+          return MEMBER_FUNCTION_SPEC{.return_type = return_type_of(mf),
+                                      .name = identifier_of(mf),
+                                      .parameters = params};
+        }) |
+        std::ranges::to<std::vector>;
+
+    // wrapper will contain:
+    // pointer vtable + storage
+    std::vector<std::meta::info> wrapper_nonstatic_data_members{
+        data_member_spec(add_pointer(add_const(vtable)), {.name = "__vtable"})};
+
+    if (is_default_constructible_type(^^Source)) {
+      wrapper_member_functions.push_back(CONSTRUCTOR_SPEC{});
+      wrapper_nonstatic_data_members.push_back(data_member_spec(
+          ^^Lifetime, {
+                          .name = "__storage", .DEFAULTED = true}));
+    } else {
+      wrapper_nonstatic_data_members.push_back(data_member_spec(
+          ^^Lifetime, {
+                          .name = "__storage", .DEFAULTED = false}));
+    }
+
+    if (is_copy_constructible_type(^^Source)) {
+      wrapper_member_functions.push_back(
+          CONSTRUCTOR_SPEC{.type = add_lvalue_reference(add_const(^^Wrapper))});
+    }
+
+    if (is_copy_constructible_type(^^Source)) {
+      wrapper_member_functions.push_back(
+          CONSTRUCTOR_SPEC{.type = add_rvalue_reference(^^Wrapper)});
+    }
+
+    if (HAS_MEMBER_FUNCTION_TEMPLATE(^^Lifetime, "release_object")) {
+      wrapper_member_functions.push_back(DESTRUCTOR_SPEC{});
+    }
+
+    wrapper_member_functions.push_back(CONSTRUCTOR_SPEC{
+        template constructor taking any compatible object with Source});
+
+    // define class, but not only declares members!
+    auto wrp = DEFINE_CLASS(^^wrapper, wrapper_member_functions,
+                            wrapper_nonstatic_data_members);
+
+    for (const auto member :
+         member_of(wrp) | std::views::filter(std::meta::is_function)) {
+      if (is_default_constructor(member)) {
+        // nothing
+      } else if (is_copy_constructor(member)) {
+        DEFINE_CONSTRUCTOR(member, copy vtable pointer,
+                           and call Lifetime.copy_object());
+      } else if (is_move_constructor(member)) {
+        DEFINE_CONSTRUCTOR(member, copy vtable pointer,
+                           and call Lifetime.move_object());
+      } else if (is_constructor(member)) {
+        DEFINE_TEMPLATE_CONSTRUCTOR(
+            member, pass auto &&object to storage,
+            and assign vtable pointer to specialization);
+      } else {
+        // API from Source
+      }
+    }
+  }
+};
+
+struct animal {
+  void make_a_sound(float loudness) const;
+};
+
+template <typename T, typename Lifetime>
+struct basic_protocol;
+
+template <>
+struct basic_protocol<animal, lifetime::allocating_storage> {
+  using source_type = animal;
+  using lifetime_type = lifetime::allocating_storage;
+
+  lifetime_type __storage;
+
+  struct __vtable_type {
+    void (*__destroy_self)(lifetime_type &) = nullptr;
+    lifetime_type (*__copy_self)(const lifetime_type &) = nullptr;
+    lifetime_type (*__move_self)(lifetime_type &&) = nullptr;
+    void (*make_a_sound)(const lifetime_type &, float loudness) = nullptr;
+  };
+
+  template <typename T>
+  static constexpr auto __vtable_implementation = __vtable_type{
+      .__destroy_self =
+          +[](lifetime_type &obj) -> void { obj.destroy_object<T>(); },
+      .__copy_self = +[](const lifetime_type &obj) -> lifetime_type {
+        return lifetime_type{obj.get_object<T>()};
+      },
+      .__move_self = +[](lifetime_type &&obj) -> lifetime_type {
+        return lifetime_type{obj.get_object<T>()};
+      },
+      .make_a_sound = +[](const lifetime_type &obj, float loudness) -> void {
+        obj.get_object<T>().make_a_sound(loudness);
+      }};
+
+  const __vtable_type *__vtable{nullptr};
+
+  [[gnu::used]] basic_protocol() /*requires
+                                    (std::default_initializable<source_type>)*/
+      = default;
+
+  template <typename T>
+  basic_protocol(T &&object)
+    requires(!std::same_as<basic_protocol, std::remove_cvref_t<T>>)
+      : __storage{std::forward<T>(object)},
+        __vtable{&__vtable_implementation<std::remove_cvref_t<T>>} {
+    // constructs object in storage and sets the vtable
+  }
+
+  [[gnu::used]] basic_protocol(const basic_protocol &other)
+      : __storage{other.__vtable->__copy_self(other.__storage)},
+        __vtable{other.__vtable} {
+    // asks the vtable to provide a copy of the storage
+  }
+
+  [[gnu::used]] basic_protocol(basic_protocol &&other)
+      : __storage{other.__vtable->__move_self(std::move(other.__storage))},
+        __vtable{other.__vtable} {
+    // asks the vtable to provide a movecopy of the storage
+  }
+
+  [[gnu::used]] ~basic_protocol() { __vtable->__destroy_self(__storage); }
+
+  [[gnu::used]] void make_a_sound(float loudness) {
+    return __vtable->make_a_sound(__storage, loudness);
+  }
+};
+
+template <typename Source>
+using protocol = basic_protocol<Source, lifetime::allocating_storage>;
+
+#include <cstdio>
+
+struct dog {
+  void make_a_sound(float loudness) const { puts("bark"); }
+};
+
+protocol<animal> convert(dog &&d) { return {std::move(d)}; }
+
+```
