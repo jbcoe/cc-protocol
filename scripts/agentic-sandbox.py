@@ -127,7 +127,13 @@ def main() -> None:
         # Ensure the file exists on the host so Docker doesn't create it as a directory.
         # Use os.open with restrictive permissions to avoid exposing credentials to
         # other local users on multi-user systems.
-        if not os.path.isfile(host_claude_json):
+        if os.path.exists(host_claude_json):
+            if not os.path.isfile(host_claude_json):
+                sys.exit(
+                    f"Expected {host_claude_json} to be a regular file, but found a "
+                    "different filesystem object. Remove or rename it and rerun."
+                )
+        else:
             _seed_config_file(host_claude_json, b"")
         run_args.extend(["-v", f"{host_claude_dir}:/home/vscode/.claude"])
         run_args.extend(["-v", f"{host_claude_json}:/home/vscode/.claude.json"])
