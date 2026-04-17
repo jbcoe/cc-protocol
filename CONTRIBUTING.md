@@ -154,32 +154,25 @@ This library is an active proof of concept and is subject to change.
 
 ## AI Coding Sandboxes
 
-The repository includes Docker-based sandbox scripts for AI coding assistants.
-These mount the project into a container with all build dependencies
+The repository includes a Docker-based sandbox script for AI coding
+assistants. It mounts the project into a container with all build dependencies
 pre-installed, providing an isolated environment for AI-assisted development.
 
-### Claude Code
+### Usage
 
 ```bash
-export ANTHROPIC_API_KEY='your_key_here'
-./scripts/claude-sandbox.sh
+./scripts/agentic-sandbox.sh <agent> [options]
 ```
 
-Use `--rebuild-docker` to rebuild the container image and `--update-claude` to
-update the Claude Code CLI inside the container.
+where `<agent>` is either `claude` or `gemini`.
 
-### Gemini CLI
+### Options
 
-```bash
-export GEMINI_API_KEY='your_key_here'
-./scripts/gemini-sandbox.sh
-```
-
-Use `--rebuild-docker` to rebuild the container image and `--update-gemini` to
-update the Gemini CLI inside the container.
-
-Both scripts accept `-v` for verbose output. The Docker image is defined in
-`docker/Dockerfile`.
+| Flag | Description |
+|------|-------------|
+| `--rebuild-docker` | Rebuild the Docker image before starting. |
+| `--update` | Update the agent CLI to the latest version before running. |
+| `-v`, `--verbose` | Enable verbose logging. |
 
 ### Using pre-commit Locally to run Github Workflow checks
 

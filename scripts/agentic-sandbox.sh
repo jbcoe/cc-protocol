@@ -7,4 +7,4 @@ WORKSPACE_ROOT=$(git rev-parse --show-toplevel)
 
 # Change directory to the workspace root and run the python script
 cd "$WORKSPACE_ROOT"
-uv run scripts/gemini-sandbox.py "$@"
+uv run scripts/agentic-sandbox.py "$@"
