@@ -208,9 +208,6 @@ class protocol_view<I> {
     template <typename Alloc>
     protocol_view(protocol<I, Alloc>& p) noexcept;
 
-    // Implicit conversion to protocol_view<const I>.
-    constexpr operator protocol_view<const I>() const noexcept;
-
     // structural-subtype member functions.
     std::string func0(std::string_view) const noexcept;
     double func1(double) const;
@@ -241,6 +238,9 @@ class protocol_view<const I> {
     // Constructor from a mutable protocol.
     template <typename Alloc>
     protocol_view(protocol<I, Alloc>& p) noexcept;
+
+    // Constructor from a mutable protocol_view<I>.
+    constexpr protocol_view(protocol_view<I> view) noexcept;
 
     // structural-subtype const member functions.
     std::string func0(std::string_view) const noexcept;
