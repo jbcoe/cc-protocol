@@ -1,7 +1,5 @@
 FROM ubuntu:24.04
 
-ARG AGENT=gemini
-
 # Install base tools and C++ development tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
@@ -61,6 +59,6 @@ RUN npm install -g @google/gemini-cli @anthropic-ai/claude-code
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 
-# For both agents, config dirs (~/.gemini / ~/.claude) are mounted from the host at runtime
+# Agent config dirs (~/.gemini / ~/.claude) are mounted from the host at runtime
 # to persist auth state between sessions. Default config files are seeded by the launch
 # script before the mount, so image-side preconfiguration is not needed here.

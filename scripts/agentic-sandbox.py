@@ -52,7 +52,7 @@ def main() -> None:
         ["git", "rev-parse", "--show-toplevel"], text=True
     ).strip()
 
-    image_name = f"cc-protocol-{args.agent}-sandbox"
+    image_name = "cc-protocol-sandbox"
 
     if args.rebuild_docker:
         log(f"--- Building Docker Sandbox: {image_name} ---")
@@ -60,8 +60,6 @@ def main() -> None:
             [
                 "docker",
                 "build",
-                "--build-arg",
-                f"AGENT={args.agent}",
                 "-t",
                 image_name,
                 "-f",
