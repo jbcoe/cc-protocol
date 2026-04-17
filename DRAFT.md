@@ -141,7 +141,50 @@ template specialization for `protocol_view`.
 ```c++
 template <typename Allocator>
 class protocol<I, Allocator=std::allocator<void>> {
-    // Constructors - see technical specification below.
+    // Default constructor.
+    explicit constexpr protocol();
+
+    // Constructor from any conforming value.
+    template <class U>
+    constexpr explicit protocol(U&& u);
+
+    // In-place constructor.
+    template <class U, class... Ts>
+    explicit constexpr protocol(std::in_place_type_t<U>, Ts&&... ts);
+
+    // In-place constructor with initializer_list.
+    template <class U, class J, class... Ts>
+    explicit constexpr protocol(std::in_place_type_t<U>, std::initializer_list<J> ilist, Ts&&... ts);
+
+    // Copy constructor.
+    constexpr protocol(const protocol& other);
+
+    // Move constructor.
+    constexpr protocol(protocol&& other) noexcept(std::allocator_traits<Allocator>::is_always_equal::value);
+
+    // Allocator-extended default constructor.
+    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc);
+
+    // Allocator-extended constructor from any conforming value.
+    template <class U>
+    constexpr explicit protocol(std::allocator_arg_t, const Allocator& alloc, U&& u);
+
+    // Allocator-extended in-place constructor.
+    template <class U, class... Ts>
+    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc, std::in_place_type_t<U>, Ts&&... ts);
+
+    // Allocator-extended in-place constructor with initializer_list.
+    template <class U, class J, class... Ts>
+    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc, std::in_place_type_t<U>, std::initializer_list<J> ilist, Ts&&... ts);
+
+    // Allocator-extended copy constructor.
+    constexpr protocol(std::allocator_arg_t, const Allocator& alloc, const protocol& other);
+
+    // Allocator-extended move constructor.
+    constexpr protocol(std::allocator_arg_t, const Allocator& alloc, protocol&& other) noexcept(std::allocator_traits<Allocator>::is_always_equal::value);
+
+    // Destructor.
+    ~protocol();
 
     // structural-subtype member functions.
     std::string func0(std::string_view) const noexcept;
@@ -157,7 +200,13 @@ class protocol<I, Allocator=std::allocator<void>> {
 ```c++
 template <typename Allocator>
 class protocol_view<I> {
-    // Constructors - see technical specification below.
+    // Constructor from any mutable conforming object.
+    template <typename T>
+    constexpr protocol_view(T& obj) noexcept;
+
+    // Constructor from a mutable protocol.
+    template <typename Alloc>
+    protocol_view(protocol<I, Alloc>& p) noexcept;
 
     // structural-subtype member functions.
     std::string func0(std::string_view) const noexcept;
@@ -170,7 +219,28 @@ class protocol_view<I> {
 ```c++
 template <typename Allocator>
 class protocol_view<const I> {
-    // Constructors - see technical specification below.
+    // Constructor from any const conforming object.
+    template <typename T>
+    constexpr protocol_view(const T& obj) noexcept;
+
+    // Construction from a const rvalue conforming object is deleted.
+    template <typename T>
+    protocol_view(const T&&) = delete;
+
+    // Constructor from a const protocol.
+    template <typename Alloc>
+    protocol_view(const protocol<I, Alloc>& p) noexcept;
+
+    // Construction from a const protocol rvalue is deleted.
+    template <typename Alloc>
+    protocol_view(const protocol<I, Alloc>&&) = delete;
+
+    // Constructor from a mutable protocol.
+    template <typename Alloc>
+    protocol_view(protocol<I, Alloc>& p) noexcept;
+
+    // Constructor from a mutable protocol_view<I>.
+    constexpr protocol_view(protocol_view<I> view) noexcept;
 
     // structural-subtype const member functions.
     std::string func0(std::string_view) const noexcept;
