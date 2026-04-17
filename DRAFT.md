@@ -262,6 +262,63 @@ overload set. The table below is illustrative of how flexible `protocol` and
 
 ### Comparison with proxy
 
+`proxy` (P3086, implemented in `ngcpp/proxy`) occupies an overlapping region of
+the design space: both proposals provide type-erased, non-intrusive runtime
+polymorphism without requiring inheritance. The key differences are in interface
+definition, interaction semantics, and configurability.
+
+**Interface definition.** `protocol` defines an interface as a plain C++ struct
+containing member-function declarations. The library (or compiler, given
+reflection) introspects the struct to synthesise the vtable. `proxy` instead
+requires the author to build a *Facade* explicitly using the
+`pro::facade_builder` template, combining dispatch objects such as
+`pro::member_dispatch` with `add_convention` calls. The `protocol` approach is
+unobtrusive: any existing struct, including those in third-party headers, can
+serve as an interface without modification. The `proxy` approach gives the
+author precise control over dispatch conventions but couples the interface
+definition to library machinery.
+
+**Interaction semantics.** `protocol` synthesises member functions directly on
+the wrapper, so callers use value syntax (`p.draw()`). `proxy` uses pointer
+semantics (`p->draw()`), deliberately reserving member functions on the wrapper
+itself for container utilities such as `has_value()`. The pointer-semantics
+choice avoids name collisions between container utilities and the erased type's
+methods; the value-semantics choice makes a `protocol<T>` a drop-in structural
+substitute for any type conforming to `T`.
+
+**Facade configurability.** A `proxy` Facade encodes physical layout constraints
+(SBO size, trivial relocatability, copyability) directly in the type. This
+enables the compiler to apply `memcpy`-based relocation and to enforce specific
+memory budgets per interface. `protocol` uses a uniform container modelled after
+`polymorphic<T>` from P3019; any layout constraints would need to be expressed
+via attributes or type traits on the interface struct and interpreted by the
+code-generation step.
+
+**Subtype substitution.** A `proxy<RichFacade>` can be implicitly converted to a
+`proxy<LeanFacade>` when `RichFacade` explicitly includes `LeanFacade` via
+`add_facade`. Because `protocol` interfaces are plain, independent structs with
+no declared relationship, the same zero-overhead conversion is not available.
+Bridging two `protocol` specialisations without re-allocating the underlying
+object requires either RTTI or an augmented vtable; this is an area of ongoing
+design work.
+
+**Shared and weak ownership.** `proxy` confines itself to unique ownership and
+non-owning views. `protocol` similarly provides `protocol<T>` (owning) and
+`protocol_view<T>` (non-owning), and could in principle be extended with
+`protocol_shared<T>` and `protocol_weak<T>` analogous to `std::shared_ptr` and
+`std::weak_ptr` by layering a reference-counted control block over the same
+generated vtable.
+
+The table below summarises the main design choices side by side.
+
+| Aspect | `protocol` | `proxy` (P3086) |
+| :--- | :--- | :--- |
+| Interface definition | Plain C++ struct (unobtrusive) | `facade_builder` + dispatch objects (explicit) |
+| Interaction syntax | Value semantics: `p.draw()` | Pointer semantics: `p->draw()` |
+| Layout constraints | Uniform container (P3019 style) | Encoded in the Facade type |
+| Subtype substitution | Not directly supported | Implicit via `add_facade` |
+| Non-owning reference | `protocol_view<T>` | `pro::proxy_view<F>` |
+
 ## Impact on the Standard
 
 This proposal is a library extension. It requires language support for code
