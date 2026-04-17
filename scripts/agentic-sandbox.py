@@ -54,7 +54,15 @@ def main() -> None:
 
     image_name = "cc-protocol-sandbox"
 
-    if args.rebuild_docker:
+    image_exists = (
+        subprocess.run(
+            ["docker", "image", "inspect", image_name],
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+    if args.rebuild_docker or not image_exists:
         log(f"--- Building Docker Sandbox: {image_name} ---")
         subprocess.check_call(
             [
