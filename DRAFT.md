@@ -395,6 +395,625 @@ This proposal is a library extension. It requires language support for code
 injection from static reflection and the addition of a new standard library
 header `<protocol>`."
 
+## Technical Specifications
+
+### Header `<version>` synopsis [version.syn]
+
+Note to editors: Add the following macro with editor provided values to
+[version.syn]
+
+```cpp
+#define __cpp_lib_protocol ??????L
+```
+
+### Header `<protocol>` synopsis [protocol.syn]
+
+```cpp
+namespace std {
+
+  // [protocol], class template protocol
+  template<class I, class Allocator = allocator<I>>
+    class protocol;
+
+  // [protocol_view], class template protocol_view
+  template<class I>
+    class protocol_view;
+
+  namespace pmr {
+    template<class I> using protocol =
+      std::protocol<I, polymorphic_allocator<I>>;
+
+    template<class I> using protocol_view =
+      std::protocol_view<I>;
+  }
+}
+```
+
+### X.Y Class template protocol [protocol]
+
+[Drafting note: The member _`alloc`_ and _`vtable`_ should be formatted as exposition only identifiers,
+but limitations of the processor used to prepare this paper means not all uses are italicised.]
+
+#### X.Y.1 Class template protocol general [protocol.general]
+
+1. A `protocol` object manages the lifetime of an owned object that erases the type of a conforming
+implementation. A `protocol` object is _valueless_ if it has no owned object. A `protocol` object may
+become valueless only after it has been moved from.
+
+2. An object of type `T` _conforms to an interface_ `I` if all member functions declared in `I` are
+available on `T` with matching signatures and are not deleted. Const-qualifiers in the interface's
+member functions are required to match.
+
+3. In every specialization `protocol<I, Allocator>`, if the type `allocator_traits<Allocator>::value_type`
+is not the same type as `I`, the program is ill-formed. Every object of type `protocol<I, Allocator>`
+uses an object of type `Allocator` to allocate and free storage for the owned object as needed.
+
+4. The member `alloc` is used for any memory allocation and element construction performed by member
+functions during the lifetime of each `protocol` object. The allocator `alloc` may be replaced only by
+assignment or `swap()`. Allocator replacement is performed by copy assignment, move assignment, or swapping
+of the allocator only if ([container.reqmts]):
+  `allocator_traits<Allocator>::propagate_on_container_copy_assignment::value`, or\
+  `allocator_traits<Allocator>::propagate_on_container_move_assignment::value`, or\
+  `allocator_traits<Allocator>::propagate_on_container_swap::value`
+is `true` within the implementation of the corresponding `protocol` operation.
+
+5. A program that instantiates the definition of the template `protocol<I, Allocator>` with a type for the
+`I` parameter that is a non-object type, an array type, or a cv-qualified type is ill-formed.
+
+6. The template parameter `I` of `protocol` shall be a complete type. The program is ill-formed if a
+type instantiates `protocol<I, Allocator>` with an incomplete type `I`.
+
+7. The template parameter `Allocator` of `protocol` shall meet the
+_Cpp17Allocator_ requirements.
+
+8. If a program declares an explicit or partial specialization of `protocol`, the behavior is undefined.
+
+#### X.Y.2 Class template protocol synopsis [protocol.syn]
+
+```cpp
+template <class I, class Allocator = allocator<I>>
+class protocol {
+ public:
+  using interface_type = I;
+  using allocator_type = Allocator;
+  using pointer = typename allocator_traits<Allocator>::pointer;
+  using const_pointer = typename allocator_traits<Allocator>::const_pointer;
+
+  explicit constexpr protocol();
+
+  explicit constexpr protocol(allocator_arg_t, const Allocator& a);
+
+  template<class U>
+  explicit constexpr protocol(U&& u);
+
+  template<class U>
+  explicit constexpr protocol(allocator_arg_t, const Allocator& a, U&& u);
+
+  constexpr protocol(const protocol& other);
+
+  constexpr protocol(allocator_arg_t, const Allocator& a,
+                     const protocol& other);
+
+  constexpr protocol(protocol&& other) noexcept;
+
+  constexpr protocol(allocator_arg_t, const Allocator& a,
+                     protocol&& other) noexcept(see below);
+
+  template<class T>
+  explicit constexpr protocol(in_place_type_t<T>);
+
+  template<class T>
+  explicit constexpr protocol(allocator_arg_t, const Allocator& a,
+                              in_place_type_t<T>);
+
+  template<class T, class... Us>
+  explicit constexpr protocol(in_place_type_t<T>, Us&&... us);
+
+  template<class T, class... Us>
+  explicit constexpr protocol(allocator_arg_t, const Allocator& a,
+                              in_place_type_t<T>, Us&&... us);
+
+  template<class T, class J, class... Us>
+  explicit constexpr protocol(in_place_type_t<T>, initializer_list<J> ilist,
+                              Us&&... us);
+
+  template<class T, class J, class... Us>
+  explicit constexpr protocol(allocator_arg_t, const Allocator& a,
+                              in_place_type_t<T>, initializer_list<J> ilist,
+                              Us&&... us);
+
+  ~protocol();
+
+  constexpr protocol& operator=(const protocol& other);
+
+  constexpr protocol& operator=(protocol&& other) noexcept(see below);
+
+  constexpr allocator_type get_allocator() const noexcept;
+
+  constexpr bool valueless_after_move() const noexcept;
+
+  constexpr void swap(protocol& other) noexcept(see below);
+
+ private:
+  Allocator alloc = Allocator();                 // exposition only
+};
+```
+
+#### X.Y.3 Constructors [protocol.ctor]
+
+The following element applies to all functions in [protocol.ctor]:
+
+_Throws_: Nothing unless `allocator_traits<Allocator>::allocate` or
+`allocator_traits<Allocator>::construct` throws.
+
+```cpp
+explicit constexpr protocol();
+```
+
+1. _Effects_: `alloc` is value-initialized. `*this` is valueless.
+
+```cpp
+explicit constexpr protocol(allocator_arg_t, const Allocator& a);
+```
+
+2. _Effects_: `alloc` is direct-non-list-initialized with `a`. `*this` is valueless.
+
+```cpp
+template<class U>
+explicit constexpr protocol(U&& u);
+```
+
+3. _Constraints_:
+  * `is_same_v<remove_cvref_t<U>, protocol>` is `false`,
+  * `remove_cvref_t<U>` conforms to interface `I`, and
+  * `is_default_constructible_v<Allocator>` is `true`.
+
+4. _Effects_: Constructs an owned object of type `remove_cvref_t<U>` from
+`std::forward<U>(u)` using the allocator `alloc`.
+
+```cpp
+template<class U>
+explicit constexpr protocol(allocator_arg_t, const Allocator& a, U&& u);
+```
+
+5. _Constraints_:
+  * `is_same_v<remove_cvref_t<U>, protocol>` is `false`, and
+  * `remove_cvref_t<U>` conforms to interface `I`.
+
+6. _Effects_: `alloc` is direct-non-list-initialized with `a`. Constructs an
+owned object of type `remove_cvref_t<U>` from `std::forward<U>(u)` using the
+allocator `alloc`.
+
+```cpp
+constexpr protocol(const protocol& other);
+```
+
+7. _Effects_: `alloc` is direct-non-list-initialized with\
+`allocator_traits<Allocator>::select_on_container_copy_construction(other.alloc)`.
+If `other` is valueless, `*this` is valueless. Otherwise, constructs an owned object
+of the same type as the owned object in `other`, with the object owned in `other`
+using the allocator `alloc`.
+
+```cpp
+constexpr protocol(allocator_arg_t, const Allocator& a,
+                   const protocol& other);
+```
+
+8. _Effects_: `alloc` is direct-non-list-initialized with `a`. If `other` is
+valueless, `*this` is valueless. Otherwise, constructs an owned object of the same
+type as the owned object in `other`, with the object owned in `other` using
+the allocator `alloc`.
+
+```cpp
+constexpr protocol(protocol&& other) noexcept;
+```
+
+9. _Effects_: `alloc` is direct-non-list-initialized from `std::move(other.alloc)`.
+If `other` is valueless, `*this` is valueless. Otherwise `*this` takes
+ownership of the owned object of `other`, or owns an object of the same type
+constructed from the owned object of `other` considering that owned object
+as an rvalue, using the allocator `alloc`.
+
+```cpp
+constexpr protocol(allocator_arg_t, const Allocator& a, protocol&& other)
+  noexcept(allocator_traits<Allocator>::is_always_equal::value);
+```
+
+10. _Effects_: `alloc` is direct-non-list-initialized with `a`. If `other` is
+valueless, `*this` is valueless. Otherwise, if `alloc == other.alloc` is `true`,
+either constructs an object of type `protocol` that owns the owned object of other,
+making `other` valueless; or, owns an object of the same type constructed from the
+owned object of `other` considering that owned object as an rvalue. Otherwise, if
+`alloc != other.alloc` is `true`, constructs an owned object of the same type
+as the owned object in `other`, with the owned object in `other` as an rvalue,
+using the allocator `alloc`.
+
+```cpp
+template<class T>
+explicit constexpr protocol(in_place_type_t<T>);
+```
+
+11. _Constraints_:
+  * `is_default_constructible_v<T>` is `true`, and
+  * `T` conforms to interface `I`.
+
+12. _Effects_: Constructs an owned object of type `T` with an empty argument list
+using the allocator `alloc`.
+
+```cpp
+template<class T>
+explicit constexpr protocol(allocator_arg_t, const Allocator& a,
+                            in_place_type_t<T>);
+```
+
+13. _Constraints_:
+  * `is_default_constructible_v<T>` is `true`, and
+  * `T` conforms to interface `I`.
+
+14. _Effects_: `alloc` is direct-non-list-initialized with `a`. Constructs an
+owned object of type `T` with an empty argument list using the allocator `alloc`.
+
+```cpp
+template<class T, class... Us>
+explicit constexpr protocol(in_place_type_t<T>, Us&&... us);
+```
+
+15. _Constraints_:
+  * `is_same_v<remove_cvref_t<T>, T>` is `true`,
+  * `is_constructible_v<T, Us...>` is `true`,
+  * `T` conforms to interface `I`, and
+  * `is_default_constructible_v<Allocator>` is `true`.
+
+16. _Effects_: Constructs an owned object of type `T` with `std::forward<Us>(us)...`
+using the allocator `alloc`.
+
+```cpp
+template<class T, class... Us>
+explicit constexpr protocol(allocator_arg_t, const Allocator& a,
+                            in_place_type_t<T>, Us&&... us);
+```
+
+17. _Constraints_:
+  * `is_same_v<remove_cvref_t<T>, T>` is `true`,
+  * `is_constructible_v<T, Us...>` is `true`, and
+  * `T` conforms to interface `I`.
+
+18. _Effects_: `alloc` is direct-non-list-initialized with `a`. Constructs an
+owned object of type `T` with `std::forward<Us>(us)...` using the allocator
+`alloc`.
+
+```cpp
+template<class T, class J, class... Us>
+explicit constexpr protocol(in_place_type_t<T>, initializer_list<J> ilist,
+                            Us&&... us);
+```
+
+19. _Constraints_:
+  * `is_same_v<remove_cvref_t<T>, T>` is `true`,
+  * `is_constructible_v<T, initializer_list<J>&, Us...>` is `true`,
+  * `T` conforms to interface `I`, and
+  * `is_default_constructible_v<Allocator>` is `true`.
+
+20. _Effects_: Constructs an owned object of type `T` with `ilist, std::forward<Us>(us)...`
+using the allocator `alloc`.
+
+```cpp
+template<class T, class J, class... Us>
+explicit constexpr protocol(allocator_arg_t, const Allocator& a,
+                            in_place_type_t<T>, initializer_list<J> ilist,
+                            Us&&... us);
+```
+
+21. _Constraints_:
+  * `is_same_v<remove_cvref_t<T>, T>` is `true`,
+  * `is_constructible_v<T, initializer_list<J>&, Us...>` is `true`, and
+  * `T` conforms to interface `I`.
+
+22. _Effects_: `alloc` is direct-non-list-initialized with `a`. Constructs an
+owned object of type `T` with `ilist, std::forward<Us>(us)...` using the
+allocator `alloc`.
+
+#### X.Y.4 Destruction [protocol.dtor]
+
+```cpp
+~protocol();
+```
+
+1. _Effects_: If `*this` is not valueless, calls `allocator_traits<Allocator>::destroy(p)`,
+where `p` is a pointer of type `U*` to the owned object and `U` is the type of the owned object;
+then the storage is deallocated.
+
+
+#### X.Y.5 Assignment [protocol.assign]
+
+```cpp
+constexpr protocol& operator=(const protocol& other);
+```
+
+1. _Mandates_: `T` is a complete type.
+
+2. _Effects_: If `addressof(other) == this` is `true`, there are no effects. Otherwise:
+
+Changes `*this` to a deep copy of the owned object of `other`. If
+`other` is valueless, `*this` is valueless after assignment. If an exception is
+thrown, `*this` is unchanged. If `*this` already contains an owned object and
+`alloc == other.alloc`, the assignment is performed in-place where possible;
+otherwise the old owned object is destroyed and a new one is created.
+
+  2.1. The allocator needs updating if\
+  `allocator_traits<Allocator>::propagate_on_container_copy_assignment::value`\
+  is `true`.
+
+  2.2. If `other` is not valueless, a new owned object of type `U`, where `U` is the type of
+  the owned object in `other`, is constructed in `*this` using `allocator_traits<Allocator>::construct`
+  with the owned object from `other` as the argument, using either the allocator in `*this`
+  or the allocator in `other` if the allocator needs updating.
+
+  2.3 The previously owned object in `*this`, if any, is destroyed using `allocator_traits<Allocator>::destroy`
+  and then the storage is deallocated.
+
+  2.4 If the allocator needs updating, the allocator in `*this` is replaced with a copy of the allocator in
+  `other`.
+
+3. _Returns_: `*this`.
+
+4. _Remarks_: If any exception is thrown, there are no effects on `*this`.
+
+```cpp
+protocol& operator=(protocol&& other) noexcept(
+  allocator_traits<Allocator>::propagate_on_container_move_assignment::value  ||
+  allocator_traits<Allocator>::is_always_equal::value);
+```
+
+5. _Mandates_: If `allocator_traits<Allocator>​::​propagate_on_container_move_assignment​::​value` is `false`
+and `allocator_traits<Allocator>​::​is_always_equal​::​value` is `false`, `I` is a complete type.
+
+6. _Effects_: If `addressof(other) == this` is `true`, there are no effects. Otherwise:
+
+  6.1. The allocator needs updating if\
+  `allocator_traits<Allocator>::propagate_on_container_move_assignment::value`\
+  is `true`.
+
+  6.2. If `other` is valueless, `*this` becomes valueless.
+
+  6.3 Otherwise, if the allocator needs updating or `alloc == other.alloc` is `true`, `*this`
+  takes ownership of the owned object of `other`.
+
+  6.4. Otherwise, constructs a new owned object of type `U`, where `U` is the type of the owned object in `other`,
+  with the owned object of `other` as the argument as an rvalue, using the allocator in `*this`.
+
+  6.5. The previously owned object in `*this`, if any, is destroyed using `allocator_traits<Allocator>::destroy`
+  and then the storage is deallocated.
+
+  6.6. If the allocator needs updating, the allocator in `*this` is replaced with a copy of the
+  allocator in `other`.
+
+7. _Returns_: A reference to `*this`.
+
+8. _Remarks_: If any exception is thrown, there are no effects on `*this` or `other`.
+
+#### X.Y.6 Valued state queries [protocol.observers]
+
+```cpp
+constexpr bool valueless_after_move() const noexcept;
+```
+
+1. _Returns_: `true` if `*this` is valueless after a move, otherwise `false`.
+
+```c++
+constexpr allocator_type get_allocator() const noexcept;
+```
+
+2. _Returns_: `alloc`.
+
+#### X.Y.7 Swap [protocol.swap]
+
+```cpp
+constexpr void swap(protocol& other) noexcept(
+  allocator_traits<Allocator>::propagate_on_container_swap::value ||
+  allocator_traits<Allocator>::is_always_equal::value);
+```
+
+1. _Preconditions_: If `allocator_traits<Allocator>​::​propagate_on_container_swap​::​value` is `true`,
+then `Allocator` meets the _Cpp17Swappable_ requirements. Otherwise `get_allocator() == other.get_allocator()` is `true`.
+
+2. _Effects_: Swaps the states of `*this` and `other`, exchanging owned objects or valueless states.
+If `allocator_traits<Allocator>​::​propagate_on_container_swap​::​value` is true, then the allocators of
+`*this` and `other` are exchanged by calling swap as described in [swappable.requirements]. Otherwise,
+the allocators are not swapped.
+
+[Note 1: Does not call swap on the owned objects directly. — end note]
+
+3. _Remarks_: This function is a no-op if both arguments are valueless before the call.
+
+#### X.Y.8 Member access [protocol.member.access]
+
+1. For each public non-static, non-template member function _f_ declared in _I_ with name _N_, return type _R_, parameter-type-list _P_, cv-qualifier-seq _cv_, ref-qualifier _ref_, _noexcept-specifier_ _S_, and _constexpr-specifier_ _C_, `protocol` shall contain a public non-virtual member function with the same name _N_, return type _R_, parameter-type-list _P_, and identical cv-qualifiers, ref-qualifiers, _noexcept-specifier_, and _constexpr-specifier_.
+
+2. _Preconditions_: `*this` is not valueless.
+
+3. _Effects_: Calls the corresponding member function of the owned object with the provided arguments.
+
+4. _Returns_: The value returned from the called function, if any.
+
+5. _Throws_: Any exception thrown by the called function.
+
+### X.Z Class template protocol_view [protocol_view]
+
+#### X.Z.1 Class template protocol_view general [protocol_view.general]
+
+1. A `protocol_view` object provides a non-owning reference to an object that conforms to an
+interface `I`. Copying a `protocol_view` produces a new view referring to the same object.
+
+2. An object of type `T` _conforms to an interface_ `I` if all member functions declared in `I` are
+available on `T` with matching signatures and are not deleted. Const-qualifiers in the interface's
+member functions are required to match.
+
+3. A program that instantiates the definition of the template `protocol_view<I>`
+with a type for the `I` parameter that is a non-object type, an array type, or a cv-qualified type is ill-formed.
+
+4. The template parameter `I` of `protocol_view` shall be a complete type. The program is ill-formed if a
+type instantiates `protocol_view<I>` with an incomplete type `I`.
+
+5. If a program declares an explicit or partial specialization of `protocol_view`,
+the behavior is undefined.
+
+#### X.Z.2 Class template protocol_view synopsis [protocol_view.syn]
+
+```cpp
+template <class I>
+class protocol_view {
+ public:
+  using interface_type = I;
+
+  template<class T>
+  constexpr protocol_view(T& t) noexcept;
+
+  template<class Allocator>
+  constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
+
+  constexpr protocol_view(const protocol_view&) noexcept = default;
+
+  constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
+ private:
+  I* data_; // exposition only
+};
+
+template <class I>
+class protocol_view<const I> {
+ public:
+  using interface_type = const I;
+
+  template<class T>
+  constexpr protocol_view(const T& t) noexcept;
+
+  template<class T>
+  protocol_view(const T&&) = delete;
+
+  template<class Allocator>
+  constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
+
+  template<class Allocator>
+  protocol_view(const protocol<I, Allocator>&&) = delete;
+
+  template<class Allocator>
+  constexpr protocol_view(const protocol<I, Allocator>& p) noexcept;
+
+  constexpr protocol_view(const protocol_view<I>& view) noexcept;
+
+  constexpr protocol_view(const protocol_view&) noexcept = default;
+
+  constexpr protocol_view& operator=(const protocol_view&) noexcept = default;
+ private:
+  const I* data_; // exposition only
+};
+```
+
+#### X.Z.3 Constructors [protocol_view.ctor]
+
+```cpp
+template<class T>
+constexpr protocol_view(T& t) noexcept;
+```
+
+1. _Constraints_: `T` conforms to interface `I`.
+
+2. _Preconditions_: `t` shall refer to an object that is valid and remains valid for the lifetime of `*this`.
+
+3. _Effects_: Initializes `data_` to `std::addressof(t)`.
+
+```cpp
+template<class Allocator>
+constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
+```
+
+4. _Preconditions_: protocol `p` is not valueless.
+
+5. _Effects_: Initializes `data_` to `std::addressof(*p)`.
+
+```cpp
+constexpr protocol_view(const protocol_view& other) noexcept = default;
+```
+
+6. _Postconditions_: `other.data_ == data_`.
+
+#### X.Z.4 Class template partial specialization `protocol_view<const I>` constructors [protocol_view.const.ctor]
+
+```cpp
+template<class T>
+constexpr protocol_view(const T& t) noexcept;
+```
+
+1. _Constraints_: `T` conforms to interface `I`.
+
+2. _Preconditions_: `t` shall refer to an object that is valid and remains valid for the lifetime of `*this`.
+
+3. _Effects_: Initializes `data_` with the address of `t`.
+
+```cpp
+template<class T>
+protocol_view(const T&&) = delete;
+```
+
+4. _Remarks_: This constructor is deleted to prevent binding to a temporary conforming object.
+
+```cpp
+template<class Allocator>
+constexpr protocol_view(protocol<I, Allocator>& p) noexcept;
+```
+
+5. _Preconditions_: protocol `p` is not valueless.
+
+6. _Effects_: Initializes `data_` to `std::addressof(*p)`.
+
+```cpp
+template<class Allocator>
+protocol_view(const protocol<I, Allocator>&&) = delete;
+```
+
+7. _Remarks_: This constructor is deleted to prevent binding to a temporary `protocol` rvalue.
+
+```cpp
+template<class Allocator>
+constexpr protocol_view(const protocol<I, Allocator>& p) noexcept;
+```
+
+8. _Preconditions_: protocol `p` is not valueless.
+
+9. _Effects_: Initializes `data_` with the address of `*p`.
+
+```cpp
+constexpr protocol_view(const protocol_view<I>& view) noexcept;
+```
+
+10. _Preconditions_: The object referenced by `view` does not become invalid before use of `*this`.
+
+11. _Effects_: Initializes `data_` with the address of the object referenced by `view`.
+
+```cpp
+constexpr protocol_view(const protocol_view& other) noexcept = default;
+```
+
+12. _Postconditions_: `other.data_ == data_`.
+
+#### X.Z.5 Assignment [protocol_view.assign]
+
+```cpp
+constexpr protocol_view& operator=(const protocol_view& other) noexcept = default;
+```
+
+1. _Postconditions_: `other.data_ == data_`.
+
+#### X.Z.6 Member access [protocol_view.member.access]
+
+1. For each public non-static, non-template member function _f_ declared in _I_, `protocol_view<I>` shall contain a public non-virtual member function with an identical signature as specified in [protocol.member.access]. For `protocol_view<const I>`, only the member functions of _I_ that have a `const` cv-qualifier are provided.
+
+2. _Preconditions_: `data_` does not equal `nullptr`.
+
+3. _Effects_: Equivalent to calling the corresponding member function of the object referenced by `data_`.
+
+4. _Returns_: The value returned from the called function, if any.
+
 ## Polls
 
 - Should we work to standardize `protocol` and `protocol_view`?
