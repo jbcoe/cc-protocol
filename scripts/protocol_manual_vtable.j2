@@ -14,23 +14,23 @@
 
 namespace xyz {
 
+{% set const_methods = [] %}
+{% for m in c.methods %}{% if m.is_const %}{% set _ = const_methods.append(m) %}{% endif %}{% endfor %}
 template <typename T>
-concept protocol_const_concept_{{ c.name }} = requires(const T& t) {
-{% for m in c.methods %}
-  {% if m.is_const %}
-    {% set declvals = [] %}
-    {% for a in m.arguments %}
-      {% set _ = declvals.append("std::declval<" ~ a.type.name ~ ">()") %}
-    {% endfor %}
-    {% set args_str = declvals | join(", ") %}
-    {% if m.return_type.name == 'void' %}
+concept protocol_const_concept_{{ c.name }} = {% if not const_methods %}true{% else %}requires(const T& t) {
+{% for m in const_methods %}
+  {% set declvals = [] %}
+  {% for a in m.arguments %}
+    {% set _ = declvals.append("std::declval<" ~ a.type.name ~ ">()") %}
+  {% endfor %}
+  {% set args_str = declvals | join(", ") %}
+  {% if m.return_type.name == 'void' %}
   { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %};
-    {% else %}
+  {% else %}
   { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %} -> std::convertible_to<{{ m.return_type.name }}>;
-    {% endif %}
   {% endif %}
 {% endfor %}
-};
+}{% endif %};
 
 {% set non_const_methods = [] %}
 {% for m in c.methods %}{% if not m.is_const %}{% set _ = non_const_methods.append(m) %}{% endif %}{% endfor %}

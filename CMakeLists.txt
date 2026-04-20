@@ -129,6 +129,16 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       CLASS_NAME D INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_D.h
       HEADER interface_D.h
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h ${OPT_MANUAL_VTABLE})
+    xyz_generate_protocol(
+      CLASS_NAME Function INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_function.h
+      HEADER interface_function.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_function.h ${OPT_MANUAL_VTABLE})
+    xyz_generate_protocol(
+      CLASS_NAME MutatingFunction
+      INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_mutating_function.h
+      HEADER interface_mutating_function.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_mutating_function.h
+      ${OPT_MANUAL_VTABLE})
 
     add_custom_target(
       generate_protocols
@@ -137,7 +147,9 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_manual.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_function.h
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_mutating_function.h)
 
     xyz_add_test(
       NAME
@@ -153,7 +165,11 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       interface_C.h
       ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h
       interface_D.h
-      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
+      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h
+      interface_function.h
+      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_function.h
+      interface_mutating_function.h
+      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_mutating_function.h)
     add_dependencies(protocol_test generate_protocols)
     target_include_directories(protocol_test
                                PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
