@@ -52,7 +52,7 @@ and code injection and focuses solely on the design of the class templates
 This is a very early stage design which we are sharing to further discussion
 of design differences with a series of competing proposals for structural-subtyping.
 
-This paper explores a different approach to proxy and relies on reflection rather than 
+This paper explores a different approach to proxy and relies on reflection rather than
 templates for a smaller API surface.
 
 ## Motivation
@@ -155,7 +155,7 @@ class protocol<I, Allocator=std::allocator<void>> {
 
     // In-place constructor with initializer_list.
     template <class U, class J, class... Ts>
-    explicit constexpr protocol(std::in_place_type_t<U>, 
+    explicit constexpr protocol(std::in_place_type_t<U>,
                                 std::initializer_list<J> ilist, Ts&&... ts);
 
     // Copy constructor.
@@ -173,21 +173,21 @@ class protocol<I, Allocator=std::allocator<void>> {
 
     // Allocator-extended in-place constructor.
     template <class U, class... Ts>
-    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc, 
+    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
                                 std::in_place_type_t<U>, Ts&&... ts);
 
     // Allocator-extended in-place constructor with initializer_list.
     template <class U, class J, class... Ts>
-    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc, 
-                                std::in_place_type_t<U>, 
+    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                                std::in_place_type_t<U>,
                                 std::initializer_list<J> ilist, Ts&&... ts);
 
     // Allocator-extended copy constructor.
-    constexpr protocol(std::allocator_arg_t, const Allocator& alloc, 
+    constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
                        const protocol& other);
 
     // Allocator-extended move constructor.
-    constexpr protocol(std::allocator_arg_t, const Allocator& alloc, 
+    constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
                        protocol&& other) noexcept;
 
     // Destructor.
