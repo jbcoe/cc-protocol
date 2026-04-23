@@ -6,7 +6,7 @@ P4148R0
 
 Working Group: Library Evolution, Library
 
-Date: 2026-04-9
+Date: 2026-04-20
 
 _Jonathan Coe \<<jonathanbcoe@gmail.com>\>_
 
@@ -52,7 +52,8 @@ and code injection and focuses solely on the design of the class templates
 This is a very early stage design which we are sharing to further discussion
 of design differences with a series of competing proposals for structural-subtyping.
 
-This paper explores a different approach to proxy and relies on reflection rather than templates for a smaller API surface.
+This paper explores a different approach to proxy and relies on reflection rather than
+templates for a smaller API surface.
 
 ## Motivation
 
@@ -154,13 +155,14 @@ class protocol<I, Allocator=std::allocator<void>> {
 
     // In-place constructor with initializer_list.
     template <class U, class J, class... Ts>
-    explicit constexpr protocol(std::in_place_type_t<U>, std::initializer_list<J> ilist, Ts&&... ts);
+    explicit constexpr protocol(std::in_place_type_t<U>,
+                                std::initializer_list<J> ilist, Ts&&... ts);
 
     // Copy constructor.
     constexpr protocol(const protocol& other);
 
     // Move constructor.
-    constexpr protocol(protocol&& other) noexcept(std::allocator_traits<Allocator>::is_always_equal::value);
+    constexpr protocol(protocol&& other) noexcept;
 
     // Allocator-extended default constructor.
     explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc);
@@ -171,22 +173,27 @@ class protocol<I, Allocator=std::allocator<void>> {
 
     // Allocator-extended in-place constructor.
     template <class U, class... Ts>
-    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc, std::in_place_type_t<U>, Ts&&... ts);
+    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                                std::in_place_type_t<U>, Ts&&... ts);
 
     // Allocator-extended in-place constructor with initializer_list.
     template <class U, class J, class... Ts>
-    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc, std::in_place_type_t<U>, std::initializer_list<J> ilist, Ts&&... ts);
+    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                                std::in_place_type_t<U>,
+                                std::initializer_list<J> ilist, Ts&&... ts);
 
     // Allocator-extended copy constructor.
-    constexpr protocol(std::allocator_arg_t, const Allocator& alloc, const protocol& other);
+    constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                       const protocol& other);
 
     // Allocator-extended move constructor.
-    constexpr protocol(std::allocator_arg_t, const Allocator& alloc, protocol&& other) noexcept(std::allocator_traits<Allocator>::is_always_equal::value);
+    constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                       protocol&& other) noexcept;
 
     // Destructor.
     ~protocol();
 
-    // structural-subtype member functions.
+    // structural-subtype (const and non-const) member functions.
     std::string func0(std::string_view) const noexcept;
     double func1(double) const;
     int func2(int);
@@ -204,11 +211,19 @@ class protocol_view<I> {
     template <typename T>
     constexpr protocol_view(T& obj) noexcept;
 
+    // Construction from a rvalue conforming object is deleted.
+    template <typename T>
+    protocol_view(const T&&) = delete;
+
     // Constructor from a mutable protocol.
     template <typename Alloc>
     protocol_view(protocol<I, Alloc>& p) noexcept;
 
-    // structural-subtype member functions.
+    // Construction from a protocol rvalue is deleted.
+    template <typename Alloc>
+    protocol_view(protocol<I, Alloc>&&) = delete;
+
+    // structural-subtype (const and non-const) member functions.
     std::string func0(std::string_view) const noexcept;
     double func1(double) const;
     int func2(int);
@@ -238,6 +253,10 @@ class protocol_view<const I> {
     // Constructor from a mutable protocol.
     template <typename Alloc>
     protocol_view(protocol<I, Alloc>& p) noexcept;
+
+    // Construction from a protocol rvalue is deleted.
+    template <typename Alloc>
+    protocol_view(protocol<I, Alloc>&&) = delete;
 
     // Constructor from a mutable protocol_view<I>.
     constexpr protocol_view(protocol_view<I> view) noexcept;
@@ -317,16 +336,16 @@ struct OverloadedFunction {
 
 There is currently no function-type in the standard library that can represent an
 overload set. The table below is illustrative of how flexible `protocol` and
-`protocol_view` are.
+`protocol_view` are:
 
 | Standard library type                       | Protocol equivalent                              |
 | :------------------------------------------ | :----------------------------------------------- |
-| `std::copyable_function<R(Args...) const>`  | `protocol<Function<R, Args...>>`                 |
-| `std::move_only_function<R(Args...) const>` | `protocol<MoveOnlyFunction<R, Args...>>`         |
-| `std::function_ref<R(Args...) const>`       | `protocol_view<Function<R, Args...>>`            |
-| `std::copyable_function<R(Args...)>`        | `protocol<MutatingFunction<R, Args...>>`         |
-| `std::move_only_function<R(Args...)>`       | `protocol<MoveOnlyMutatingFunction<R, Args...>>` |
-| `std::function_ref<R(Args...)>`             | `protocol_view<MutatingFunction<R, Args...>>`    |
+| `copyable_function<R(Args...) const>`       | `protocol<Function<R, Args...>>`                 |
+| `move_only_function<R(Args...) const>`      | `protocol<MoveOnlyFunction<R, Args...>>`         |
+| `function_ref<R(Args...) const>`            | `protocol_view<Function<R, Args...>>`            |
+| `copyable_function<R(Args...)>`             | `protocol<MutatingFunction<R, Args...>>`         |
+| `move_only_function<R(Args...)>`            | `protocol<MoveOnlyMutatingFunction<R, Args...>>` |
+| `function_ref<R(Args...)>`                  | `protocol_view<MutatingFunction<R, Args...>>`    |
 | ???                                         | `protocol<OverloadedFunction>`                   |
 | ???                                         | `protocol_view<OverloadedFunction>`              |
 
