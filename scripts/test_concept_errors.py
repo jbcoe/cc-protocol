@@ -1,4 +1,5 @@
-"""Tests for compiler error messages when protocol concepts are violated.
+"""
+Tests for compiler error messages when protocol concepts are violated.
 
 These tests verify that the C++ concepts and static asserts provide meaningful feedback.
 
@@ -9,26 +10,35 @@ import os
 import re
 import subprocess
 import tempfile
+from typing import Any
+from typing import Callable
+from typing import List
 
 import pytest
 
 
-def pytest_addoption(parser):
+def pytest_addoption(parser: Any) -> None:
+    """Add command-line options for the compiler and flags."""
     parser.addoption("--compiler", action="store", default="g++")
     parser.addoption("--flags", action="append", default=[])
 
 
 @pytest.fixture
-def compiler(request):
-    return request.config.getoption("--compiler")
+def compiler(request: Any) -> str:
+    """Fixture that provides the compiler path."""
+    return str(request.config.getoption("--compiler"))
 
 
 @pytest.fixture
-def flags(request):
-    return request.config.getoption("--flags")
+def flags(request: Any) -> List[str]:
+    """Fixture that provides the compiler flags."""
+    return list(request.config.getoption("--flags"))
 
 
-def run_compiler(compiler, flags, source_code):
+def run_compiler(
+    compiler: str, flags: List[str], source_code: str
+) -> subprocess.CompletedProcess[str]:
+    """Run the compiler on the given source code."""
     with tempfile.TemporaryDirectory() as tmpdir:
         source_file = os.path.join(tmpdir, "test.cc")
         obj_file = os.path.join(tmpdir, "test.o")
@@ -41,8 +51,10 @@ def run_compiler(compiler, flags, source_code):
 
 
 @pytest.fixture
-def compile_check(compiler, flags):
-    def check(source, expected_patterns):
+def compile_check(compiler: str, flags: List[str]) -> Callable[[str, List[str]], None]:
+    """Fixture that provides a function to check compiler errors."""
+
+    def check(source: str, expected_patterns: List[str]) -> None:
         res = run_compiler(compiler, flags, source)
         assert res.returncode != 0, "Compilation should have failed"
         output = res.stderr + res.stdout
@@ -57,8 +69,12 @@ def compile_check(compiler, flags):
     return check
 
 
-def test_missing_method(compile_check):
-    """Test that a class missing a required method fails to satisfy the protocol concept."""
+def test_missing_method(compile_check: Callable[[str, List[str]], None]) -> None:
+    """
+    Test that a class missing a required method fails.
+
+    The class fails to satisfy the protocol concept.
+    """
     source = """
     #include "generated/protocol_A.h"
     #include "interface_A.h"
@@ -82,8 +98,12 @@ def test_missing_method(compile_check):
     )
 
 
-def test_wrong_return_type(compile_check):
-    """Test that a class with a method having a wrong return type fails to satisfy the protocol concept."""
+def test_wrong_return_type(compile_check: Callable[[str, List[str]], None]) -> None:
+    """
+    Test that a class with a method having a wrong return type fails.
+
+    The class fails to satisfy the protocol concept.
+    """
     source = """
     #include "generated/protocol_A.h"
     #include "interface_A.h"
@@ -103,7 +123,9 @@ def test_wrong_return_type(compile_check):
     compile_check(source, [r"protocol_concept_A", r"count\(\)"])
 
 
-def test_primary_template_instantiation(compile_check):
+def test_primary_template_instantiation(
+    compile_check: Callable[[str, List[str]], None],
+) -> None:
     """Test that the primary protocol template cannot be instantiated."""
     source = """
     #include "protocol.h"
@@ -119,8 +141,14 @@ def test_primary_template_instantiation(compile_check):
     )
 
 
-def test_view_const_to_mutable_concrete(compile_check):
-    """Test that a protocol_view for a mutable interface cannot be constructed from a const object."""
+def test_view_const_to_mutable_concrete(
+    compile_check: Callable[[str, List[str]], None],
+) -> None:
+    """
+    Test that a protocol_view for a mutable interface cannot be constructed.
+
+    Fails when constructed from a const object.
+    """
     source = """
     #include "generated/protocol_A.h"
     #include "interface_A.h"
@@ -135,12 +163,19 @@ def test_view_const_to_mutable_concrete(compile_check):
         xyz::protocol_view<xyz::A> view(a);
     }
     """
-    # The error should indicate that protocol_concept_A is not satisfied because count() is not const
+    # The error should indicate that protocol_concept_A is not satisfied
+    # because count() is not const
     compile_check(source, [r"protocol_concept_A", r"t.count\(\)"])
 
 
-def test_view_const_to_mutable_protocol(compile_check):
-    """Test that a protocol_view for a mutable interface cannot be constructed from a const protocol."""
+def test_view_const_to_mutable_protocol(
+    compile_check: Callable[[str, List[str]], None],
+) -> None:
+    """
+    Test that a protocol_view for a mutable interface cannot be constructed.
+
+    Fails when constructed from a const protocol.
+    """
     source = """
     #include "generated/protocol_A.h"
     #include "interface_A.h"
@@ -153,8 +188,14 @@ def test_view_const_to_mutable_protocol(compile_check):
     compile_check(source, [r"protocol_concept_A", r"t.count\(\)"])
 
 
-def test_view_const_alike_to_mutable(compile_check):
-    """Test that a protocol_view for a mutable interface cannot be constructed from an object missing mutable methods."""
+def test_view_const_alike_to_mutable(
+    compile_check: Callable[[str, List[str]], None],
+) -> None:
+    """
+    Test that a protocol_view for a mutable interface cannot be constructed.
+
+    Fails when constructed from an object missing mutable methods.
+    """
     source = """
     #include "generated/protocol_A.h"
     #include "interface_A.h"
@@ -171,8 +212,12 @@ def test_view_const_alike_to_mutable(compile_check):
     compile_check(source, [r"protocol_concept_A", r"t.count\(\)"])
 
 
-def test_noexcept_violation(compile_check):
-    """Test that a class with a method missing noexcept fails to satisfy the protocol concept."""
+def test_noexcept_violation(compile_check: Callable[[str, List[str]], None]) -> None:
+    """
+    Test that a class with a method missing noexcept fails.
+
+    The class fails to satisfy the protocol concept.
+    """
     source = """
     #include "generated/protocol_A.h"
     #include "interface_A.h"
