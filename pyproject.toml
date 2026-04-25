@@ -53,3 +53,5 @@ implicit-any = "error"
 [tool.pytest.ini_options]
 addopts = ["-p", "scripts.test_concept_errors"]
 pythonpath = ["."]
+testpaths = ["scripts"]
+python_files = ["test_generate_protocol.py"]

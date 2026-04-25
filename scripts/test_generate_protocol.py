@@ -7,6 +7,7 @@ header files. It uses libclang via xyz-cppmodel for structural verification.
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,8 @@ import clang.cindex
 import pytest
 from xyz.cppmodel import Model
 
+from scripts.generate_protocol import get_compiler_args
+
 # Try to set the library path explicitly for environments like Bazel
 # where LD_LIBRARY_PATH isn't carried over
 try:
@@ -28,6 +31,14 @@ except Exception:
     pass
 
 
+def get_compiler() -> Optional[str]:
+    """Find a C++ compiler on the system."""
+    for c in ["clang++", "g++", "c++"]:
+        if shutil.which(c):
+            return c
+    return None
+
+
 def run_generate_protocol(
     input_path: str,
     output_path: str,
@@ -35,6 +46,7 @@ def run_generate_protocol(
     header_name: str,
     template_path: str = "scripts/protocol.j2",
     extra_args: Optional[List[str]] = None,
+    compiler: Optional[str] = None,
 ) -> subprocess.CompletedProcess[str]:
     """
     Run the generate_protocol.py script with the given arguments.
@@ -46,6 +58,7 @@ def run_generate_protocol(
         header_name: Name of the header to include in the generated code.
         template_path: Path to the Jinja2 template.
         extra_args: Additional command-line arguments.
+        compiler: The compiler to use for include discovery.
 
     Returns:
         The result of the subprocess run.
@@ -63,6 +76,8 @@ def run_generate_protocol(
         "--template",
         template_path,
     ]
+    if compiler:
+        cmd.extend(["--compiler", compiler])
     if extra_args:
         cmd.extend(extra_args)
     return subprocess.run(cmd, capture_output=True, text=True)
@@ -81,30 +96,39 @@ def temp_dir() -> Generator[str, None, None]:
         yield tmpdir
 
 
-def get_model_from_file(file_path: str) -> Model:
+@pytest.fixture
+def compiler() -> str:
+    """Fixture that provides a C++ compiler path."""
+    c = get_compiler()
+    assert c, "No C++ compiler found on the system"
+    return c
+
+
+def get_model_from_file(file_path: str, compiler: str) -> Model:
     """
     Parse a C++ file and return its Model representation.
 
     Args:
         file_path: Path to the C++ file.
+        compiler: The compiler to use for include discovery.
 
     Returns:
         The Model representation of the file.
 
     """
     index = clang.cindex.Index.create()
-    # We use -std=c++20 as it is the target for this project.
-    # We include current directory to find protocol.h
-    tu = index.parse(file_path, args=["-std=c++20", "-x", "c++", "-I."])
+    args = get_compiler_args(compiler)
+    args.append("-I.")
+    tu = index.parse(file_path, args=args)
     return Model(tu)
 
 
-def test_generate_simple_class(temp_dir: str) -> None:
+def test_generate_simple_class(temp_dir: str, compiler: str) -> None:
     """
     Test generation for a simple class with basic methods.
 
     Verifies that the generated concepts and callback classes exist and contain
-     the expected methods.
+    the expected methods.
     """
     input_header = os.path.join(temp_dir, "input.h")
     output_header = os.path.join(temp_dir, "output.h")
@@ -122,11 +146,13 @@ def test_generate_simple_class(temp_dir: str) -> None:
         """
         )
 
-    res = run_generate_protocol(input_header, output_header, "Simple", "input.h")
+    res = run_generate_protocol(
+        input_header, output_header, "Simple", "input.h", compiler=compiler
+    )
     assert res.returncode == 0, res.stderr
     assert os.path.exists(output_header)
 
-    model = get_model_from_file(output_header)
+    model = get_model_from_file(output_header, compiler)
 
     # Verify that the callback classes are generated
     cb_classes = [c.name for c in model.classes]
@@ -148,7 +174,7 @@ def test_generate_simple_class(temp_dir: str) -> None:
     assert any(n.startswith("bar_") for n in all_method_names)
 
 
-def test_class_not_found(temp_dir: str) -> None:
+def test_class_not_found(temp_dir: str, compiler: str) -> None:
     """Test that the script fails gracefully when the target class is missing."""
     input_header = os.path.join(temp_dir, "input.h")
     output_header = os.path.join(temp_dir, "output.h")
@@ -156,12 +182,14 @@ def test_class_not_found(temp_dir: str) -> None:
     with open(input_header, "w") as f:
         f.write("class Other {};")
 
-    res = run_generate_protocol(input_header, output_header, "Missing", "input.h")
+    res = run_generate_protocol(
+        input_header, output_header, "Missing", "input.h", compiler=compiler
+    )
     assert res.returncode != 0
     assert "Class Missing not found" in res.stderr
 
 
-def test_mangle_operators(temp_dir: str) -> None:
+def test_mangle_operators(temp_dir: str, compiler: str) -> None:
     """Test that C++ operators are correctly mangled in the generated code."""
     input_header = os.path.join(temp_dir, "input.h")
     output_header = os.path.join(temp_dir, "output.h")
@@ -177,10 +205,12 @@ def test_mangle_operators(temp_dir: str) -> None:
         """
         )
 
-    res = run_generate_protocol(input_header, output_header, "Ops", "input.h")
+    res = run_generate_protocol(
+        input_header, output_header, "Ops", "input.h", compiler=compiler
+    )
     assert res.returncode == 0, res.stderr
 
-    model = get_model_from_file(output_header)
+    model = get_model_from_file(output_header, compiler)
     # The actual names are protocol_view_cb_Ops and protocol_view_const_cb_Ops
     cb_class = next(c for c in model.classes if c.name == "protocol_view_cb_Ops")
     const_cb_class = next(
@@ -194,7 +224,7 @@ def test_mangle_operators(temp_dir: str) -> None:
     assert any(n.startswith("__operator__plus_equal__") for n in all_method_names)
 
 
-def test_manual_vtable_template(temp_dir: str) -> None:
+def test_manual_vtable_template(temp_dir: str, compiler: str) -> None:
     """Test that the manual vtable template produces a valid vtable structure."""
     input_header = os.path.join(temp_dir, "input.h")
     output_header = os.path.join(temp_dir, "output.h")
@@ -215,6 +245,7 @@ def test_manual_vtable_template(temp_dir: str) -> None:
         "Simple",
         "input.h",
         template_path="scripts/protocol_manual_vtable.j2",
+        compiler=compiler,
     )
     assert res.returncode == 0, res.stderr
 
@@ -225,7 +256,7 @@ def test_manual_vtable_template(temp_dir: str) -> None:
         assert "struct view_vtable_Simple" in content
 
 
-def test_formatting(temp_dir: str) -> None:
+def test_formatting(temp_dir: str, compiler: str) -> None:
     """Test that the output is correctly formatted using clang-format."""
     input_header = os.path.join(temp_dir, "input.h")
     output_header = os.path.join(temp_dir, "output.h")
@@ -233,7 +264,9 @@ def test_formatting(temp_dir: str) -> None:
     with open(input_header, "w") as f:
         f.write("class Simple { public: void foo() const; };")
 
-    res = run_generate_protocol(input_header, output_header, "Simple", "input.h")
+    res = run_generate_protocol(
+        input_header, output_header, "Simple", "input.h", compiler=compiler
+    )
     assert res.returncode == 0
 
     with open(output_header, "r") as f:
@@ -247,7 +280,7 @@ def test_formatting(temp_dir: str) -> None:
     assert formatted_content == manual_format_res.stdout
 
 
-def test_malformed_cpp(temp_dir: str) -> None:
+def test_malformed_cpp(temp_dir: str, compiler: str) -> None:
     """Test that the script fails with a clear error on semantic C++ errors."""
     input_header = os.path.join(temp_dir, "input.h")
     output_header = os.path.join(temp_dir, "output.h")
@@ -256,13 +289,15 @@ def test_malformed_cpp(temp_dir: str) -> None:
         # Unknown type name
         f.write("class Simple { public: void foo(NoSuchType x) const; };")
 
-    res = run_generate_protocol(input_header, output_header, "Simple", "input.h")
+    res = run_generate_protocol(
+        input_header, output_header, "Simple", "input.h", compiler=compiler
+    )
     assert res.returncode != 0
     assert "Error parsing" in res.stderr
     assert "unknown type name 'NoSuchType'" in res.stderr
 
 
-def test_syntax_error(temp_dir: str) -> None:
+def test_syntax_error(temp_dir: str, compiler: str) -> None:
     """Test that the script fails with a clear error on C++ syntax errors."""
     input_header = os.path.join(temp_dir, "input.h")
     output_header = os.path.join(temp_dir, "output.h")
@@ -271,13 +306,15 @@ def test_syntax_error(temp_dir: str) -> None:
         # Syntax error: missing )
         f.write("class Simple { public: void foo(int x ; };")
 
-    res = run_generate_protocol(input_header, output_header, "Simple", "input.h")
+    res = run_generate_protocol(
+        input_header, output_header, "Simple", "input.h", compiler=compiler
+    )
     assert res.returncode != 0
     assert "Error parsing" in res.stderr
     assert "expected ')'" in res.stderr
 
 
-def test_template_not_found(temp_dir: str) -> None:
+def test_template_not_found(temp_dir: str, compiler: str) -> None:
     """Test error handling when the Jinja2 template is missing."""
     input_header = os.path.join(temp_dir, "input.h")
     output_header = os.path.join(temp_dir, "output.h")
@@ -291,18 +328,21 @@ def test_template_not_found(temp_dir: str) -> None:
         "Simple",
         "input.h",
         template_path="non_existent.j2",
+        compiler=compiler,
     )
     assert res.returncode != 0
 
 
-def test_input_not_found(temp_dir: str) -> None:
+def test_input_not_found(temp_dir: str, compiler: str) -> None:
     """Test error handling when the input header is missing."""
     output_header = os.path.join(temp_dir, "output.h")
-    res = run_generate_protocol("non_existent.h", output_header, "Simple", "input.h")
+    res = run_generate_protocol(
+        "non_existent.h", output_header, "Simple", "input.h", compiler=compiler
+    )
     assert res.returncode != 0
 
 
-def test_overloaded_functions(temp_dir: str) -> None:
+def test_overloaded_functions(temp_dir: str, compiler: str) -> None:
     """
     Test that overloaded functions result in unique mangled names.
 
@@ -324,10 +364,12 @@ def test_overloaded_functions(temp_dir: str) -> None:
         """
         )
 
-    res = run_generate_protocol(input_header, output_header, "Overloaded", "input.h")
+    res = run_generate_protocol(
+        input_header, output_header, "Overloaded", "input.h", compiler=compiler
+    )
     assert res.returncode == 0, res.stderr
 
-    model = get_model_from_file(output_header)
+    model = get_model_from_file(output_header, compiler)
     cb_class = next(c for c in model.classes if c.name == "protocol_view_cb_Overloaded")
     const_cb_class = next(
         c for c in model.classes if c.name == "protocol_view_const_cb_Overloaded"
@@ -346,7 +388,7 @@ def test_overloaded_functions(temp_dir: str) -> None:
     assert len(set(mangled_names)) == 3
 
 
-def test_concept_satisfaction(temp_dir: str) -> None:
+def test_concept_satisfaction(temp_dir: str, compiler: str) -> None:
     """
     Verify generated concepts using a real C++ compiler.
 
@@ -367,7 +409,9 @@ def test_concept_satisfaction(temp_dir: str) -> None:
         """
         )
 
-    res = run_generate_protocol(input_header, output_header, "Simple", "input.h")
+    res = run_generate_protocol(
+        input_header, output_header, "Simple", "input.h", compiler=compiler
+    )
     assert res.returncode == 0, res.stderr
 
     # Create a C++ file to test the concept
@@ -399,16 +443,6 @@ def test_concept_satisfaction(temp_dir: str) -> None:
         """
         )
 
-    # Try to find a compiler
-    compiler = None
-    for c in ["clang++", "g++"]:
-        if subprocess.run(["which", c], capture_output=True).returncode == 0:
-            compiler = c
-            break
-
-    if not compiler:
-        pytest.skip("No C++ compiler found")
-
     flags = ["-std=c++20", "-I.", f"-I{temp_dir}"]
 
     comp_res = subprocess.run(
@@ -420,7 +454,7 @@ def test_concept_satisfaction(temp_dir: str) -> None:
     assert comp_res.returncode == 0, f"Compilation failed:\n{comp_res.stderr}"
 
 
-def test_concept_operators(temp_dir: str) -> None:
+def test_concept_operators(temp_dir: str, compiler: str) -> None:
     """
     Verify generated concepts for C++ operators using a real compiler.
 
@@ -441,7 +475,9 @@ def test_concept_operators(temp_dir: str) -> None:
         """
         )
 
-    res = run_generate_protocol(input_header, output_header, "Ops", "input.h")
+    res = run_generate_protocol(
+        input_header, output_header, "Ops", "input.h", compiler=compiler
+    )
     assert res.returncode == 0, res.stderr
 
     test_cc = os.path.join(temp_dir, "test.cc")
@@ -465,15 +501,6 @@ def test_concept_operators(temp_dir: str) -> None:
         int main() {{ return 0; }}
         """
         )
-
-    compiler = None
-    for c in ["clang++", "g++"]:
-        if subprocess.run(["which", c], capture_output=True).returncode == 0:
-            compiler = c
-            break
-
-    if not compiler:
-        pytest.skip("No C++ compiler found")
 
     flags = ["-std=c++20", "-I.", f"-I{temp_dir}"]
     comp_res = subprocess.run(
