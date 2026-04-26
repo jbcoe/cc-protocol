@@ -31,6 +31,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "generated/protocol_B.h"
 #include "generated/protocol_C.h"
 #include "generated/protocol_D.h"
+#include "generated/protocol_function.h"
+#include "generated/protocol_mutating_function.h"
 #include "tracking_allocator.h"
 
 namespace {
@@ -891,6 +893,116 @@ TEST(ProtocolViewTest, ProtocolViewDOperators) {
 
   EXPECT_EQ(d(), 42);
   EXPECT_EQ(d[5], 10);
+}
+
+// Tests for protocol<Function> and protocol_view<const Function>.
+//
+// protocol<Function> is equivalent to std::copyable_function<int(int) const>:
+// it owns a copy of any const-callable and supports deep-copy value semantics.
+//
+// protocol_view<const Function> is equivalent to std::function_ref<int(int) const>:
+// it is a lightweight non-owning reference to any const-callable.
+
+struct DoubleIt {
+  int operator()(int x) const { return x * 2; }
+};
+
+TEST(FunctionProtocolTest, StoreConstCallable) {
+  xyz::protocol<xyz::Function> f(std::in_place_type<DoubleIt>);
+  EXPECT_EQ(f(3), 6);
+}
+
+TEST(FunctionProtocolTest, StoreLambda) {
+  auto triple = [](int x) { return x * 3; };
+  xyz::protocol<xyz::Function> f(std::in_place_type<decltype(triple)>, triple);
+  EXPECT_EQ(f(4), 12);
+}
+
+TEST(FunctionProtocolTest, DeepCopySemantics) {
+  // Like std::copyable_function, protocol<Function> performs a deep copy.
+  xyz::protocol<xyz::Function> original(std::in_place_type<DoubleIt>);
+  xyz::protocol<xyz::Function> copy = original;  // NOLINT(performance-unnecessary-copy-initialization)
+  EXPECT_EQ(original(5), 10);
+  EXPECT_EQ(copy(5), 10);
+}
+
+TEST(FunctionProtocolTest, ConstViewIsNonOwning) {
+  // protocol_view<const Function> is equivalent to std::function_ref<int(int)
+  // const>: a lightweight, non-owning reference to an existing callable.
+  DoubleIt d;
+  xyz::protocol_view<const xyz::Function> view(d);
+  EXPECT_EQ(view(7), 14);
+}
+
+TEST(FunctionProtocolTest, ConstViewFromProtocol) {
+  xyz::protocol<xyz::Function> f(std::in_place_type<DoubleIt>);
+  xyz::protocol_view<const xyz::Function> view(f);
+  EXPECT_EQ(view(8), 16);
+}
+
+// Tests for protocol<MutatingFunction> and protocol_view<MutatingFunction>.
+//
+// protocol<MutatingFunction> is equivalent to std::copyable_function<int(int)>:
+// it owns a copy of any callable (including those that mutate their state on
+// each invocation) and supports deep-copy value semantics.
+//
+// protocol_view<MutatingFunction> is equivalent to std::function_ref<int(int)>:
+// it is a lightweight non-owning reference to any (possibly-mutating) callable.
+
+struct Counter {
+  int count = 0;
+  int operator()(int x) {
+    count += x;
+    return count;
+  }
+};
+
+TEST(MutatingFunctionProtocolTest, StoreMutatingCallable) {
+  xyz::protocol<xyz::MutatingFunction> f(std::in_place_type<Counter>);
+  EXPECT_EQ(f(3), 3);
+  EXPECT_EQ(f(4), 7);
+}
+
+TEST(MutatingFunctionProtocolTest, StoreMutatingLambda) {
+  int total = 0;
+  auto accumulate = [total](int x) mutable {
+    total += x;
+    return total;
+  };
+  xyz::protocol<xyz::MutatingFunction> f(
+      std::in_place_type<decltype(accumulate)>, accumulate);
+  EXPECT_EQ(f(10), 10);
+  EXPECT_EQ(f(5), 15);
+}
+
+TEST(MutatingFunctionProtocolTest, DeepCopySemantics) {
+  // Like std::copyable_function, protocol<MutatingFunction> deep-copies the
+  // stored callable, so the copy starts with independent state.
+  xyz::protocol<xyz::MutatingFunction> original(std::in_place_type<Counter>);
+  original(10);
+  xyz::protocol<xyz::MutatingFunction> copy = original;
+  // The copy shares the same accumulated state at the point of copy.
+  EXPECT_EQ(copy(5), 15);
+  // Mutating the copy does not affect the original.
+  EXPECT_EQ(original(1), 11);
+}
+
+TEST(MutatingFunctionProtocolTest, MutatingViewIsNonOwning) {
+  // protocol_view<MutatingFunction> is equivalent to
+  // std::function_ref<int(int)>: a non-owning reference to a mutable callable.
+  Counter c;
+  xyz::protocol_view<xyz::MutatingFunction> view(c);
+  EXPECT_EQ(view(3), 3);
+  // The mutation is visible through the original Counter.
+  EXPECT_EQ(c.count, 3);
+}
+
+TEST(MutatingFunctionProtocolTest, MutatingViewFromProtocol) {
+  xyz::protocol<xyz::MutatingFunction> f(std::in_place_type<Counter>);
+  xyz::protocol_view<xyz::MutatingFunction> view(f);
+  EXPECT_EQ(view(5), 5);
+  // The mutation is visible through the protocol.
+  EXPECT_EQ(f(2), 7);
 }
 
 }  // namespace
