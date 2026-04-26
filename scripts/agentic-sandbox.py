@@ -8,7 +8,11 @@ import sys
 
 
 def _seed_config_file(path: str, content: bytes) -> None:
-    """Create path with content and mode 0o600, skipping silently if it already exists."""
+    """
+    Create path with content and mode 0o600.
+
+    Skips silently if it already exists.
+    """
     try:
         fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError:

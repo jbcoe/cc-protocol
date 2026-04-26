@@ -1,9 +1,13 @@
+"""Script to generate C++ protocol headers from interface definitions."""
+
 import argparse
 import hashlib
 import os
 import re
 import subprocess
 import sys
+from typing import Any
+from typing import List
 
 import clang.cindex
 from jinja2 import Environment
@@ -11,7 +15,8 @@ from jinja2 import FileSystemLoader
 from jinja2 import select_autoescape
 from xyz.cppmodel import Model
 
-# Try to set the library path explicitly for environments like Bazel where LD_LIBRARY_PATH isn't carried over
+# Try to set the library path explicitly for environments like Bazel
+# where LD_LIBRARY_PATH isn't carried over
 try:
     import clang.native
 
@@ -20,48 +25,47 @@ except Exception:
     pass
 
 
-def get_method_signature(m):
+def get_method_signature(m: Any) -> str:
+    """Generate a string signature for a method."""
     args = ",".join(a.type.name for a in m.arguments)
     constness = "const" if m.is_const else ""
     return f"{m.name}({args}){constness}"
 
 
-def get_compiler_args(compiler="c++"):
+def get_compiler_args(compiler: str = "c++") -> List[str]:
+    """Get system include paths from the compiler."""
     args = ["-x", "c++", "-std=c++20"]
-    try:
-        # Ask the system compiler for its standard include paths
-        result = subprocess.run(
-            [compiler, "-E", "-x", "c++", "-", "-v"],
-            input="",
-            capture_output=True,
-            text=True,
-        )
+    # Ask the system compiler for its standard include paths
+    result = subprocess.run(
+        [compiler, "-E", "-x", "c++", "-", "-v"],
+        input="",
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
-        in_include_section = False
-        for line in result.stderr.splitlines():
-            # On macOS, the compiler will also list framework directories.
-            # We want to ignore those since they won't be relevant for our parsing and could cause issues if we try to include them.
-            if "(framework directory)" in line:
-                continue
-            if line.startswith("#include <...> search starts here:"):
-                in_include_section = True
-                continue
-            if line.startswith("End of search list."):
-                break
+    in_include_section = False
+    for line in result.stderr.splitlines():
+        # On macOS, the compiler will also list framework directories.
+        # We want to ignore those since they won't be relevant for our parsing
+        # and could cause issues if we try to include them.
+        if "(framework directory)" in line:
+            continue
+        if line.startswith("#include <...> search starts here:"):
+            in_include_section = True
+            continue
+        if line.startswith("End of search list."):
+            break
 
-            if in_include_section:
-                path = line.strip()
-                args.append(f"-I{path}")
-
-    except Exception as e:
-        print(
-            f"Warning: Could not determine system include paths: {e}", file=sys.stderr
-        )
+        if in_include_section:
+            path = line.strip()
+            args.append(f"-I{path}")
 
     return args
 
 
-def mangle_identifier(name):
+def mangle_identifier(name: str) -> str:
+    """Mangle C++ identifiers (especially operators) for use in C++ code."""
     if name.startswith("operator"):
         op = name[len("operator") :].strip()
         mapping = {
@@ -112,7 +116,8 @@ def mangle_identifier(name):
     return re.sub(r"[^a-zA-Z0-9_]", "_", name)
 
 
-def main():
+def main() -> None:
+    """Parse interface and generate protocol header."""
     parser = argparse.ArgumentParser()
     parser.add_argument("input", help="Input header file")
     parser.add_argument("output", help="Output header file")
@@ -172,9 +177,14 @@ def main():
         c=target_class, method_guids=method_guids, header=args.header
     )
 
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    output_dir = os.path.dirname(args.output)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     with open(args.output, "w") as f:
         f.write(result)
+
+    # Format the output file using clang-format
+    subprocess.run(["clang-format", "-i", args.output], check=True)
 
 
 if __name__ == "__main__":

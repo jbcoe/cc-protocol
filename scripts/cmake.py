@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
+"""CMake helper script for building and testing the project."""
+
 import argparse
 import subprocess
+from typing import Any
 
 
-def main():
+def main() -> None:
+    """Execute the CMake build and test process based on command-line arguments."""
     parser = argparse.ArgumentParser(description="CMake helper script")
     parser.add_argument(
         "mode",
@@ -62,16 +66,17 @@ def main():
     }
     mode = mode_map[args.mode]
 
-    def log(msg):
+    def log(msg: Any) -> None:
         if args.verbose:
             print(msg)
 
+    manual_vtable_val = "ON" if args.manual_vtable else "OFF"
     # Configure step
     configure_args = [
         "cmake",
         "--preset",
         preset,
-        f"-DXYZ_PROTOCOL_GENERATE_MANUAL_VTABLE={'ON' if args.manual_vtable else 'OFF'}",
+        f"-DXYZ_PROTOCOL_GENERATE_MANUAL_VTABLE={manual_vtable_val}",
         f"-DENABLE_ASAN={'ON' if args.asan else 'OFF'}",
         f"-DENABLE_UBSAN={'ON' if args.ubsan else 'OFF'}",
         f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",
