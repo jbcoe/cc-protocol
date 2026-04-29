@@ -69,7 +69,7 @@ support for static structural typing through concepts, it lacks a corresponding
 mechanism for runtime abstractions. In practice, this gap is addressed through
 the widespread use of type-erasure.
 
-Standard librarie facilities such as `std::function`, `std::any`,
+Standard library facilities such as `std::function`, `std::any`,
 `std::ranges::any_view` and the many other type-erasure based solutions demonstrate
 that the need for dynamic structural interfaces is both real and recurring. However,
 these solutions are implemented in an ad-hoc manner, requiring significant boilerplate
@@ -106,8 +106,8 @@ so long as that type is a structural sub-type of `T`.
 
 Like `polymorphic`, `protocol` supports deep-copies, const propagation and
 custom allocators. Like `polymorphic`, `protocol` has a valueless state after
-after being moved from to allow move construction and move assignment without
-dynamic memory allocation.
+being moved from to allow move construction and move assignment without dynamic
+memory allocation.
 
 Where `polymorphic<T>` is owning, `T*`, or `const T*` can be used as a
 non-owning reference type. There is no base class to take a pointer to for
@@ -124,7 +124,7 @@ identical constexpr, noexcept and const-qualification.
 Unlike `polymorphic`, `protocol` and `protocol_view` do not provide `operator*`
 or `operator->` (or const-overloads) as there is no common base type to form a
 pointer or reference. Member functions from a `protocol` or `protocol_view` are
-generated so that the `protocol` or `protocol_view` is a valid stuctural subtype
+generated so that the `protocol` or `protocol_view` is a valid structural subtype
 and can be called with traditional `instance.member_function(args)` syntax.
 
 ```c++
@@ -137,7 +137,7 @@ struct I {
 ```
 
 We then generate a partial template specialization for `protocol` and
-template specialization for `protocol_view`.
+template specializations for `protocol_view`.
 
 ```c++
 template <typename Allocator>
@@ -205,7 +205,7 @@ class protocol<I, Allocator=std::allocator<void>> {
 ```
 
 ```c++
-template <typename Allocator>
+template <>
 class protocol_view<I> {
     // Constructor from any mutable conforming object.
     template <typename T>
@@ -232,7 +232,7 @@ class protocol_view<I> {
 ```
 
 ```c++
-template <typename Allocator>
+template <>
 class protocol_view<const I> {
     // Constructor from any const conforming object.
     template <typename T>
@@ -314,12 +314,12 @@ struct MutatingFunction {
 template <typename R, typename... Args>
 struct MoveOnlyMutatingFunction {
     // Deleted copy constructor and copy assignment.
-    MoveOnlyFunction(const MoveOnlyFunction&) = delete;
-    MoveOnlyFunction& operator=(const MoveOnlyFunction&) = delete;
+    MoveOnlyMutatingFunction(const MoveOnlyMutatingFunction&) = delete;
+    MoveOnlyMutatingFunction& operator=(const MoveOnlyMutatingFunction&) = delete;
 
     // Defaulted move constructor and move assignment.
-    MoveOnlyFunction(MoveOnlyFunction&&) = default;
-    MoveOnlyFunction& operator=(MoveOnlyFunction&&) = default;
+    MoveOnlyMutatingFunction(MoveOnlyMutatingFunction&&) = default;
+    MoveOnlyMutatingFunction& operator=(MoveOnlyMutatingFunction&&) = default;
 
     R operator()(Args&&... args);
 };
@@ -412,7 +412,7 @@ The table below summarises the main design choices side by side.
 
 This proposal is a library extension. It requires language support for code
 injection from static reflection and the addition of a new standard library
-header `<protocol>`."
+header `<protocol>`.
 
 ## Polls
 
@@ -443,11 +443,6 @@ properties required by this proposal.
 
 [P3086R4 Proxy]
 <https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p3086r5.html>
-
-[py_cppmodel] _Python wrappers for clang's parsing of C++ to simplify AST
-analysis_. <https://github.com/jbcoe/py_cppmodel>
-
-.html>
 
 [py_cppmodel] _Python wrappers for clang's parsing of C++ to simplify AST
 analysis_. <https://github.com/jbcoe/py_cppmodel>
