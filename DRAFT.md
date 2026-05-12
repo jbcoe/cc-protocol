@@ -43,6 +43,10 @@ and code injection and focuses solely on the design of the class templates
 
 ## History
 
+### Changes in revision R1
+
+TODO(jbcoe)
+
 ### Changes in revision R0
 
 - Initial revision.
@@ -137,13 +141,19 @@ struct I {
 ```
 
 We then generate a partial template specialization for `protocol` and
-template specialization for `protocol_view`.
+template specialization for `protocol_view`. 
+
+If the interface type `I` has deleted special member functions then the
+corresponding special member functions for `protocol` will not be generated.
+For `protocol_view`, the copy constructor, move constructor, copy assignment and 
+move assignment (and allocator-extended equivalents) are generated unconditionally.
 
 ```c++
 template <typename Allocator>
 class protocol<I, Allocator=std::allocator<void>> {
+
     // Default constructor.
-    explicit constexpr protocol();
+    explicit constexpr protocol(); // conditionally-generated
 
     // Constructor from any conforming value.
     template <class U>
@@ -159,13 +169,14 @@ class protocol<I, Allocator=std::allocator<void>> {
                                 std::initializer_list<J> ilist, Ts&&... ts);
 
     // Copy constructor.
-    constexpr protocol(const protocol& other);
+    constexpr protocol(const protocol& other);  // conditionally-generated
 
     // Move constructor.
-    constexpr protocol(protocol&& other) noexcept;
+    constexpr protocol(protocol&& other) noexcept;  // conditionally-generated
 
     // Allocator-extended default constructor.
-    explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc);
+    explicit constexpr protocol(std::allocator_arg_t, 
+                                const Allocator& alloc);  // conditionally-generated
 
     // Allocator-extended constructor from any conforming value.
     template <class U>
@@ -184,11 +195,11 @@ class protocol<I, Allocator=std::allocator<void>> {
 
     // Allocator-extended copy constructor.
     constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
-                       const protocol& other);
+                       const protocol& other);  // conditionally-generated
 
     // Allocator-extended move constructor.
     constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
-                       protocol&& other) noexcept;
+                       protocol&& other) noexcept;  // conditionally-generated
 
     // Destructor.
     ~protocol();
@@ -211,7 +222,7 @@ class protocol_view<I> {
     template <typename T>
     constexpr protocol_view(T& obj) noexcept;
 
-    // Construction from a rvalue conforming object is deleted.
+    // Construction from an rvalue conforming object is deleted.
     template <typename T>
     protocol_view(const T&&) = delete;
 
@@ -353,60 +364,99 @@ overload set. The table below is illustrative of how flexible `protocol` and
 
 `proxy` (P3086, implemented in `ngcpp/proxy`) occupies an overlapping region of
 the design space: both proposals provide type-erased, non-intrusive runtime
-polymorphism without requiring inheritance. The key differences are in interface
-definition, interaction semantics, and configurability.
+polymorphism without requiring inheritance.
 
-**Interface definition.** `protocol` defines an interface as a plain C++ struct
+#### Interface Definition
+
+`protocol` defines an interface as a C++ struct
 containing member-function declarations. The library (or compiler, given
-reflection) introspects the struct to synthesise the vtable. `proxy` instead
-requires the author to build a *Facade* explicitly using the
+reflection) introspects the struct to synthesise a vtable and forwarding member 
+functions. `proxy` requires the author to build a _Facade_ explicitly using the
 `pro::facade_builder` template, combining dispatch objects such as
 `pro::member_dispatch` with `add_convention` calls. The `protocol` approach is
 unobtrusive: any existing struct, including those in third-party headers, can
 serve as an interface without modification. The `proxy` approach gives the
 author precise control over dispatch conventions but couples the interface
-definition to library machinery.
+definition to library implementation details.
 
-**Interaction semantics.** `protocol` synthesises member functions directly on
-the wrapper, so callers use value syntax (`p.draw()`). `proxy` uses pointer
-semantics (`p->draw()`), deliberately reserving member functions on the wrapper
-itself for container utilities such as `has_value()`. The pointer-semantics
-choice avoids name collisions between container utilities and the erased type's
-methods; the value-semantics choice makes a `protocol<T>` a drop-in structural
-substitute for any type conforming to `T`.
+#### Interaction syntax
 
-**Facade configurability.** A `proxy` Facade encodes physical layout constraints
-(SBO size, trivial relocatability, copyability) directly in the type. This
+`protocol` synthesises member functions directly on
+the wrapper, so callers can call member functions directly: `p.draw()`. 
+`proxy` requires indirection: `p->draw()`. 
+Using `operator->` avoids potential name collisions with the erased type's
+methods; allowing direct member function calls makes a `protocol<T>` a 
+drop-in structural substitute for any type conforming to `T`.
+
+#### Layout constraints
+
+A `proxy` Facade encodes physical layout constraints directly in the type. This
 enables the compiler to apply `memcpy`-based relocation and to enforce specific
-memory budgets per interface. `protocol` uses a uniform container modelled after
-`polymorphic<T>` from P3019; any layout constraints would need to be expressed
-via attributes or type traits on the interface struct and interpreted by the
-code-generation step.
+memory budgets per interface. `protocol`, like `polymorphic` and `function`, does
+not prescribe any layout constraints and leaves details like small-buffer-optimization 
+to be determined by implementers.
+ 
+#### Subtype Substitution
 
-**Subtype substitution.** A `proxy<RichFacade>` can be implicitly converted to a
+A `proxy<RichFacade>` can be implicitly converted to a
 `proxy<LeanFacade>` when `RichFacade` explicitly includes `LeanFacade` via
 `add_facade`. Because `protocol` interfaces are plain, independent structs with
 no declared relationship, the same zero-overhead conversion is not available.
-Bridging two `protocol` specialisations without re-allocating the underlying
-object requires either RTTI or an augmented vtable; this is an area of ongoing
-design work.
 
-**Shared and weak ownership.** `proxy` confines itself to unique ownership and
-non-owning views. `protocol` similarly provides `protocol<T>` (owning) and
-`protocol_view<T>` (non-owning), and could in principle be extended with
-`protocol_shared<T>` and `protocol_weak<T>` analogous to `std::shared_ptr` and
-`std::weak_ptr` by layering a reference-counted control block over the same
-generated vtable.
+#### Ownership Erasure
+
+`protocol` is uniquely owning, `protocol_view` is non-owning.
+`proxy` can store any suitable pointer-like object and offers a 
+lifetime-independent interface where the lifetime of the pointer-like
+object is determined by the choice of pointer, not by `proxy`.
+`proxy_view` is, like `protocol_view`, non-owning.
+
+#### Summary table
 
 The table below summarises the main design choices side by side.
 
-| Aspect | `protocol` | `proxy` (P3086) |
+| Aspect | `protocol` | `proxy` |
 | :--- | :--- | :--- |
-| Interface definition | Plain C++ struct (unobtrusive) | `facade_builder` + dispatch objects (explicit) |
-| Interaction syntax | Value semantics: `p.draw()` | Pointer semantics: `p->draw()` |
-| Layout constraints | Uniform container (P3019 style) | Encoded in the Facade type |
-| Subtype substitution | Not directly supported | Implicit via `add_facade` |
-| Non-owning reference | `protocol_view<T>` | `pro::proxy_view<F>` |
+| Interface definition | C++ struct | `facade_builder` + dispatch objects (explicit) |
+| Interaction syntax | `p.draw()` | `p->draw()` |
+| Layout constraints | Implementation defined | Encoded in the Facade type |
+| Subtype substitution | Unsupported | Implicit via `add_facade` |
+| Ownership model | Explicit | Erased |
+
+### Design Alternatives
+
+We discuss design alternatives that were considered and why they were not adopted.
+
+#### Relaxed structural subtyping
+
+We require a type to have exactly matching function signatures as `I` to be considered a 
+conforming type for `protocol<I>`. Implicit conversions _could_ be allowed but this might 
+lead to odd chains of implicit-conversion-led conformance where an object can be passed 
+through a sequence of `protocol` (or `protocol_view`) objects to conform to the interface 
+of the last `protocol`. Where implicit conversions are unidirectional this may lead to 
+undesirable or surprising behaviour.
+
+With some suitably compelling motivation, conformance via implicit conversions could be 
+added to `protocol` in a later revision of the C++ standard without rendering existing code 
+ill-formed.
+
+#### Structure defined with concepts
+
+We use a struct rather than a concept to define the interface of the `protocol<I>`
+(and `protocol_view<I>`) specialization. A concept could be used but concepts are a more
+expert feature than is necessary to define a structural subtyping interface. 
+
+Internally, our reference implementation defines a concept from the interface struct to
+generate better compiler errors when non-conforming types are used.
+
+#### Equality and comparison operators
+
+We do not generate equality or comparison operators. If the interface struct `I` in 
+`protocol<I>` defines equality or comparsion operators as inline friends or member functions, 
+these are not generated for `protocol` or `protocol_view`.
+
+Equality or comparison operators are not part of the core functionality of `protocol` or 
+`protocol_view` but could be added in a later revision of the C++ standard.
 
 ## Impact on the Standard
 
@@ -417,6 +467,9 @@ header `<protocol>`."
 ## Polls
 
 - Should we work to standardize `protocol` and `protocol_view`?
+
+- Is implementing something _like_ `protocol` and `protocol_view`, their design 
+  details aside, something that we would like C++ reflection to be able to do?
 
 ## Reference Implementation
 
