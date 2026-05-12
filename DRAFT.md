@@ -2,11 +2,11 @@
 
 ISO/IEC JTC1 SC22 WG21 Programming Language C++
 
-P4148R0
+P4148R1
 
 Working Group: Library Evolution, Library
 
-Date: 2026-04-20
+Date: 2026-05-12
 
 _Jonathan Coe \<<jonathanbcoe@gmail.com>\>_
 
@@ -45,7 +45,10 @@ and code injection and focuses solely on the design of the class templates
 
 ### Changes in revision R1
 
-TODO(jbcoe)
+- Clarify special member function generation for `protocol` and `protocol_view`.
+- Refine comparison with `std::proxy` (P3086).
+- Add design alternatives section (relaxed structural subtyping, concepts, comparison operators).
+- Add poll on reflection-based library features.
 
 ### Changes in revision R0
 
