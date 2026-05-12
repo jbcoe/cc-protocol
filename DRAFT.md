@@ -128,7 +128,7 @@ identical constexpr, noexcept and const-qualification.
 Unlike `polymorphic`, `protocol` and `protocol_view` do not provide `operator*`
 or `operator->` (or const-overloads) as there is no common base type to form a
 pointer or reference. Member functions from a `protocol` or `protocol_view` are
-generated so that the `protocol` or `protocol_view` is a valid stuctural subtype
+generated so that the `protocol` or `protocol_view` is a valid structural subtype
 and can be called with traditional `instance.member_function(args)` syntax.
 
 ```c++
@@ -141,11 +141,11 @@ struct I {
 ```
 
 We then generate a partial template specialization for `protocol` and
-template specialization for `protocol_view`. 
+template specialization for `protocol_view`.
 
-If the interface type `I` has deleted special member functions then the
+If the interface type `I` has deleted special member functions, then the
 corresponding special member functions for `protocol` will not be generated.
-For `protocol_view`, the copy constructor, move constructor, copy assignment and 
+For `protocol_view`, the copy constructor, move constructor, copy assignment and
 move assignment (and allocator-extended equivalents) are generated unconditionally.
 
 ```c++
@@ -175,7 +175,7 @@ class protocol<I, Allocator=std::allocator<void>> {
     constexpr protocol(protocol&& other) noexcept;  // conditionally-generated
 
     // Allocator-extended default constructor.
-    explicit constexpr protocol(std::allocator_arg_t, 
+    explicit constexpr protocol(std::allocator_arg_t,
                                 const Allocator& alloc);  // conditionally-generated
 
     // Allocator-extended constructor from any conforming value.
@@ -370,7 +370,7 @@ polymorphism without requiring inheritance.
 
 `protocol` defines an interface as a C++ struct
 containing member-function declarations. The library (or compiler, given
-reflection) introspects the struct to synthesise a vtable and forwarding member 
+reflection) introspects the struct to synthesise a vtable and forwarding member
 functions. `proxy` requires the author to build a _Facade_ explicitly using the
 `pro::facade_builder` template, combining dispatch objects such as
 `pro::member_dispatch` with `add_convention` calls. The `protocol` approach is
@@ -382,10 +382,10 @@ definition to library implementation details.
 #### Interaction syntax
 
 `protocol` synthesises member functions directly on
-the wrapper, so callers can call member functions directly: `p.draw()`. 
-`proxy` requires indirection: `p->draw()`. 
+the wrapper, so callers can call member functions directly: `p.draw()`.
+`proxy` requires indirection: `p->draw()`.
 Using `operator->` avoids potential name collisions with the erased type's
-methods; allowing direct member function calls makes a `protocol<T>` a 
+methods; allowing direct member function calls makes a `protocol<T>` a
 drop-in structural substitute for any type conforming to `T`.
 
 #### Layout constraints
@@ -393,9 +393,9 @@ drop-in structural substitute for any type conforming to `T`.
 A `proxy` Facade encodes physical layout constraints directly in the type. This
 enables the compiler to apply `memcpy`-based relocation and to enforce specific
 memory budgets per interface. `protocol`, like `polymorphic` and `function`, does
-not prescribe any layout constraints and leaves details like small-buffer-optimization 
+not prescribe any layout constraints and leaves details like small-buffer-optimization
 to be determined by implementers.
- 
+
 #### Subtype Substitution
 
 A `proxy<RichFacade>` can be implicitly converted to a
@@ -406,7 +406,7 @@ no declared relationship, the same zero-overhead conversion is not available.
 #### Ownership Erasure
 
 `protocol` is uniquely owning, `protocol_view` is non-owning.
-`proxy` can store any suitable pointer-like object and offers a 
+`proxy` can store any suitable pointer-like object and offers a
 lifetime-independent interface where the lifetime of the pointer-like
 object is determined by the choice of pointer, not by `proxy`.
 `proxy_view` is, like `protocol_view`, non-owning.
@@ -429,33 +429,33 @@ We discuss design alternatives that were considered and why they were not adopte
 
 #### Relaxed structural subtyping
 
-We require a type to have exactly matching function signatures as `I` to be considered a 
-conforming type for `protocol<I>`. Implicit conversions _could_ be allowed but this might 
-lead to odd chains of implicit-conversion-led conformance where an object can be passed 
-through a sequence of `protocol` (or `protocol_view`) objects to conform to the interface 
-of the last `protocol`. Where implicit conversions are unidirectional this may lead to 
+We require a type to have exactly matching function signatures as `I` to be considered a
+conforming type for `protocol<I>`. Implicit conversions _could_ be allowed but this might
+lead to odd chains of implicit-conversion-led conformance where an object can be passed
+through a sequence of `protocol` (or `protocol_view`) objects to conform to the interface
+of the last `protocol`. Where implicit conversions are unidirectional this may lead to
 undesirable or surprising behaviour.
 
-With some suitably compelling motivation, conformance via implicit conversions could be 
-added to `protocol` in a later revision of the C++ standard without rendering existing code 
+With some suitably compelling motivation, conformance via implicit conversions could be
+added to `protocol` in a later revision of the C++ standard without rendering existing code
 ill-formed.
 
 #### Structure defined with concepts
 
 We use a struct rather than a concept to define the interface of the `protocol<I>`
 (and `protocol_view<I>`) specialization. A concept could be used but concepts are a more
-expert feature than is necessary to define a structural subtyping interface. 
+expert feature than is necessary to define a structural subtyping interface.
 
 Internally, our reference implementation defines a concept from the interface struct to
 generate better compiler errors when non-conforming types are used.
 
 #### Equality and comparison operators
 
-We do not generate equality or comparison operators. If the interface struct `I` in 
-`protocol<I>` defines equality or comparsion operators as inline friends or member functions, 
+We do not generate equality or comparison operators. If the interface struct `I` in
+`protocol<I>` defines equality or comparison operators as inline friends or member functions,
 these are not generated for `protocol` or `protocol_view`.
 
-Equality or comparison operators are not part of the core functionality of `protocol` or 
+Equality or comparison operators are not part of the core functionality of `protocol` or
 `protocol_view` but could be added in a later revision of the C++ standard.
 
 ## Impact on the Standard
@@ -468,7 +468,7 @@ header `<protocol>`."
 
 - Should we work to standardize `protocol` and `protocol_view`?
 
-- Is implementing something _like_ `protocol` and `protocol_view`, their design 
+- Is implementing something _like_ `protocol` and `protocol_view`, their design
   details aside, something that we would like C++ reflection to be able to do?
 
 ## Reference Implementation
