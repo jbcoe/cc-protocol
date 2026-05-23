@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Script to run an AI agent (Gemini CLI or Claude Code) in a Docker sandbox."""
+"""
+Script to run an AI agent in a Docker sandbox.
+
+Supported agents: Gemini CLI, Claude Code, Antigravity CLI.
+"""
 
 import argparse
 import os
@@ -26,11 +30,12 @@ def _seed_config_file(path: str, content: bytes) -> None:
 def main() -> None:
     """Provide the main entry point for the agentic sandbox script."""
     parser = argparse.ArgumentParser(
-        description="Run an AI agent (gemini or claude) in a Docker sandbox."
+        description="Run an AI agent (gemini, claude, or antigravity)"
+        " in a Docker sandbox."
     )
     parser.add_argument(
         "agent",
-        choices=["gemini", "claude"],
+        choices=["gemini", "claude", "antigravity"],
         help="AI agent to run inside the sandbox.",
     )
     parser.add_argument(
@@ -86,16 +91,25 @@ def main() -> None:
     if args.agent == "gemini":
         npm_package = "@google/gemini-cli"
         agent_cmd = "gemini"
+    elif args.agent == "antigravity":
+        npm_package = None
+        agent_cmd = "agy"
     else:
         npm_package = "@anthropic-ai/claude-code"
         agent_cmd = "claude --dangerously-skip-permissions"
 
     if args.update:
-        container_cmd = (
-            f"export NPM_CONFIG_PREFIX=~/.npm-global && "
-            f"export PATH=~/.npm-global/bin:$PATH && "
-            f"npm install -g {npm_package}@latest && {agent_cmd}"
-        )
+        if args.agent == "antigravity":
+            container_cmd = (
+                "curl -fsSL https://antigravity.google/cli/install.sh | bash && "
+                f"{agent_cmd}"
+            )
+        else:
+            container_cmd = (
+                f"export NPM_CONFIG_PREFIX=~/.npm-global && "
+                f"export PATH=~/.npm-global/bin:$PATH && "
+                f"npm install -g {npm_package}@latest && {agent_cmd}"
+            )
     else:
         container_cmd = agent_cmd
 
@@ -108,7 +122,7 @@ def main() -> None:
         f"{project_root}:/workspace",
     ]
 
-    if args.agent == "gemini":
+    if args.agent in ("gemini", "antigravity"):
         gemini_config_dir = os.path.expanduser("~/.gemini")
         os.makedirs(gemini_config_dir, mode=0o700, exist_ok=True)
         # Seed default config files if missing so they are accessible inside the
