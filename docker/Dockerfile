@@ -55,6 +55,9 @@ RUN mkdir -p /home/vscode/.npm-global
 # may invoke either `gemini` or `claude`.
 RUN npm install -g @google/gemini-cli @anthropic-ai/claude-code
 
+# Install Antigravity CLI (installs binary as `agy` into ~/.local/bin).
+RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
+
 # Set up uv and Python environment.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
