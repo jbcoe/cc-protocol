@@ -113,7 +113,7 @@ so long as that type is a structural sub-type of `T`.
 
 Like `polymorphic`, `protocol` supports deep-copies, const propagation and
 custom allocators. Like `polymorphic`, `protocol` has a valueless state after
-being moved from to allow move construction and move assignment without 
+being moved from to allow move construction and move assignment without
 dynamic memory allocation.
 
 Where `polymorphic<T>` is owning, `T*`, or `const T*` can be used as a
