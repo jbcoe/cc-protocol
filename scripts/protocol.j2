@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <initializer_list>
 #include <memory>
-#include <new>
 #include <type_traits>
 #include <utility>
 
@@ -52,36 +51,23 @@ concept protocol_concept_{{ c.name }} = protocol_const_concept_{{ c.name }}<T>{%
 {% endfor %}
 }{% endif %};
 
-class protocol_view_const_cb_{{ c.name }} {
- public:
-  constexpr virtual ~protocol_view_const_cb_{{ c.name }}() = default;
+struct const_view_vtable_{{ c.name }} {
 {% for m in c.methods %}{% if m.is_const %}
   {% set params = [] %}
-  {% for a in m.arguments %}{% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}{% endfor %}
+  {% for a in m.arguments %}{% set _ = params.append(a.type.name) %}{% endfor %}
   {% set params_str = params | join(", ") %}
-  virtual {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
+  {{ m.return_type.name }} (*{{ m.name | mangle }}_{{ method_guids[loop.index0] }})(const void* ptr{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %};
 {% endif %}{% endfor %}
 };
 
-class protocol_view_cb_{{ c.name }} : public protocol_view_const_cb_{{ c.name }} {
- public:
-{% for m in c.methods %}{% if m.is_const %}
-  using protocol_view_const_cb_{{ c.name }}::{{ m.name | mangle }}_{{ method_guids[loop.index0] }};
-{% endif %}{% endfor %}
-{% for m in c.methods %}{% if not m.is_const %}
-  {% set params = [] %}
-  {% for a in m.arguments %}{% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}{% endfor %}
-  {% set params_str = params | join(", ") %}
-  virtual {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} = 0;
-{% endif %}{% endfor %}
-};
+{% set const_methods = [] %}
+{% set const_method_indices = [] %}
+{% for m in c.methods %}{% if m.is_const %}{% set _ = const_methods.append(m) %}{% set _ = const_method_indices.append(loop.index0) %}{% endif %}{% endfor %}
 
 template <typename T>
-class protocol_view_dcb_{{ c.name }} : public protocol_view_cb_{{ c.name }} {
- public:
-  constexpr protocol_view_dcb_{{ c.name }}() = default;
-  constexpr ~protocol_view_dcb_{{ c.name }}() override = default;
-{% for m in c.methods %}
+inline constexpr const_view_vtable_{{ c.name }} const_view_vtable_{{ c.name }}_for = {
+{% for m in const_methods %}
+  {% set i = const_method_indices[loop.index0] %}
   {% set params = [] %}
   {% set passes = [] %}
   {% for a in m.arguments %}
@@ -90,27 +76,31 @@ class protocol_view_dcb_{{ c.name }} : public protocol_view_cb_{{ c.name }} {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {% if m.is_const %}
-  {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
+  [](const void* ptr{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} -> {{ m.return_type.name }} {
     {% if m.return_type.name != 'void' %}return {% endif %}static_cast<const T*>(ptr)->{{ m.name }}({{ passes_str }});
-  }
-  {% else %}
-  {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}(void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
-    {% if m.return_type.name != 'void' %}return {% endif %}static_cast<T*>(ptr)->{{ m.name }}({{ passes_str }});
-  }
-  {% endif %}
+  }{% if not loop.last %},{% endif %}
 {% endfor %}
 };
 
-template <typename T>
-inline constexpr protocol_view_dcb_{{ c.name }}<T> protocol_view_dcb_{{ c.name }}_inst{};
+struct view_vtable_{{ c.name }} {
+  const_view_vtable_{{ c.name }} const_view;
+{% for m in c.methods %}{% if not m.is_const %}
+  {% set params = [] %}
+  {% for a in m.arguments %}{% set _ = params.append(a.type.name) %}{% endfor %}
+  {% set params_str = params | join(", ") %}
+  {{ m.return_type.name }} (*{{ m.name | mangle }}_{{ method_guids[loop.index0] }})(void* ptr{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %};
+{% endif %}{% endfor %}
+};
+
+{% set non_const_methods = [] %}
+{% set non_const_method_indices = [] %}
+{% for m in c.methods %}{% if not m.is_const %}{% set _ = non_const_methods.append(m) %}{% set _ = non_const_method_indices.append(loop.index0) %}{% endif %}{% endfor %}
 
 template <typename T>
-class protocol_view_const_dcb_{{ c.name }} final : public protocol_view_const_cb_{{ c.name }} {
- public:
-  constexpr protocol_view_const_dcb_{{ c.name }}() = default;
-  constexpr ~protocol_view_const_dcb_{{ c.name }}() override = default;
-{% for m in c.methods %}{% if m.is_const %}
+inline constexpr view_vtable_{{ c.name }} view_vtable_{{ c.name }}_for = {
+    const_view_vtable_{{ c.name }}_for<T>{% if non_const_methods %},{% endif %}
+{% for m in non_const_methods %}
+  {% set i = non_const_method_indices[loop.index0] %}
   {% set params = [] %}
   {% set passes = [] %}
   {% for a in m.arguments %}
@@ -119,108 +109,71 @@ class protocol_view_const_dcb_{{ c.name }} final : public protocol_view_const_cb
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}(const void* ptr{% if params %}, {% endif %}{{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} override {
-    {% if m.return_type.name != 'void' %}return {% endif %}static_cast<const T*>(ptr)->{{ m.name }}({{ passes_str }});
-  }
-{% endif %}{% endfor %}
+  [](void* ptr{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} -> {{ m.return_type.name }} {
+    {% if m.return_type.name != 'void' %}return {% endif %}static_cast<T*>(ptr)->{{ m.name }}({{ passes_str }});
+  }{% if not loop.last %},{% endif %}
+{% endfor %}
 };
-
-template <typename T>
-inline constexpr protocol_view_const_dcb_{{ c.name }}<T> protocol_view_const_dcb_{{ c.name }}_inst{};
 
 template <typename Allocator>
 class protocol<{{ full_class_name }}, Allocator> {
   friend class protocol_view<{{ full_class_name }}>;
   friend class protocol_view<const {{ full_class_name }}>;
 
-  class control_block {
-   public:
-    virtual control_block* xyz_protocol_clone(const Allocator& alloc) = 0;
-    virtual control_block* xyz_protocol_move(const Allocator& alloc) = 0;
-    virtual void xyz_protocol_destroy(const Allocator& alloc) = 0;
-    virtual const void* xyz_protocol_get_ptr() const = 0;
-    virtual void* xyz_protocol_get_mutable_ptr() = 0;
-    virtual const protocol_view_cb_{{ c.name }}* xyz_protocol_as_view_cb() const = 0;
-
-   public:
+  struct vtable {
+    void* (*xyz_protocol_clone)(void* cb, const Allocator& alloc);
+    void* (*xyz_protocol_move)(void* cb, const Allocator& alloc);
+    void (*xyz_protocol_destroy)(void* cb, const Allocator& alloc);
+    const view_vtable_{{ c.name }}* view_vt;
 {% for m in c.methods %}
   {% set params = [] %}
   {% for a in m.arguments %}
-    {% set _ = params.append(a.type.name ~ " a" ~ loop.index0) %}
+    {% set _ = params.append(a.type.name) %}
   {% endfor %}
   {% set params_str = params | join(", ") %}
-    virtual {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} = 0;
+    {{ m.return_type.name }} (*{{ m.name | mangle }}_{{ method_guids[loop.index0] }})(void* cb{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %};
 {% endfor %}
   };
 
   template <typename T>
-  class direct_control_block final : public control_block,
-                                     public protocol_view_dcb_{{ c.name }}<T> {
-    union uninitialized_storage {
-      T t_;
-      constexpr uninitialized_storage() {}
-      constexpr ~uninitialized_storage() {}
-    } storage_;
+  struct vtable_impl {
+    using t_allocator = typename std::allocator_traits<
+        Allocator>::template rebind_alloc<T>;
+    using t_alloc_traits = std::allocator_traits<t_allocator>;
 
-    using cb_allocator = typename std::allocator_traits<
-        Allocator>::template rebind_alloc<direct_control_block<T>>;
-    using cb_alloc_traits = std::allocator_traits<cb_allocator>;
-
-   public:
-{% for m in c.methods %}
-    using protocol_view_dcb_{{ c.name }}<T>::{{ m.name | mangle }}_{{ method_guids[loop.index0] }};
-{% endfor %}
-    template <class... Ts>
-    constexpr direct_control_block(const Allocator& alloc, Ts&&... ts) {
-      cb_allocator cb_alloc(alloc);
-      cb_alloc_traits::construct(cb_alloc, std::addressof(storage_.t_),
-                                 std::forward<Ts>(ts)...);
-    }
-
-    control_block* xyz_protocol_clone(const Allocator& alloc) override {
-      cb_allocator cb_alloc(alloc);
-      auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
+    static void* xyz_protocol_clone(void* cb, const Allocator& alloc) {
+      auto* self = static_cast<T*>(cb);
+      t_allocator t_alloc(alloc);
+      auto mem = t_alloc_traits::allocate(t_alloc, 1);
       try {
-        cb_alloc_traits::construct(cb_alloc, mem, alloc, storage_.t_);
+        t_alloc_traits::construct(t_alloc, mem, *self);
         return mem;
       } catch (...) {
-        cb_alloc_traits::deallocate(cb_alloc, mem, 1);
+        t_alloc_traits::deallocate(t_alloc, mem, 1);
         throw;
       }
     }
 
-    control_block* xyz_protocol_move(const Allocator& alloc) override {
-      cb_allocator cb_alloc(alloc);
-      auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
+    static void* xyz_protocol_move(void* cb, const Allocator& alloc) {
+      auto* self = static_cast<T*>(cb);
+      t_allocator t_alloc(alloc);
+      auto mem = t_alloc_traits::allocate(t_alloc, 1);
       try {
-        cb_alloc_traits::construct(cb_alloc, mem, alloc,
-                                   std::move(storage_.t_));
+        t_alloc_traits::construct(t_alloc, mem, std::move(*self));
         return mem;
       } catch (...) {
-        cb_alloc_traits::deallocate(cb_alloc, mem, 1);
+        t_alloc_traits::deallocate(t_alloc, mem, 1);
         throw;
       }
     }
 
-    void xyz_protocol_destroy(const Allocator& alloc) override {
-      cb_allocator cb_alloc(alloc);
-      cb_alloc_traits::destroy(cb_alloc, std::addressof(storage_.t_));
-      cb_alloc_traits::deallocate(cb_alloc, this, 1);
+    static void xyz_protocol_destroy(void* cb, const Allocator& alloc) {
+      auto* self = static_cast<T*>(cb);
+      t_allocator t_alloc(alloc);
+      t_alloc_traits::destroy(t_alloc, self);
+      t_alloc_traits::deallocate(t_alloc, self, 1);
     }
 
-    const void* xyz_protocol_get_ptr() const override {
-      return std::addressof(storage_.t_);
-    }
-
-    void* xyz_protocol_get_mutable_ptr() override {
-      return std::addressof(storage_.t_);
-    }
-
-    const protocol_view_cb_{{ c.name }}* xyz_protocol_as_view_cb() const override {
-      return this;
-    }
-
-   public:
 {% for m in c.methods %}
   {% set params = [] %}
   {% set passes = [] %}
@@ -231,34 +184,51 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
   {% if m.return_type.name == 'void' %}
-    {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} override { storage_.t_.{{ m.name }}({{ passes_str }}); }
+    static {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} {
+      auto* self = static_cast<T*>(cb);
+      self->{{ m.name }}({{ passes_str }});
+    }
   {% else %}
-    {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} override { return storage_.t_.{{ m.name }}({{ passes_str }}); }
+    static {{ m.return_type.name }} {{ m.name | mangle }}_{{ method_guids[loop.index0] }}(void* cb{% if params %}, {% endif %}{{ params_str }}){% if m.is_noexcept %} noexcept{% endif %} {
+      auto* self = static_cast<T*>(cb);
+      return self->{{ m.name }}({{ passes_str }});
+    }
   {% endif %}
 {% endfor %}
+
+    static constexpr vtable vtable_ = {
+      xyz_protocol_clone,
+      xyz_protocol_move,
+      xyz_protocol_destroy,
+      &view_vtable_{{ c.name }}_for<T>,
+{% for m in c.methods %}
+      {{ m.name | mangle }}_{{ method_guids[loop.index0] }}{% if not loop.last %},{% endif %}
+{% endfor %}
+    };
   };
 
   using allocator_traits = std::allocator_traits<Allocator>;
 
   template <class U, class... Ts>
-  [[nodiscard]] constexpr control_block* create_control_block(
+  [[nodiscard]] constexpr void* create_storage(
       Ts&&... ts) const {
-    using cb_allocator = typename std::allocator_traits<
-        Allocator>::template rebind_alloc<direct_control_block<U>>;
-    cb_allocator cb_alloc(alloc_);
-    using cb_alloc_traits = std::allocator_traits<cb_allocator>;
-    auto mem = cb_alloc_traits::allocate(cb_alloc, 1);
+    using t_allocator = typename std::allocator_traits<
+        Allocator>::template rebind_alloc<U>;
+    t_allocator t_alloc(alloc_);
+    using t_alloc_traits = std::allocator_traits<t_allocator>;
+    auto mem = t_alloc_traits::allocate(t_alloc, 1);
     try {
-      cb_alloc_traits::construct(cb_alloc, mem, alloc_,
+      t_alloc_traits::construct(t_alloc, mem,
                                  std::forward<Ts>(ts)...);
       return mem;
     } catch (...) {
-      cb_alloc_traits::deallocate(cb_alloc, mem, 1);
+      t_alloc_traits::deallocate(t_alloc, mem, 1);
       throw;
     }
   }
 
-  control_block* cb_;
+  void* cb_;
+  const vtable* vtable_;
   [[no_unique_address]] Allocator alloc_;
 
  public:
@@ -306,7 +276,8 @@ class protocol<{{ full_class_name }}, Allocator> {
   explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc)
     requires std::default_initializable<{{ full_class_name }}> && std::copy_constructible<{{ full_class_name }}>
       : alloc_(alloc) {
-    cb_ = create_control_block<{{ full_class_name }}>();
+    cb_ = create_storage<{{ full_class_name }}>();
+    vtable_ = &vtable_impl<{{ full_class_name }}>::vtable_;
   }
 
   template <class U>
@@ -316,7 +287,8 @@ class protocol<{{ full_class_name }}, Allocator> {
             std::copy_constructible<std::remove_cvref_t<U>> &&
             protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
-    cb_ = create_control_block<std::remove_cvref_t<U>>(std::forward<U>(u));
+    cb_ = create_storage<std::remove_cvref_t<U>>(std::forward<U>(u));
+    vtable_ = &vtable_impl<std::remove_cvref_t<U>>::vtable_;
   }
 
   template <class U, class... Ts>
@@ -326,7 +298,8 @@ class protocol<{{ full_class_name }}, Allocator> {
              std::constructible_from<U, Ts&&...> &&
              std::copy_constructible<U> && protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
-    cb_ = create_control_block<U>(std::forward<Ts>(ts)...);
+    cb_ = create_storage<U>(std::forward<Ts>(ts)...);
+    vtable_ = &vtable_impl<U>::vtable_;
   }
 
   template <class U, class I, class... Ts>
@@ -337,16 +310,19 @@ class protocol<{{ full_class_name }}, Allocator> {
              std::constructible_from<U, std::initializer_list<I>, Ts&&...> &&
              std::copy_constructible<U> && protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
-    cb_ = create_control_block<U>(ilist, std::forward<Ts>(ts)...);
+    cb_ = create_storage<U>(ilist, std::forward<Ts>(ts)...);
+    vtable_ = &vtable_impl<U>::vtable_;
   }
 
   constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
                        const protocol& other)
       : alloc_(alloc) {
     if (!other.valueless_after_move()) {
-      cb_ = other.cb_->xyz_protocol_clone(alloc_);
+      cb_ = other.vtable_->xyz_protocol_clone(other.cb_, alloc_);
+      vtable_ = other.vtable_;
     } else {
       cb_ = nullptr;
+      vtable_ = nullptr;
     }
   }
 
@@ -356,14 +332,18 @@ class protocol<{{ full_class_name }}, Allocator> {
       : alloc_(alloc) {
     if constexpr (allocator_traits::is_always_equal::value) {
       cb_ = std::exchange(other.cb_, nullptr);
+      vtable_ = std::exchange(other.vtable_, nullptr);
     } else {
       if (alloc_ == other.alloc_) {
         cb_ = std::exchange(other.cb_, nullptr);
+        vtable_ = std::exchange(other.vtable_, nullptr);
       } else {
         if (!other.valueless_after_move()) {
-          cb_ = other.cb_->xyz_protocol_move(alloc_);
+          cb_ = other.vtable_->xyz_protocol_move(other.cb_, alloc_);
+          vtable_ = other.vtable_;
         } else {
           cb_ = nullptr;
+          vtable_ = nullptr;
         }
       }
     }
@@ -375,13 +355,14 @@ class protocol<{{ full_class_name }}, Allocator> {
 
   ~protocol() {
     if (cb_ != nullptr) {
-      cb_->xyz_protocol_destroy(alloc_);
+      vtable_->xyz_protocol_destroy(cb_, alloc_);
     }
   }
 
   protocol& operator=(protocol other) noexcept(
       allocator_traits::is_always_equal::value) {
     std::swap(cb_, other.cb_);
+    std::swap(vtable_, other.vtable_);
     if constexpr (!allocator_traits::is_always_equal::value) {
       std::swap(alloc_, other.alloc_);
     }
@@ -391,6 +372,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   void swap(protocol& other) noexcept(
       allocator_traits::is_always_equal::value) {
     std::swap(cb_, other.cb_);
+    std::swap(vtable_, other.vtable_);
     if constexpr (!allocator_traits::is_always_equal::value) {
       std::swap(alloc_, other.alloc_);
     }
@@ -411,7 +393,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} { return cb_->{{ m.name | mangle }}_{{ method_guids[loop.index0] }}({{ passes_str }}); }
+  {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} { return vtable_->{{ m.name | mangle }}_{{ method_guids[loop.index0] }}(cb_{% if passes %}, {% endif %}{{ passes_str }}); }
 {% endfor %}
 
 };
@@ -421,17 +403,17 @@ class protocol_view<const {{ full_class_name }}> {
   friend class protocol_view<{{ full_class_name }}>;
 
   const void* ptr_;
-  const protocol_view_const_cb_{{ c.name }}* cb_;
+  const const_view_vtable_{{ c.name }}* vptr_;
 
   constexpr protocol_view(const void* ptr,
-                           const protocol_view_const_cb_{{ c.name }}* cb) noexcept
-      : ptr_(ptr), cb_(cb) {}
+                           const const_view_vtable_{{ c.name }}* vptr) noexcept
+      : ptr_(ptr), vptr_(vptr) {}
 
   template <typename Alloc>
   static const void* checked_ptr(
       const protocol<{{ full_class_name }}, Alloc>& p) noexcept {
     assert(!p.valueless_after_move());
-    return p.cb_->xyz_protocol_get_ptr();
+    return p.cb_;
   }
 
  public:
@@ -441,7 +423,7 @@ class protocol_view<const {{ full_class_name }}> {
              (!std::same_as<std::remove_cvref_t<T>, protocol_view<const {{ full_class_name }}> >)
   constexpr protocol_view(const T& obj) noexcept
       : ptr_(std::addressof(obj)),
-        cb_(&protocol_view_const_dcb_{{ c.name }}_inst<std::remove_cvref_t<T>>) {}
+        vptr_(&const_view_vtable_{{ c.name }}_for<std::remove_cvref_t<T>>) {}
 
   template <typename T>
     requires protocol_const_concept_{{ c.name }}<T> &&
@@ -452,7 +434,7 @@ class protocol_view<const {{ full_class_name }}> {
   template <typename Alloc>
   protocol_view(const protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),
-        cb_(p.cb_->xyz_protocol_as_view_cb()) {}
+        vptr_(&p.vtable_->view_vt->const_view) {}
 
   template <typename Alloc>
   protocol_view(const protocol<{{ full_class_name }}, Alloc>&&) = delete;
@@ -460,7 +442,7 @@ class protocol_view<const {{ full_class_name }}> {
   template <typename Alloc>
   protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),
-        cb_(p.cb_->xyz_protocol_as_view_cb()) {}
+        vptr_(&p.vtable_->view_vt->const_view) {}
 
 {% for m in c.methods %}{% if m.is_const %}
   {% set params = [] %}
@@ -472,7 +454,7 @@ class protocol_view<const {{ full_class_name }}> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
   {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
-    {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name | mangle }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
+    {% if m.return_type.name != 'void' %}return {% endif %}vptr_->{{ m.name | mangle }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
   }
 {% endif %}{% endfor %}
 };
@@ -480,12 +462,12 @@ class protocol_view<const {{ full_class_name }}> {
 template <>
 class protocol_view<{{ full_class_name }}> {
   void* ptr_;
-  const protocol_view_cb_{{ c.name }}* cb_;
+  const view_vtable_{{ c.name }}* vptr_;
 
   template <typename Alloc>
   static void* checked_ptr(protocol<{{ full_class_name }}, Alloc>& p) noexcept {
     assert(!p.valueless_after_move());
-    return p.cb_->xyz_protocol_get_mutable_ptr();
+    return p.cb_;
   }
 
  public:
@@ -495,15 +477,15 @@ class protocol_view<{{ full_class_name }}> {
              (!std::same_as<std::remove_cvref_t<T>, protocol_view<const {{ full_class_name }}> >)
   constexpr protocol_view(T& obj) noexcept
       : ptr_(std::addressof(obj)),
-        cb_(&protocol_view_dcb_{{ c.name }}_inst<std::remove_cvref_t<T>>) {}
+        vptr_(&view_vtable_{{ c.name }}_for<std::remove_cvref_t<T>>) {}
 
   template <typename Alloc>
   protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),
-        cb_(p.cb_->xyz_protocol_as_view_cb()) {}
+        vptr_(p.vtable_->view_vt) {}
 
   constexpr operator protocol_view<const {{ full_class_name }}>() const noexcept {
-    return protocol_view<const {{ full_class_name }}>{static_cast<const void*>(ptr_), cb_};
+    return protocol_view<const {{ full_class_name }}>{static_cast<const void*>(ptr_), &vptr_->const_view};
   }
 
 {% for m in c.methods %}
@@ -516,7 +498,11 @@ class protocol_view<{{ full_class_name }}> {
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
   {{ m.return_type.name }} {{ m.name }}({{ params_str }}) const{% if m.is_noexcept %} noexcept{% endif %} {
-    {% if m.return_type.name != 'void' %}return {% endif %}cb_->{{ m.name | mangle }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
+    {% if m.is_const %}
+    {% if m.return_type.name != 'void' %}return {% endif %}vptr_->const_view.{{ m.name | mangle }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
+    {% else %}
+    {% if m.return_type.name != 'void' %}return {% endif %}vptr_->{{ m.name | mangle }}_{{ method_guids[loop.index0] }}(ptr_{% if passes %}, {% endif %}{{ passes_str }});
+    {% endif %}
   }
 {% endfor %}
 };

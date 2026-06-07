@@ -109,14 +109,6 @@ The `xyz_generate_protocol` CMake macro automates code generation and supports e
       OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_MyInterface.h"
   )
 
-  # Generate explicit manual vtable-based protocol
-  xyz_generate_protocol(
-      CLASS_NAME MyInterface_manual
-      INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/MyInterface.h"
-      HEADER "MyInterface.h"
-      OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_MyInterface_manual.h"
-      MANUAL_VTABLE
-  )
   ```
 
   This macro ensures that the Python script runs during the CMake configuration
@@ -124,10 +116,10 @@ The `xyz_generate_protocol` CMake macro automates code generation and supports e
 
 ## Performance and Benchmarks
 
-The project builds both the standard virtual-dispatch protocol and the explicit `MANUAL_VTABLE` protocol implementation alongside each other to ensure behavior matches. You can directly compare the performance of member function dispatch, copying, and moving by running the `protocol_benchmark` target via the wrapper script:
+You can measure the performance of member function dispatch, copying, and moving by running the `protocol_benchmark` target via the wrapper script:
 
 ```bash
-./scripts/cmake.sh --benchmark
+./scripts/cmake.sh benchmark
 ```
 
 ## Usage Examples

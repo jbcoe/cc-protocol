@@ -31,11 +31,6 @@ def main() -> None:
         const="Release",
         help="Use Release preset (default)",
     )
-    parser.add_argument(
-        "--manual-vtable",
-        action="store_true",
-        help="Set XYZ_PROTOCOL_GENERATE_MANUAL_VTABLE=ON",
-    )
     parser.add_argument("--asan", action="store_true", help="Enable Address Sanitizer")
     parser.add_argument(
         "--ubsan", action="store_true", help="Enable Undefined Behaviour Sanitizer"
@@ -70,13 +65,11 @@ def main() -> None:
         if args.verbose:
             print(msg)
 
-    manual_vtable_val = "ON" if args.manual_vtable else "OFF"
     # Configure step
     configure_args = [
         "cmake",
         "--preset",
         preset,
-        f"-DXYZ_PROTOCOL_GENERATE_MANUAL_VTABLE={manual_vtable_val}",
         f"-DENABLE_ASAN={'ON' if args.asan else 'OFF'}",
         f"-DENABLE_UBSAN={'ON' if args.ubsan else 'OFF'}",
         f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",

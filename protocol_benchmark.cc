@@ -3,20 +3,19 @@
 #include <string_view>
 #include <utility>
 
-#include "generated/protocol_A_manual.h"
-#include "generated/protocol_A_virtual.h"
-#include "interface_benchmark.h"
+#include "generated/protocol_A.h"
+#include "interface_A.h"
 
 namespace {
 
 struct ALike {
-  std::string_view name() const { return "ALike"; }
+  std::string_view name() const noexcept { return "ALike"; }
 
   int count() { return 42; }
 };
 
 struct ALikeToo {
-  std::string_view name() const { return "ALikeToo"; }
+  std::string_view name() const noexcept { return "ALikeToo"; }
 
   int count() { return 99; }
 };
@@ -33,8 +32,8 @@ static void Direct_Call(benchmark::State& state) {
 
 BENCHMARK(Direct_Call);
 
-static void Protocol_Virtual_Call(benchmark::State& state) {
-  xyz::protocol<xyz::A_virtual> p(std::in_place_type<ALike>);
+static void Protocol_Call(benchmark::State& state) {
+  xyz::protocol<xyz::A> p(std::in_place_type<ALike>);
   benchmark::DoNotOptimize(p);
   for (auto _ : state) {
     benchmark::DoNotOptimize(p.name());
@@ -42,18 +41,7 @@ static void Protocol_Virtual_Call(benchmark::State& state) {
   }
 }
 
-BENCHMARK(Protocol_Virtual_Call);
-
-static void Protocol_Manual_Call(benchmark::State& state) {
-  xyz::protocol<xyz::A_manual> p(std::in_place_type<ALike>);
-  benchmark::DoNotOptimize(p);
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(p.name());
-    benchmark::DoNotOptimize(p.count());
-  }
-}
-
-BENCHMARK(Protocol_Manual_Call);
+BENCHMARK(Protocol_Call);
 
 // Copy construction benchmarks
 static void Direct_Copy(benchmark::State& state) {
@@ -66,25 +54,15 @@ static void Direct_Copy(benchmark::State& state) {
 
 BENCHMARK(Direct_Copy);
 
-static void Protocol_Virtual_Copy(benchmark::State& state) {
-  xyz::protocol<xyz::A_virtual> p(std::in_place_type<ALike>);
+static void Protocol_Copy(benchmark::State& state) {
+  xyz::protocol<xyz::A> p(std::in_place_type<ALike>);
   for (auto _ : state) {
-    xyz::protocol<xyz::A_virtual> copy(p);
+    xyz::protocol<xyz::A> copy(p);
     benchmark::DoNotOptimize(copy);
   }
 }
 
-BENCHMARK(Protocol_Virtual_Copy);
-
-static void Protocol_Manual_Copy(benchmark::State& state) {
-  xyz::protocol<xyz::A_manual> p(std::in_place_type<ALike>);
-  for (auto _ : state) {
-    xyz::protocol<xyz::A_manual> copy(p);
-    benchmark::DoNotOptimize(copy);
-  }
-}
-
-BENCHMARK(Protocol_Manual_Copy);
+BENCHMARK(Protocol_Copy);
 
 // Move construction/assignment benchmarks
 static void Direct_Move(benchmark::State& state) {
@@ -99,29 +77,17 @@ static void Direct_Move(benchmark::State& state) {
 
 BENCHMARK(Direct_Move);
 
-static void Protocol_Virtual_Move(benchmark::State& state) {
-  xyz::protocol<xyz::A_virtual> p(std::in_place_type<ALike>);
+static void Protocol_Move(benchmark::State& state) {
+  xyz::protocol<xyz::A> p(std::in_place_type<ALike>);
   for (auto _ : state) {
-    xyz::protocol<xyz::A_virtual> moved(std::move(p));
+    xyz::protocol<xyz::A> moved(std::move(p));
     benchmark::DoNotOptimize(moved);
     p = std::move(moved);
     benchmark::DoNotOptimize(p);
   }
 }
 
-BENCHMARK(Protocol_Virtual_Move);
-
-static void Protocol_Manual_Move(benchmark::State& state) {
-  xyz::protocol<xyz::A_manual> p(std::in_place_type<ALike>);
-  for (auto _ : state) {
-    xyz::protocol<xyz::A_manual> moved(std::move(p));
-    benchmark::DoNotOptimize(moved);
-    p = std::move(moved);
-    benchmark::DoNotOptimize(p);
-  }
-}
-
-BENCHMARK(Protocol_Manual_Move);
+BENCHMARK(Protocol_Move);
 
 // Swap benchmarks
 static void Direct_Swap(benchmark::State& state) {
@@ -136,9 +102,9 @@ static void Direct_Swap(benchmark::State& state) {
 
 BENCHMARK(Direct_Swap);
 
-static void Protocol_Virtual_Swap(benchmark::State& state) {
-  xyz::protocol<xyz::A_virtual> p1(std::in_place_type<ALike>);
-  xyz::protocol<xyz::A_virtual> p2(std::in_place_type<ALike>);
+static void Protocol_Swap(benchmark::State& state) {
+  xyz::protocol<xyz::A> p1(std::in_place_type<ALike>);
+  xyz::protocol<xyz::A> p2(std::in_place_type<ALike>);
   for (auto _ : state) {
     p1.swap(p2);
     benchmark::DoNotOptimize(p1);
@@ -146,19 +112,7 @@ static void Protocol_Virtual_Swap(benchmark::State& state) {
   }
 }
 
-BENCHMARK(Protocol_Virtual_Swap);
-
-static void Protocol_Manual_Swap(benchmark::State& state) {
-  xyz::protocol<xyz::A_manual> p1(std::in_place_type<ALike>);
-  xyz::protocol<xyz::A_manual> p2(std::in_place_type<ALike>);
-  for (auto _ : state) {
-    p1.swap(p2);
-    benchmark::DoNotOptimize(p1);
-    benchmark::DoNotOptimize(p2);
-  }
-}
-
-BENCHMARK(Protocol_Manual_Swap);
+BENCHMARK(Protocol_Swap);
 
 // Construction and Destruction benchmarks
 static void Direct_CtorDtor(benchmark::State& state) {
@@ -170,28 +124,19 @@ static void Direct_CtorDtor(benchmark::State& state) {
 
 BENCHMARK(Direct_CtorDtor);
 
-static void Protocol_Virtual_CtorDtor(benchmark::State& state) {
+static void Protocol_CtorDtor(benchmark::State& state) {
   for (auto _ : state) {
-    xyz::protocol<xyz::A_virtual> p(std::in_place_type<ALike>);
+    xyz::protocol<xyz::A> p(std::in_place_type<ALike>);
     benchmark::DoNotOptimize(p);
   }
 }
 
-BENCHMARK(Protocol_Virtual_CtorDtor);
-
-static void Protocol_Manual_CtorDtor(benchmark::State& state) {
-  for (auto _ : state) {
-    xyz::protocol<xyz::A_manual> p(std::in_place_type<ALike>);
-    benchmark::DoNotOptimize(p);
-  }
-}
-
-BENCHMARK(Protocol_Manual_CtorDtor);
+BENCHMARK(Protocol_CtorDtor);
 
 // View benchmarks
-static void ProtocolView_Virtual_Call(benchmark::State& state) {
+static void ProtocolView_Call(benchmark::State& state) {
   ALike alike;
-  xyz::protocol_view<xyz::A_virtual> view(alike);
+  xyz::protocol_view<xyz::A> view(alike);
   benchmark::DoNotOptimize(view);
   for (auto _ : state) {
     benchmark::DoNotOptimize(view.name());
@@ -199,19 +144,7 @@ static void ProtocolView_Virtual_Call(benchmark::State& state) {
   }
 }
 
-BENCHMARK(ProtocolView_Virtual_Call);
-
-static void ProtocolView_Manual_Call(benchmark::State& state) {
-  ALike alike;
-  xyz::protocol_view<xyz::A_manual> view(alike);
-  benchmark::DoNotOptimize(view);
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(view.name());
-    benchmark::DoNotOptimize(view.count());
-  }
-}
-
-BENCHMARK(ProtocolView_Manual_Call);
+BENCHMARK(ProtocolView_Call);
 
 static void RawPointer_Call(benchmark::State& state) {
   ALike alike;
@@ -226,12 +159,11 @@ static void RawPointer_Call(benchmark::State& state) {
 BENCHMARK(RawPointer_Call);
 
 // Jitter benchmarks to defeat branch prediction
-static void ProtocolView_Virtual_Call_Jitter(benchmark::State& state) {
+static void ProtocolView_Call_Jitter(benchmark::State& state) {
   ALike a1;
   ALikeToo a2;
-  xyz::protocol_view<xyz::A_virtual> views[2] = {
-      xyz::protocol_view<xyz::A_virtual>(a1),
-      xyz::protocol_view<xyz::A_virtual>(a2)};
+  xyz::protocol_view<xyz::A> views[2] = {xyz::protocol_view<xyz::A>(a1),
+                                         xyz::protocol_view<xyz::A>(a2)};
 
   benchmark::DoNotOptimize(views);
 
@@ -244,27 +176,7 @@ static void ProtocolView_Virtual_Call_Jitter(benchmark::State& state) {
   }
 }
 
-BENCHMARK(ProtocolView_Virtual_Call_Jitter);
-
-static void ProtocolView_Manual_Call_Jitter(benchmark::State& state) {
-  ALike a1;
-  ALikeToo a2;
-  xyz::protocol_view<xyz::A_manual> views[2] = {
-      xyz::protocol_view<xyz::A_manual>(a1),
-      xyz::protocol_view<xyz::A_manual>(a2)};
-
-  benchmark::DoNotOptimize(views);
-
-  size_t i = 0;
-  for (auto _ : state) {
-    auto& view = views[i & 1];
-    benchmark::DoNotOptimize(view.name());
-    benchmark::DoNotOptimize(view.count());
-    ++i;
-  }
-}
-
-BENCHMARK(ProtocolView_Manual_Call_Jitter);
+BENCHMARK(ProtocolView_Call_Jitter);
 
 static void RawPointer_Call_Jitter(benchmark::State& state) {
   ALike a1;

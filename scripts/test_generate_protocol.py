@@ -224,8 +224,8 @@ def test_mangle_operators(temp_dir: str, compiler: str) -> None:
     assert any(n.startswith("__operator__plus_equal__") for n in all_method_names)
 
 
-def test_manual_vtable_template(temp_dir: str, compiler: str) -> None:
-    """Test that the manual vtable template produces a valid vtable structure."""
+def test_vtable_structures(temp_dir: str, compiler: str) -> None:
+    """Test that the generated code produces manual vtable structures."""
     input_header = os.path.join(temp_dir, "input.h")
     output_header = os.path.join(temp_dir, "output.h")
 
@@ -244,12 +244,12 @@ def test_manual_vtable_template(temp_dir: str, compiler: str) -> None:
         output_header,
         "Simple",
         "input.h",
-        template_path="scripts/protocol_manual_vtable.j2",
+        template_path="scripts/protocol.j2",
         compiler=compiler,
     )
     assert res.returncode == 0, res.stderr
 
-    # In manual vtable mode, we expect structs for vtables
+    # We expect structs for manual vtables
     with open(output_header, "r") as f:
         content = f.read()
         assert "struct const_view_vtable_Simple" in content

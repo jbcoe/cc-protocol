@@ -153,22 +153,12 @@ lightweight indirection.
 
 ## Implementation Details and Benchmarks
 
-The code generator supports two dispatch strategies:
+The code generator generates a struct-of-function-pointers representing the vtable, managing type-erasure and dispatch via pointer indirection (manual vtables). This enforces constraints (value semantics, `const` correctness, and custom allocators) without requiring standard inheritance or compiler-generated virtual tables.
 
-1. Virtual Dispatch (Default): Generates a traditional C++ polymorphic class
-   hierarchy with `virtual` methods. The type-erased wrapper heap-allocates a
-   control block derived from a common interface.
-
-2. Manual Vtables: Generates a struct-of-function-pointers representing the
-   vtable, managing type-erasure and dispatch via pointer indirection.
-
-Both implementations enforce identical constraints (value semantics, `const`
-correctness, and custom allocators). The library builds both versions to verify
-equivalence and provides a `protocol_benchmark` target for directly comparing
-their performance across allocations, copies, moves, and member function calls.
+The library provides a `protocol_benchmark` target for measuring the performance of the protocol across allocations, copies, moves, and member function calls.
 
 ```bash
-# Build and run the benchmark comparing the two implementations
+# Build and run the benchmark
 ./scripts/cmake.sh benchmark
 ```
 

@@ -38,17 +38,13 @@ a Jinja2 template and a Python generation script.
 
 #]=======================================================================]
 macro(xyz_generate_protocol)
-  set(options MANUAL_VTABLE)
+  set(options "")
   set(oneValueArgs CLASS_NAME INTERFACE OUTPUT HEADER)
   set(multiValueArgs "")
   cmake_parse_arguments(XYZ_GENERATE "${options}" "${oneValueArgs}"
                         "${multiValueArgs}" ${ARGN})
 
-  if(XYZ_GENERATE_MANUAL_VTABLE)
-    set(TEMPLATE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol_manual_vtable.j2)
-  else()
-    set(TEMPLATE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2)
-  endif()
+  set(TEMPLATE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2)
 
   get_filename_component(XYZ_GENERATE_OUTPUT_DIR "${XYZ_GENERATE_OUTPUT}" DIRECTORY)
   add_custom_command(
