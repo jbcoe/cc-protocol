@@ -2,11 +2,11 @@
 
 ISO/IEC JTC1 SC22 WG21 Programming Language C++
 
-P4148R1
+P4148R2
 
 Working Group: Library Evolution, Library
 
-Date: 2026-05-12
+Date: 2026-06-07
 
 _Jonathan Coe \<<jonathanbcoe@gmail.com>\>_
 
@@ -42,6 +42,10 @@ and code injection and focuses solely on the design of the class templates
 `protocol` and `protocol_view`.
 
 ## History
+
+### Changes in revision R2
+
+- Support zero-cost conversion from a compatible `protocol` or `protocol_view` to a narrower target interface (subtype substitution).
 
 ### Changes in revision R1
 
@@ -204,6 +208,19 @@ class protocol<I, Allocator=std::allocator<void>> {
     constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
                        protocol&& other) noexcept;  // conditionally-generated
 
+    // Converting move constructor from any compatible protocol.
+    template <typename Other>
+    constexpr protocol(protocol<Other, Allocator>&& other) noexcept;
+
+    // Converting copy constructor from any compatible protocol.
+    template <typename Other>
+    constexpr protocol(const protocol<Other, Allocator>& other);
+
+    // Allocator-extended converting copy constructor from any compatible protocol.
+    template <typename Other>
+    constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                       const protocol<Other, Allocator>& other);
+
     // Destructor.
     ~protocol();
 
@@ -236,6 +253,10 @@ class protocol_view<I> {
     // Construction from a protocol rvalue is deleted.
     template <typename Alloc>
     protocol_view(protocol<I, Alloc>&&) = delete;
+
+    // Converting constructor from any compatible mutable protocol_view.
+    template <typename Other>
+    protocol_view(const protocol_view<Other>& other);
 
     // structural-subtype (const and non-const) member functions.
     std::string func0(std::string_view) const noexcept;
@@ -274,6 +295,14 @@ class protocol_view<const I> {
 
     // Constructor from a mutable protocol_view<I>.
     constexpr protocol_view(protocol_view<I> view) noexcept;
+
+    // Converting constructor from any compatible const protocol_view.
+    template <typename Other>
+    protocol_view(const protocol_view<const Other>& other);
+
+    // Converting constructor from any compatible mutable protocol_view.
+    template <typename Other>
+    protocol_view(const protocol_view<Other>& other);
 
     // structural-subtype const member functions.
     std::string func0(std::string_view) const noexcept;
@@ -399,13 +428,6 @@ memory budgets per interface. `protocol`, like `polymorphic` and `function`, doe
 not prescribe any layout constraints and leaves details like small-buffer-optimization
 to be determined by implementers.
 
-#### Subtype Substitution
-
-A `proxy<RichFacade>` can be implicitly converted to a
-`proxy<LeanFacade>` when `RichFacade` explicitly includes `LeanFacade` via
-`add_facade`. Because `protocol` interfaces are plain, independent structs with
-no declared relationship, the same zero-overhead conversion is not available.
-
 #### Ownership Erasure
 
 `protocol` is uniquely owning, `protocol_view` is non-owning.
@@ -423,7 +445,7 @@ The table below summarises the main design choices side by side.
 | Interface definition | C++ struct | `facade_builder` + dispatch objects (explicit) |
 | Interaction syntax | `p.draw()` | `p->draw()` |
 | Layout constraints | Implementation defined | Encoded in the Facade type |
-| Subtype substitution | Unsupported | Implicit via `add_facade` |
+| Subtype substitution | Supported | Implicit via `add_facade` |
 | Ownership model | Explicit | Erased |
 
 ### Design Alternatives

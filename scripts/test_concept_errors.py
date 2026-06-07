@@ -234,3 +234,77 @@ def test_noexcept_violation(compile_check: Callable[[str, List[str]], None]) -> 
     }
     """
     compile_check(source, [r"protocol_concept_A", r"name\(\)"])
+
+
+def test_invalid_view_widening(compile_check: Callable[[str, List[str]], None]) -> None:
+    """
+    Verify that a protocol_view cannot be widened to a protocol_view with more methods.
+
+    Specifically, from A_Subset to A.
+    """
+    source = """
+    #include "generated/protocol_A.h"
+    #include "generated/protocol_A_Subset.h"
+    #include "interface_A.h"
+    #include "interface_A_Subset.h"
+
+    void test(xyz::protocol_view<xyz::A_Subset> view_subset) {
+        xyz::protocol_view<xyz::A> view_a(view_subset);
+    }
+    """
+    compile_check(source, [r"no member named|no matching function for call"])
+
+
+def test_invalid_view_constness_narrowing(
+    compile_check: Callable[[str, List[str]], None],
+) -> None:
+    """
+    Verify that a const protocol_view cannot be converted to a mutable protocol_view.
+
+    Even with narrowing (e.g. from const A to A_Subset).
+    """
+    source = """
+    #include "generated/protocol_A.h"
+    #include "generated/protocol_A_Subset.h"
+    #include "interface_A.h"
+    #include "interface_A_Subset.h"
+
+    void test(xyz::protocol_view<const xyz::A> view_const_a) {
+        xyz::protocol_view<xyz::A_Subset> view_subset(view_const_a);
+    }
+    """
+    compile_check(
+        source,
+        [
+            r"no matching function for call|no matching constructor|"
+            r"cannot convert|no matching template for|template argument deduction"
+        ],
+    )
+
+
+def test_invalid_protocol_widening(
+    compile_check: Callable[[str, List[str]], None],
+) -> None:
+    """
+    Verify that an owning protocol cannot be widened to a protocol with more methods.
+
+    Specifically, from A_Subset to A.
+    """
+    source = """
+    #include "generated/protocol_A.h"
+    #include "generated/protocol_A_Subset.h"
+    #include "interface_A.h"
+    #include "interface_A_Subset.h"
+
+    void test(xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset) {
+        xyz::protocol<xyz::A, std::allocator<std::byte>> p(std::move(p_subset));
+    }
+    """
+    compile_check(
+        source,
+        [
+            r"no matching function for call|no matching constructor|"
+            r"cannot convert|static assertion failed|no matching template for|"
+            r"template argument deduction|no member named|has no member"
+        ],
+    )

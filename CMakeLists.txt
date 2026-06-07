@@ -103,6 +103,10 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       HEADER interface_A.h
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h)
     xyz_generate_protocol(
+      CLASS_NAME A_Subset INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A_Subset.h
+      HEADER interface_A_Subset.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_Subset.h)
+    xyz_generate_protocol(
       CLASS_NAME B INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
       HEADER interface_B.h
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h)
@@ -118,6 +122,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
     add_custom_target(
       generate_protocols
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_Subset.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
@@ -127,10 +132,13 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       protocol_test
       LINK_LIBRARIES
       protocol
+      protocol_cc
       FILES
       protocol_test.cc
       interface_A.h
       ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h
+      interface_A_Subset.h
+      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_Subset.h
       interface_B.h
       ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
       interface_C.h
@@ -142,7 +150,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
                                PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
     add_executable(protocol_benchmark protocol_benchmark.cc)
-    target_link_libraries(protocol_benchmark PRIVATE protocol benchmark::benchmark)
+    target_link_libraries(protocol_benchmark PRIVATE protocol protocol_cc benchmark::benchmark)
     add_dependencies(protocol_benchmark generate_protocols)
     target_include_directories(protocol_benchmark PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

@@ -17,12 +17,107 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==============================================================================*/
-
 #ifndef XYZ_PROTOCOL_H_
 #define XYZ_PROTOCOL_H_
 #include <memory>
+#include <mutex>
+#include <unordered_map>
+#include <utility>
 
 namespace xyz {
+
+template <typename T>
+struct is_protocol : std::false_type {};
+
+template <typename T, typename Alloc>
+class protocol;
+
+template <typename T, typename Alloc>
+struct is_protocol<protocol<T, Alloc>> : std::true_type {};
+
+template <typename T>
+struct is_protocol_view : std::false_type {};
+
+template <typename T>
+class protocol_view;
+
+template <typename T>
+struct is_protocol_view<protocol_view<T>> : std::true_type {};
+
+template <typename T>
+concept not_protocol_or_view = !is_protocol<std::remove_cvref_t<T>>::value &&
+                               !is_protocol_view<std::remove_cvref_t<T>>::value;
+
+template <typename Protocol>
+struct protocol_vtable_traits;
+
+const void* get_or_create_vtable_erased(
+    const void* from_vptr, const void* type_id, std::size_t to_vtable_size,
+    void (*mapper)(const void* from, void* to));
+
+template <typename FromProtocol, typename ToProtocol>
+const typename protocol_vtable_traits<ToProtocol>::const_vtable*
+get_or_create_vtable(
+    const typename protocol_vtable_traits<FromProtocol>::const_vtable*
+        from_vptr) {
+  using FromVtable =
+      typename protocol_vtable_traits<FromProtocol>::const_vtable;
+  using ToVtable = typename protocol_vtable_traits<ToProtocol>::const_vtable;
+
+  static const char type_id_anchor = 0;
+
+  auto mapper = [](const void* from, void* to) {
+    map_vtable_members(static_cast<const FromVtable*>(from),
+                       static_cast<ToVtable*>(to));
+  };
+
+  return static_cast<const ToVtable*>(get_or_create_vtable_erased(
+      from_vptr, &type_id_anchor, sizeof(ToVtable), mapper));
+}
+
+template <typename FromProtocol, typename ToProtocol>
+const typename protocol_vtable_traits<ToProtocol>::vtable*
+get_or_create_mutable_vtable(
+    const typename protocol_vtable_traits<FromProtocol>::vtable* from_vptr) {
+  using FromVtable = typename protocol_vtable_traits<FromProtocol>::vtable;
+  using ToVtable = typename protocol_vtable_traits<ToProtocol>::vtable;
+
+  static const char type_id_anchor = 0;
+
+  auto mapper = [](const void* from, void* to) {
+    map_mutable_vtable_members(static_cast<const FromVtable*>(from),
+                               static_cast<ToVtable*>(to));
+  };
+
+  return static_cast<const ToVtable*>(get_or_create_vtable_erased(
+      from_vptr, &type_id_anchor, sizeof(ToVtable), mapper));
+}
+
+template <typename Protocol, typename Allocator>
+struct protocol_owning_vtable_traits;
+
+template <typename FromProtocol, typename ToProtocol, typename Allocator>
+const typename protocol_owning_vtable_traits<ToProtocol, Allocator>::vtable*
+get_or_create_owning_vtable(const typename protocol_owning_vtable_traits<
+                            FromProtocol, Allocator>::vtable* from_vptr) {
+  if (from_vptr == nullptr) {
+    return nullptr;
+  }
+  using FromVtable =
+      typename protocol_owning_vtable_traits<FromProtocol, Allocator>::vtable;
+  using ToVtable =
+      typename protocol_owning_vtable_traits<ToProtocol, Allocator>::vtable;
+
+  static const char type_id_anchor = 0;
+
+  auto mapper = [](const void* from, void* to) {
+    map_owning_vtable_members(static_cast<const FromVtable*>(from),
+                              static_cast<ToVtable*>(to));
+  };
+
+  return static_cast<const ToVtable*>(get_or_create_vtable_erased(
+      from_vptr, &type_id_anchor, sizeof(ToVtable), mapper));
+}
 
 template <typename T, typename A = std::allocator<T>>
 class protocol {

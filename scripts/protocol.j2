@@ -115,12 +115,57 @@ inline constexpr view_vtable_{{ c.name }} view_vtable_{{ c.name }}_for = {
 {% endfor %}
 };
 
+template <>
+struct protocol_vtable_traits<{{ full_class_name }}> {
+  using const_vtable = const_view_vtable_{{ c.name }};
+  using vtable = view_vtable_{{ c.name }};
+};
+
+template <typename Allocator>
+struct protocol_owning_vtable_traits<{{ full_class_name }}, Allocator> {
+  using vtable = typename protocol<{{ full_class_name }}, Allocator>::vtable;
+};
+
+template <typename From>
+inline void map_vtable_members(const From* from, const_view_vtable_{{ c.name }}* to) {
+{% for m in c.methods %}{% if m.is_const %}
+  to->{{ m.name | mangle }}_{{ method_guids[loop.index0] }} = from->{{ m.name | mangle }}_{{ method_guids[loop.index0] }};
+{% endif %}{% endfor %}
+}
+
+template <typename From>
+inline void map_mutable_vtable_members(const From* from, view_vtable_{{ c.name }}* to) {
+{% for m in c.methods %}{% if m.is_const %}
+  to->const_view.{{ m.name | mangle }}_{{ method_guids[loop.index0] }} = from->const_view.{{ m.name | mangle }}_{{ method_guids[loop.index0] }};
+{% endif %}{% endfor %}
+{% for m in c.methods %}{% if not m.is_const %}
+  to->{{ m.name | mangle }}_{{ method_guids[loop.index0] }} = from->{{ m.name | mangle }}_{{ method_guids[loop.index0] }};
+{% endif %}{% endfor %}
+}
+
+template <typename From>
+inline void map_owning_vtable_members(const From* from, typename protocol_owning_vtable_traits<{{ full_class_name }}, typename From::allocator_type>::vtable* to) {
+  to->xyz_protocol_clone = from->xyz_protocol_clone;
+  to->xyz_protocol_move = from->xyz_protocol_move;
+  to->xyz_protocol_destroy = from->xyz_protocol_destroy;
+  to->view_vt = get_or_create_mutable_vtable<typename From::protocol_type, {{ full_class_name }}>(from->view_vt);
+{% for m in c.methods %}
+  to->{{ m.name | mangle }}_{{ method_guids[loop.index0] }} = from->{{ m.name | mangle }}_{{ method_guids[loop.index0] }};
+{% endfor %}
+}
+
 template <typename Allocator>
 class protocol<{{ full_class_name }}, Allocator> {
   friend class protocol_view<{{ full_class_name }}>;
   friend class protocol_view<const {{ full_class_name }}>;
+  template <typename, typename>
+  friend class protocol;
+  template <typename, typename>
+  friend struct protocol_owning_vtable_traits;
 
   struct vtable {
+    using protocol_type = {{ full_class_name }};
+    using allocator_type = Allocator;
     void* (*xyz_protocol_clone)(void* cb, const Allocator& alloc);
     void* (*xyz_protocol_move)(void* cb, const Allocator& alloc);
     void (*xyz_protocol_destroy)(void* cb, const Allocator& alloc);
@@ -232,6 +277,54 @@ class protocol<{{ full_class_name }}, Allocator> {
   [[no_unique_address]] Allocator alloc_;
 
  public:
+  template <typename Other>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  constexpr protocol(protocol<Other, Allocator>&& other) noexcept(
+      allocator_traits::is_always_equal::value)
+      : alloc_(other.alloc_) {
+    if (alloc_ == other.alloc_) {
+      p_ = std::exchange(other.p_, nullptr);
+      vtable_ = get_or_create_owning_vtable<Other, {{ full_class_name }}, Allocator>(
+          std::exchange(other.vtable_, nullptr)
+      );
+    } else {
+      if (!other.valueless_after_move()) {
+        p_ = other.vtable_->xyz_protocol_move(other.p_, alloc_);
+        vtable_ = get_or_create_owning_vtable<Other, {{ full_class_name }}, Allocator>(other.vtable_);
+      } else {
+        p_ = nullptr;
+        vtable_ = nullptr;
+      }
+    }
+  }
+
+  template <typename Other>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  constexpr protocol(const protocol<Other, Allocator>& other)
+      : alloc_(allocator_traits::select_on_container_copy_construction(other.alloc_)) {
+    if (!other.valueless_after_move()) {
+      p_ = other.vtable_->xyz_protocol_clone(other.p_, alloc_);
+      vtable_ = get_or_create_owning_vtable<Other, {{ full_class_name }}, Allocator>(other.vtable_);
+    } else {
+      p_ = nullptr;
+      vtable_ = nullptr;
+    }
+  }
+
+  template <typename Other>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                       const protocol<Other, Allocator>& other)
+      : alloc_(alloc) {
+    if (!other.valueless_after_move()) {
+      p_ = other.vtable_->xyz_protocol_clone(other.p_, alloc_);
+      vtable_ = get_or_create_owning_vtable<Other, {{ full_class_name }}, Allocator>(other.vtable_);
+    } else {
+      p_ = nullptr;
+      vtable_ = nullptr;
+    }
+  }
+
   explicit constexpr protocol()
     requires std::default_initializable<{{ full_class_name }}> && protocol_concept_{{ c.name }}<{{ full_class_name }}> &&
              std::copy_constructible<{{ full_class_name }}>
@@ -240,6 +333,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   template <class U>
   constexpr explicit protocol(U&& u)
     requires(!std::same_as<protocol, std::remove_cvref_t<U>>) &&
+            not_protocol_or_view<U> &&
             std::copy_constructible<std::remove_cvref_t<U>> &&
             protocol_concept_{{ c.name }}<U>
       : protocol(std::allocator_arg_t{}, Allocator{}, std::forward<U>(u)) {}
@@ -247,6 +341,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   template <class U, class... Ts>
   explicit constexpr protocol(std::in_place_type_t<U>, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
+             not_protocol_or_view<U> &&
              std::constructible_from<U, Ts&&...> &&
              std::copy_constructible<U> &&
              std::default_initializable<Allocator> && protocol_concept_{{ c.name }}<U>
@@ -257,6 +352,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   explicit constexpr protocol(std::in_place_type_t<U>,
                                 std::initializer_list<I> ilist, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
+             not_protocol_or_view<U> &&
              std::constructible_from<U, std::initializer_list<I>, Ts&&...> &&
              std::copy_constructible<U> &&
              std::default_initializable<Allocator> && protocol_concept_{{ c.name }}<U>
@@ -284,6 +380,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   constexpr explicit protocol(std::allocator_arg_t, const Allocator& alloc,
                                 U&& u)
     requires(not std::same_as<protocol, std::remove_cvref_t<U>>) &&
+            not_protocol_or_view<U> &&
             std::copy_constructible<std::remove_cvref_t<U>> &&
             protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
@@ -295,6 +392,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
                                 std::in_place_type_t<U>, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
+             not_protocol_or_view<U> &&
              std::constructible_from<U, Ts&&...> &&
              std::copy_constructible<U> && protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
@@ -307,6 +405,7 @@ class protocol<{{ full_class_name }}, Allocator> {
                                 std::in_place_type_t<U>,
                                 std::initializer_list<I> ilist, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
+             not_protocol_or_view<U> &&
              std::constructible_from<U, std::initializer_list<I>, Ts&&...> &&
              std::copy_constructible<U> && protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
@@ -400,7 +499,8 @@ class protocol<{{ full_class_name }}, Allocator> {
 
 template <>
 class protocol_view<const {{ full_class_name }}> {
-  friend class protocol_view<{{ full_class_name }}>;
+  template <typename>
+  friend class protocol_view;
 
   const void* ptr_;
   const const_view_vtable_{{ c.name }}* vptr_;
@@ -419,16 +519,14 @@ class protocol_view<const {{ full_class_name }}> {
  public:
   template <typename T>
     requires protocol_const_concept_{{ c.name }}<T> &&
-             (!std::same_as<std::remove_cvref_t<T>, protocol_view<{{ full_class_name }}> >) &&
-             (!std::same_as<std::remove_cvref_t<T>, protocol_view<const {{ full_class_name }}> >)
+             not_protocol_or_view<T>
   constexpr protocol_view(const T& obj) noexcept
       : ptr_(std::addressof(obj)),
         vptr_(&const_view_vtable_{{ c.name }}_for<std::remove_cvref_t<T>>) {}
 
   template <typename T>
     requires protocol_const_concept_{{ c.name }}<T> &&
-             (!std::same_as<std::remove_cvref_t<T>, protocol_view<{{ full_class_name }}> >) &&
-             (!std::same_as<std::remove_cvref_t<T>, protocol_view<const {{ full_class_name }}> >)
+             not_protocol_or_view<T>
   protocol_view(const T&&) = delete;
 
   template <typename Alloc>
@@ -443,6 +541,18 @@ class protocol_view<const {{ full_class_name }}> {
   protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),
         vptr_(&p.vtable_->view_vt->const_view) {}
+
+  template <typename Other>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  protocol_view(const protocol_view<const Other>& other)
+      : ptr_(other.ptr_),
+        vptr_(get_or_create_vtable<Other, {{ full_class_name }}>(other.vptr_)) {}
+
+  template <typename Other>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  protocol_view(const protocol_view<Other>& other)
+      : ptr_(other.ptr_),
+        vptr_(get_or_create_vtable<Other, {{ full_class_name }}>(&other.vptr_->const_view)) {}
 
 {% for m in c.methods %}{% if m.is_const %}
   {% set params = [] %}
@@ -461,6 +571,9 @@ class protocol_view<const {{ full_class_name }}> {
 
 template <>
 class protocol_view<{{ full_class_name }}> {
+  template <typename>
+  friend class protocol_view;
+
   void* ptr_;
   const view_vtable_{{ c.name }}* vptr_;
 
@@ -473,8 +586,7 @@ class protocol_view<{{ full_class_name }}> {
  public:
   template <typename T>
     requires protocol_concept_{{ c.name }}<T> &&
-             (!std::same_as<std::remove_cvref_t<T>, protocol_view<{{ full_class_name }}> >) &&
-             (!std::same_as<std::remove_cvref_t<T>, protocol_view<const {{ full_class_name }}> >)
+             not_protocol_or_view<T>
   constexpr protocol_view(T& obj) noexcept
       : ptr_(std::addressof(obj)),
         vptr_(&view_vtable_{{ c.name }}_for<std::remove_cvref_t<T>>) {}
@@ -483,6 +595,12 @@ class protocol_view<{{ full_class_name }}> {
   protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),
         vptr_(p.vtable_->view_vt) {}
+
+  template <typename Other>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  protocol_view(const protocol_view<Other>& other)
+      : ptr_(other.ptr_),
+        vptr_(get_or_create_mutable_vtable<Other, {{ full_class_name }}>(other.vptr_)) {}
 
   constexpr operator protocol_view<const {{ full_class_name }}>() const noexcept {
     return protocol_view<const {{ full_class_name }}>{static_cast<const void*>(ptr_), &vptr_->const_view};
