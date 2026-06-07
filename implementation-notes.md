@@ -64,7 +64,7 @@ template <typename Other>
   requires (!std::same_as<Other, TargetProtocol>)
 constexpr protocol_view(const protocol_view<Other>& other)
     : ptr_(other.ptr_),
-      vptr_(get_or_create_mutable_vtable<Other, TargetProtocol>(other.vptr_)) {}
+      vptr_(get_mutable_vtable<Other, TargetProtocol>(other.vptr_)) {}
 ```
 Conversions are fully transitive (for example, `protocol_view<A>` to `protocol_view<B>` to `protocol_view<C>`). In each step, the registry maps the current vtable pointer to the target interface vtable. Since the mapping registry resolves type transitions directly, intermediate conversions do not create chain-linked redirects.
 
@@ -79,13 +79,14 @@ When narrowing from `Other` to `Target`, a new vtable matching `Target`'s layout
 
 ### Registry Signature
 ```cpp
-const void* get_or_create_vtable_erased(
-    const void* from_vptr, const void* type_id, std::size_t to_vtable_size,
-    void (*mapper)(const void* from, void* to));
+const void* get_mapped_vtable(
+    const void* source_vtable_pointer, const void* conversion_anchor,
+    std::size_t target_vtable_size,
+    void (*mapping_function)(const void* source, void* target));
 ```
 
 ### The Cache and Lifetime Control (Intentional Leak)
-Mapped vtables are cached in a static `std::unordered_map` keyed by `CacheKey{from_vptr, type_id}`. The `type_id` is the address of a static template local `type_id_anchor`, ensuring target vtable/allocator uniqueness. Values are stored as `std::unique_ptr<char[]>`. Because the map is node-allocated, returned pointers to elements remain stable.
+Mapped vtables are cached in a static `std::unordered_map` keyed by `CacheKey{source_vtable_pointer, conversion_anchor}`. The `conversion_anchor` is the address of a static template local `conversion_anchor`, ensuring target vtable/allocator uniqueness. Values are stored as `std::unique_ptr<char[]>`. Because the map is node-allocated, returned pointers to elements remain stable.
 
 To ensure safety during program shutdown, the cache map and its protecting mutex are initialized as dynamic objects allocated via `new` on the heap and referenced statically (`static auto& cache = *new ...`). This deliberately prevents their destruction during program termination, avoiding Undefined Behavior (such as segfaults) if other global or static objects trigger protocol conversions during cleanup/destructor execution.
 

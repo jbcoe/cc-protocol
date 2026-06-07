@@ -148,7 +148,7 @@ inline void map_owning_vtable_members(const From* from, typename protocol_owning
   to->xyz_protocol_clone = from->xyz_protocol_clone;
   to->xyz_protocol_move = from->xyz_protocol_move;
   to->xyz_protocol_destroy = from->xyz_protocol_destroy;
-  to->view_vt = get_or_create_mutable_vtable<typename From::protocol_type, {{ full_class_name }}>(from->view_vt);
+  to->view_vt = get_mutable_vtable<typename From::protocol_type, {{ full_class_name }}>(from->view_vt);
 {% for m in c.methods %}
   to->{{ m.name | mangle }}_{{ method_guids[loop.index0] }} = from->{{ m.name | mangle }}_{{ method_guids[loop.index0] }};
 {% endfor %}
@@ -284,13 +284,13 @@ class protocol<{{ full_class_name }}, Allocator> {
       : alloc_(other.alloc_) {
     if (alloc_ == other.alloc_) {
       p_ = std::exchange(other.p_, nullptr);
-      vtable_ = get_or_create_owning_vtable<Other, {{ full_class_name }}, Allocator>(
+      vtable_ = get_owning_vtable<Other, {{ full_class_name }}, Allocator>(
           std::exchange(other.vtable_, nullptr)
       );
     } else {
       if (!other.valueless_after_move()) {
         p_ = other.vtable_->xyz_protocol_move(other.p_, alloc_);
-        vtable_ = get_or_create_owning_vtable<Other, {{ full_class_name }}, Allocator>(other.vtable_);
+        vtable_ = get_owning_vtable<Other, {{ full_class_name }}, Allocator>(other.vtable_);
       } else {
         p_ = nullptr;
         vtable_ = nullptr;
@@ -304,7 +304,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       : alloc_(allocator_traits::select_on_container_copy_construction(other.alloc_)) {
     if (!other.valueless_after_move()) {
       p_ = other.vtable_->xyz_protocol_clone(other.p_, alloc_);
-      vtable_ = get_or_create_owning_vtable<Other, {{ full_class_name }}, Allocator>(other.vtable_);
+      vtable_ = get_owning_vtable<Other, {{ full_class_name }}, Allocator>(other.vtable_);
     } else {
       p_ = nullptr;
       vtable_ = nullptr;
@@ -318,7 +318,7 @@ class protocol<{{ full_class_name }}, Allocator> {
       : alloc_(alloc) {
     if (!other.valueless_after_move()) {
       p_ = other.vtable_->xyz_protocol_clone(other.p_, alloc_);
-      vtable_ = get_or_create_owning_vtable<Other, {{ full_class_name }}, Allocator>(other.vtable_);
+      vtable_ = get_owning_vtable<Other, {{ full_class_name }}, Allocator>(other.vtable_);
     } else {
       p_ = nullptr;
       vtable_ = nullptr;
@@ -546,13 +546,13 @@ class protocol_view<const {{ full_class_name }}> {
     requires(!std::same_as<Other, {{ full_class_name }}>)
   protocol_view(const protocol_view<const Other>& other)
       : ptr_(other.ptr_),
-        vptr_(get_or_create_vtable<Other, {{ full_class_name }}>(other.vptr_)) {}
+        vptr_(get_vtable<Other, {{ full_class_name }}>(other.vptr_)) {}
 
   template <typename Other>
     requires(!std::same_as<Other, {{ full_class_name }}>)
   protocol_view(const protocol_view<Other>& other)
       : ptr_(other.ptr_),
-        vptr_(get_or_create_vtable<Other, {{ full_class_name }}>(&other.vptr_->const_view)) {}
+        vptr_(get_vtable<Other, {{ full_class_name }}>(&other.vptr_->const_view)) {}
 
 {% for m in c.methods %}{% if m.is_const %}
   {% set params = [] %}
@@ -600,7 +600,7 @@ class protocol_view<{{ full_class_name }}> {
     requires(!std::same_as<Other, {{ full_class_name }}>)
   protocol_view(const protocol_view<Other>& other)
       : ptr_(other.ptr_),
-        vptr_(get_or_create_mutable_vtable<Other, {{ full_class_name }}>(other.vptr_)) {}
+        vptr_(get_mutable_vtable<Other, {{ full_class_name }}>(other.vptr_)) {}
 
   constexpr operator protocol_view<const {{ full_class_name }}>() const noexcept {
     return protocol_view<const {{ full_class_name }}>{static_cast<const void*>(ptr_), &vptr_->const_view};

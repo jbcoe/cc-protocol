@@ -51,46 +51,49 @@ concept not_protocol_or_view = !is_protocol<std::remove_cvref_t<T>>::value &&
 template <typename Protocol>
 struct protocol_vtable_traits;
 
-const void* get_or_create_vtable_erased(
-    const void* from_vptr, const void* type_id, std::size_t to_vtable_size,
-    void (*mapper)(const void* from, void* to));
+const void* get_mapped_vtable(const void* source_vtable_pointer,
+                              const void* conversion_anchor,
+                              std::size_t target_vtable_size,
+                              void (*mapping_function)(const void* source,
+                                                       void* target));
 
 template <typename FromProtocol, typename ToProtocol>
-const typename protocol_vtable_traits<ToProtocol>::const_vtable*
-get_or_create_vtable(
+const typename protocol_vtable_traits<ToProtocol>::const_vtable* get_vtable(
     const typename protocol_vtable_traits<FromProtocol>::const_vtable*
-        from_vptr) {
+        source_vtable_pointer) {
   using FromVtable =
       typename protocol_vtable_traits<FromProtocol>::const_vtable;
   using ToVtable = typename protocol_vtable_traits<ToProtocol>::const_vtable;
 
-  static const char type_id_anchor = 0;
+  static const char conversion_anchor = 0;
 
-  auto mapper = [](const void* from, void* to) {
-    map_vtable_members(static_cast<const FromVtable*>(from),
-                       static_cast<ToVtable*>(to));
+  auto mapping_function = [](const void* source, void* target) {
+    map_vtable_members(static_cast<const FromVtable*>(source),
+                       static_cast<ToVtable*>(target));
   };
 
-  return static_cast<const ToVtable*>(get_or_create_vtable_erased(
-      from_vptr, &type_id_anchor, sizeof(ToVtable), mapper));
+  return static_cast<const ToVtable*>(
+      get_mapped_vtable(source_vtable_pointer, &conversion_anchor,
+                        sizeof(ToVtable), mapping_function));
 }
 
 template <typename FromProtocol, typename ToProtocol>
-const typename protocol_vtable_traits<ToProtocol>::vtable*
-get_or_create_mutable_vtable(
-    const typename protocol_vtable_traits<FromProtocol>::vtable* from_vptr) {
+const typename protocol_vtable_traits<ToProtocol>::vtable* get_mutable_vtable(
+    const typename protocol_vtable_traits<FromProtocol>::vtable*
+        source_vtable_pointer) {
   using FromVtable = typename protocol_vtable_traits<FromProtocol>::vtable;
   using ToVtable = typename protocol_vtable_traits<ToProtocol>::vtable;
 
-  static const char type_id_anchor = 0;
+  static const char conversion_anchor = 0;
 
-  auto mapper = [](const void* from, void* to) {
-    map_mutable_vtable_members(static_cast<const FromVtable*>(from),
-                               static_cast<ToVtable*>(to));
+  auto mapping_function = [](const void* source, void* target) {
+    map_mutable_vtable_members(static_cast<const FromVtable*>(source),
+                               static_cast<ToVtable*>(target));
   };
 
-  return static_cast<const ToVtable*>(get_or_create_vtable_erased(
-      from_vptr, &type_id_anchor, sizeof(ToVtable), mapper));
+  return static_cast<const ToVtable*>(
+      get_mapped_vtable(source_vtable_pointer, &conversion_anchor,
+                        sizeof(ToVtable), mapping_function));
 }
 
 template <typename Protocol, typename Allocator>
@@ -98,9 +101,9 @@ struct protocol_owning_vtable_traits;
 
 template <typename FromProtocol, typename ToProtocol, typename Allocator>
 const typename protocol_owning_vtable_traits<ToProtocol, Allocator>::vtable*
-get_or_create_owning_vtable(const typename protocol_owning_vtable_traits<
-                            FromProtocol, Allocator>::vtable* from_vptr) {
-  if (from_vptr == nullptr) {
+get_owning_vtable(const typename protocol_owning_vtable_traits<
+                  FromProtocol, Allocator>::vtable* source_vtable_pointer) {
+  if (source_vtable_pointer == nullptr) {
     return nullptr;
   }
   using FromVtable =
@@ -108,15 +111,16 @@ get_or_create_owning_vtable(const typename protocol_owning_vtable_traits<
   using ToVtable =
       typename protocol_owning_vtable_traits<ToProtocol, Allocator>::vtable;
 
-  static const char type_id_anchor = 0;
+  static const char conversion_anchor = 0;
 
-  auto mapper = [](const void* from, void* to) {
-    map_owning_vtable_members(static_cast<const FromVtable*>(from),
-                              static_cast<ToVtable*>(to));
+  auto mapping_function = [](const void* source, void* target) {
+    map_owning_vtable_members(static_cast<const FromVtable*>(source),
+                              static_cast<ToVtable*>(target));
   };
 
-  return static_cast<const ToVtable*>(get_or_create_vtable_erased(
-      from_vptr, &type_id_anchor, sizeof(ToVtable), mapper));
+  return static_cast<const ToVtable*>(
+      get_mapped_vtable(source_vtable_pointer, &conversion_anchor,
+                        sizeof(ToVtable), mapping_function));
 }
 
 template <typename T, typename A = std::allocator<T>>
