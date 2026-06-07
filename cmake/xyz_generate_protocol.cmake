@@ -38,10 +38,9 @@ a Jinja2 template and a Python generation script.
 
 #]=======================================================================]
 macro(xyz_generate_protocol)
-  set(options "")
   set(oneValueArgs CLASS_NAME INTERFACE OUTPUT HEADER)
   set(multiValueArgs "")
-  cmake_parse_arguments(XYZ_GENERATE "${options}" "${oneValueArgs}"
+  cmake_parse_arguments(XYZ_GENERATE "" "${oneValueArgs}"
                         "${multiValueArgs}" ${ARGN})
 
   set(TEMPLATE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scripts/protocol.j2)
