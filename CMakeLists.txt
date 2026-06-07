@@ -110,13 +110,16 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       CLASS_NAME B INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
       HEADER interface_B.h
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h)
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h)
     xyz_generate_protocol(
       CLASS_NAME C INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
       HEADER interface_C.h
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
     xyz_generate_protocol(
       CLASS_NAME D INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_D.h
       HEADER interface_D.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
 
     add_custom_target(
