@@ -69,12 +69,12 @@ include(xyz_generate_protocol)
 
 find_package(ClangTidy)
 find_package(IWYU)
-xyz_add_library(NAME protocol ALIAS xyz_protocol::protocol)
+xyz_add_library(
+  NAME protocol
+  ALIAS xyz_protocol::protocol
+  FILES protocol.cc)
 target_sources(
-  protocol INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.h>)
-
-xyz_add_object_library(NAME protocol_cc FILES protocol.cc LINK_LIBRARIES
-                       xyz_protocol::protocol)
+  protocol PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.h>)
 
 if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
@@ -132,7 +132,6 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       protocol_test
       LINK_LIBRARIES
       protocol
-      protocol_cc
       FILES
       protocol_test.cc
       interface_A.h
@@ -150,7 +149,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
                                PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
     add_executable(protocol_benchmark protocol_benchmark.cc)
-    target_link_libraries(protocol_benchmark PRIVATE protocol protocol_cc benchmark::benchmark)
+    target_link_libraries(protocol_benchmark PRIVATE protocol benchmark::benchmark)
     add_dependencies(protocol_benchmark generate_protocols)
     target_include_directories(protocol_benchmark PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

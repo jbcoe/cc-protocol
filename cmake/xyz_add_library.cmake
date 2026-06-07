@@ -35,7 +35,7 @@ and allows configuration for common optional settings
 function(xyz_add_library)
   set(options)
   set(oneValueArgs NAME ALIAS VERSION)
-  set(multiValueArgs DEFINITIONS)
+  set(multiValueArgs FILES DEFINITIONS)
   cmake_parse_arguments(XYZ "${options}" "${oneValueArgs}" "${multiValueArgs}"
                         ${ARGN})
 
@@ -58,15 +58,33 @@ function(xyz_add_library)
     set(XYZ_CXX_STANDARD cxx_std_${XYZ_VERSION})
   endif()
 
-  add_library(${XYZ_NAME} INTERFACE)
-  add_library(${XYZ_ALIAS} ALIAS ${XYZ_NAME})
-  target_include_directories(
-    ${XYZ_NAME} INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-                          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-  target_compile_features(${XYZ_NAME} INTERFACE ${XYZ_CXX_STANDARD})
+  if(XYZ_FILES)
+    add_library(${XYZ_NAME} STATIC)
+    target_sources(${XYZ_NAME} PRIVATE ${XYZ_FILES})
+    target_include_directories(
+      ${XYZ_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+                         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    target_compile_features(${XYZ_NAME} PUBLIC ${XYZ_CXX_STANDARD})
 
-  if(XYZ_DEFINITIONS)
-    target_compile_definitions(${XYZ_NAME} INTERFACE ${XYZ_DEFINITIONS})
-  endif(XYZ_DEFINITIONS)
+    if(XYZ_DEFINITIONS)
+      target_compile_definitions(${XYZ_NAME} PUBLIC ${XYZ_DEFINITIONS})
+    endif()
+
+    if(CLANG_TIDY_ENABLE AND ClangTidy_FOUND)
+      set_target_properties(${XYZ_NAME} PROPERTIES CXX_CLANG_TIDY "${XYZ_CLANG_TIDY}")
+    endif()
+  else()
+    add_library(${XYZ_NAME} INTERFACE)
+    target_include_directories(
+      ${XYZ_NAME} INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+                            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    target_compile_features(${XYZ_NAME} INTERFACE ${XYZ_CXX_STANDARD})
+
+    if(XYZ_DEFINITIONS)
+      target_compile_definitions(${XYZ_NAME} INTERFACE ${XYZ_DEFINITIONS})
+    endif()
+  endif()
+
+  add_library(${XYZ_ALIAS} ALIAS ${XYZ_NAME})
 
 endfunction()
