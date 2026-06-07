@@ -52,9 +52,10 @@ const void* get_or_create_vtable_erased(
     return nullptr;
   }
 
-  static std::unordered_map<CacheKey, std::unique_ptr<char[]>, CacheKeyHash>
-      cache;
-  static std::mutex mutex;
+  static auto& cache =
+      *new std::unordered_map<CacheKey, std::unique_ptr<char[]>,
+                              CacheKeyHash>();
+  static auto& mutex = *new std::mutex();
 
   CacheKey key{from_vptr, type_id};
   {
