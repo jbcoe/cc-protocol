@@ -98,43 +98,26 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
     enable_testing()
 
-    option(XYZ_PROTOCOL_GENERATE_MANUAL_VTABLE "Generate manual vtable template" OFF)
-
-    set(OPT_MANUAL_VTABLE "")
-    if(XYZ_PROTOCOL_GENERATE_MANUAL_VTABLE)
-      set(OPT_MANUAL_VTABLE MANUAL_VTABLE)
-    endif()
-
     xyz_generate_protocol(
       CLASS_NAME A INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
       HEADER interface_A.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h ${OPT_MANUAL_VTABLE})
-    xyz_generate_protocol(
-      CLASS_NAME A_virtual INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_benchmark.h
-      HEADER interface_benchmark.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_virtual.h)
-    xyz_generate_protocol(
-      CLASS_NAME A_manual INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_benchmark.h
-      HEADER interface_benchmark.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_manual.h MANUAL_VTABLE)
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h)
     xyz_generate_protocol(
       CLASS_NAME B INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
       HEADER interface_B.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h ${OPT_MANUAL_VTABLE})
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h)
     xyz_generate_protocol(
       CLASS_NAME C INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
       HEADER interface_C.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h ${OPT_MANUAL_VTABLE})
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
     xyz_generate_protocol(
       CLASS_NAME D INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_D.h
       HEADER interface_D.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h ${OPT_MANUAL_VTABLE})
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
 
     add_custom_target(
       generate_protocols
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_virtual.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_manual.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)

@@ -154,24 +154,24 @@ def test_generate_simple_class(temp_dir: str, compiler: str) -> None:
 
     model = get_model_from_file(output_header, compiler)
 
-    # Verify that the callback classes are generated
-    cb_classes = [c.name for c in model.classes]
-    assert "protocol_view_const_cb_Simple" in cb_classes
-    assert "protocol_view_cb_Simple" in cb_classes
+    # Verify that the vtable structs are generated
+    vtable_classes = [c.name for c in model.classes]
+    assert "const_view_vtable_Simple" in vtable_classes
+    assert "view_vtable_Simple" in vtable_classes
 
-    # Check methods in protocol_view_cb_Simple and protocol_view_const_cb_Simple
-    cb_class = next(c for c in model.classes if c.name == "protocol_view_cb_Simple")
-    const_cb_class = next(
-        c for c in model.classes if c.name == "protocol_view_const_cb_Simple"
+    # Check members in view_vtable_Simple and const_view_vtable_Simple
+    vtable_class = next(c for c in model.classes if c.name == "view_vtable_Simple")
+    const_vtable_class = next(
+        c for c in model.classes if c.name == "const_view_vtable_Simple"
     )
 
-    all_method_names = [m.name for m in cb_class.methods] + [
-        m.name for m in const_cb_class.methods
+    all_member_names = [m.name for m in vtable_class.members] + [
+        m.name for m in const_vtable_class.members
     ]
 
     # Names should be mangled with GUIDs, so we check prefix
-    assert any(n.startswith("foo_") for n in all_method_names)
-    assert any(n.startswith("bar_") for n in all_method_names)
+    assert any(n.startswith("foo_") for n in all_member_names)
+    assert any(n.startswith("bar_") for n in all_member_names)
 
 
 def test_class_not_found(temp_dir: str, compiler: str) -> None:
@@ -211,21 +211,20 @@ def test_mangle_operators(temp_dir: str, compiler: str) -> None:
     assert res.returncode == 0, res.stderr
 
     model = get_model_from_file(output_header, compiler)
-    # The actual names are protocol_view_cb_Ops and protocol_view_const_cb_Ops
-    cb_class = next(c for c in model.classes if c.name == "protocol_view_cb_Ops")
-    const_cb_class = next(
-        c for c in model.classes if c.name == "protocol_view_const_cb_Ops"
+    vtable_class = next(c for c in model.classes if c.name == "view_vtable_Ops")
+    const_vtable_class = next(
+        c for c in model.classes if c.name == "const_view_vtable_Ops"
     )
 
-    all_method_names = [m.name for m in cb_class.methods] + [
-        m.name for m in const_cb_class.methods
+    all_member_names = [m.name for m in vtable_class.members] + [
+        m.name for m in const_vtable_class.members
     ]
-    assert any(n.startswith("__operator__equal_equal__") for n in all_method_names)
-    assert any(n.startswith("__operator__plus_equal__") for n in all_method_names)
+    assert any(n.startswith("__operator__equal_equal__") for n in all_member_names)
+    assert any(n.startswith("__operator__plus_equal__") for n in all_member_names)
 
 
-def test_manual_vtable_template(temp_dir: str, compiler: str) -> None:
-    """Test that the manual vtable template produces a valid vtable structure."""
+def test_vtable_structures(temp_dir: str, compiler: str) -> None:
+    """Test that the generated code produces manual vtable structures."""
     input_header = os.path.join(temp_dir, "input.h")
     output_header = os.path.join(temp_dir, "output.h")
 
@@ -244,12 +243,12 @@ def test_manual_vtable_template(temp_dir: str, compiler: str) -> None:
         output_header,
         "Simple",
         "input.h",
-        template_path="scripts/protocol_manual_vtable.j2",
+        template_path="scripts/protocol.j2",
         compiler=compiler,
     )
     assert res.returncode == 0, res.stderr
 
-    # In manual vtable mode, we expect structs for vtables
+    # We expect structs for manual vtables
     with open(output_header, "r") as f:
         content = f.read()
         assert "struct const_view_vtable_Simple" in content
@@ -370,21 +369,21 @@ def test_overloaded_functions(temp_dir: str, compiler: str) -> None:
     assert res.returncode == 0, res.stderr
 
     model = get_model_from_file(output_header, compiler)
-    cb_class = next(c for c in model.classes if c.name == "protocol_view_cb_Overloaded")
-    const_cb_class = next(
-        c for c in model.classes if c.name == "protocol_view_const_cb_Overloaded"
+    vtable_class = next(c for c in model.classes if c.name == "view_vtable_Overloaded")
+    const_vtable_class = next(
+        c for c in model.classes if c.name == "const_view_vtable_Overloaded"
     )
 
-    # Collect methods from both callback classes
-    all_foo_methods = [m for m in cb_class.methods if m.name.startswith("foo_")] + [
-        m for m in const_cb_class.methods if m.name.startswith("foo_")
+    # Collect members from both vtable structs
+    all_foo_members = [m for m in vtable_class.members if m.name.startswith("foo_")] + [
+        m for m in const_vtable_class.members if m.name.startswith("foo_")
     ]
 
-    # There should be exactly 3 methods starting with foo_
-    assert len(all_foo_methods) == 3
+    # There should be exactly 3 members starting with foo_
+    assert len(all_foo_members) == 3
 
     # Check that they have unique mangled names
-    mangled_names = [m.name for m in all_foo_methods]
+    mangled_names = [m.name for m in all_foo_members]
     assert len(set(mangled_names)) == 3
 
 

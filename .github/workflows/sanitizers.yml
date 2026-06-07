@@ -48,23 +48,13 @@ jobs:
         uses: astral-sh/setup-uv@v5
       - name: Set up Python
         run: uv sync
-      - name: Run CMake (Default VTable)
+      - name: Run CMake
         run: |
           UBSAN_FLAG=""
           if [ "${{ matrix.sanitizer }}" = "asan" ]; then
             UBSAN_FLAG="--ubsan"
           fi
-          ./scripts/cmake.sh -B build_${{ matrix.sanitizer }}_default --debug --${{ matrix.sanitizer }} ${UBSAN_FLAG}
-        env:
-          CC: clang-${{ matrix.clang_version }}
-          CXX: clang++-${{ matrix.clang_version }}
-      - name: Run CMake (Manual VTable)
-        run: |
-          UBSAN_FLAG=""
-          if [ "${{ matrix.sanitizer }}" = "asan" ]; then
-            UBSAN_FLAG="--ubsan"
-          fi
-          ./scripts/cmake.sh -B build_${{ matrix.sanitizer }}_manual --debug --manual-vtable --${{ matrix.sanitizer }} ${UBSAN_FLAG}
+          ./scripts/cmake.sh --debug --${{ matrix.sanitizer }} ${UBSAN_FLAG}
         env:
           CC: clang-${{ matrix.clang_version }}
           CXX: clang++-${{ matrix.clang_version }}
