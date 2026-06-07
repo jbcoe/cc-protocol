@@ -227,7 +227,7 @@ class protocol<{{ full_class_name }}, Allocator> {
     }
   }
 
-  void* cb_;
+  void* p_;
   const vtable* vtable_;
   [[no_unique_address]] Allocator alloc_;
 
@@ -276,7 +276,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc)
     requires std::default_initializable<{{ full_class_name }}> && std::copy_constructible<{{ full_class_name }}>
       : alloc_(alloc) {
-    cb_ = create_storage<{{ full_class_name }}>();
+    p_ = create_storage<{{ full_class_name }}>();
     vtable_ = &vtable_impl<{{ full_class_name }}>::vtable_;
   }
 
@@ -287,7 +287,7 @@ class protocol<{{ full_class_name }}, Allocator> {
             std::copy_constructible<std::remove_cvref_t<U>> &&
             protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
-    cb_ = create_storage<std::remove_cvref_t<U>>(std::forward<U>(u));
+    p_ = create_storage<std::remove_cvref_t<U>>(std::forward<U>(u));
     vtable_ = &vtable_impl<std::remove_cvref_t<U>>::vtable_;
   }
 
@@ -298,7 +298,7 @@ class protocol<{{ full_class_name }}, Allocator> {
              std::constructible_from<U, Ts&&...> &&
              std::copy_constructible<U> && protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
-    cb_ = create_storage<U>(std::forward<Ts>(ts)...);
+    p_ = create_storage<U>(std::forward<Ts>(ts)...);
     vtable_ = &vtable_impl<U>::vtable_;
   }
 
@@ -310,7 +310,7 @@ class protocol<{{ full_class_name }}, Allocator> {
              std::constructible_from<U, std::initializer_list<I>, Ts&&...> &&
              std::copy_constructible<U> && protocol_concept_{{ c.name }}<U>
       : alloc_(alloc) {
-    cb_ = create_storage<U>(ilist, std::forward<Ts>(ts)...);
+    p_ = create_storage<U>(ilist, std::forward<Ts>(ts)...);
     vtable_ = &vtable_impl<U>::vtable_;
   }
 
@@ -318,10 +318,10 @@ class protocol<{{ full_class_name }}, Allocator> {
                        const protocol& other)
       : alloc_(alloc) {
     if (!other.valueless_after_move()) {
-      cb_ = other.vtable_->xyz_protocol_clone(other.cb_, alloc_);
+      p_ = other.vtable_->xyz_protocol_clone(other.p_, alloc_);
       vtable_ = other.vtable_;
     } else {
-      cb_ = nullptr;
+      p_ = nullptr;
       vtable_ = nullptr;
     }
   }
@@ -331,18 +331,18 @@ class protocol<{{ full_class_name }}, Allocator> {
       protocol&& other) noexcept(allocator_traits::is_always_equal::value)
       : alloc_(alloc) {
     if constexpr (allocator_traits::is_always_equal::value) {
-      cb_ = std::exchange(other.cb_, nullptr);
+      p_ = std::exchange(other.p_, nullptr);
       vtable_ = std::exchange(other.vtable_, nullptr);
     } else {
       if (alloc_ == other.alloc_) {
-        cb_ = std::exchange(other.cb_, nullptr);
+        p_ = std::exchange(other.p_, nullptr);
         vtable_ = std::exchange(other.vtable_, nullptr);
       } else {
         if (!other.valueless_after_move()) {
-          cb_ = other.vtable_->xyz_protocol_move(other.cb_, alloc_);
+          p_ = other.vtable_->xyz_protocol_move(other.p_, alloc_);
           vtable_ = other.vtable_;
         } else {
-          cb_ = nullptr;
+          p_ = nullptr;
           vtable_ = nullptr;
         }
       }
@@ -350,18 +350,18 @@ class protocol<{{ full_class_name }}, Allocator> {
   }
 
   constexpr bool valueless_after_move() const noexcept {
-    return cb_ == nullptr;
+    return p_ == nullptr;
   }
 
   ~protocol() {
-    if (cb_ != nullptr) {
-      vtable_->xyz_protocol_destroy(cb_, alloc_);
+    if (p_ != nullptr) {
+      vtable_->xyz_protocol_destroy(p_, alloc_);
     }
   }
 
   protocol& operator=(protocol other) noexcept(
       allocator_traits::is_always_equal::value) {
-    std::swap(cb_, other.cb_);
+    std::swap(p_, other.p_);
     std::swap(vtable_, other.vtable_);
     if constexpr (!allocator_traits::is_always_equal::value) {
       std::swap(alloc_, other.alloc_);
@@ -371,7 +371,7 @@ class protocol<{{ full_class_name }}, Allocator> {
 
   void swap(protocol& other) noexcept(
       allocator_traits::is_always_equal::value) {
-    std::swap(cb_, other.cb_);
+    std::swap(p_, other.p_);
     std::swap(vtable_, other.vtable_);
     if constexpr (!allocator_traits::is_always_equal::value) {
       std::swap(alloc_, other.alloc_);
@@ -393,7 +393,7 @@ class protocol<{{ full_class_name }}, Allocator> {
   {% endfor %}
   {% set params_str = params | join(", ") %}
   {% set passes_str = passes | join(", ") %}
-  {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} { return vtable_->{{ m.name | mangle }}_{{ method_guids[loop.index0] }}(cb_{% if passes %}, {% endif %}{{ passes_str }}); }
+  {{ m.return_type.name }} {{ m.name }}({{ params_str }}){% if m.is_const %} const{% endif %}{% if m.is_noexcept %} noexcept{% endif %} { return vtable_->{{ m.name | mangle }}_{{ method_guids[loop.index0] }}(p_{% if passes %}, {% endif %}{{ passes_str }}); }
 {% endfor %}
 
 };
@@ -413,7 +413,7 @@ class protocol_view<const {{ full_class_name }}> {
   static const void* checked_ptr(
       const protocol<{{ full_class_name }}, Alloc>& p) noexcept {
     assert(!p.valueless_after_move());
-    return p.cb_;
+    return p.p_;
   }
 
  public:
@@ -467,7 +467,7 @@ class protocol_view<{{ full_class_name }}> {
   template <typename Alloc>
   static void* checked_ptr(protocol<{{ full_class_name }}, Alloc>& p) noexcept {
     assert(!p.valueless_after_move());
-    return p.cb_;
+    return p.p_;
   }
 
  public:

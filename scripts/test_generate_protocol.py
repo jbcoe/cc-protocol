@@ -154,19 +154,19 @@ def test_generate_simple_class(temp_dir: str, compiler: str) -> None:
 
     model = get_model_from_file(output_header, compiler)
 
-    # Verify that the callback vtable structs are generated
-    cb_classes = [c.name for c in model.classes]
-    assert "const_view_vtable_Simple" in cb_classes
-    assert "view_vtable_Simple" in cb_classes
+    # Verify that the vtable structs are generated
+    vtable_classes = [c.name for c in model.classes]
+    assert "const_view_vtable_Simple" in vtable_classes
+    assert "view_vtable_Simple" in vtable_classes
 
     # Check members in view_vtable_Simple and const_view_vtable_Simple
-    cb_class = next(c for c in model.classes if c.name == "view_vtable_Simple")
-    const_cb_class = next(
+    vtable_class = next(c for c in model.classes if c.name == "view_vtable_Simple")
+    const_vtable_class = next(
         c for c in model.classes if c.name == "const_view_vtable_Simple"
     )
 
-    all_member_names = [m.name for m in cb_class.members] + [
-        m.name for m in const_cb_class.members
+    all_member_names = [m.name for m in vtable_class.members] + [
+        m.name for m in const_vtable_class.members
     ]
 
     # Names should be mangled with GUIDs, so we check prefix
@@ -211,11 +211,13 @@ def test_mangle_operators(temp_dir: str, compiler: str) -> None:
     assert res.returncode == 0, res.stderr
 
     model = get_model_from_file(output_header, compiler)
-    cb_class = next(c for c in model.classes if c.name == "view_vtable_Ops")
-    const_cb_class = next(c for c in model.classes if c.name == "const_view_vtable_Ops")
+    vtable_class = next(c for c in model.classes if c.name == "view_vtable_Ops")
+    const_vtable_class = next(
+        c for c in model.classes if c.name == "const_view_vtable_Ops"
+    )
 
-    all_member_names = [m.name for m in cb_class.members] + [
-        m.name for m in const_cb_class.members
+    all_member_names = [m.name for m in vtable_class.members] + [
+        m.name for m in const_vtable_class.members
     ]
     assert any(n.startswith("__operator__equal_equal__") for n in all_member_names)
     assert any(n.startswith("__operator__plus_equal__") for n in all_member_names)
@@ -367,14 +369,14 @@ def test_overloaded_functions(temp_dir: str, compiler: str) -> None:
     assert res.returncode == 0, res.stderr
 
     model = get_model_from_file(output_header, compiler)
-    cb_class = next(c for c in model.classes if c.name == "view_vtable_Overloaded")
-    const_cb_class = next(
+    vtable_class = next(c for c in model.classes if c.name == "view_vtable_Overloaded")
+    const_vtable_class = next(
         c for c in model.classes if c.name == "const_view_vtable_Overloaded"
     )
 
     # Collect members from both vtable structs
-    all_foo_members = [m for m in cb_class.members if m.name.startswith("foo_")] + [
-        m for m in const_cb_class.members if m.name.startswith("foo_")
+    all_foo_members = [m for m in vtable_class.members if m.name.startswith("foo_")] + [
+        m for m in const_vtable_class.members if m.name.startswith("foo_")
     ]
 
     # There should be exactly 3 members starting with foo_
