@@ -509,3 +509,37 @@ def test_concept_operators(temp_dir: str, compiler: str) -> None:
     )
 
     assert comp_res.returncode == 0, f"Compilation failed:\n{comp_res.stderr}"
+
+
+def test_protocol_reference(temp_dir: str, compiler: str) -> None:
+    """Verify generated protocol matches checked-in reference_interface_protocol.h."""
+    import shutil
+
+    shutil.copy(".clang-format", temp_dir)
+
+    reference_header = "reference_interface.h"
+    reference_protocol = "reference_interface_protocol.h"
+    temp_output = os.path.join(temp_dir, "temp_reference_interface_protocol.h")
+
+    # Run the generator on reference_interface.h
+    res = run_generate_protocol(
+        reference_header,
+        temp_output,
+        "ReferenceInterface",
+        "reference_interface.h",
+        compiler=compiler,
+    )
+    assert res.returncode == 0, res.stderr
+
+    # Read the expected and generated files
+    with open(reference_protocol, "r") as f:
+        expected = f.read()
+    with open(temp_output, "r") as f:
+        actual = f.read()
+
+    assert expected == actual, (
+        "Generated protocol does not match reference_interface_protocol.h! "
+        "If the generator template has changed, please regenerate "
+        "the reference file using:\n"
+        "uv run scripts/regenerate_reference_interface_protocol.py"
+    )
