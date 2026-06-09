@@ -69,12 +69,12 @@ include(xyz_generate_protocol)
 
 find_package(ClangTidy)
 find_package(IWYU)
-xyz_add_library(NAME protocol ALIAS xyz_protocol::protocol)
+xyz_add_library(
+  NAME protocol
+  ALIAS xyz_protocol::protocol
+  FILES protocol.cc)
 target_sources(
-  protocol INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.h>)
-
-xyz_add_object_library(NAME protocol_cc FILES protocol.cc LINK_LIBRARIES
-                       xyz_protocol::protocol)
+  protocol PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.h>)
 
 if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
@@ -103,6 +103,10 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       HEADER interface_A.h
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h)
     xyz_generate_protocol(
+      CLASS_NAME A_Subset INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A_Subset.h
+      HEADER interface_A_Subset.h
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_Subset.h)
+    xyz_generate_protocol(
       CLASS_NAME B INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
       HEADER interface_B.h
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h)
@@ -118,6 +122,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
     add_custom_target(
       generate_protocols
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h
+              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_Subset.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h
               ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
@@ -131,6 +136,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       protocol_test.cc
       interface_A.h
       ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h
+      interface_A_Subset.h
+      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_Subset.h
       interface_B.h
       ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
       interface_C.h

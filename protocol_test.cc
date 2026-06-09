@@ -22,12 +22,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
 #include "generated/protocol_A.h"
+#include "generated/protocol_A_Subset.h"
 #include "generated/protocol_B.h"
 #include "generated/protocol_C.h"
 #include "generated/protocol_D.h"
@@ -891,6 +894,286 @@ TEST(ProtocolViewTest, ProtocolViewDOperators) {
 
   EXPECT_EQ(d(), 42);
   EXPECT_EQ(d[5], 10);
+}
+
+TEST(ProtocolViewTest, NarrowingConversion) {
+  ALike a_obj;
+  xyz::protocol_view<xyz::A> view_a(a_obj);
+
+  // 1. Convert mutable view of A to const view of A_Subset
+  xyz::protocol_view<const xyz::A_Subset> const_view_subset = view_a;
+  EXPECT_EQ(const_view_subset.name(), "ALike");
+
+  // 2. Convert mutable view of A to mutable view of A_Subset
+  xyz::protocol_view<xyz::A_Subset> view_subset = view_a;
+  EXPECT_EQ(view_subset.name(), "ALike");
+
+  // 3. Convert const view of A to const view of A_Subset
+  xyz::protocol_view<const xyz::A> const_view_a(a_obj);
+  xyz::protocol_view<const xyz::A_Subset> const_view_subset2 = const_view_a;
+  EXPECT_EQ(const_view_subset2.name(), "ALike");
+}
+
+TEST(ProtocolTest, NarrowingMoveConversionEqualAllocators) {
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p(std::in_place_type<ALike>,
+                                                     42);
+  EXPECT_EQ(p.count(), 42);
+
+  // Convert owning protocol using move constructor
+  xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset =
+      std::move(p);
+  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_FALSE(p_subset.valueless_after_move());
+  EXPECT_EQ(p_subset.name(), "ALike");
+}
+
+TEST(ProtocolTest, NarrowingCopyConversion) {
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p(std::in_place_type<ALike>,
+                                                     42);
+  EXPECT_EQ(p.count(), 42);
+
+  // Convert owning protocol using copy constructor (clones the object)
+  xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset(p);
+  EXPECT_FALSE(p.valueless_after_move());
+  EXPECT_FALSE(p_subset.valueless_after_move());
+  EXPECT_EQ(p.name(), "ALike");
+  EXPECT_EQ(p_subset.name(), "ALike");
+}
+
+TEST(ProtocolTest, CountAllocationsForNarrowingCopyConversion) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> p(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    EXPECT_EQ(alloc_counter, 1);
+    EXPECT_EQ(dealloc_counter, 0);
+
+    // Convert via copy constructor - this should clone the underlying object
+    xyz::protocol<xyz::A_Subset, xyz::TrackingAllocator<std::byte>> p_subset(p);
+    EXPECT_FALSE(p.valueless_after_move());
+    EXPECT_FALSE(p_subset.valueless_after_move());
+    EXPECT_EQ(alloc_counter, 2);
+    EXPECT_EQ(dealloc_counter, 0);
+  }
+  EXPECT_EQ(alloc_counter, 2);
+  EXPECT_EQ(dealloc_counter, 2);
+}
+
+TEST(ProtocolTest, NarrowingCopyConversionFromValueless) {
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p(std::in_place_type<ALike>,
+                                                     42);
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p2 = std::move(p);
+  EXPECT_TRUE(p.valueless_after_move());
+
+  // Copying a valueless protocol should yield a valueless protocol
+  xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset(p);
+  EXPECT_TRUE(p_subset.valueless_after_move());
+}
+
+TEST(ProtocolTest, NarrowingCopyConversionNonEqualAllocators) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, NonEqualTrackingAllocator<std::byte>> p(
+        std::allocator_arg,
+        NonEqualTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    EXPECT_EQ(alloc_counter, 1);
+    EXPECT_EQ(dealloc_counter, 0);
+
+    // Copy-convert with different allocator instance (non-equal allocators)
+    NonEqualTrackingAllocator<std::byte> target_alloc(&alloc_counter,
+                                                      &dealloc_counter);
+    xyz::protocol<xyz::A_Subset, NonEqualTrackingAllocator<std::byte>> p_subset(
+        std::allocator_arg, target_alloc, p);
+
+    EXPECT_FALSE(p.valueless_after_move());
+    EXPECT_FALSE(p_subset.valueless_after_move());
+    EXPECT_EQ(p.name(), "ALike");
+    EXPECT_EQ(p_subset.name(), "ALike");
+
+    // 1 allocation for source object, plus 1 allocation for cloned object on
+    // the target allocator
+    EXPECT_EQ(alloc_counter, 2);
+    EXPECT_EQ(dealloc_counter, 0);
+  }
+  // All allocations should be cleaned up
+  EXPECT_EQ(alloc_counter, 2);
+  EXPECT_EQ(dealloc_counter, 2);
+}
+
+TEST(ProtocolTest, NarrowingMoveConversionNonEqualAllocators) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, NonEqualTrackingAllocator<std::byte>> p(
+        std::allocator_arg,
+        NonEqualTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    EXPECT_EQ(alloc_counter, 1);
+    EXPECT_EQ(dealloc_counter, 0);
+
+    // Convert with different allocator instances (non-equal allocators)
+    // This will force allocating a copy of the underlying object using the
+    // destination's allocator
+    xyz::protocol<xyz::A_Subset, NonEqualTrackingAllocator<std::byte>> p_subset(
+        std::move(p));
+
+    EXPECT_FALSE(p_subset.valueless_after_move());
+    EXPECT_EQ(p_subset.name(), "ALike");
+    // Since allocators compare non-equal, it must have allocated on the new
+    // allocator, and old remains valid/valueless? Wait, the standard move
+    // constructor for different allocators will move-construct the content,
+    // which allocates 1 and destroys/deallocates the source object.
+    EXPECT_EQ(alloc_counter, 2);
+  }
+  // All allocations should be cleaned up
+  EXPECT_EQ(alloc_counter, 2);
+  EXPECT_EQ(dealloc_counter, 2);
+}
+
+TEST(ProtocolTest, CountAllocationsForNarrowingMoveConversion) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>, 42);
+    EXPECT_EQ(alloc_counter, 1);
+    EXPECT_EQ(dealloc_counter, 0);
+
+    // Perform narrowing move conversion with equal allocators (stolen pointer)
+    xyz::protocol<xyz::A_Subset, xyz::TrackingAllocator<std::byte>> aa(
+        std::move(a));
+
+    EXPECT_TRUE(a.valueless_after_move());
+    EXPECT_FALSE(aa.valueless_after_move());
+    // Zero new allocations and zero deallocations during conversion
+    EXPECT_EQ(alloc_counter, 1);
+    EXPECT_EQ(dealloc_counter, 0);
+  }
+  // The underlying object is destroyed at block exit
+  EXPECT_EQ(alloc_counter, 1);
+  EXPECT_EQ(dealloc_counter, 1);
+}
+
+TEST(ProtocolTest, NarrowingMoveConversionFromValueless) {
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p(std::in_place_type<ALike>,
+                                                     42);
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p2 = std::move(p);
+  EXPECT_TRUE(p.valueless_after_move());
+
+  // Converting a valueless protocol should yield a valueless protocol
+  xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset =
+      std::move(p);
+  EXPECT_TRUE(p_subset.valueless_after_move());
+}
+
+TEST(ProtocolViewTest, NarrowingConversionCombinations) {
+  ALike a_obj;
+  xyz::protocol_view<xyz::A> view_a(a_obj);
+
+  // 1. Convert mutable view of A to const view of A_Subset
+  xyz::protocol_view<const xyz::A_Subset> const_view_subset = view_a;
+  EXPECT_EQ(const_view_subset.name(), "ALike");
+
+  // 2. Convert mutable view of A to mutable view of A_Subset
+  xyz::protocol_view<xyz::A_Subset> view_subset = view_a;
+  EXPECT_EQ(view_subset.name(), "ALike");
+
+  // 3. Convert const view of A to const view of A_Subset
+  xyz::protocol_view<const xyz::A> const_view_a(a_obj);
+  xyz::protocol_view<const xyz::A_Subset> const_view_subset2 = const_view_a;
+  EXPECT_EQ(const_view_subset2.name(), "ALike");
+}
+
+TEST(ProtocolTest, NarrowingConversionConcurrentAccess) {
+  constexpr int kNumThreads = 10;
+  std::vector<std::thread> threads;
+  std::atomic<bool> start_signal{false};
+
+  for (int i = 0; i < kNumThreads; ++i) {
+    threads.emplace_back([&start_signal]() {
+      while (!start_signal.load()) {
+        std::this_thread::yield();
+      }
+      ALike a_obj;
+      xyz::protocol_view<xyz::A> view_a(a_obj);
+
+      // Perform view conversions concurrently
+      xyz::protocol_view<const xyz::A_Subset> const_view = view_a;
+      EXPECT_EQ(const_view.name(), "ALike");
+
+      xyz::protocol_view<xyz::A_Subset> mut_view = view_a;
+      EXPECT_EQ(mut_view.name(), "ALike");
+
+      // Perform owning conversions concurrently
+      xyz::protocol<xyz::A, std::allocator<std::byte>> p(
+          std::in_place_type<ALike>, 42);
+      xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset =
+          std::move(p);
+      EXPECT_EQ(p_subset.name(), "ALike");
+    });
+  }
+
+  // Release all threads to run concurrently
+  start_signal.store(true);
+
+  for (auto& t : threads) {
+    t.join();
+  }
+}
+
+TEST(ProtocolTest, NarrowingConversionConcurrentStressing) {
+  constexpr int kNumThreads = 20;
+  constexpr int kIterationsPerThread = 50;
+  std::vector<std::thread> threads;
+  std::atomic<bool> start_signal{false};
+
+  for (int i = 0; i < kNumThreads; ++i) {
+    threads.emplace_back([&start_signal]() {
+      while (!start_signal.load()) {
+        std::this_thread::yield();
+      }
+      for (int iter = 0; iter < kIterationsPerThread; ++iter) {
+        ALike a_obj;
+        xyz::protocol_view<xyz::A> view_a(a_obj);
+
+        // Concurrently query view conversions (often hitting cache)
+        xyz::protocol_view<const xyz::A_Subset> const_view = view_a;
+        EXPECT_EQ(const_view.name(), "ALike");
+
+        xyz::protocol_view<xyz::A_Subset> mut_view = view_a;
+        EXPECT_EQ(mut_view.name(), "ALike");
+
+        // Concurrently query owning conversions (often hitting cache)
+        xyz::protocol<xyz::A, std::allocator<std::byte>> p(
+            std::in_place_type<ALike>, 42);
+        xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset =
+            std::move(p);
+        EXPECT_EQ(p_subset.name(), "ALike");
+
+        // Use custom allocator to trigger a different map entry
+        xyz::protocol<xyz::A, std::allocator<char>> p_char(
+            std::in_place_type<ALike>, 42);
+        xyz::protocol<xyz::A_Subset, std::allocator<char>> p_subset_char =
+            std::move(p_char);
+        EXPECT_EQ(p_subset_char.name(), "ALike");
+      }
+    });
+  }
+
+  // Release all threads to run concurrently and contend on cache
+  // lookup/creation
+  start_signal.store(true);
+
+  for (auto& t : threads) {
+    t.join();
+  }
 }
 
 }  // namespace
