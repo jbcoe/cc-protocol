@@ -543,3 +543,21 @@ def test_protocol_reference(temp_dir: str, compiler: str) -> None:
         "the reference file using:\n"
         "uv run scripts/regenerate_reference_interface_protocol.py"
     )
+
+
+def test_trailing_newline(temp_dir: str, compiler: str) -> None:
+    """Test that the generated code always ends with a trailing newline."""
+    input_header = os.path.join(temp_dir, "input.h")
+    output_header = os.path.join(temp_dir, "output.h")
+
+    with open(input_header, "w") as f:
+        f.write("class Simple { public: void foo() const; };")
+
+    res = run_generate_protocol(
+        input_header, output_header, "Simple", "input.h", compiler=compiler
+    )
+    assert res.returncode == 0
+
+    with open(output_header, "rb") as f:
+        content = f.read()
+    assert content.endswith(b"\n")

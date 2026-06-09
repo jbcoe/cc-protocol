@@ -37,6 +37,11 @@ def main() -> None:
     )
     parser.add_argument("--tsan", action="store_true", help="Enable Thread Sanitizer")
     parser.add_argument("--msan", action="store_true", help="Enable Memory Sanitizer")
+    parser.add_argument(
+        "--manual-vtable",
+        action="store_true",
+        help="Use manual vtable configuration (always enabled)",
+    )
     parser.add_argument("-B", "--build-dir", help="Build directory")
     parser.add_argument(
         "--clean", action="store_true", help="Fresh configuration and clean-first build"
