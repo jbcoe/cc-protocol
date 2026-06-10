@@ -300,6 +300,9 @@ class protocol<{{ full_class_name }}, Allocator> {
       if (!other.valueless_after_move()) {
         p_ = other.vtable_->xyz_protocol_move(other.p_, alloc_);
         vtable_ = get_owning_vtable<Other, {{ full_class_name }}, Allocator>(other.vtable_);
+        other.vtable_->xyz_protocol_destroy(other.p_, other.alloc_);
+        other.p_ = nullptr;
+        other.vtable_ = nullptr;
       } else {
         p_ = nullptr;
         vtable_ = nullptr;
@@ -333,6 +336,32 @@ class protocol<{{ full_class_name }}, Allocator> {
       vtable_ = nullptr;
     }
   }
+
+  template <typename Other>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                       protocol<Other, Allocator>&& other) noexcept(
+      allocator_traits::is_always_equal::value)
+      : alloc_(alloc) {
+    if (alloc_ == other.alloc_) {
+      p_ = std::exchange(other.p_, nullptr);
+      vtable_ = get_owning_vtable<Other, {{ full_class_name }}, Allocator>(
+          std::exchange(other.vtable_, nullptr)
+      );
+    } else {
+      if (!other.valueless_after_move()) {
+        p_ = other.vtable_->xyz_protocol_move(other.p_, alloc_);
+        vtable_ = get_owning_vtable<Other, {{ full_class_name }}, Allocator>(other.vtable_);
+        other.vtable_->xyz_protocol_destroy(other.p_, other.alloc_);
+        other.p_ = nullptr;
+        other.vtable_ = nullptr;
+      } else {
+        p_ = nullptr;
+        vtable_ = nullptr;
+      }
+    }
+  }
+
 
   explicit constexpr protocol()
     requires std::default_initializable<{{ full_class_name }}> && protocol_concept_{{ c.name }}<{{ full_class_name }}> &&
@@ -551,17 +580,40 @@ class protocol_view<const {{ full_class_name }}> {
       : ptr_(checked_ptr(p)),
         vptr_(&p.vtable_->view_vt->const_view) {}
 
+  template <typename Alloc>
+  protocol_view(protocol<{{ full_class_name }}, Alloc>&&) = delete;
+
+  constexpr protocol_view(protocol_view<{{ full_class_name }}> other) noexcept;
+
   template <typename Other>
     requires(!std::same_as<Other, {{ full_class_name }}>)
-  protocol_view(const protocol_view<const Other>& other)
+  protocol_view(const protocol_view<const Other>& other) noexcept
       : ptr_(other.ptr_),
         vptr_(get_vtable<Other, {{ full_class_name }}>(other.vptr_)) {}
 
   template <typename Other>
     requires(!std::same_as<Other, {{ full_class_name }}>)
-  protocol_view(const protocol_view<Other>& other)
+  protocol_view(const protocol_view<Other>& other) noexcept
       : ptr_(other.ptr_),
         vptr_(get_vtable<Other, {{ full_class_name }}>(&other.vptr_->const_view)) {}
+
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  protocol_view(const protocol<Other, Alloc>& p) noexcept
+      : protocol_view(protocol_view<const Other>(p)) {}
+
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  protocol_view(const protocol<Other, Alloc>&&) = delete;
+
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  protocol_view(protocol<Other, Alloc>& p) noexcept
+      : protocol_view(protocol_view<Other>(p)) {}
+
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  protocol_view(protocol<Other, Alloc>&&) = delete;
 
 {% for m in c.methods %}{% if m.is_const %}
   {% set params = [] %}
@@ -600,20 +652,33 @@ class protocol_view<{{ full_class_name }}> {
       : ptr_(std::addressof(obj)),
         vptr_(&view_vtable_{{ c.name }}_for<std::remove_cvref_t<T>>) {}
 
+  template <typename T>
+    requires protocol_concept_{{ c.name }}<T> &&
+             not_protocol_or_view<T>
+  protocol_view(const T&&) = delete;
+
   template <typename Alloc>
   protocol_view(protocol<{{ full_class_name }}, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)),
         vptr_(p.vtable_->view_vt) {}
 
+  template <typename Alloc>
+  protocol_view(protocol<{{ full_class_name }}, Alloc>&&) = delete;
+
   template <typename Other>
     requires(!std::same_as<Other, {{ full_class_name }}>)
-  protocol_view(const protocol_view<Other>& other)
+  protocol_view(const protocol_view<Other>& other) noexcept
       : ptr_(other.ptr_),
         vptr_(get_mutable_vtable<Other, {{ full_class_name }}>(other.vptr_)) {}
 
-  constexpr operator protocol_view<const {{ full_class_name }}>() const noexcept {
-    return protocol_view<const {{ full_class_name }}>{static_cast<const void*>(ptr_), &vptr_->const_view};
-  }
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  protocol_view(protocol<Other, Alloc>& p) noexcept
+      : protocol_view(protocol_view<Other>(p)) {}
+
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, {{ full_class_name }}>)
+  protocol_view(protocol<Other, Alloc>&&) = delete;
 
 {% for m in c.methods %}
   {% set params = [] %}
@@ -633,5 +698,9 @@ class protocol_view<{{ full_class_name }}> {
   }
 {% endfor %}
 };
+
+inline constexpr protocol_view<const {{ full_class_name }}>::protocol_view(
+    protocol_view<{{ full_class_name }}> other) noexcept
+    : ptr_(other.ptr_), vptr_(&other.vptr_->const_view) {}
 
 }  // namespace xyz

@@ -208,18 +208,24 @@ class protocol<I, Allocator=std::allocator<void>> {
     constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
                        protocol&& other) noexcept;  // conditionally-generated
 
-    // Converting move constructor from any compatible protocol.
-    template <typename Other>
-    constexpr protocol(protocol<Other, Allocator>&& other) noexcept;
-
-    // Converting copy constructor from any compatible protocol.
+    // Narrowing copy constructor from any compatible protocol.
     template <typename Other>
     constexpr protocol(const protocol<Other, Allocator>& other);
 
-    // Allocator-extended converting copy constructor from any compatible protocol.
+    // Narrowing move constructor from any compatible protocol.
+    template <typename Other>
+    constexpr protocol(protocol<Other, Allocator>&& other) noexcept;
+
+
+    // Allocator-extended narrowing copy constructor from any compatible protocol.
     template <typename Other>
     constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
                        const protocol<Other, Allocator>& other);
+
+    // Allocator-extended narrowing move constructor from any compatible protocol.
+    template <typename Other>
+    constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                       protocol<Other, Allocator>&& other) noexcept;
 
     // Destructor.
     ~protocol();
@@ -246,6 +252,12 @@ class protocol_view<I> {
     template <typename T>
     protocol_view(const T&&) = delete;
 
+    // Copy constructor
+    constexpr protocol_view(const protocol_view&) noexcept = default;
+
+    // Move constructor.
+    constexpr protocol_view(protocol_view&&) noexcept = default;
+
     // Constructor from a mutable protocol.
     template <typename Alloc>
     protocol_view(protocol<I, Alloc>& p) noexcept;
@@ -254,9 +266,17 @@ class protocol_view<I> {
     template <typename Alloc>
     protocol_view(protocol<I, Alloc>&&) = delete;
 
-    // Converting constructor from any compatible mutable protocol_view.
+    // Narrowing constructor from any compatible mutable protocol_view.
     template <typename Other>
-    protocol_view(const protocol_view<Other>& other);
+    protocol_view(const protocol_view<Other>& other) noexcept;
+
+    // Narrowing constructor from any compatible mutable protocol.
+    template <typename Other, typename Alloc>
+    protocol_view(protocol<Other, Alloc>& p) noexcept;
+
+    // Narrowing constructor from a compatible mutable protocol rvalue is deleted.
+    template <typename Other, typename Alloc>
+    protocol_view(protocol<Other, Alloc>&&) = delete;
 
     // structural-subtype (const and non-const) member functions.
     std::string func0(std::string_view) const noexcept;
@@ -277,6 +297,12 @@ class protocol_view<const I> {
     template <typename T>
     protocol_view(const T&&) = delete;
 
+    // Copy constructor
+    constexpr protocol_view(const protocol_view&) noexcept = default;
+
+    // Move constructor.
+    constexpr protocol_view(protocol_view&&) noexcept = default;
+
     // Constructor from a const protocol.
     template <typename Alloc>
     protocol_view(const protocol<I, Alloc>& p) noexcept;
@@ -296,19 +322,37 @@ class protocol_view<const I> {
     // Constructor from a mutable protocol_view<I>.
     constexpr protocol_view(protocol_view<I> view) noexcept;
 
-    // Converting constructor from any compatible const protocol_view.
+    // Narrowing constructor from any compatible const protocol_view.
     template <typename Other>
-    protocol_view(const protocol_view<const Other>& other);
+    protocol_view(const protocol_view<const Other>& other) noexcept;
 
-    // Converting constructor from any compatible mutable protocol_view.
+    // Narrowing constructor from any compatible mutable protocol_view.
     template <typename Other>
-    protocol_view(const protocol_view<Other>& other);
+    protocol_view(const protocol_view<Other>& other) noexcept;
+
+    // Narrowing constructor from any compatible const protocol.
+    template <typename Other, typename Alloc>
+    protocol_view(const protocol<Other, Alloc>& p) noexcept;
+
+    // Narrowing constructor from a compatible const protocol rvalue is deleted.
+    template <typename Other, typename Alloc>
+    protocol_view(const protocol<Other, Alloc>&&) = delete;
+
+    // Narrowing constructor from any compatible mutable protocol.
+    template <typename Other, typename Alloc>
+    protocol_view(protocol<Other, Alloc>& p) noexcept;
+
+    // Narrowing constructor from a compatible mutable protocol rvalue is deleted.
+    template <typename Other, typename Alloc>
+    protocol_view(protocol<Other, Alloc>&&) = delete;
 
     // structural-subtype const member functions.
     std::string func0(std::string_view) const noexcept;
     double func1(double) const;
 };
 ```
+
+Narrowing construction is allowed when the target interface specifies a structural subset of the source interface's member functions with matching parameter types, return types, and compatible qualifiers (such as `noexcept`).
 
 Code generation is currently implemented in a reference implementation with a
 custom build step but would be better implemented with generative reflection post

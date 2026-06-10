@@ -393,6 +393,9 @@ class protocol<::xyz::ReferenceInterface, Allocator> {
         vtable_ =
             get_owning_vtable<Other, ::xyz::ReferenceInterface, Allocator>(
                 other.vtable_);
+        other.vtable_->xyz_protocol_destroy(other.p_, other.alloc_);
+        other.p_ = nullptr;
+        other.vtable_ = nullptr;
       } else {
         p_ = nullptr;
         vtable_ = nullptr;
@@ -427,6 +430,33 @@ class protocol<::xyz::ReferenceInterface, Allocator> {
     } else {
       p_ = nullptr;
       vtable_ = nullptr;
+    }
+  }
+
+  template <typename Other>
+    requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
+  constexpr protocol(
+      std::allocator_arg_t, const Allocator& alloc,
+      protocol<Other, Allocator>&&
+          other) noexcept(allocator_traits::is_always_equal::value)
+      : alloc_(alloc) {
+    if (alloc_ == other.alloc_) {
+      p_ = std::exchange(other.p_, nullptr);
+      vtable_ = get_owning_vtable<Other, ::xyz::ReferenceInterface, Allocator>(
+          std::exchange(other.vtable_, nullptr));
+    } else {
+      if (!other.valueless_after_move()) {
+        p_ = other.vtable_->xyz_protocol_move(other.p_, alloc_);
+        vtable_ =
+            get_owning_vtable<Other, ::xyz::ReferenceInterface, Allocator>(
+                other.vtable_);
+        other.vtable_->xyz_protocol_destroy(other.p_, other.alloc_);
+        other.p_ = nullptr;
+        other.vtable_ = nullptr;
+      } else {
+        p_ = nullptr;
+        vtable_ = nullptr;
+      }
     }
   }
 
@@ -675,18 +705,42 @@ class protocol_view<const ::xyz::ReferenceInterface> {
   protocol_view(protocol<::xyz::ReferenceInterface, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)), vptr_(&p.vtable_->view_vt->const_view) {}
 
+  template <typename Alloc>
+  protocol_view(protocol<::xyz::ReferenceInterface, Alloc>&&) = delete;
+
+  constexpr protocol_view(
+      protocol_view<::xyz::ReferenceInterface> other) noexcept;
+
   template <typename Other>
     requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
-  protocol_view(const protocol_view<const Other>& other)
+  protocol_view(const protocol_view<const Other>& other) noexcept
       : ptr_(other.ptr_),
         vptr_(get_vtable<Other, ::xyz::ReferenceInterface>(other.vptr_)) {}
 
   template <typename Other>
     requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
-  protocol_view(const protocol_view<Other>& other)
+  protocol_view(const protocol_view<Other>& other) noexcept
       : ptr_(other.ptr_),
         vptr_(get_vtable<Other, ::xyz::ReferenceInterface>(
             &other.vptr_->const_view)) {}
+
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
+  protocol_view(const protocol<Other, Alloc>& p) noexcept
+      : protocol_view(protocol_view<const Other>(p)) {}
+
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
+  protocol_view(const protocol<Other, Alloc>&&) = delete;
+
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
+  protocol_view(protocol<Other, Alloc>& p) noexcept
+      : protocol_view(protocol_view<Other>(p)) {}
+
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
+  protocol_view(protocol<Other, Alloc>&&) = delete;
 
   int get_value() const { return vptr_->get_value_51992268(ptr_); }
 
@@ -726,23 +780,33 @@ class protocol_view<::xyz::ReferenceInterface> {
       : ptr_(std::addressof(obj)),
         vptr_(&view_vtable_ReferenceInterface_for<std::remove_cvref_t<T>>) {}
 
+  template <typename T>
+    requires protocol_concept_ReferenceInterface<T> && not_protocol_or_view<T>
+  protocol_view(const T&&) = delete;
+
   template <typename Alloc>
   protocol_view(protocol<::xyz::ReferenceInterface, Alloc>& p) noexcept
       : ptr_(checked_ptr(p)), vptr_(p.vtable_->view_vt) {}
 
+  template <typename Alloc>
+  protocol_view(protocol<::xyz::ReferenceInterface, Alloc>&&) = delete;
+
   template <typename Other>
     requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
-  protocol_view(const protocol_view<Other>& other)
+  protocol_view(const protocol_view<Other>& other) noexcept
       : ptr_(other.ptr_),
         vptr_(
             get_mutable_vtable<Other, ::xyz::ReferenceInterface>(other.vptr_)) {
   }
 
-  constexpr operator protocol_view<const ::xyz::ReferenceInterface>()
-      const noexcept {
-    return protocol_view<const ::xyz::ReferenceInterface>{
-        static_cast<const void*>(ptr_), &vptr_->const_view};
-  }
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
+  protocol_view(protocol<Other, Alloc>& p) noexcept
+      : protocol_view(protocol_view<Other>(p)) {}
+
+  template <typename Other, typename Alloc>
+    requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
+  protocol_view(protocol<Other, Alloc>&&) = delete;
 
   int get_value() const { return vptr_->const_view.get_value_51992268(ptr_); }
 
@@ -782,5 +846,9 @@ class protocol_view<::xyz::ReferenceInterface> {
         ptr_, std::forward<decltype(a0)>(a0));
   }
 };
+
+inline constexpr protocol_view<const ::xyz::ReferenceInterface>::protocol_view(
+    protocol_view<::xyz::ReferenceInterface> other) noexcept
+    : ptr_(other.ptr_), vptr_(&other.vptr_->const_view) {}
 
 }  // namespace xyz
