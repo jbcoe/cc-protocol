@@ -186,6 +186,12 @@ def main() -> None:
     # Format the output file using clang-format
     subprocess.run(["clang-format", "-i", args.output], check=True)
 
+    # Ensure the generated file ends with a trailing newline
+    with open(args.output, "rb+") as f:
+        content = f.read()
+        if not content.endswith(b"\n"):
+            f.write(b"\n")
+
 
 if __name__ == "__main__":
     main()
