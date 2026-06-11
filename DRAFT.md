@@ -47,6 +47,7 @@ and code injection and focuses solely on the design of the class templates
 
 - Support zero-cost conversion from a compatible `protocol` or `protocol_view` to a narrower target interface (subtype substitution).
 - Add `any` to the standard library types equivalence table.
+- Add `any` to the standard library types equivalence table.
 
 ### Changes in revision R1
 
@@ -574,6 +575,9 @@ feasibility of vtable generation, allocator awareness, and the value semantics
 properties required by this proposal.
 
 ## Acknowledgements
+
+The authors would like to thank Billy Baker, Tony van Eerd and the BSI C++
+Panel for suggestions and useful discussion.
 
 The authors would like to thank Billy Baker, Tony van Eerd and the BSI C++
 Panel for suggestions and useful discussion.
