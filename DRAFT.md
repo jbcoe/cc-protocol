@@ -6,7 +6,7 @@ P4148R2
 
 Working Group: Library Evolution, Library
 
-Date: 2026-06-07
+Date: 2026-06-11
 
 _Jonathan Coe \<<jonathanbcoe@gmail.com>\>_
 
@@ -46,6 +46,7 @@ and code injection and focuses solely on the design of the class templates
 ### Changes in revision R2
 
 - Support zero-cost conversion from a compatible `protocol` or `protocol_view` to a narrower target interface (subtype substitution).
+- Add `any` to the standard library types equivalence table.
 
 ### Changes in revision R1
 
@@ -367,6 +368,17 @@ existing set of function-objects.
 Consider the structural types below:
 
 ```c++
+struct Any {};
+```
+
+```c++
+struct MoveOnlyAny {
+  MoveOnlyAny(const MoveOnlyAny&) = delete;
+  MoveOnlyAny& operator=(const MoveOnlyAny&) = delete;
+};
+```
+
+```c++
 template <typename R, typename... Args>
 struct Function {
     // All special member functions are defaulted.
@@ -427,6 +439,8 @@ overload set. The table below is illustrative of how flexible `protocol` and
 
 | Standard library type                       | Protocol equivalent                              |
 | :------------------------------------------ | :----------------------------------------------- |
+| `any`                                       | `protocol<Any>`                                  |
+| ???                                         |`protocol<MoveOnlyAny>`                           |
 | `copyable_function<R(Args...) const>`       | `protocol<Function<R, Args...>>`                 |
 | `move_only_function<R(Args...) const>`      | `protocol<MoveOnlyFunction<R, Args...>>`         |
 | `function_ref<R(Args...) const>`            | `protocol_view<Function<R, Args...>>`            |
@@ -489,7 +503,6 @@ The table below summarises the main design choices side by side.
 | Interface definition | C++ struct | `facade_builder` + dispatch objects (explicit) |
 | Interaction syntax | `p.draw()` | `p->draw()` |
 | Layout constraints | Implementation defined | Encoded in the Facade type |
-| Subtype substitution | Supported | Implicit via `add_facade` |
 | Ownership model | Explicit | Erased |
 
 ### Design Alternatives
@@ -549,6 +562,9 @@ feasibility of vtable generation, allocator awareness, and the value semantics
 properties required by this proposal.
 
 ## Acknowledgements
+
+The authors would like to thank Billy Baker, Tony van Eerd and the BSI C++
+Panel for suggestions and useful discussion.
 
 ## References
 
