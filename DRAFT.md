@@ -47,6 +47,7 @@ and code injection and focuses solely on the design of the class templates
 
 - Support zero-cost conversion from a compatible `protocol` or `protocol_view` to a narrower target interface (subtype substitution).
 - Add `any` to the standard library types equivalence table.
+- Add `any` to the standard library types equivalence table.
 
 ### Changes in revision R1
 
@@ -89,10 +90,10 @@ and leading to inconsistent semantics across libraries.
 
 This situation can be understood in terms of the broader polymorphism design space:
 
-|                   | Static       | Dynamic        |
-|-------------------|:------------:|:--------------:|
-| Nominal typing    | Templates    | Virtual        |
-| Structural typing | Concepts     |    ---         |
+|                   |  Static   | Dynamic |
+| ----------------- | :-------: | :-----: |
+| Nominal typing    | Templates | Virtual |
+| Structural typing | Concepts  |   ---   |
 
 The absence of a language-supported mechanism for dynamic structural typing explains
 the proliferation of type-erasure-based abstractions. Each such abstraction can be
@@ -103,10 +104,10 @@ Protocols unify and generalise existing type-erasure patterns, providing a consi
 non-intrusive mechanism for expressing dynamic structural polymorphism, while also
 providing consistent support for allocators:
 
-|                   | Static       | Dynamic        |
-|-------------------|:------------:|:--------------:|
-| Nominal typing    | Templates    | Virtual        |
-| Structural typing | Concepts     | Protocol       |
+|                   |  Static   | Dynamic  |
+| ----------------- | :-------: | :------: |
+| Nominal typing    | Templates | Virtual  |
+| Structural typing | Concepts  | Protocol |
 
 ## Design
 
@@ -159,6 +160,7 @@ move assignment (and allocator-extended equivalents) are generated unconditional
 ```c++
 template <typename Allocator>
 class protocol<I, Allocator=std::allocator<void>> {
+  public:
 
     // Default constructor.
     explicit constexpr protocol(); // conditionally-generated
@@ -245,6 +247,8 @@ class protocol<I, Allocator=std::allocator<void>> {
 ```c++
 template <>
 class protocol_view<I> {
+  public:
+
     // Constructor from any mutable conforming object.
     template <typename T>
     constexpr protocol_view(T& obj) noexcept;
@@ -290,6 +294,8 @@ class protocol_view<I> {
 ```c++
 template <>
 class protocol_view<const I> {
+  public:
+
     // Constructor from any const conforming object.
     template <typename T>
     constexpr protocol_view(const T& obj) noexcept;
@@ -368,13 +374,20 @@ existing set of function-objects.
 Consider the structural types below:
 
 ```c++
-struct Any {};
+struct Any {
+  // All special member functions are defaulted.
+};
 ```
 
 ```c++
 struct MoveOnlyAny {
+  // Deleted copy constructor and copy assignment.
   MoveOnlyAny(const MoveOnlyAny&) = delete;
   MoveOnlyAny& operator=(const MoveOnlyAny&) = delete;
+
+  // Defaulted move constructor and move assignment.
+  MoveOnlyAny(MoveOnlyAny&&) = default;
+  MoveOnlyAny& operator=(MoveOnlyAny&&) = default;
 };
 ```
 
@@ -437,18 +450,18 @@ There is currently no function-type in the standard library that can represent a
 overload set. The table below is illustrative of how flexible `protocol` and
 `protocol_view` are:
 
-| Standard library type                       | Protocol equivalent                              |
-| :------------------------------------------ | :----------------------------------------------- |
-| `any`                                       | `protocol<Any>`                                  |
-| ???                                         |`protocol<MoveOnlyAny>`                           |
-| `copyable_function<R(Args...) const>`       | `protocol<Function<R, Args...>>`                 |
-| `move_only_function<R(Args...) const>`      | `protocol<MoveOnlyFunction<R, Args...>>`         |
-| `function_ref<R(Args...) const>`            | `protocol_view<Function<R, Args...>>`            |
-| `copyable_function<R(Args...)>`             | `protocol<MutatingFunction<R, Args...>>`         |
-| `move_only_function<R(Args...)>`            | `protocol<MoveOnlyMutatingFunction<R, Args...>>` |
-| `function_ref<R(Args...)>`                  | `protocol_view<MutatingFunction<R, Args...>>`    |
-| ???                                         | `protocol<OverloadedFunction>`                   |
-| ???                                         | `protocol_view<OverloadedFunction>`              |
+| Standard library type                  | Protocol equivalent                              |
+| :------------------------------------- | :----------------------------------------------- |
+| `any`                                  | `protocol<Any>`                                  |
+| ???                                    | `protocol<MoveOnlyAny>`                          |
+| `copyable_function<R(Args...) const>`  | `protocol<Function<R, Args...>>`                 |
+| `move_only_function<R(Args...) const>` | `protocol<MoveOnlyFunction<R, Args...>>`         |
+| `function_ref<R(Args...) const>`       | `protocol_view<Function<R, Args...>>`            |
+| `copyable_function<R(Args...)>`        | `protocol<MutatingFunction<R, Args...>>`         |
+| `move_only_function<R(Args...)>`       | `protocol<MoveOnlyMutatingFunction<R, Args...>>` |
+| `function_ref<R(Args...)>`             | `protocol_view<MutatingFunction<R, Args...>>`    |
+| ???                                    | `protocol<OverloadedFunction>`                   |
+| ???                                    | `protocol_view<OverloadedFunction>`              |
 
 ### Comparison with proxy
 
@@ -498,12 +511,12 @@ object is determined by the choice of pointer, not by `proxy`.
 
 The table below summarises the main design choices side by side.
 
-| Aspect | `protocol` | `proxy` |
-| :--- | :--- | :--- |
-| Interface definition | C++ struct | `facade_builder` + dispatch objects (explicit) |
-| Interaction syntax | `p.draw()` | `p->draw()` |
-| Layout constraints | Implementation defined | Encoded in the Facade type |
-| Ownership model | Explicit | Erased |
+| Aspect               | `protocol`             | `proxy`                                        |
+| :------------------- | :--------------------- | :--------------------------------------------- |
+| Interface definition | C++ struct             | `facade_builder` + dispatch objects (explicit) |
+| Interaction syntax   | `p.draw()`             | `p->draw()`                                    |
+| Layout constraints   | Implementation defined | Encoded in the Facade type                     |
+| Ownership model      | Explicit               | Erased                                         |
 
 ### Design Alternatives
 
@@ -562,6 +575,9 @@ feasibility of vtable generation, allocator awareness, and the value semantics
 properties required by this proposal.
 
 ## Acknowledgements
+
+The authors would like to thank Billy Baker, Tony van Eerd and the BSI C++
+Panel for suggestions and useful discussion.
 
 The authors would like to thank Billy Baker, Tony van Eerd and the BSI C++
 Panel for suggestions and useful discussion.
