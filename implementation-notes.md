@@ -1,6 +1,6 @@
 # C++ Protocol Reference Implementation Notes
 
-This document details the design and implementation of the `protocol` and `protocol_view` types, focusing on code generation, virtual dispatch, narrowing conversions, and concurrent safety.
+This document details the design and implementation of the `protocol` and `protocol_view` types, focusing on code generation, virtual dispatch, narrowing conversions, and concurrent safety. Sections 1-4 describe the default, Python/libclang build-step backend; section 5 describes the opt-in C++26-reflection backend, which reuses the narrowing and concurrency machinery in sections 3-4 unchanged.
 
 ---
 
@@ -66,7 +66,7 @@ constexpr protocol_view(const protocol_view<Other>& other)
     : ptr_(other.ptr_),
       vptr_(get_mutable_vtable<Other, TargetProtocol>(other.vptr_)) {}
 ```
-Conversions are fully transitive (for example, `protocol_view<A>` to `protocol_view<B>` to `protocol_view<C>`). In each step, the registry maps the current vtable pointer to the target interface vtable. Since the mapping registry resolves type transitions directly, intermediate conversions do not create chain-linked redirects.
+Conversions are fully transitive (for example, `protocol_view<A>` to `protocol_view<B>` to `protocol_view<C>`). Each step is an independent call into the registry that maps straight from the vtable pointer it's given to the target interface's vtable, so a multi-step conversion produces a sequence of directly-mapped, independently-cached vtables rather than a chain of vtables that each redirect through the previous one.
 
 ### Converting Owning Protocols
 Allocator-extended and standard converting constructors construct the target `protocol` from the source `protocol`. If the allocators are equal, the storage pointer `p_` is moved directly (`std::exchange`) and the target vtable is mapped. If the allocators are not equal, the source's `xyz_protocol_move` or `xyz_protocol_clone` function is called to construct the value in the target allocator's storage.
@@ -86,7 +86,7 @@ const void* get_mapped_vtable(
 ```
 
 ### The Cache and Lifetime Control (Intentional Leak)
-Mapped vtables are cached in a static `std::unordered_map` keyed by `CacheKey{source_vtable_pointer, conversion_anchor}`. The `conversion_anchor` is the address of a static template local `conversion_anchor`, ensuring target vtable/allocator uniqueness. Values are stored as `std::unique_ptr<char[]>`. Because the map is node-allocated, returned pointers to elements remain stable.
+Mapped vtables are cached in a static `std::unordered_map` keyed by `CacheKey{source_vtable_pointer, conversion_anchor}`, where `conversion_anchor` is the address of a `static const char conversion_anchor = 0;` local declared inside each of `get_vtable`/`get_mutable_vtable`/`get_owning_vtable`. Those functions are templates, so each `<FromProtocol, ToProtocol>` (or `<..., Allocator>`) instantiation gets its own copy of that local — its address is therefore a stable, unique stand-in for "which target type (and allocator) this conversion is for," without needing RTTI. Values are stored as `std::unique_ptr<char[]>`. Because the map is node-allocated, returned pointers to elements remain stable.
 
 To ensure safety during program shutdown, the cache map and its protecting mutex are initialized as dynamic objects allocated via `new` on the heap and referenced statically (`static auto& cache = *new ...`). This deliberately prevents their destruction during program termination, avoiding Undefined Behavior (such as segfaults) if other global or static objects trigger protocol conversions during cleanup/destructor execution.
 
@@ -94,7 +94,7 @@ Because active references to these static structures reside in the global data s
 
 Since the vtables are dynamically allocated and retained on the heap until program termination, memory growth is bounded by the total number of distinct conversion type pairs in the binary. This compile-time bound ensures that the cache does not require an eviction policy (such as LRU) or memory cap, as memory consumption remains flat after startup.
 
-Pointer equality is used to compare the `CacheKey` components. This is safe because static vtable instances and anchor variables are guaranteed to have unique heap or data segment addresses. Compiler optimization techniques (such as COMDAT folding or duplicate variable consolidation) do not affect correctness because identical layouts that are folded share identical function pointer semantics.
+Pointer equality is used to compare the `CacheKey` components. This is safe because static vtable instances and anchor variables are guaranteed to have unique heap or data segment addresses. A linker is free to fold two of these read-only statics into a single address when it can prove they're byte-for-byte identical (identical code folding); that doesn't break the cache, since two definitions only get folded when they were already identical, so folding can't make the cache conflate two conversions that are actually different.
 
 ### Split-Lock Pattern
 To prevent recursive deadlocks when nested conversions occur (e.g. mapping an owning vtable requires mapping its nested mutable vtable on the same thread), the mutex is not held during mapping.
@@ -111,3 +111,41 @@ The lookup and population sequence is:
 7. If the insertion fails (meaning another thread inserted the key concurrently), the local buffer is destroyed, and the already-cached pointer is returned.
 
 This guarantees that all threads always resolve to the identical vtable pointer for a given conversion key, eliminating data races and leaks under high contention.
+
+---
+
+## 5. C++26 Reflection Code-Generation Backend
+
+[protocol_reflection.h](protocol_reflection.h) is an opt-in second backend that generates the same machinery as sections 1-2 above, but inside the compiler at compile time via C++26 reflection ([P2996R13]), instead of ahead of compilation via `libclang` and a Jinja2 template. It requires GCC 16+ (`-std=c++26 -freflection`) and the CMake option `XYZ_PROTOCOL_ENABLE_REFLECTION_BACKEND`. [protocol_reflection_guide.md](protocol_reflection_guide.md) is a full section-by-section walkthrough of the header for anyone about to read or modify it; this section gives the shorter design summary in the style of sections 1-4.
+
+### Reflection Primitives
+
+Three operations cover almost all of what the backend needs. `^^Type` lifts a type, function, or data member into a `std::meta::info` value. A library of `consteval std::meta::*` functions (`is_function`, `is_const`, `identifier_of`, `return_type_of`, and similar) then answers ordinary questions about that `info`. A splice, `[:member:]`, lowers an `info` back into code: `object.[:member:]()` calls the member it reflects, and `typename [:type:]` names the type it reflects.
+
+### Interface Enumeration and Vtable Generation
+
+`is_interface_member_function` and `interface_member_functions` enumerate an interface's public, non-static, non-special member functions in declaration order, playing the same role as the AST traversal in section 1 (the same restriction on template member functions applies, for the same reason: no fixed signature to give a vtable slot). Entry names are the member's own signature string (name/operator, parameter types, constness, noexcept), escaped byte-for-byte into a valid identifier: `identifier_safe_string` passes `[a-zA-Z0-9]` through unchanged and replaces everything else, including a literal `_`, with `_` followed by its two-digit hex value. Unlike section 1's MD5 suffix, this isn't a hash: it's injective by construction (no unescaped `_` ever survives from the input, so a `_` in the output always starts an unambiguous two-hex-digit escape), so two different signatures can never collide — a real, if academic, possibility a hash-based scheme (MD5, or this backend's original FNV-1a) can't fully rule out. Names are longer than a hash digest, but that's invisible outside compiler diagnostics.
+
+Rather than rendering a vtable struct from a template, `define_vtable_entries` builds a list of `data_member_spec`s (one function pointer per interface member). `std::meta::define_aggregate` takes a class that has only been forward-declared so far, with no members, plus that list, and gives the class exactly those data members — the reflection equivalent of generating and compiling a struct definition, except the "source" is the list of specs rather than text. `view_vtable<Interface>` and `owning_vtable<Interface,Allocator>` wrap that generated `entries` struct in a handwritten shell that adds the fixed lifetime operations (`xyz_protocol_clone`/`move`/`destroy`), mirroring the two vtable layouts in section 2. Populating a vtable for a given `(Interface, Implementation)` pair resolves each interface member against the stored type (see below) and stores the address of an `erased_call_thunk::call` specialization. That function does the same job as one of section 2's per-type lambdas (`static_cast` the erased pointer back to the concrete type, then call the member on it) but as a plain static member function rather than a lambda, generated once per `(Interface, Implementation, member)` combination, and calling through a splice (`self->[:member:](args...)`) rather than a member name written literally in source.
+
+### Duck-Typed Member Resolution
+
+`resolve_implementation_candidates` finds every member of the implementation type matching an interface member by name (or operator kind) and constness — no parameter or return-type filtering. Each candidate is wrapped in an `implementation_candidate_call` keyed by its *own* signature, with `operator()` qualified const or not according to that specific candidate's own constness (not a single flag shared across the merged set) — the same way Ryan Keane's `rjk::duck` derives a per-candidate `Self` type. This matters: a stored type declaring both `foo()` and `foo() const` merges into ordinary C++ overloading-on-constness (as if both were declared directly in one class), so a non-const interface member correctly prefers the non-const overload instead of the merge becoming ambiguous. All candidates for one interface member are merged into a `candidate_overload_set` via `using Candidates::operator()...` — the same idiom `overloaded_calls` uses for an interface's own overload sets, applied here to the implementation's candidates instead. `make_candidate_overload_set` builds that merged type; `models_reflected_interface` checks it's invocable with the interface member's parameter types via `std::is_invocable_r_v`/`std::is_invocable_v`. That check is what `reflection_protocol_const_concept`/`reflection_protocol_concept` test, the reflection equivalents of the Python backend's generated `protocol_concept_<Name>`.
+
+Conformance is exactly what the concept says, and nothing more: a stored type either satisfies `reflection_protocol_concept`/`reflection_protocol_const_concept` or it doesn't, and `protocol<T>`'s constructors are constrained on exactly that. What changed is how the concept checks callability — via real invocability against the merged candidate set, rather than hand-comparing signatures — exactly like the Python backend's `requires`-expression (itself a real call, e.g. `t.method(std::declval<Arg>()...)`) and Ryan Keane's `rjk::duck` technique (https://ryanjk5.github.io/posts/rjk-duck/). `erased_call_thunk` uses the same merged type for the actual dispatch call, so whatever the concept accepted is exactly what runs.
+
+### Giving Vtable Entries Call Syntax
+
+C++26 reflection cannot splice a reflection as the name of a *new* declaration, so a member function actually named `name` cannot be spliced into existence the way a vtable entry's mangled name can. The backend works around this using the technique from Ryan Keane's `rjk::duck` library: since `define_aggregate` can declare a data member from a plain string, each interface member gets a data member (not a function) named after it, whose type is an empty `forwarding_call` wrapper with an exact-signature `operator()`. Because `a.name()` doesn't distinguish a member function from a data member whose type has `operator()`, this gives ordinary call syntax for free. The wrapper's `operator()` recovers its owning `protocol`/`protocol_view` via `static_cast<Owner*>(static_cast<void*>(this))`, valid only because every wrapper sits at offset zero of its owner; `forwarders_at_offset_zero` checks that layout assumption with `std::meta::offset_of` rather than assuming it. Operators (`operator+`, etc.) can't use this trick, since a data member can't be named `operator+`; each operator kind instead gets its own macro-stamped forwarder template with the operator symbol written literally in source (39 invocations, one per supported operator kind, including plain `operator=`).
+
+Assignment merges into `protocol`/`protocol_view` through the same mechanism as every other operator: several interface-declared `operator=` overloads, even of the same constness, resolve correctly through the merged set, exactly like `operator+` already does. Getting there needs one extra step that no other operator needs, though. Every class in the merge chain that doesn't declare any member of its own — `operator_join`, `combined_operator_joins`, and finally `protocol`/`protocol_view` themselves — still gets a compiler-generated `operator=`, whether it declares one explicitly or not. C++ hides an inherited member whenever a class has a member of the same name, and this rule applies even to that compiler-generated one with no source text at all. So each of those classes needs its own `using Base::operator=;`, bringing the inherited one back into scope alongside whatever that class declares itself. This is ordinary C++ name hiding, nothing specific to assignment or to reflection — it just never comes up for any other operator, because `operator=` is the only member name every level of this hierarchy ends up declaring one way or another.
+
+### Narrowing and Concurrency
+
+Sections 3 and 4 above apply unchanged: `protocol_vtable_traits<T>` and `protocol_owning_vtable_traits<T,Allocator>` specializations plug the reflection-generated vtable types into the same `get_vtable`/`get_mutable_vtable`/`get_owning_vtable` registry that section 4 describes, so narrowing conversions, the vtable cache, and its concurrency guarantees are identical regardless of which backend produced the vtable being narrowed.
+
+### Known Limitations
+
+Interface members must be direct members of the stored type — members inherited from a base of the implementation are not found. An interface member function named `swap` or `valueless_after_move` would be silently hidden by `protocol`'s own member of that name (since the generated forwarders are inherited data members), so it is instead rejected with a `static_assert` naming the interface. Generated member functions are not marked `constexpr`, which is out of scope for this backend for now.
+
+[P2996R13]: https://isocpp.org/files/papers/P2996R13.html

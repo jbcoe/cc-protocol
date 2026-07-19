@@ -29,7 +29,7 @@ namespace xyz {
 template <typename T>
 struct is_protocol : std::false_type {};
 
-template <typename T, typename Alloc>
+template <typename T, typename Alloc = std::allocator<T>>
 class protocol;
 
 template <typename T, typename Alloc>
@@ -58,7 +58,8 @@ const void* get_mapped_vtable(const void* source_vtable_pointer,
                                                        void* target));
 
 template <typename FromProtocol, typename ToProtocol>
-const typename protocol_vtable_traits<ToProtocol>::const_vtable* get_vtable(
+const typename protocol_vtable_traits<ToProtocol>::const_vtable*
+get_const_vtable(
     const typename protocol_vtable_traits<FromProtocol>::const_vtable*
         source_vtable_pointer) {
   using FromVtable =
@@ -68,8 +69,8 @@ const typename protocol_vtable_traits<ToProtocol>::const_vtable* get_vtable(
   static const char conversion_anchor = 0;
 
   auto mapping_function = [](const void* source, void* target) {
-    map_vtable_members(static_cast<const FromVtable*>(source),
-                       static_cast<ToVtable*>(target));
+    map_const_vtable_members(static_cast<const FromVtable*>(source),
+                             static_cast<ToVtable*>(target));
   };
 
   return static_cast<const ToVtable*>(
@@ -78,7 +79,7 @@ const typename protocol_vtable_traits<ToProtocol>::const_vtable* get_vtable(
 }
 
 template <typename FromProtocol, typename ToProtocol>
-const typename protocol_vtable_traits<ToProtocol>::vtable* get_mutable_vtable(
+const typename protocol_vtable_traits<ToProtocol>::vtable* get_vtable(
     const typename protocol_vtable_traits<FromProtocol>::vtable*
         source_vtable_pointer) {
   using FromVtable = typename protocol_vtable_traits<FromProtocol>::vtable;
@@ -87,8 +88,8 @@ const typename protocol_vtable_traits<ToProtocol>::vtable* get_mutable_vtable(
   static const char conversion_anchor = 0;
 
   auto mapping_function = [](const void* source, void* target) {
-    map_mutable_vtable_members(static_cast<const FromVtable*>(source),
-                               static_cast<ToVtable*>(target));
+    map_vtable_members(static_cast<const FromVtable*>(source),
+                       static_cast<ToVtable*>(target));
   };
 
   return static_cast<const ToVtable*>(
@@ -123,7 +124,8 @@ get_owning_vtable(const typename protocol_owning_vtable_traits<
                         sizeof(ToVtable), mapping_function));
 }
 
-template <typename T, typename A = std::allocator<T>>
+#ifndef XYZ_PROTOCOL_ENABLE_REFLECTION
+template <typename T, typename A>
 class protocol {
   static_assert(
       sizeof(T) == 0,
@@ -164,7 +166,15 @@ class protocol_view {
       "Note: protocol_view specializations are automatically generated "
       "alongside protocol specializations.");
 };
+#endif
 
 }  // namespace xyz
+
+// If reflection is enabled, the real xyz::protocol / xyz::protocol_view
+// implementations come from protocol_reflection.h instead of the
+// placeholder definitions above.
+#ifdef XYZ_PROTOCOL_ENABLE_REFLECTION
+#include "protocol_reflection.h"
+#endif
 
 #endif  // XYZ_PROTOCOL_H_

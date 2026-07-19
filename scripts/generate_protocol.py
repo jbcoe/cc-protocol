@@ -25,6 +25,14 @@ except Exception:
     pass
 
 
+# Names that are always public members of the generated xyz::protocol /
+# xyz::protocol_view classes (see scripts/protocol.j2). An interface method
+# with one of these names would collide with the generated class's own
+# member of the same name, so it is rejected at generation time rather than
+# left to surface as a confusing redefinition error from the C++ compiler.
+RESERVED_PROTOCOL_MEMBER_NAMES = {"swap", "valueless_after_move"}
+
+
 def get_method_signature(m: Any) -> str:
     """Generate a string signature for a method."""
     args = ",".join(a.type.name for a in m.arguments)
@@ -155,6 +163,23 @@ def main() -> None:
 
     if not target_class:
         print(f"Class {args.class_name} not found in {args.input}", file=sys.stderr)
+        sys.exit(1)
+
+    reserved_names_used = sorted(
+        {
+            m.name
+            for m in target_class.methods
+            if m.name in RESERVED_PROTOCOL_MEMBER_NAMES
+        }
+    )
+    if reserved_names_used:
+        print(
+            f"Error: interface {args.class_name!r} in {args.input} declares "
+            f"member function(s) named {', '.join(reserved_names_used)}, which "
+            "collide with xyz::protocol's own public members and cannot be "
+            "used as interface method names.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     template_dir = os.path.dirname(os.path.abspath(args.template))

@@ -114,6 +114,21 @@ The `xyz_generate_protocol` CMake macro automates code generation and supports e
   This macro ensures that the Python script runs during the CMake configuration
   or build phase to generate the necessary C++ source files for the protocol.
 
+### C++26 Reflection Backend
+
+An opt-in second backend, `protocol_reflection.h`, generates the same
+machinery inside the compiler using C++26 reflection instead of a build step.
+It requires GCC 16+ (`-freflection`) and is enabled with a CMake option:
+
+```bash
+CXX=g++-16 CC=gcc-16 ./scripts/cmake.sh --release \
+    -DXYZ_PROTOCOL_ENABLE_REFLECTION_BACKEND=ON -B build-reflection
+```
+
+This builds an additional test binary, `protocol_test_reflection`, running
+the same tests against the reflection backend. See `implementation-notes.md`
+(section 5) for the backend's design and known limitations.
+
 ## Performance and Benchmarks
 
 You can measure the performance of member function dispatch, copying, and moving by running the `protocol_benchmark` target via the wrapper script:
@@ -143,6 +158,21 @@ This library is an active proof of concept and is subject to change.
 
 - Development: Use this library for understanding its concepts and
   contributing to its development. Avoid using it in production code.
+
+## Interactive Docker Shell
+
+To launch an interactive bash shell in the pre-configured Docker container (which includes GCC 16, Python, CMake, and `uv`) without running an AI agent, use:
+
+```bash
+./scripts/docker-shell.sh [--rebuild-docker]
+```
+
+Inside the shell, you can experiment with the C++26 reflection backend directly:
+
+```bash
+CXX=g++-16 CC=gcc-16 ./scripts/cmake.sh --release \
+    -DXYZ_PROTOCOL_ENABLE_REFLECTION_BACKEND=ON -B build-reflection
+```
 
 ## AI Coding Sandboxes
 

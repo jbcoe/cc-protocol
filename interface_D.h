@@ -17,6 +17,7 @@ struct D {
   int operator~() const;
   bool operator!() const;
   void operator=(int x);
+  void operator=(double x);
   bool operator<(int x) const;
   bool operator>(int x) const;
   void operator+=(int x);
