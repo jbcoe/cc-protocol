@@ -29,7 +29,7 @@ namespace xyz {
 template <typename T>
 struct is_protocol : std::false_type {};
 
-template <typename T, typename Alloc>
+template <typename T, typename Alloc = std::allocator<T>>
 class protocol;
 
 template <typename T, typename Alloc>
@@ -123,7 +123,8 @@ get_owning_vtable(const typename protocol_owning_vtable_traits<
                         sizeof(ToVtable), mapping_function));
 }
 
-template <typename T, typename A = std::allocator<T>>
+#if !(defined(__cpp_impl_reflection) && defined(XYZ_PROTOCOL_ENABLE_REFLECTION))
+template <typename T, typename A>
 class protocol {
   static_assert(
       sizeof(T) == 0,
@@ -164,7 +165,14 @@ class protocol_view {
       "Note: protocol_view specializations are automatically generated "
       "alongside protocol specializations.");
 };
+#endif
 
 }  // namespace xyz
+
+// Pulls in the C++26-reflection code-generation backend, which defines the
+// real xyz::protocol / xyz::protocol_view primary templates in place of the
+// placeholder ones above. On a compiler or build configuration where
+// reflection isn't enabled, protocol_reflection.h is an inert no-op.
+#include "protocol_reflection.h"
 
 #endif  // XYZ_PROTOCOL_H_

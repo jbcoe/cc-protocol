@@ -29,11 +29,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <utility>
 #include <vector>
 
+#include "interface_A.h"
+#include "interface_A_Subset.h"
+#include "interface_B.h"
+#include "interface_C.h"
+#include "interface_D.h"
+
+// The reflection backend (enabled by protocol.h's own unconditional include
+// of protocol_reflection.h) needs no per-interface generated header: it
+// synthesizes the same machinery from the plain interface struct above at
+// compile time. The Python backend still needs its generated headers.
+#ifndef XYZ_PROTOCOL_ENABLE_REFLECTION
 #include "generated/protocol_A.h"
 #include "generated/protocol_A_Subset.h"
 #include "generated/protocol_B.h"
 #include "generated/protocol_C.h"
 #include "generated/protocol_D.h"
+#endif
 #include "tracking_allocator.h"
 
 namespace {
@@ -1278,3 +1290,56 @@ TEST(ProtocolTest, NarrowingConversionConcurrentStressing) {
 }
 
 }  // namespace
+
+#ifdef XYZ_PROTOCOL_ENABLE_REFLECTION
+
+template <class R, class... Args>
+struct Function {
+  R operator()(Args... args) const;
+};
+
+template <class R, class... Args>
+struct RvalueParameterFunction {
+  R operator()(Args&&... args) const;
+};
+
+namespace {
+
+struct SquareAdder {
+  int operator()(int x, int y) const { return x * x + y * y; }
+};
+
+struct StringConcatenator {
+  std::string operator()(std::string_view a, std::string_view b) const {
+    return std::string(a) + std::string(b);
+  }
+};
+
+struct RvalueIntAdder {
+  int operator()(int&& x) const { return x + 10; }
+};
+
+TEST(ProtocolReflectionTest, ClassTemplateInstantiationAsInterface) {
+  // Test Function<int, int, int> without any opt-in variable template
+  xyz::protocol<Function<int, int, int>> integer_function(SquareAdder{});
+  EXPECT_EQ(integer_function(3, 4), 25);
+
+  xyz::protocol_view<const Function<int, int, int>> integer_function_view(
+      integer_function);
+  EXPECT_EQ(integer_function_view(5, 12), 169);
+
+  // Test Function<std::string, std::string_view, std::string_view>
+  xyz::protocol<Function<std::string, std::string_view, std::string_view>>
+      string_function(StringConcatenator{});
+  EXPECT_EQ(string_function("hello ", "world"), "hello world");
+
+  // Test RvalueParameterFunction<int, int> with rvalue reference parameter
+  // (int&&)
+  xyz::protocol<RvalueParameterFunction<int, int>> reference_function(
+      RvalueIntAdder{});
+  EXPECT_EQ(reference_function(5), 15);
+}
+
+}  // namespace
+
+#endif

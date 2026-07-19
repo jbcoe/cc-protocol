@@ -1,6 +1,6 @@
 # C++ Protocol Reference Implementation Notes
 
-This document details the design and implementation of the `protocol` and `protocol_view` types, focusing on code generation, virtual dispatch, narrowing conversions, and concurrent safety.
+This document details the design and implementation of the `protocol` and `protocol_view` types, focusing on code generation, virtual dispatch, narrowing conversions, and concurrent safety. Sections 1-4 describe the default, Python/libclang build-step backend; section 5 describes the opt-in C++26-reflection backend, which reuses the narrowing and concurrency machinery in sections 3-4 unchanged.
 
 ---
 
@@ -111,3 +111,41 @@ The lookup and population sequence is:
 7. If the insertion fails (meaning another thread inserted the key concurrently), the local buffer is destroyed, and the already-cached pointer is returned.
 
 This guarantees that all threads always resolve to the identical vtable pointer for a given conversion key, eliminating data races and leaks under high contention.
+
+---
+
+## 5. C++26 Reflection Code-Generation Backend
+
+[protocol_reflection.h](protocol_reflection.h) is an opt-in second backend that generates the same machinery as sections 1-2 above, but inside the compiler at compile time via C++26 reflection ([P2996R13]), instead of ahead of compilation via `libclang` and a Jinja2 template. It requires GCC 16+ (`-std=c++26 -freflection`) and the CMake option `XYZ_PROTOCOL_ENABLE_REFLECTION_BACKEND`. [protocol_reflection_guide.md](protocol_reflection_guide.md) is a full section-by-section walkthrough of the header for anyone about to read or modify it; this section gives the shorter design summary in the style of sections 1-4.
+
+### Reflection Primitives
+
+Three operations cover almost all of what the backend needs. `^^Type` lifts a type, function, or data member into a `std::meta::info` value. A library of `consteval std::meta::*` functions (`is_function`, `is_const`, `identifier_of`, `return_type_of`, and similar) then answers ordinary questions about that `info`. A splice, `[:member:]`, lowers an `info` back into code: `object.[:member:]()` calls the member it reflects, and `typename [:type:]` names the type it reflects.
+
+### Interface Enumeration and Vtable Generation
+
+`is_interface_member_function` and `interface_member_functions` enumerate an interface's public, non-static, non-special member functions in declaration order, playing the same role as the AST traversal in section 1 (the same restriction on template member functions applies, for the same reason: no fixed signature to give a vtable slot). Entry names are mangled as `<name>_<hash-of-signature>`, using a `consteval` FNV-1a hash over the signature instead of section 1's MD5, for the same purpose: deterministic, overload-disambiguating symbol names.
+
+Rather than rendering a vtable struct from a template, `define_vtable_entries` builds a list of `data_member_spec`s (one function pointer per interface member) and calls `std::meta::define_aggregate` to complete an incomplete struct with them at compile time. `view_vtables<Interface>` and `owning_vtable<Interface,Allocator>` wrap that generated `entries` struct in a handwritten shell that adds the fixed lifetime operations (`xyz_protocol_clone`/`move`/`destroy`), mirroring the two vtable layouts in section 2. Populating a vtable for a given `(Interface, Implementation)` pair resolves each interface member against the stored type (see below) and stores the address of an `erased_call_thunk::call` specialization, which casts the erased pointer back to `Implementation*` and splice-calls the resolved member — the reflection equivalent of section 2's cast-and-call lambdas.
+
+### Duck-Typed Member Resolution
+
+`resolve_implementation_member` looks for exactly one member of the implementation type matching an interface member by name (or operator kind), constness, and exact parameter types after alias stripping, with a convertible return type; `models_reflected_interface` applies this to every interface member and backs `reflection_protocol_const_concept`/`reflection_protocol_concept`, the reflection equivalents of the Python backend's generated `protocol_concept_<Name>`. This is a documented approximation of full overload resolution (see known limitations below), evaluated when `protocol<T>` is instantiated with a stored type rather than emitted as generated `requires`-clauses.
+
+### Giving Vtable Entries Call Syntax
+
+C++26 reflection cannot splice a reflection as the name of a *new* declaration, so a member function actually named `name` cannot be spliced into existence the way a vtable entry's mangled name can. The backend works around this using the technique from Ryan Keane's `rjk::duck` library: since `define_aggregate` can declare a data member from a plain string, each interface member gets a data member (not a function) named after it, whose type is an empty `forwarding_call` wrapper with an exact-signature `operator()`. Because `a.name()` doesn't distinguish a member function from a data member whose type has `operator()`, this gives ordinary call syntax for free. The wrapper's `operator()` recovers its owning `protocol`/`protocol_view` via `static_cast<Owner*>(static_cast<void*>(this))`, valid only because every wrapper sits at offset zero of its owner; `forwarders_at_offset_zero` checks that layout assumption with `std::meta::offset_of` rather than assuming it. Operators (`operator+`, etc.) can't use this trick, since a data member can't be named `operator+`; each operator kind instead gets its own macro-stamped forwarder template with the operator symbol written literally in source (38 invocations, one per supported operator kind).
+
+### Narrowing and Concurrency
+
+Sections 3 and 4 above apply unchanged: `protocol_vtable_traits<T>` and `protocol_owning_vtable_traits<T,Allocator>` specializations plug the reflection-generated vtable types into the same `get_vtable`/`get_mutable_vtable`/`get_owning_vtable` registry that section 4 describes, so narrowing conversions, the vtable cache, and its concurrency guarantees are identical regardless of which backend produced the vtable being narrowed.
+
+### Conformance Is Exact, By Design
+
+A stored type that overloads an interface method's name must have one overload with an exactly matching parameter-type list after alias stripping; this backend does not perform full overload resolution with implicit conversions. This matches the design in `DRAFT.md`, which requires exact signature matching for conformance specifically to rule out conformance via chains of implicit conversions. The Python backend's generated `requires`-expression instead calls through ordinary overload resolution, so it is the more permissive of the two backends here, not the other way around.
+
+### Known Limitations
+
+Interface members must be direct members of the stored type — members inherited from a base of the implementation are not found. An interface member function named `swap` or `valueless_after_move` would be silently hidden by `protocol`'s own member of that name (since the generated forwarders are inherited data members), so it is instead rejected with a `static_assert` naming the interface. Interfaces with several assignment operators of the same constness are not supported, since assignment forwarding requires a unique target per constness. Generated member functions are not marked `constexpr`, which is out of scope for this backend for now.
+
+[P2996R13]: https://isocpp.org/files/papers/P2996R13.html

@@ -189,6 +189,30 @@ def test_class_not_found(temp_dir: str, compiler: str) -> None:
     assert "Class Missing not found" in res.stderr
 
 
+def test_reserved_member_name(temp_dir: str, compiler: str) -> None:
+    """Test that the script rejects reserved interface method names."""
+    input_header = os.path.join(temp_dir, "input.h")
+    output_header = os.path.join(temp_dir, "output.h")
+
+    with open(input_header, "w") as f:
+        f.write(
+            """
+        class Reserved {
+        public:
+            void swap();
+            bool valueless_after_move() const;
+        };
+        """
+        )
+
+    res = run_generate_protocol(
+        input_header, output_header, "Reserved", "input.h", compiler=compiler
+    )
+    assert res.returncode != 0
+    assert "swap" in res.stderr
+    assert "valueless_after_move" in res.stderr
+
+
 def test_mangle_operators(temp_dir: str, compiler: str) -> None:
     """Test that C++ operators are correctly mangled in the generated code."""
     input_header = os.path.join(temp_dir, "input.h")
