@@ -1319,6 +1319,71 @@ struct RvalueIntAdder {
   int operator()(int&& x) const { return x + 10; }
 };
 
+struct NarrowingComputeInterface {
+  double compute(double x) const;
+};
+
+struct FloatOnlyImplementation {
+  float compute(float x) const { return x * 2.0f; }
+};
+
+struct FloatComputeInterface {
+  double compute(float x) const;
+};
+
+struct OverloadedComputeImplementation {
+  int compute(int x) const { return x + 1; }
+
+  double compute(double x) const { return x * 2; }
+};
+
+TEST(ProtocolReflectionTest, ImplicitConversionConformance) {
+  // FloatOnlyImplementation::compute(float) does not exactly match
+  // NarrowingComputeInterface::compute(double); this now conforms (and
+  // dispatches through the implicit double->float/float->double
+  // conversions) the same way the Python backend's requires-expression
+  // already does, matching real C++ overload resolution.
+  static_assert(
+      xyz::reflection_protocol_const_concept<FloatOnlyImplementation,
+                                             NarrowingComputeInterface>);
+  xyz::protocol<NarrowingComputeInterface> p(
+      std::in_place_type<FloatOnlyImplementation>);
+  EXPECT_DOUBLE_EQ(p.compute(21.0), 42.0);
+}
+
+TEST(ProtocolReflectionTest, ImplicitConversionPicksBestOverload) {
+  // OverloadedComputeImplementation offers compute(int) and compute(double);
+  // FloatComputeInterface's compute(float) must resolve to compute(double),
+  // since float->double is a better conversion than float->int -- proving
+  // real overload resolution over the merged candidate set, not just "any
+  // invocable candidate".
+  xyz::protocol<FloatComputeInterface> p(
+      std::in_place_type<OverloadedComputeImplementation>);
+  EXPECT_DOUBLE_EQ(p.compute(3.0f), 6.0);
+}
+
+struct TouchInterface {
+  int touch();
+};
+
+struct DualConstnessImplementation {
+  int touch() { return 10; }
+
+  int touch() const { return 20; }
+};
+
+TEST(ProtocolReflectionTest, PrefersNonConstOverloadOnNonConstAccess) {
+  // DualConstnessImplementation declares both touch() and touch() const;
+  // TouchInterface::touch() is non-const, so real overload resolution over
+  // the merged candidate set must prefer the non-const overload, exactly
+  // as calling touch() directly on a non-const object would -- not treat
+  // the two as ambiguous. This is the case merging candidates with a single
+  // shared constness (rather than each candidate's own) would break.
+  xyz::protocol<TouchInterface> p(
+      std::in_place_type<DualConstnessImplementation>);
+  EXPECT_EQ(p.touch(), 10);
+}
+
 TEST(ProtocolReflectionTest, ClassTemplateInstantiationAsInterface) {
   // Test Function<int, int, int> without any opt-in variable template
   xyz::protocol<Function<int, int, int>> integer_function(SquareAdder{});

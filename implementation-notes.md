@@ -130,7 +130,9 @@ Rather than rendering a vtable struct from a template, `define_vtable_entries` b
 
 ### Duck-Typed Member Resolution
 
-`resolve_implementation_member` looks for exactly one member of the implementation type matching an interface member by name (or operator kind), constness, and exact parameter types after alias stripping, with a convertible return type; `models_reflected_interface` applies this to every interface member and backs `reflection_protocol_const_concept`/`reflection_protocol_concept`, the reflection equivalents of the Python backend's generated `protocol_concept_<Name>`. This is a documented approximation of full overload resolution (see known limitations below), evaluated when `protocol<T>` is instantiated with a stored type rather than emitted as generated `requires`-clauses.
+`resolve_implementation_candidates` finds every member of the implementation type matching an interface member by name (or operator kind) and constness — no parameter or return-type filtering. Each candidate is wrapped in an `implementation_candidate_call` keyed by its *own* signature, with `operator()` qualified const or not according to that specific candidate's own constness (not a single flag shared across the merged set) — the same way Ryan Keane's `rjk::duck` derives a per-candidate `Self` type. This matters: a stored type declaring both `foo()` and `foo() const` merges into ordinary C++ overloading-on-constness (as if both were declared directly in one class), so a non-const interface member correctly prefers the non-const overload instead of the merge becoming ambiguous. All candidates for one interface member are merged into a `candidate_overload_set` via `using Candidates::operator()...` — the same idiom `overloaded_calls` uses for an interface's own overload sets, applied here to the implementation's candidates instead. `implementation_candidate_overload_set` builds that merged type; `models_reflected_interface` checks it's invocable with the interface member's parameter types via `std::is_invocable_r_v`/`std::is_invocable_v`, and backs `reflection_protocol_const_concept`/`reflection_protocol_concept`, the reflection equivalents of the Python backend's generated `protocol_concept_<Name>`.
+
+Conformance is exactly what the concept says, and nothing more: a stored type either satisfies `reflection_protocol_concept`/`reflection_protocol_const_concept` or it doesn't, and `protocol<T>`'s constructors are constrained on exactly that. What changed is how the concept checks callability — via real invocability against the merged candidate set, rather than hand-comparing signatures — exactly like the Python backend's `requires`-expression (itself a real call, e.g. `t.method(std::declval<Arg>()...)`) and Ryan Keane's `rjk::duck` technique (https://ryanjk5.github.io/posts/rjk-duck/). `erased_call_thunk` uses the same merged type for the actual dispatch call, so whatever the concept accepted is exactly what runs.
 
 ### Giving Vtable Entries Call Syntax
 
@@ -139,10 +141,6 @@ C++26 reflection cannot splice a reflection as the name of a *new* declaration, 
 ### Narrowing and Concurrency
 
 Sections 3 and 4 above apply unchanged: `protocol_vtable_traits<T>` and `protocol_owning_vtable_traits<T,Allocator>` specializations plug the reflection-generated vtable types into the same `get_vtable`/`get_mutable_vtable`/`get_owning_vtable` registry that section 4 describes, so narrowing conversions, the vtable cache, and its concurrency guarantees are identical regardless of which backend produced the vtable being narrowed.
-
-### Conformance Is Exact, By Design
-
-A stored type that overloads an interface method's name must have one overload with an exactly matching parameter-type list after alias stripping; this backend does not perform full overload resolution with implicit conversions. This matches the design in `DRAFT.md`, which requires exact signature matching for conformance specifically to rule out conformance via chains of implicit conversions. The Python backend's generated `requires`-expression instead calls through ordinary overload resolution, so it is the more permissive of the two backends here, not the other way around.
 
 ### Known Limitations
 

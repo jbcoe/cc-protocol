@@ -31,16 +31,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // header can define xyz::protocol / xyz::protocol_view as primary templates;
 // protocol.h's public declarations are otherwise unchanged.
 //
-// When a stored implementation type overloads an interface method's name,
-// the matching overload must have an exactly matching parameter-type list
-// (after alias stripping); this backend does not perform full overload
-// resolution with implicit argument conversions. This isn't a limitation:
-// DRAFT.md requires exact signature matching for conformance precisely to
-// rule out conformance via chains of implicit conversions. The Python
-// backend's generated `requires`-expression instead calls through ordinary
-// overload resolution, so it is the one that's more permissive than the
-// specified design when the stored type overloads an interface method's
-// name.
+// Conformance to an interface is checked by a concept
+// (reflection_protocol_concept / reflection_protocol_const_concept),
+// exactly as strictly as any C++ concept: a stored type either satisfies
+// it or it doesn't, and protocol<T>'s constructors are constrained on
+// exactly that. The concept is implemented via real invocability against
+// the stored type's own overload set -- every candidate with the
+// interface member's name is merged into one callable type and the
+// compiler decides what's callable -- rather than this backend
+// hand-comparing parameter types. This mirrors the Python backend's
+// `requires`-expression-based concept (itself a real call, e.g.
+// `t.method(std::declval<Arg>()...)`) and Ryan Keane's rjk::duck technique
+// (https://ryanjk5.github.io/posts/rjk-duck/).
 //
 // Documented, deliberate limitations of this backend:
 // - Interface members must be implemented as direct members of the stored
@@ -355,15 +357,20 @@ consteval info data_member_named(info class_type, std::string_view name) {
 // Resolving an interface member against a stored implementation type
 //
 // Duck-typed dispatch: given interface member M and implementation type U,
-// find the member of U that a call would target. Matching rules (a
-// documented approximation of real overload resolution): same name (or
-// operator kind); const interface members only
-// match const implementation members; the parameter-type list must match
-// exactly after alias stripping; the return type must be convertible to the
-// interface's (or the interface returns void, discarding the result). When
-// both const and non-const implementation members match a non-const
-// interface member, the non-const one is preferred, as real overload
-// resolution on a non-const object would.
+// find the member(s) of U a call could target, by name (or operator kind)
+// and constness only -- no parameter or return type filtering here. Rather
+// than hand-comparing signatures (which would mean reimplementing overload
+// resolution), every matching candidate is wrapped and merged into one
+// callable type via `using Candidates::operator()...` -- the same idiom
+// `overloaded_calls` (below) uses for an interface's own overload sets,
+// applied here to the implementation's candidates instead -- and the
+// compiler's real overload resolution is what actually picks the match,
+// for both the conformance check and the real call. This is what the
+// concept (below) is checking: not "is there an exact signature match",
+// but "is this merged candidate set genuinely callable" -- exactly what
+// the Python backend's requires-expression-based concept (a real call,
+// e.g. `t.method(std::declval<Arg>()...)`) and Ryan Keane's rjk::duck
+// technique (https://ryanjk5.github.io/posts/rjk-duck/) already check.
 // ---------------------------------------------------------------------------
 
 consteval bool same_member_name(info interface_member,
@@ -378,33 +385,15 @@ consteval bool same_member_name(info interface_member,
              std::meta::operator_of(implementation_member);
 }
 
-consteval bool same_parameter_types(info first_member, info second_member) {
-  std::vector<info> first_parameters = parameter_types_of(first_member);
-  std::vector<info> second_parameters = parameter_types_of(second_member);
-  if (first_parameters.size() != second_parameters.size()) return false;
-  for (std::size_t index = 0; index < first_parameters.size(); ++index) {
-    if (std::meta::dealias(first_parameters[index]) !=
-        std::meta::dealias(second_parameters[index])) {
-      return false;
-    }
-  }
-  return true;
-}
-
-consteval bool compatible_return_type(info interface_member,
-                                      info implementation_member) {
-  info interface_return = std::meta::return_type_of(interface_member);
-  if (std::meta::dealias(interface_return) == ^^void) return true;
-  return std::meta::is_convertible_type(
-      std::meta::return_type_of(implementation_member), interface_return);
-}
-
-consteval info resolve_implementation_member(info implementation_type,
-                                             info interface_member) {
-  info exact_constness_match{};
-  info relaxed_match{};
-  int exact_count = 0;
-  int relaxed_count = 0;
+// All members of implementation_type that could plausibly serve
+// interface_member: same name (or operator kind), and constness-compatible
+// (a const interface member can only ever be called through a const self,
+// so it requires a const candidate; a non-const interface member may match
+// either -- real overload resolution on a non-const self naturally prefers
+// a non-const candidate over a const one, so no preference is tracked here).
+consteval std::vector<info> resolve_implementation_candidates(
+    info implementation_type, info interface_member) {
+  std::vector<info> candidates;
   for (info candidate : std::meta::members_of(
            implementation_type, std::meta::access_context::current())) {
     if (!is_interface_member_function(candidate)) continue;
@@ -413,38 +402,159 @@ consteval info resolve_implementation_member(info implementation_type,
         !std::meta::is_const(candidate)) {
       continue;
     }
-    if (!same_parameter_types(interface_member, candidate)) continue;
-    if (!compatible_return_type(interface_member, candidate)) continue;
-    if (std::meta::is_const(candidate) ==
-        std::meta::is_const(interface_member)) {
-      exact_constness_match = candidate;
-      ++exact_count;
-    } else {
-      relaxed_match = candidate;
-      ++relaxed_count;
-    }
+    candidates.push_back(candidate);
   }
-  if (exact_count == 1) return exact_constness_match;
-  if (exact_count == 0 && relaxed_count == 1) return relaxed_match;
-  return info{};
+  return candidates;
+}
+
+// One matching implementation candidate, callable with its own real
+// parameter types -- not the interface member's. Merging several of these
+// (candidate_overload_set, below) and calling the merge with the interface
+// member's argument types is what routes the call through the compiler's
+// real overload resolution, implicit conversions included, instead of a
+// hand-rolled comparison.
+//
+// operator() is const-qualified exactly when Candidate itself is const, not
+// based on the outer erasure (ConstErased, which only picks self's pointee
+// constness). This matters when a stored type declares both a const and a
+// non-const overload of the same name and parameters: merging two wrappers
+// whose operator()s differ only by this same cv-qualification is ordinary
+// C++ overloading on constness -- exactly as if the class had declared
+// both directly -- so real overload resolution ranks them the same way it
+// would rank calling the member directly (prefers non-const on a non-const
+// access path; only the const one is even viable on a const path). Giving
+// every wrapper the same qualification regardless of the candidate would
+// make such a pair ambiguous instead of ranked.
+template <typename Implementation, info Candidate, typename Signature,
+          bool ConstErased, bool CandidateIsConst>
+struct implementation_candidate_call;
+
+template <typename Implementation, info Candidate, typename ReturnType,
+          typename... ParameterTypes, bool ConstErased>
+struct implementation_candidate_call<Implementation, Candidate,
+                                     ReturnType(ParameterTypes...), ConstErased,
+                                     false> {
+  using SelfPointer =
+      std::conditional_t<ConstErased, const Implementation*, Implementation*>;
+  SelfPointer self;
+
+  explicit implementation_candidate_call(SelfPointer self) : self(self) {}
+
+  ReturnType operator()(ParameterTypes... parameters) {
+    return self->[:Candidate:](std::forward<ParameterTypes>(parameters)...);
+  }
+};
+
+template <typename Implementation, info Candidate, typename ReturnType,
+          typename... ParameterTypes, bool ConstErased>
+struct implementation_candidate_call<Implementation, Candidate,
+                                     ReturnType(ParameterTypes...), ConstErased,
+                                     true> {
+  using SelfPointer =
+      std::conditional_t<ConstErased, const Implementation*, Implementation*>;
+  SelfPointer self;
+
+  explicit implementation_candidate_call(SelfPointer self) : self(self) {}
+
+  ReturnType operator()(ParameterTypes... parameters) const {
+    return self->[:Candidate:](std::forward<ParameterTypes>(parameters)...);
+  }
+};
+
+// Merges one wrapper per implementation candidate for a single interface
+// member. This is the implementation-candidate axis; overloaded_calls
+// (below) is the unrelated interface-overload axis (merging wrappers for
+// an interface's own declared overloads) -- the two must not be confused.
+template <typename... Candidates>
+struct candidate_overload_set : Candidates... {
+  using Candidates::operator()...;
+
+  template <typename SelfPointer>
+  explicit candidate_overload_set(SelfPointer self) : Candidates(self)... {}
+};
+
+// The merged candidate_overload_set type (or the lone candidate's own
+// wrapper type, or info{} if there are no name/constness-eligible
+// candidates at all) for one interface member against implementation_type.
+consteval info implementation_candidate_overload_set(info implementation_type,
+                                                     info interface_member,
+                                                     bool const_erased) {
+  std::vector<info> candidates =
+      resolve_implementation_candidates(implementation_type, interface_member);
+  if (candidates.empty()) return info{};
+  std::vector<info> wrapper_types;
+  for (info candidate : candidates) {
+    wrapper_types.push_back(std::meta::substitute(
+        ^^implementation_candidate_call,
+        {
+            implementation_type, std::meta::reflect_constant(candidate),
+            member_function_type(candidate),
+            std::meta::reflect_constant(const_erased),
+            std::meta::reflect_constant(std::meta::is_const(candidate))}));
+  }
+  if (wrapper_types.size() == 1) return wrapper_types.front();
+  return std::meta::substitute(^^candidate_overload_set, wrapper_types);
+}
+
+// Peels R(Ps...) back into a real parameter pack so is_invocable_r_v /
+// is_invocable_v -- which need a template argument pack, not a
+// std::vector<info> -- can check whether MergedCandidates is callable with
+// an interface member's parameter types. Same partial-specialization idiom
+// erased_call_thunk uses below.
+template <info MergedCandidates, typename Signature>
+struct invocable_with_return;
+
+template <info MergedCandidates, typename ReturnType,
+          typename... ParameterTypes>
+struct invocable_with_return<MergedCandidates, ReturnType(ParameterTypes...)> {
+  static constexpr bool value =
+      std::is_void_v<ReturnType>
+          ? std::is_invocable_v<typename[:MergedCandidates:], ParameterTypes...>
+          : std::is_invocable_r_v<
+                ReturnType, typename[:MergedCandidates:], ParameterTypes...>;
+};
+
+template <typename Implementation, typename Interface, std::size_t Index>
+consteval bool member_is_satisfiable(bool const_only) {
+  constexpr info member = interface_members<Interface>[Index];
+  if (const_only && !std::meta::is_const(member)) return true;
+  constexpr info merged = implementation_candidate_overload_set(
+      ^^Implementation, member, std::meta::is_const(member));
+  if constexpr (merged == info{}) {
+    return false;
+  } else {
+    return invocable_with_return<
+        merged, typename[:member_function_type(member):]>::value;
+  }
+}
+
+template <typename Implementation, typename Interface, std::size_t... Indexes>
+consteval bool all_members_satisfiable(bool const_only,
+                                       std::index_sequence<Indexes...>) {
+  return (... && member_is_satisfiable<Implementation, Interface, Indexes>(
+                     const_only));
 }
 
 template <typename Implementation, typename Interface>
 consteval bool models_reflected_interface(bool const_only = false) {
   // Non-class candidates (e.g. an int offered to a converting constructor
   // during overload resolution) have no members to enumerate; they simply
-  // don't model the interface.
-  if (!std::meta::is_class_type(std::meta::dealias(^^Implementation)) ||
-      !std::meta::is_complete_type(std::meta::dealias(^^Implementation))) {
+  // don't model the interface. This must be `if constexpr`, not a plain
+  // `if`: all_members_satisfiable is a template, and merely naming it in a
+  // live (non-discarded) statement forces its instantiation -- including
+  // evaluating implementation_candidate_overload_set's std::meta::members_of
+  // call on Implementation -- regardless of which branch would run at
+  // evaluation time. Only a discarded if-constexpr branch is skipped.
+  if constexpr (!std::meta::is_class_type(
+                    std::meta::dealias(^^Implementation)) ||
+                !std::meta::is_complete_type(
+                    std::meta::dealias(^^Implementation))) {
     return false;
+  } else {
+    return all_members_satisfiable<Implementation, Interface>(
+        const_only,
+        std::make_index_sequence<interface_members<Interface>.size()>());
   }
-  for (info member : interface_members<Interface>) {
-    if (const_only && !std::meta::is_const(member)) continue;
-    if (resolve_implementation_member(^^Implementation, member) == info{}) {
-      return false;
-    }
-  }
-  return true;
 }
 
 }  // namespace reflection_detail
@@ -468,16 +578,21 @@ namespace reflection_detail {
 // Signature exactly mirrors the interface member (exact parameter types,
 // matching noexcept), with a leading erased pointer. ConstErased selects the
 // const_view flavour (const void* + const implementation access).
+// MergedCandidates is the implementation_candidate_overload_set type built
+// for this interface member: the thunk constructs an instance bound to
+// self and calls through it, so it's the compiler's real overload
+// resolution -- not this thunk -- that picks which candidate actually runs.
 // ---------------------------------------------------------------------------
 
-template <typename Implementation, info Target, typename Signature,
+template <typename Implementation, info MergedCandidates, typename Signature,
           bool ConstErased, bool IsNoexcept>
 struct erased_call_thunk;
 
-template <typename Implementation, info Target, typename ReturnType,
+template <typename Implementation, info MergedCandidates, typename ReturnType,
           typename... ParameterTypes, bool ConstErased, bool IsNoexcept>
-struct erased_call_thunk<Implementation, Target, ReturnType(ParameterTypes...),
-                         ConstErased, IsNoexcept> {
+struct erased_call_thunk<Implementation, MergedCandidates,
+                         ReturnType(ParameterTypes...), ConstErased,
+                         IsNoexcept> {
   using ErasedPointer = std::conditional_t<ConstErased, const void*, void*>;
   using SelfPointer =
       std::conditional_t<ConstErased, const Implementation*, Implementation*>;
@@ -485,10 +600,12 @@ struct erased_call_thunk<Implementation, Target, ReturnType(ParameterTypes...),
   static ReturnType call(ErasedPointer erased,
                          ParameterTypes... parameters) noexcept(IsNoexcept) {
     auto* self = static_cast<SelfPointer>(erased);
+    using Candidates = [:MergedCandidates:];
+    Candidates candidates(self);
     if constexpr (std::is_void_v<ReturnType>) {
-      self->[:Target:](std::forward<ParameterTypes>(parameters)...);
+      candidates(std::forward<ParameterTypes>(parameters)...);
     } else {
-      return self->[:Target:](std::forward<ParameterTypes>(parameters)...);
+      return candidates(std::forward<ParameterTypes>(parameters)...);
     }
   }
 };
@@ -602,18 +719,18 @@ struct allocator_lifetime {
 template <typename Interface, typename Implementation, std::size_t Index>
 consteval auto make_vtable_entry() {
   constexpr info member = interface_members<Interface>[Index];
-  constexpr info target =
-      resolve_implementation_member(^^Implementation, member);
   constexpr bool ConstErased = std::meta::is_const(member);
+  constexpr info merged = implementation_candidate_overload_set(
+      ^^Implementation, member, ConstErased);
   constexpr info erased_pointer_type = ConstErased ? ^^const void* : ^^void*;
   using ThunkPointer = [:vtable_entry_pointer_type(member,
                                                    erased_pointer_type):];
-  if constexpr (target == info{}) {
+  if constexpr (merged == info{}) {
     return ThunkPointer(nullptr);
   } else {
     using Signature = [:member_function_type(member):];
     return ThunkPointer(
-        &erased_call_thunk<Implementation, target, Signature, ConstErased,
+        &erased_call_thunk<Implementation, merged, Signature, ConstErased,
                            std::meta::is_noexcept(member)>::call);
   }
 }
