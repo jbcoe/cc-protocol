@@ -29,11 +29,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <utility>
 #include <vector>
 
+#include "interface_A.h"
+#include "interface_A_Subset.h"
+#include "interface_B.h"
+#include "interface_C.h"
+#include "interface_D.h"
+
+// The reflection backend (enabled by protocol.h's own unconditional include
+// of protocol_reflection.h) needs no per-interface generated header: it
+// synthesizes the same machinery from the plain interface struct above at
+// compile time. The Python backend still needs its generated headers.
+#ifndef XYZ_PROTOCOL_ENABLE_REFLECTION
 #include "generated/protocol_A.h"
 #include "generated/protocol_A_Subset.h"
 #include "generated/protocol_B.h"
 #include "generated/protocol_C.h"
 #include "generated/protocol_D.h"
+#endif
 #include "tracking_allocator.h"
 
 namespace {
@@ -729,6 +741,11 @@ class DLike {
 
   void operator=(int x) { value_ = x; }
 
+  // A distinguishable marker (not a plausible int->double truncation of any
+  // value the int overload would also produce) proves which overload real
+  // overload resolution actually picked.
+  void operator=(double x) { value_ = static_cast<int>(x) + 100; }
+
   bool operator<(int x) const { return value_ < x; }
 
   bool operator>(int x) const { return value_ > x; }
@@ -850,6 +867,15 @@ TEST(ProtocolTest, ProtocolDOperators) {
 
   EXPECT_EQ(d(), 42);
   EXPECT_EQ(d[5], 10);
+
+  // D declares two operator= overloads of the same (non-const) constness,
+  // taking int and double respectively; real overload resolution over the
+  // merged set must pick the exact match for each rather than only one of
+  // them being reachable.
+  d = 7;
+  EXPECT_TRUE(d == 7);
+  d = 7.0;
+  EXPECT_TRUE(d == 107);
 }
 
 TEST(ProtocolViewTest, ProtocolViewDOperators) {
@@ -917,6 +943,13 @@ TEST(ProtocolViewTest, ProtocolViewDOperators) {
 
   EXPECT_EQ(d(), 42);
   EXPECT_EQ(d[5], 10);
+
+  // See ProtocolDOperators: same two-overload assignment coverage, through
+  // the mutable view instead of the owning protocol.
+  d = 7;
+  EXPECT_TRUE(d == 7);
+  d = 7.0;
+  EXPECT_TRUE(d == 107);
 }
 
 TEST(ProtocolViewTest, NarrowingConversion) {
@@ -1278,3 +1311,122 @@ TEST(ProtocolTest, NarrowingConversionConcurrentStressing) {
 }
 
 }  // namespace
+
+#ifdef XYZ_PROTOCOL_ENABLE_REFLECTION
+
+template <class R, class... Args>
+struct Function {
+  R operator()(Args... args) const;
+};
+
+template <class R, class... Args>
+struct RvalueParameterFunction {
+  R operator()(Args&&... args) const;
+};
+
+namespace {
+
+struct SquareAdder {
+  int operator()(int x, int y) const { return x * x + y * y; }
+};
+
+struct StringConcatenator {
+  std::string operator()(std::string_view a, std::string_view b) const {
+    return std::string(a) + std::string(b);
+  }
+};
+
+struct RvalueIntAdder {
+  int operator()(int&& x) const { return x + 10; }
+};
+
+struct NarrowingComputeInterface {
+  double compute(double x) const;
+};
+
+struct FloatOnlyImplementation {
+  float compute(float x) const { return x * 2.0f; }
+};
+
+struct FloatComputeInterface {
+  double compute(float x) const;
+};
+
+struct OverloadedComputeImplementation {
+  int compute(int x) const { return x + 1; }
+
+  double compute(double x) const { return x * 2; }
+};
+
+TEST(ProtocolReflectionTest, ImplicitConversionConformance) {
+  // FloatOnlyImplementation::compute(float) does not exactly match
+  // NarrowingComputeInterface::compute(double); this now conforms (and
+  // dispatches through the implicit double->float/float->double
+  // conversions) the same way the Python backend's requires-expression
+  // already does, matching real C++ overload resolution.
+  static_assert(
+      xyz::reflection_protocol_const_concept<FloatOnlyImplementation,
+                                             NarrowingComputeInterface>);
+  xyz::protocol<NarrowingComputeInterface> p(
+      std::in_place_type<FloatOnlyImplementation>);
+  EXPECT_DOUBLE_EQ(p.compute(21.0), 42.0);
+}
+
+TEST(ProtocolReflectionTest, ImplicitConversionPicksBestOverload) {
+  // OverloadedComputeImplementation offers compute(int) and compute(double);
+  // FloatComputeInterface's compute(float) must resolve to compute(double),
+  // since float->double is a better conversion than float->int -- proving
+  // real overload resolution over the merged candidate set, not just "any
+  // invocable candidate".
+  xyz::protocol<FloatComputeInterface> p(
+      std::in_place_type<OverloadedComputeImplementation>);
+  EXPECT_DOUBLE_EQ(p.compute(3.0f), 6.0);
+}
+
+struct NonConstMemberInterface {
+  int member();
+};
+
+struct DualConstnessImplementation {
+  int member() { return 10; }
+
+  int member() const { return 20; }
+};
+
+TEST(ProtocolReflectionTest, PrefersNonConstOverloadOnNonConstAccess) {
+  // DualConstnessImplementation declares both member() and member() const;
+  // NonConstMemberInterface::member() is non-const, so real overload
+  // resolution over the merged candidate set must prefer the non-const
+  // overload, exactly as calling member() directly on a non-const object
+  // would -- not treat the two as ambiguous. This is the case merging
+  // candidates with a single shared constness (rather than each candidate's
+  // own) would break.
+  xyz::protocol<NonConstMemberInterface> p(
+      std::in_place_type<DualConstnessImplementation>);
+  EXPECT_EQ(p.member(), 10);
+}
+
+TEST(ProtocolReflectionTest, ClassTemplateInstantiationAsInterface) {
+  // Test Function<int, int, int> without any opt-in variable template
+  xyz::protocol<Function<int, int, int>> integer_function(SquareAdder{});
+  EXPECT_EQ(integer_function(3, 4), 25);
+
+  xyz::protocol_view<const Function<int, int, int>> integer_function_view(
+      integer_function);
+  EXPECT_EQ(integer_function_view(5, 12), 169);
+
+  // Test Function<std::string, std::string_view, std::string_view>
+  xyz::protocol<Function<std::string, std::string_view, std::string_view>>
+      string_function(StringConcatenator{});
+  EXPECT_EQ(string_function("hello ", "world"), "hello world");
+
+  // Test RvalueParameterFunction<int, int> with rvalue reference parameter
+  // (int&&)
+  xyz::protocol<RvalueParameterFunction<int, int>> reference_function(
+      RvalueIntAdder{});
+  EXPECT_EQ(reference_function(5), 15);
+}
+
+}  // namespace
+
+#endif

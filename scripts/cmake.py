@@ -37,6 +37,20 @@ def main() -> None:
     )
     parser.add_argument("--tsan", action="store_true", help="Enable Thread Sanitizer")
     parser.add_argument("--msan", action="store_true", help="Enable Memory Sanitizer")
+    parser.add_argument(
+        "--implementation",
+        choices=["Python", "reflection"],
+        default="Python",
+        help=(
+            "Code-generation backend to build and test: 'Python' (default) "
+            "for the Python-generated backend, or 'reflection' for the "
+            "C++26-reflection backend (protocol_reflection.h), which "
+            "requires a compiler with P2996 reflection support (e.g. "
+            "CXX=g++-16 CC=gcc-16). If 'reflection' is requested and the "
+            "compiler does not support it, CMake configuration fails "
+            "outright: there is no fallback to the Python backend."
+        ),
+    )
     parser.add_argument("-B", "--build-dir", help="Build directory")
     parser.add_argument(
         "--clean", action="store_true", help="Fresh configuration and clean-first build"
@@ -74,6 +88,8 @@ def main() -> None:
         f"-DENABLE_UBSAN={'ON' if args.ubsan else 'OFF'}",
         f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",
         f"-DENABLE_MSAN={'ON' if args.msan else 'OFF'}",
+        f"-DXYZ_PROTOCOL_ENABLE_REFLECTION_BACKEND="
+        f"{'ON' if args.implementation == 'reflection' else 'OFF'}",
     ]
     if args.build_dir:
         configure_args.extend(["-B", args.build_dir])

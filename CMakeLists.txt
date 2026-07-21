@@ -29,6 +29,36 @@ option(ENABLE_UBSAN "Enable Undefined Behaviour Sanitizer" OFF)
 option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
 option(ENABLE_MSAN "Enable Memory Sanitizer" OFF)
 
+option(
+  XYZ_PROTOCOL_ENABLE_REFLECTION_BACKEND
+  "Also build and test the C++26-reflection code-generation \
+backend (protocol_reflection.h). Requires a compiler with P2996 reflection \
+support (GCC 16+ with -freflection). The default Python code-generation \
+path is unaffected."
+  OFF)
+
+if(XYZ_PROTOCOL_ENABLE_REFLECTION_BACKEND)
+  include(CheckCXXSourceCompiles)
+  set(CMAKE_REQUIRED_FLAGS "-std=c++26 -freflection")
+  check_cxx_source_compiles(
+    "
+    #include <meta>
+    constexpr std::meta::info reflection_of_int = ^^int;
+    int main() {}
+    "
+    XYZ_PROTOCOL_REFLECTION_SUPPORTED)
+  unset(CMAKE_REQUIRED_FLAGS)
+  if(NOT XYZ_PROTOCOL_REFLECTION_SUPPORTED)
+    message(
+      FATAL_ERROR
+        "XYZ_PROTOCOL_ENABLE_REFLECTION_BACKEND is ON but the compiler "
+        "(${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}) does not "
+        "accept '-std=c++26 -freflection'. C++26 reflection currently "
+        "requires GCC 16 or newer; configure with e.g. "
+        "CXX=g++-16 CC=gcc-16 and a separate build directory (-B).")
+  endif()
+endif()
+
 if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN OR ENABLE_MSAN)
   set(ENABLE_SANITIZERS ON)
 endif()
@@ -147,6 +177,34 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
     add_dependencies(protocol_test generate_protocols)
     target_include_directories(protocol_test
                                PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+    if(XYZ_PROTOCOL_ENABLE_REFLECTION_BACKEND)
+      # protocol_test.cc includes the per-interface headers directly (no
+      # Python-generated "generated/protocol_<Name>.h") when
+      # XYZ_PROTOCOL_ENABLE_REFLECTION is defined: protocol_reflection.h
+      # synthesizes the same machinery from the plain interface struct at
+      # compile time, so no code generation step or shim headers are needed.
+      xyz_add_test(
+        NAME
+        protocol_test_reflection
+        VERSION
+        26
+        LINK_LIBRARIES
+        protocol
+        FILES
+        protocol_test.cc
+        protocol_reflection.h
+        interface_A.h
+        interface_A_Subset.h
+        interface_B.h
+        interface_C.h
+        interface_D.h)
+      target_include_directories(protocol_test_reflection
+                                 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+      target_compile_options(protocol_test_reflection PRIVATE -freflection)
+      target_compile_definitions(protocol_test_reflection
+                                 PRIVATE XYZ_PROTOCOL_ENABLE_REFLECTION)
+    endif()
 
     add_executable(protocol_benchmark protocol_benchmark.cc)
     target_link_libraries(protocol_benchmark PRIVATE protocol benchmark::benchmark)

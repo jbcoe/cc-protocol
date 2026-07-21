@@ -26,6 +26,16 @@ RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/nul
 && apt-get update && apt-get install -y --no-install-recommends cmake \
 && rm -rf /var/lib/apt/lists/*
 
+# Install GCC 16 (experimental C++26 reflection support via -std=c++26
+# -freflection, see https://gcc.gnu.org/gcc-16/changes.html) from the Ubuntu
+# Toolchain Test PPA, since Ubuntu 24.04's own repos only go up to GCC 14.
+# This is additive: the default g++ (13.3.0) installed above remains the
+# toolchain used for the default build; g++-16/gcc-16 are opt-in, invoked
+# explicitly (e.g. via CMAKE_CXX_COMPILER=g++-16) for the reflection backend.
+RUN add-apt-repository -y ppa:ubuntu-toolchain-r/test \
+&& apt-get update && apt-get install -y --no-install-recommends g++-16 gcc-16 \
+&& rm -rf /var/lib/apt/lists/*
+
 # Install bazelisk.
 RUN ARCH=$(dpkg --print-architecture) && \
     wget https://github.com/bazelbuild/bazelisk/releases/download/v1.25.0/bazelisk-linux-${ARCH} -O /usr/local/bin/bazelisk \
