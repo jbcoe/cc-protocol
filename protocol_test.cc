@@ -741,6 +741,11 @@ class DLike {
 
   void operator=(int x) { value_ = x; }
 
+  // A distinguishable marker (not a plausible int->double truncation of any
+  // value the int overload would also produce) proves which overload real
+  // overload resolution actually picked.
+  void operator=(double x) { value_ = static_cast<int>(x) + 100; }
+
   bool operator<(int x) const { return value_ < x; }
 
   bool operator>(int x) const { return value_ > x; }
@@ -862,6 +867,15 @@ TEST(ProtocolTest, ProtocolDOperators) {
 
   EXPECT_EQ(d(), 42);
   EXPECT_EQ(d[5], 10);
+
+  // D declares two operator= overloads of the same (non-const) constness,
+  // taking int and double respectively; real overload resolution over the
+  // merged set must pick the exact match for each rather than only one of
+  // them being reachable.
+  d = 7;
+  EXPECT_TRUE(d == 7);
+  d = 7.0;
+  EXPECT_TRUE(d == 107);
 }
 
 TEST(ProtocolViewTest, ProtocolViewDOperators) {
@@ -929,6 +943,13 @@ TEST(ProtocolViewTest, ProtocolViewDOperators) {
 
   EXPECT_EQ(d(), 42);
   EXPECT_EQ(d[5], 10);
+
+  // See ProtocolDOperators: same two-overload assignment coverage, through
+  // the mutable view instead of the owning protocol.
+  d = 7;
+  EXPECT_TRUE(d == 7);
+  d = 7.0;
+  EXPECT_TRUE(d == 107);
 }
 
 TEST(ProtocolViewTest, NarrowingConversion) {

@@ -52,9 +52,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //   would be hidden by protocol's own member of that name (undetectable via
 //   the forwarders, which are inherited), so it is instead rejected with a
 //   static_assert naming the interface.
-// - Interfaces with several assignment operators of the same constness are
-//   not supported (assignment forwarding requires a unique target per
-//   constness).
 // - Generated member functions are not marked constexpr (out of scope for
 //   this backend for now).
 #ifndef XYZ_PROTOCOL_REFLECTION_H_
@@ -960,11 +957,18 @@ struct named_forwarders {
 // use the named-forwarder mechanism. Instead, for each operator kind a
 // dedicated forwarder class template is stamped out below (the operator
 // symbol must appear literally in source, hence one macro expansion per
-// kind), and the per-interface set of operator forwarders is combined into
-// an empty base class of protocol / protocol_view. operator= is the one
-// exception: an inherited operator= is hidden by the implicitly-declared
-// copy assignment operator, so assignment is forwarded by constrained
-// member templates written directly in each class instead.
+// kind, including plain `operator=`), and the per-interface set of operator
+// forwarders is combined into an empty base class of protocol / protocol_view.
+//
+// operator= needs one extra thing the other operators don't: protocol and
+// protocol_view each need their own operator= (hand-written for value
+// semantics, or left to the compiler to generate), and in C++ a class's own
+// operator= -- even a compiler-generated one -- hides any operator= it would
+// otherwise inherit from a base class. So every class in this merge chain
+// that doesn't declare a member of its own needs an explicit
+// using-declaration bringing the inherited operator= back into scope:
+// combined_operator_joins below, and each of protocol, protocol_view<const
+// T>, and protocol_view<T> further down this file.
 // ---------------------------------------------------------------------------
 
 template <typename Owner, info Member, typename Signature,
@@ -1036,6 +1040,7 @@ struct operator_join;
 
 #define XYZ_PROTOCOL_REFLECTION_COMMA_SYMBOL ,
 
+XYZ_PROTOCOL_REFLECTION_DEFINE_OPERATOR_FORWARDER(=, op_equals)
 XYZ_PROTOCOL_REFLECTION_DEFINE_OPERATOR_FORWARDER((), op_parentheses)
 XYZ_PROTOCOL_REFLECTION_DEFINE_OPERATOR_FORWARDER([], op_square_brackets)
 XYZ_PROTOCOL_REFLECTION_DEFINE_NULLARY_OPERATOR_FORWARDER(->, op_arrow)
@@ -1081,8 +1086,15 @@ XYZ_PROTOCOL_REFLECTION_DEFINE_OPERATOR_FORWARDER(
 #undef XYZ_PROTOCOL_REFLECTION_DEFINE_NULLARY_OPERATOR_FORWARDER
 #undef XYZ_PROTOCOL_REFLECTION_DEFINE_OPERATOR_FORWARDER
 
+// Every level of this merge hierarchy that doesn't declare its own members
+// gets an implicitly-declared operator= of its own (ordinary C++), which
+// would otherwise hide any operator= a Join brings in from its Forwarders --
+// hence the using-declaration below, mirroring the one operator_join itself
+// already needs for the same reason.
 template <typename... Joins>
-struct combined_operator_joins : Joins... {};
+struct combined_operator_joins : Joins... {
+  using Joins::operator=...;
+};
 
 consteval info make_operator_forwarders(info interface_type, info owner_type,
                                         bool const_only,
@@ -1091,10 +1103,6 @@ consteval info make_operator_forwarders(info interface_type, info owner_type,
   for (const std::vector<info>& overloads : grouped_interface_members(
            interface_member_functions(interface_type, const_only), true)) {
     std::meta::operators kind = std::meta::operator_of(overloads.front());
-    // operator= is forwarded by constrained member templates written
-    // directly in each class (an inherited operator= is hidden by the
-    // implicitly-declared copy assignment operator).
-    if (kind == std::meta::operators::op_equals) continue;
     std::vector<info> join_arguments;
     join_arguments.push_back(std::meta::reflect_constant(kind));
     for (info member : overloads) {
@@ -1118,48 +1126,6 @@ struct operator_forwarders {
   using type = typename[:make_operator_forwarders(^^Interface, ^^Owner,
                                                   ConstOnly, ForceConstCall):];
 };
-
-// The interface assignment operator a call on a const (const_call == true)
-// or non-const (const_call == false) protocol object should dispatch to. A
-// const call can only use a const assignment operator. A non-const call
-// prefers a unique non-const assignment operator and falls back to a unique
-// const one only when the interface declares no non-const assignment
-// operator at all, mirroring the constness preference of real overload
-// resolution. Several assignment operators of the same constness have no
-// unique target and remain unsupported (documented parity deviation).
-consteval info assignment_operator_member(info interface_type,
-                                          bool const_call) {
-  info non_const_member{};
-  int non_const_count = 0;
-  info const_member{};
-  int const_count = 0;
-  for (info member : interface_member_functions(interface_type, false)) {
-    if (std::meta::has_identifier(member) ||
-        std::meta::operator_of(member) != std::meta::operators::op_equals) {
-      continue;
-    }
-    if (std::meta::is_const(member)) {
-      const_member = member;
-      ++const_count;
-    } else {
-      non_const_member = member;
-      ++non_const_count;
-    }
-  }
-  if (const_call) return const_count == 1 ? const_member : info{};
-  if (non_const_count == 1) return non_const_member;
-  if (non_const_count == 0 && const_count == 1) return const_member;
-  return info{};
-}
-
-template <typename Interface, bool ConstCall, typename Argument>
-consteval bool assignment_operator_invocable() {
-  info member = assignment_operator_member(^^Interface, ConstCall);
-  if (member == info{}) return false;
-  std::vector<info> parameters = parameter_types_of(member);
-  if (parameters.size() != 1) return false;
-  return std::meta::is_convertible_type(^^Argument, parameters[0]);
-}
 
 // Layout guard for the static_cast in the forwarders: every forwarder base
 // subobject, every forwarder data member inside those bases (the named
@@ -1485,27 +1451,14 @@ class protocol
     return *this;
   }
 
-  // Forwarders for an interface-declared operator= (which cannot come from
-  // a base class: the copy assignment operator above would hide it).
-  template <typename Argument>
-    requires not_protocol_or_view<Argument> &&
-             (reflection_detail::assignment_operator_invocable<T, false,
-                                                               Argument>())
-  decltype(auto) operator=(Argument&& argument) {
-    constexpr std::meta::info member =
-        reflection_detail::assignment_operator_member(^^T, false);
-    return dispatch_reflected_member<member>(std::forward<Argument>(argument));
-  }
-
-  template <typename Argument>
-    requires not_protocol_or_view<Argument> &&
-             (reflection_detail::assignment_operator_invocable<T, true,
-                                                               Argument>())
-  decltype(auto) operator=(Argument&& argument) const {
-    constexpr std::meta::info member =
-        reflection_detail::assignment_operator_member(^^T, true);
-    return dispatch_reflected_member<member>(std::forward<Argument>(argument));
-  }
+  // Interface-declared operator= overloads are merged by operator_forwarders
+  // the same way every other operator is; the copy-assignment operator above
+  // would otherwise hide them entirely (ordinary C++ name hiding, not
+  // anything specific to assignment: a derived class's own operator=, even
+  // an implicitly-declared one, hides any operator= it would otherwise
+  // inherit, unless brought back into scope by a using-declaration).
+  using reflection_detail::operator_forwarders<T, protocol<T, Allocator>, false,
+                                               false>::type::operator=;
 
   void swap(protocol& other) noexcept(
       allocator_traits::is_always_equal::value) {
@@ -1620,15 +1573,11 @@ class protocol_view<const T>
     requires(!std::same_as<Other, T>)
   protocol_view(protocol<Other, Alloc>&&) = delete;
 
-  template <typename Argument>
-    requires not_protocol_or_view<Argument> &&
-             (reflection_detail::assignment_operator_invocable<T, true,
-                                                               Argument>())
-  decltype(auto) operator=(Argument&& argument) const {
-    constexpr std::meta::info member =
-        reflection_detail::assignment_operator_member(^^T, true);
-    return dispatch_reflected_member<member>(std::forward<Argument>(argument));
-  }
+  // See protocol's own operator= for why this using-declaration is needed:
+  // without it, the implicitly-declared copy-assignment operator this class
+  // relies on would hide any operator= inherited from operator_forwarders.
+  using reflection_detail::operator_forwarders<T, protocol_view<const T>, true,
+                                               true>::type::operator=;
 };
 
 // ---------------------------------------------------------------------------
@@ -1703,15 +1652,11 @@ class protocol_view
     requires(!std::same_as<Other, T>)
   protocol_view(protocol<Other, Alloc>&&) = delete;
 
-  template <typename Argument>
-    requires not_protocol_or_view<Argument> &&
-             (reflection_detail::assignment_operator_invocable<T, false,
-                                                               Argument>())
-  decltype(auto) operator=(Argument&& argument) const {
-    constexpr std::meta::info member =
-        reflection_detail::assignment_operator_member(^^T, false);
-    return dispatch_reflected_member<member>(std::forward<Argument>(argument));
-  }
+  // See protocol's own operator= for why this using-declaration is needed:
+  // without it, the implicitly-declared copy-assignment operator this class
+  // relies on would hide any operator= inherited from operator_forwarders.
+  using reflection_detail::operator_forwarders<T, protocol_view<T>, false,
+                                               true>::type::operator=;
 };
 
 template <typename T>
