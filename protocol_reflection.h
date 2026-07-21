@@ -65,7 +65,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <cassert>
 #include <concepts>
 #include <cstddef>
-#include <cstdint>
 #include <initializer_list>
 #include <memory>
 #include <meta>
@@ -144,26 +143,38 @@ inline constexpr auto interface_members =
 // ---------------------------------------------------------------------------
 // Deterministic, stable entry naming
 //
-// Vtable entry names are mangled as `<name>_<hash-of-signature>` so that
-// generated symbols are deterministic and stable between runs and overloads
-// of the same name are disambiguated. Any deterministic hash suffices; this
-// backend uses a consteval FNV-1a over the signature string.
+// Vtable entry names must be valid C++ identifiers, unique within one
+// interface's vtable, and a deterministic function of a member's own
+// signature -- not of its position among other members. The last part
+// matters because narrowing (see "Vtable narrowing maps" below) matches
+// vtable entries between two *different* interfaces by name, so the same
+// signature must always produce the same name regardless of what other
+// members its interface happens to declare.
+//
+// Rather than hashing the signature (which only gives a probabilistic
+// guarantee against collisions), identifier_safe_string encodes it exactly:
+// every byte outside [a-zA-Z0-9] -- including a literal `_` itself -- is
+// replaced by `_` followed by its two-digit hex value. This is injective
+// by construction: scanning left to right, a `_` in the output always
+// starts a two-hex-digit escape, since no unescaped `_` from the input
+// ever survives unescaped, so two different signatures can never collide
+// the way two different hash inputs theoretically could.
 // ---------------------------------------------------------------------------
 
-consteval std::uint64_t fnv1a_hash(std::string_view text) {
-  std::uint64_t hash = 14695981039346656037u;
-  for (char character : text) {
-    hash ^= static_cast<unsigned char>(character);
-    hash *= 1099511628211u;
-  }
-  return hash;
-}
-
-consteval std::string hexadecimal_string(std::uint64_t value) {
-  const char* digits = "0123456789abcdef";
+consteval std::string identifier_safe_string(std::string_view text) {
+  const char* hex_digits = "0123456789abcdef";
   std::string result;
-  for (int shift = 60; shift >= 0; shift -= 4) {
-    result += digits[(value >> shift) & 0xF];
+  for (unsigned char byte : text) {
+    bool is_identifier_safe = (byte >= 'a' && byte <= 'z') ||
+                              (byte >= 'A' && byte <= 'Z') ||
+                              (byte >= '0' && byte <= '9');
+    if (is_identifier_safe) {
+      result += static_cast<char>(byte);
+    } else {
+      result += '_';
+      result += hex_digits[(byte >> 4) & 0xF];
+      result += hex_digits[byte & 0xF];
+    }
   }
   return result;
 }
@@ -290,8 +301,7 @@ consteval std::string member_signature_string(info member) {
 }
 
 consteval std::string vtable_entry_name(info member) {
-  return mangled_member_name(member) + "_" +
-         hexadecimal_string(fnv1a_hash(member_signature_string(member)));
+  return identifier_safe_string(member_signature_string(member));
 }
 
 // ---------------------------------------------------------------------------
@@ -476,9 +486,9 @@ struct candidate_overload_set : Candidates... {
 // The merged candidate_overload_set type (or the lone candidate's own
 // wrapper type, or info{} if there are no name/constness-eligible
 // candidates at all) for one interface member against implementation_type.
-consteval info implementation_candidate_overload_set(info implementation_type,
-                                                     info interface_member,
-                                                     bool const_erased) {
+consteval info make_candidate_overload_set(info implementation_type,
+                                           info interface_member,
+                                           bool const_erased) {
   std::vector<info> candidates =
       resolve_implementation_candidates(implementation_type, interface_member);
   if (candidates.empty()) return info{};
@@ -502,11 +512,12 @@ consteval info implementation_candidate_overload_set(info implementation_type,
 // an interface member's parameter types. Same partial-specialization idiom
 // erased_call_thunk uses below.
 template <info MergedCandidates, typename Signature>
-struct invocable_with_return;
+struct is_invocable_with_return;
 
 template <info MergedCandidates, typename ReturnType,
           typename... ParameterTypes>
-struct invocable_with_return<MergedCandidates, ReturnType(ParameterTypes...)> {
+struct is_invocable_with_return<MergedCandidates,
+                                ReturnType(ParameterTypes...)> {
   static constexpr bool value =
       std::is_void_v<ReturnType>
           ? std::is_invocable_v<typename[:MergedCandidates:], ParameterTypes...>
@@ -518,12 +529,12 @@ template <typename Implementation, typename Interface, std::size_t Index>
 consteval bool member_is_satisfiable(bool const_only) {
   constexpr info member = interface_members<Interface>[Index];
   if (const_only && !std::meta::is_const(member)) return true;
-  constexpr info merged = implementation_candidate_overload_set(
+  constexpr info merged = make_candidate_overload_set(
       ^^Implementation, member, std::meta::is_const(member));
   if constexpr (merged == info{}) {
     return false;
   } else {
-    return invocable_with_return<
+    return is_invocable_with_return<
         merged, typename[:member_function_type(member):]>::value;
   }
 }
@@ -542,7 +553,7 @@ consteval bool models_reflected_interface(bool const_only = false) {
   // don't model the interface. This must be `if constexpr`, not a plain
   // `if`: all_members_satisfiable is a template, and merely naming it in a
   // live (non-discarded) statement forces its instantiation -- including
-  // evaluating implementation_candidate_overload_set's std::meta::members_of
+  // evaluating make_candidate_overload_set's std::meta::members_of
   // call on Implementation -- regardless of which branch would run at
   // evaluation time. Only a discarded if-constexpr branch is skipped.
   if constexpr (!std::meta::is_class_type(
@@ -578,7 +589,7 @@ namespace reflection_detail {
 // Signature exactly mirrors the interface member (exact parameter types,
 // matching noexcept), with a leading erased pointer. ConstErased selects the
 // const_view flavour (const void* + const implementation access).
-// MergedCandidates is the implementation_candidate_overload_set type built
+// MergedCandidates is the make_candidate_overload_set type built
 // for this interface member: the thunk constructs an instance bound to
 // self and calls through it, so it's the compiler's real overload
 // resolution -- not this thunk -- that picks which candidate actually runs.
@@ -633,14 +644,14 @@ consteval void define_vtable_entries(info incomplete_entries_type,
 }
 
 template <typename Interface>
-struct view_vtables {
-  struct entries_struct;
-  consteval { define_vtable_entries(^^entries_struct, ^^Interface); }
+struct view_vtable {
+  struct view_entries;
+  consteval { define_vtable_entries(^^view_entries, ^^Interface); }
 
   struct vtable {
     using xyz_reflection_view_vtable_tag = void;
     using protocol_type = Interface;
-    entries_struct entries;
+    view_entries entries;
   };
 };
 
@@ -656,7 +667,7 @@ struct owning_vtable {
     void* (*xyz_protocol_clone)(void* erased, const Allocator& allocator);
     void* (*xyz_protocol_move)(void* erased, const Allocator& allocator);
     void (*xyz_protocol_destroy)(void* erased, const Allocator& allocator);
-    const typename view_vtables<Interface>::vtable* view_vt;
+    const typename view_vtable<Interface>::vtable* view_vt;
     owning_entries entries;
   };
 };
@@ -720,8 +731,8 @@ template <typename Interface, typename Implementation, std::size_t Index>
 consteval auto make_vtable_entry() {
   constexpr info member = interface_members<Interface>[Index];
   constexpr bool ConstErased = std::meta::is_const(member);
-  constexpr info merged = implementation_candidate_overload_set(
-      ^^Implementation, member, ConstErased);
+  constexpr info merged =
+      make_candidate_overload_set(^^Implementation, member, ConstErased);
   constexpr info erased_pointer_type = ConstErased ? ^^const void* : ^^void*;
   using ThunkPointer = [:vtable_entry_pointer_type(member,
                                                    erased_pointer_type):];
@@ -737,7 +748,7 @@ consteval auto make_vtable_entry() {
 
 template <typename Interface, typename Implementation, std::size_t... Indexes>
 consteval auto make_view_entries(std::index_sequence<Indexes...>) {
-  return typename view_vtables<Interface>::entries_struct{
+  return typename view_vtable<Interface>::view_entries{
       make_vtable_entry<Interface, Implementation, Indexes>()...};
 }
 
@@ -749,7 +760,7 @@ consteval auto make_owning_entries(std::index_sequence<Indexes...>) {
 }
 
 template <typename Interface, typename Implementation>
-inline constexpr typename view_vtables<Interface>::vtable view_vtable_for = {
+inline constexpr typename view_vtable<Interface>::vtable view_vtable_for = {
     make_view_entries<Interface, Implementation>(
         std::make_index_sequence<interface_members<Interface>.size()>())};
 
@@ -1068,7 +1079,7 @@ XYZ_PROTOCOL_REFLECTION_DEFINE_OPERATOR_FORWARDER(
 #undef XYZ_PROTOCOL_REFLECTION_DEFINE_OPERATOR_FORWARDER
 
 template <typename... Joins>
-struct combined_operator_forwarders : Joins... {};
+struct combined_operator_joins : Joins... {};
 
 consteval info make_operator_forwarders(info interface_type, info owner_type,
                                         bool const_only,
@@ -1095,7 +1106,7 @@ consteval info make_operator_forwarders(info interface_type, info owner_type,
     }
     joins.push_back(std::meta::substitute(^^operator_join, join_arguments));
   }
-  return std::meta::substitute(^^combined_operator_forwarders, joins);
+  return std::meta::substitute(^^combined_operator_joins, joins);
 }
 
 template <typename Interface, typename Owner, bool ConstOnly,
@@ -1177,8 +1188,8 @@ consteval bool forwarders_at_offset_zero(info class_type) {
 
 template <typename T>
 struct protocol_vtable_traits {
-  using const_vtable = typename reflection_detail::view_vtables<T>::vtable;
-  using vtable = typename reflection_detail::view_vtables<T>::vtable;
+  using const_vtable = typename reflection_detail::view_vtable<T>::vtable;
+  using vtable = typename reflection_detail::view_vtable<T>::vtable;
 };
 
 template <typename T, typename Allocator>
@@ -1525,14 +1536,14 @@ class protocol_view<const T>
             bool>
   friend struct reflection_detail::operator_forwarder;
 
-  using const_vtable = typename reflection_detail::view_vtables<T>::vtable;
+  using const_vtable = typename reflection_detail::view_vtable<T>::vtable;
 
   template <std::meta::info Member, typename... Arguments>
   decltype(auto) dispatch_reflected_member(Arguments&&... arguments) const {
     static_assert(
         reflection_detail::forwarders_at_offset_zero(^^protocol_view));
     constexpr std::meta::info entry = reflection_detail::data_member_named(
-        ^^typename reflection_detail::view_vtables<T>::entries_struct,
+        ^^typename reflection_detail::view_vtable<T>::view_entries,
         reflection_detail::vtable_entry_name(Member));
     return vptr_->entries.[:entry:](ptr_,
                                     std::forward<Arguments>(arguments)...);
@@ -1634,14 +1645,14 @@ class protocol_view
             bool>
   friend struct reflection_detail::operator_forwarder;
 
-  using view_vtable = typename reflection_detail::view_vtables<T>::vtable;
+  using view_vtable = typename reflection_detail::view_vtable<T>::vtable;
 
   template <std::meta::info Member, typename... Arguments>
   decltype(auto) dispatch_reflected_member(Arguments&&... arguments) const {
     static_assert(
         reflection_detail::forwarders_at_offset_zero(^^protocol_view));
     constexpr std::meta::info entry = reflection_detail::data_member_named(
-        ^^typename reflection_detail::view_vtables<T>::entries_struct,
+        ^^typename reflection_detail::view_vtable<T>::view_entries,
         reflection_detail::vtable_entry_name(Member));
     return vptr_->entries.[:entry:](ptr_,
                                     std::forward<Arguments>(arguments)...);
