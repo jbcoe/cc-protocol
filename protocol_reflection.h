@@ -24,12 +24,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // as an interface type automatically; no macro, build step, or per-type
 // opt-in annotation is required.
 //
-// Requires GCC 16+ with `-std=c++26 -freflection`, and the build option
-// XYZ_PROTOCOL_ENABLE_REFLECTION to be defined. On any other compiler or
-// build configuration this header is an inert no-op. When the backend is
-// active, protocol.h compiles out its placeholder primary templates so this
-// header can define xyz::protocol / xyz::protocol_view as primary templates;
-// protocol.h's public declarations are otherwise unchanged.
+// Requires GCC 16+ with `-std=c++26 -freflection`; fails to compile
+// otherwise, rather than silently no-op'ing. Defines xyz::protocol /
+// xyz::protocol_view as primary templates (protocol.h's own placeholder
+// primary templates must therefore not also be defined when this header
+// is included, or the two would conflict; see protocol.h for how it
+// arranges that).
 //
 // Conformance to an interface is checked by a concept
 // (reflection_protocol_concept / reflection_protocol_const_concept),
@@ -60,7 +60,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef XYZ_PROTOCOL_REFLECTION_H_
 #define XYZ_PROTOCOL_REFLECTION_H_
 
-#if defined(__cpp_impl_reflection) && defined(XYZ_PROTOCOL_ENABLE_REFLECTION)
+#ifndef __cpp_impl_reflection
+#error \
+    "This header requires a compiler with C++26 reflection support (GCC 16+, -std=c++26 -freflection)."
+#endif
 
 #include <cassert>
 #include <concepts>
@@ -1199,11 +1202,12 @@ struct protocol_owning_vtable_traits {
 };
 
 // ---------------------------------------------------------------------------
-// protocol<T, Allocator> — primary template definition. The
-// constructor/assignment/swap/destructor set mirrors the generated
-// per-interface class in protocol.h, with the per-interface concepts and
-// vtable types replaced by their reflection equivalents. Named-method
-// forwarding comes from the named_forwarders empty base.
+// protocol<T, Allocator> — primary template definition. The constructors,
+// assignment, swap, and destructor are hand-written here (define_aggregate
+// can only produce data members, so this part isn't reflection-generated);
+// the per-interface concepts and vtable types they use are the reflection
+// equivalents built above. Named-method forwarding comes from the
+// named_forwarders empty base.
 // ---------------------------------------------------------------------------
 
 template <typename T, typename Allocator>
@@ -1716,5 +1720,4 @@ inline protocol_view<const T>::protocol_view(protocol_view<T> other) noexcept
 
 }  // namespace xyz
 
-#endif  // __cpp_impl_reflection && XYZ_PROTOCOL_ENABLE_REFLECTION
 #endif  // XYZ_PROTOCOL_REFLECTION_H_

@@ -123,7 +123,7 @@ get_owning_vtable(const typename protocol_owning_vtable_traits<
                         sizeof(ToVtable), mapping_function));
 }
 
-#if !(defined(__cpp_impl_reflection) && defined(XYZ_PROTOCOL_ENABLE_REFLECTION))
+#ifndef XYZ_PROTOCOL_ENABLE_REFLECTION
 template <typename T, typename A>
 class protocol {
   static_assert(
@@ -169,10 +169,11 @@ class protocol_view {
 
 }  // namespace xyz
 
-// Pulls in the C++26-reflection code-generation backend, which defines the
-// real xyz::protocol / xyz::protocol_view primary templates in place of the
-// placeholder ones above. On a compiler or build configuration where
-// reflection isn't enabled, protocol_reflection.h is an inert no-op.
+// If reflection is enabled, the real xyz::protocol / xyz::protocol_view
+// implementations come from protocol_reflection.h instead of the
+// placeholder definitions above.
+#ifdef XYZ_PROTOCOL_ENABLE_REFLECTION
 #include "protocol_reflection.h"
+#endif
 
 #endif  // XYZ_PROTOCOL_H_

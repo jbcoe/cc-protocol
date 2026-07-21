@@ -1362,26 +1362,27 @@ TEST(ProtocolReflectionTest, ImplicitConversionPicksBestOverload) {
   EXPECT_DOUBLE_EQ(p.compute(3.0f), 6.0);
 }
 
-struct TouchInterface {
-  int touch();
+struct NonConstMemberInterface {
+  int member();
 };
 
 struct DualConstnessImplementation {
-  int touch() { return 10; }
+  int member() { return 10; }
 
-  int touch() const { return 20; }
+  int member() const { return 20; }
 };
 
 TEST(ProtocolReflectionTest, PrefersNonConstOverloadOnNonConstAccess) {
-  // DualConstnessImplementation declares both touch() and touch() const;
-  // TouchInterface::touch() is non-const, so real overload resolution over
-  // the merged candidate set must prefer the non-const overload, exactly
-  // as calling touch() directly on a non-const object would -- not treat
-  // the two as ambiguous. This is the case merging candidates with a single
-  // shared constness (rather than each candidate's own) would break.
-  xyz::protocol<TouchInterface> p(
+  // DualConstnessImplementation declares both member() and member() const;
+  // NonConstMemberInterface::member() is non-const, so real overload
+  // resolution over the merged candidate set must prefer the non-const
+  // overload, exactly as calling member() directly on a non-const object
+  // would -- not treat the two as ambiguous. This is the case merging
+  // candidates with a single shared constness (rather than each candidate's
+  // own) would break.
+  xyz::protocol<NonConstMemberInterface> p(
       std::in_place_type<DualConstnessImplementation>);
-  EXPECT_EQ(p.touch(), 10);
+  EXPECT_EQ(p.member(), 10);
 }
 
 TEST(ProtocolReflectionTest, ClassTemplateInstantiationAsInterface) {

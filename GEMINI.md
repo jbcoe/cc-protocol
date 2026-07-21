@@ -12,7 +12,7 @@ Project-specific mandates that override defaults for this repo.
   stable, and overload-disambiguating. The Python backend mangles by
   hashing the function signature (MD5); the reflection backend instead
   escapes the signature string byte-for-byte into a valid identifier
-  (`escape_to_identifier`), which is injective by construction rather than
+  (`identifier_safe_string`), which is injective by construction rather than
   probabilistically collision-resistant.
 - `DRAFT.md` follows WG21 proposal norms
   (<https://www.open-std.org/jtc1/sc22/wg21/docs/papers>). Pure Markdown
