@@ -132,10 +132,7 @@ TEST(ThisPointerRecoverOwner, NoExtraStorage) {
 // data member of Owner instead of a method, and owner.member_name(...)
 // becomes an ordinary function call, even though member_name is a value of
 // class type rather than a function. Combined with section 2's owner
-// recovery, that call can reach and mutate the real owner. Section 6 of
-// tutorials/reflection.cc combines this same technique with C++26 reflection to
-// synthesize the wrapper's type and name at compile time, rather than
-// writing them by hand as this file does.
+// recovery, that call can reach and mutate the real owner.
 // ---------------------------------------------------------------------------
 namespace section_3 {
 
@@ -176,9 +173,9 @@ TEST(ThisPointerCallSyntax, IsADataMemberNotMethod) {
 // Everything in sections 2-3 depends on Wrapper being Owner's first data
 // member. This section shows what happens if it isn't: the address a
 // Wrapper method would recover as "the owner" no longer matches the real
-// owner's address, and is off by exactly sizeof(preceding_member) -- enough
-// to land on preceding_member's storage instead of Owner's real first
-// member. Every check below computes and compares addresses only; none
+// owner's address, off by exactly sizeof(preceding_member): enough to land
+// on preceding_member's storage instead of Owner's real first member.
+// Every check below computes and compares addresses only; none
 // dereferences the miscomputed pointer, since actually reading through it
 // would be undefined behavior.
 // ---------------------------------------------------------------------------

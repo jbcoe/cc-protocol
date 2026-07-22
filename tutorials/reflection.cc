@@ -83,7 +83,7 @@ TEST(ReflectionMetaInfo, SameEntityEqualValues) {
 // specific member, and more. This tutorial mostly needs "reflect a type" and
 // "reflect a member," both shown here just to establish that both work with
 // the same ^^ operator; later sections do more with each.
-[[maybe_unused]] int free_function() { return 1; }
+int free_function() { return 1; }
 
 TEST(ReflectionMetaInfo, OtherEntityKinds) {
   constexpr std::meta::info reflected_namespace = ^^std;
@@ -107,9 +107,13 @@ TEST(ReflectionMetaInfo, OtherEntityKinds) {
 // Section 1 lifted a type into an opaque std::meta::info with ^^. This
 // section lowers it back: typename [:some_info:] names the type that info
 // reflects, wherever a type is expected: a variable declaration, a
-// template argument, anywhere. This round trip (^^ then [: :]) is called
-// "splicing," and it's how reflection turns a compile-time value describing
-// a type back into an ordinary, usable type.
+// template argument, anywhere. typename is required because [:some_info:]
+// alone is an expression (the form section 3 uses to splice a value);
+// nothing about info's own type says whether it reflects a type or a
+// value, so the parser needs typename to pick the type-naming parse. This
+// round trip (^^ then [: :]) is called "splicing," and it's how reflection
+// turns a compile-time value describing a type back into an ordinary,
+// usable type.
 // ---------------------------------------------------------------------------
 namespace section_2 {
 
@@ -193,9 +197,6 @@ TEST(ReflectionSpliceCall, MemberFunctionAsTarget) {
   // greeter.[:greet_member:](...) calls greet(), found by reflection,
   // not by writing its name at the call site.
   EXPECT_EQ(greeter.[:greet_member:]("Reader"), "Hello, Reader");
-
-  // Calling it the ordinary way gives the identical result, confirming the
-  // spliced call is the same call.
   EXPECT_EQ(greeter.[:greet_member:]("Reader"), greeter.greet("Reader"));
 }
 
@@ -295,8 +296,8 @@ TEST(ReflectionEnumerate, FilteredToFunctionsOnly) {
 //
 // The standard library's reflection queries (std::meta::is_const,
 // std::meta::parameters_of, std::meta::return_type_of, ...) are small,
-// single-fact primitives. Real code usually builds its own consteval
-// helpers on top of them to answer richer questions. This section writes
+// single-fact primitives. Answering richer questions means building
+// consteval helpers on top of them. This section writes
 // two such helpers: one classifying constness, and one building a
 // signature string that distinguishes a member from other overloads of the
 // same name.
@@ -403,34 +404,31 @@ TEST(ReflectionHelpers, SignatureDistinguishesOverloads) {
 // values, and gives that type exactly those data members, decided at
 // compile time, not written out as a struct definition in source. This is
 // useful anywhere generated code needs a struct whose members (their count,
-// types, and names) aren't known until compile time. A vtable of
-// function pointers, one per member some other type happens to declare, is
-// a typical example.
+// types, and names) aren't known until compile time, such as a vtable of
+// function pointers with one entry per member some other type happens to
+// declare.
 //
 // define_aggregate is called from inside a `consteval { ... }` block: a
 // statement, not a function, that always runs during translation regardless
 // of where it appears, even directly inside an ordinary, non-constexpr
 // function body, as the first test below does.
-//
-// The second test below combines this with the vanishing-this-pointer
-// technique (tutorials/vanishing_this_pointer.cc): one of the synthesized data
-// members has a type with operator(), so the synthesized type gets
-// ordinary a.method_name() call syntax, generated from data rather than
-// hand-written.
 // ---------------------------------------------------------------------------
 namespace section_6 {
 
+// Shared by both tests below, so each only has to spell out the one line
+// that actually differs: the consteval block calling define_aggregate.
+consteval std::vector<std::meta::info> count_ratio_specs() {
+  std::vector<std::meta::info> specs;
+  specs.push_back(std::meta::data_member_spec(^^int, {
+                                                         .name = "count"}));
+  specs.push_back(std::meta::data_member_spec(^^double, {
+                                                            .name = "ratio"}));
+  return specs;
+}
+
 TEST(ReflectionSynthesize, SynthesizedMembersEnumerable) {
   struct Incomplete;
-  consteval {
-    std::vector<std::meta::info> specs;
-    specs.push_back(std::meta::data_member_spec(^^int, {
-                                                           .name = "count"}));
-    specs.push_back(
-        std::meta::data_member_spec(^^double, {
-                                                  .name = "ratio"}));
-    std::meta::define_aggregate(^^Incomplete, specs);
-  }
+  consteval { std::meta::define_aggregate(^^Incomplete, count_ratio_specs()); }
 
   // The consteval block above already ran during translation, so by the
   // time this ordinary, runtime TEST body executes, Incomplete already has
@@ -445,66 +443,15 @@ TEST(ReflectionSynthesize, SynthesizedMembersEnumerable) {
   static_assert(std::meta::identifier_of(members[1]) == "ratio");
 }
 
-// Unlike the test above, everything here, defining Incomplete's members and
-// constructing and reading back an instance, is forced into a single
-// constant expression, by wrapping it all in a lambda invoked directly
-// inside static_assert. This confirms a synthesized type isn't only usable
-// at runtime: aggregate-initializing it and reading its members both work
-// in a constant expression too.
+// Unlike the test above, this one constructs an instance of the synthesized
+// type and reads its members back, not just enumerates them. constexpr on
+// instance forces that construction and read to happen in a constant
+// expression, confirming a synthesized type isn't only usable at runtime.
 TEST(ReflectionSynthesize, MembersFromSpecList) {
-  static_assert([] {
-    struct Incomplete;
-    consteval {
-      std::vector<std::meta::info> specs;
-      specs.push_back(std::meta::data_member_spec(^^int, {
-                                                             .name = "count"}));
-      specs.push_back(
-          std::meta::data_member_spec(^^double, {
-                                                    .name = "ratio"}));
-      std::meta::define_aggregate(^^Incomplete, specs);
-    }
-    Incomplete instance{.count = 3, .ratio = 1.5};
-    return instance.count == 3 && instance.ratio == 1.5;
-  }());
-}
-
-// A hand-written wrapper, using the same offset-zero technique taught
-// standalone in tutorials/vanishing_this_pointer.cc. Reflection's job below
-// is only to decide that a member of this type exists on SynthesizedGreeter
-// and what it's named; recovering the owner is this wrapper's own job,
-// exactly as in that tutorial. GreetWrapper declares no members and no
-// constructors, so it stays default-constructible. {} below
-// value-initializes it, the same way {} would for any empty type.
-struct GreetWrapper {
-  std::string operator()(std::string_view visitor) const;
-};
-
-struct SynthesizedGreeter;
-consteval {
-  std::vector<std::meta::info> specs;
-  specs.push_back(
-      std::meta::data_member_spec(^^GreetWrapper, {
-                                                      .name = "greet"}));
-  specs.push_back(
-      std::meta::data_member_spec(^^std::string, {
-                                                     .name = "name"}));
-  std::meta::define_aggregate(^^SynthesizedGreeter, specs);
-}
-
-std::string GreetWrapper::operator()(std::string_view visitor) const {
-  const auto* owner =
-      static_cast<const SynthesizedGreeter*>(static_cast<const void*>(this));
-  return "Hello, " + std::string(visitor) + ", from " + owner->name;
-}
-
-TEST(ReflectionSynthesize, SynthesizedMemberIsCallable) {
-  SynthesizedGreeter greeter{.greet = {}, .name = "Synthesized"};
-
-  // greeter.greet(...) reads as an ordinary call, exactly like
-  // owner.greet(...) does in tutorials/vanishing_this_pointer.cc, except
-  // that "greet" and SynthesizedGreeter's whole shape were decided by
-  // define_aggregate at compile time, not written by hand.
-  EXPECT_EQ(greeter.greet("Reader"), "Hello, Reader, from Synthesized");
+  struct Incomplete;
+  consteval { std::meta::define_aggregate(^^Incomplete, count_ratio_specs()); }
+  constexpr Incomplete instance{.count = 3, .ratio = 1.5};
+  static_assert(instance.count == 3 && instance.ratio == 1.5);
 }
 
 }  // namespace section_6
