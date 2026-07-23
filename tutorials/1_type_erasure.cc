@@ -18,9 +18,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==============================================================================*/
 
-// Type erasure, from first principles.
-//
-// Three sections, read top to bottom, each building on the last:
+// Type erasure, from first principles:
 //   1. The problem type erasure solves.
 //   2. A vtable of function pointers.
 //   3. The eraser object.

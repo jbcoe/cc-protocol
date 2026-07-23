@@ -19,10 +19,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==============================================================================*/
 
 // C++26 reflection, from std::meta::info to synthesizing a type at compile
-// time.
-//
-// Seven sections, read top to bottom, each building on the primitives the
-// previous one introduced:
+// time:
 //   1. What std::meta::info is.
 //   2. Splicing an info back into a type.
 //   3. Splicing an info as a call target.
@@ -376,10 +373,6 @@ TEST(ReflectionHelpers, SignatureDistinguishesOverloads) {
 
   EXPECT_EQ(int_signature, "write(int)");
   EXPECT_EQ(double_signature, "write(double)");
-
-  // Different overloads of the same name produce different strings, which
-  // is what makes a string like this usable as part of a unique, generated
-  // identifier.
   EXPECT_NE(int_signature, double_signature);
 }
 
