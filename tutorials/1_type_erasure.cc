@@ -24,10 +24,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //   1. The problem type erasure solves.
 //   2. A vtable of function pointers.
 //   3. The eraser object.
-//
-// Each section defines its own small Circle/Square pair, scoped to a named
-// namespace: two trivial, unrelated types that just happen to share a
-// draw() method with the same signature.
 
 #include <gtest/gtest.h>
 

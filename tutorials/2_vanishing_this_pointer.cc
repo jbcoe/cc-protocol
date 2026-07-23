@@ -28,10 +28,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //   2. Recovering the owner pointer.
 //   3. Ordinary call syntax from a data member.
 //   4. What breaks when offset zero is violated, and the guard against it.
-//
-// Each section defines its own small Owner/Wrapper pair, scoped to a named
-// namespace, since each section's version is deliberately minimal for what
-// it's teaching rather than reusing the previous section's exact shape.
 
 #include <gtest/gtest.h>
 

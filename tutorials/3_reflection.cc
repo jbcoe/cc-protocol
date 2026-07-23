@@ -30,11 +30,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //   5. Writing your own consteval helpers about a member.
 //   6. Synthesizing a type's data members with define_aggregate.
 //   7. Enum reflection: enum_to_string with template for.
-//
-// Each section is scoped to a named namespace, since later sections define
-// types (Point, Widget) with the same name but a different shape than
-// earlier sections use. Each section is deliberately minimal for what
-// it's teaching, rather than reusing an earlier section's exact shape.
 
 #include <gtest/gtest.h>
 
