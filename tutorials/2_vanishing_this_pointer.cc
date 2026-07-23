@@ -22,8 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 // This technique is adopted from https://ryanjk5.github.io/posts/rjk-duck/.
 //
-// A technique for giving a data member ordinary call syntax, built up in
-// four sections, read top to bottom:
+// A technique for giving a data member ordinary call syntax:
 //   1. The offset-zero layout guarantee.
 //   2. Recovering the owner pointer.
 //   3. Ordinary call syntax from a data member.
