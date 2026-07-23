@@ -39,6 +39,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <gtest/gtest.h>
 
 #include <meta>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -232,12 +233,8 @@ struct Point {
 };
 
 consteval std::vector<std::meta::info> data_members_of(std::meta::info type) {
-  std::vector<std::meta::info> result;
-  for (std::meta::info member : std::meta::nonstatic_data_members_of(
-           type, std::meta::access_context::current())) {
-    result.push_back(member);
-  }
-  return result;
+  return std::meta::nonstatic_data_members_of(
+      type, std::meta::access_context::current());
 }
 
 // define_static_array is what makes the enumerated members usable as a
@@ -262,18 +259,16 @@ struct Widget {
 
 consteval std::vector<std::meta::info> member_functions_of(
     std::meta::info type) {
-  std::vector<std::meta::info> result;
-  for (std::meta::info member :
-       std::meta::members_of(type, std::meta::access_context::current())) {
-    // is_function alone would also match Widget's implicit special members
-    // (default constructor, destructor, ...); is_special_member_function
-    // excludes those, leaving just the two ordinary methods below.
-    if (std::meta::is_function(member) &&
-        !std::meta::is_special_member_function(member)) {
-      result.push_back(member);
-    }
-  }
-  return result;
+  // is_function alone would also match Widget's implicit special members
+  // (default constructor, destructor, ...); is_special_member_function
+  // excludes those, leaving just the two ordinary methods below.
+  const auto is_member_function = [](std::meta::info member) {
+    return std::meta::is_function(member) &&
+           !std::meta::is_special_member_function(member);
+  };
+  return std::meta::members_of(type, std::meta::access_context::current()) |
+         std::ranges::views::filter(is_member_function) |
+         std::ranges::to<std::vector<std::meta::info>>();
 }
 
 constexpr auto widget_member_functions =

@@ -31,7 +31,7 @@ option(ENABLE_MSAN "Enable Memory Sanitizer" OFF)
 
 option(
   XYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL
-  "Also build and test tutorials/reflection.cc, which requires a compiler \
+  "Also build and test tutorials/3_reflection.cc, which requires a compiler \
 with C++26 P2996 reflection support (GCC 16+ with -freflection)."
   OFF)
 
@@ -182,13 +182,13 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       NAME
       type_erasure_tutorial
       FILES
-      tutorials/type_erasure.cc)
+      tutorials/1_type_erasure.cc)
 
     xyz_add_test(
       NAME
       vanishing_this_pointer_tutorial
       FILES
-      tutorials/vanishing_this_pointer.cc)
+      tutorials/2_vanishing_this_pointer.cc)
 
     if(XYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL)
       xyz_add_test(
@@ -197,7 +197,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
         VERSION
         26
         FILES
-        tutorials/reflection.cc)
+        tutorials/3_reflection.cc)
       target_compile_options(reflection_tutorial PRIVATE -freflection)
     endif()
 
