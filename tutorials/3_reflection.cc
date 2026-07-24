@@ -26,10 +26,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //   4. Enumerating a type's members.
 //   5. Writing your own consteval helpers about a member.
 //   6. Synthesizing a type's data members with define_aggregate.
-//   7. Enum reflection: enum_to_string with template for.
+//   7. Converting an enum value to its name with template for.
+//   8. Instantiating a template from infos with substitute.
+//   9. Reading a constant out of an info with extract.
 
 #include <gtest/gtest.h>
 
+#include <array>
+#include <cstddef>
 #include <meta>
 #include <ranges>
 #include <string>
@@ -440,7 +444,7 @@ TEST(ReflectionSynthesize, MembersFromSpecList) {
 }  // namespace section_6
 
 // ---------------------------------------------------------------------------
-// 7. Enum reflection: enum_to_string with template for.
+// 7. Converting an enum value to its name with template for.
 //
 // std::meta::enumerators_of(type) returns every enumerator of an enum
 // type, in declaration order. This is the same shape of query section 4
@@ -490,3 +494,124 @@ TEST(ReflectionEnumToString, UnmatchedValueFallsThrough) {
 }
 
 }  // namespace section_7
+
+// ---------------------------------------------------------------------------
+// 8. Instantiating a template from infos with substitute.
+//
+// A template specialization built by splicing needs one [:e:] slot per
+// argument, each already sitting at a fixed position in source, e.g.
+// Boxed<typename[:int_info:]>. That breaks down when the argument list
+// itself is only known as a range of infos computed at compile time.
+// std::meta::substitute(template_info, argument_infos) instantiates a class,
+// alias, or function template directly from such a range instead, as an
+// ordinary consteval function call, and returns an info reflecting the
+// resulting specialization. Splicing that result, as in section 2, turns it
+// into a usable type.
+// ---------------------------------------------------------------------------
+namespace section_8 {
+
+template <typename T>
+struct Boxed {
+  T value = T();
+};
+
+TEST(ReflectionSubstitute, InstantiatesTemplateFromInfos) {
+  constexpr std::meta::info boxed_int_info =
+      std::meta::substitute(^^Boxed, {
+                                         ^^int});
+
+  // The substitution names the same type as writing Boxed<int> directly.
+  static_assert(std::is_same_v<typename[:boxed_int_info:], Boxed<int>>);
+
+  typename[:boxed_int_info:] boxed{.value = 5};
+  EXPECT_EQ(boxed.value, 5);
+}
+
+struct Widget {
+  int compute(double) const { return 1; }
+};
+
+template <typename R, typename... Args>
+using fn_ptr_t = R (*)(Args...);
+
+consteval std::meta::info find_member(std::meta::info type,
+                                      std::string_view name) {
+  for (std::meta::info member :
+       std::meta::members_of(type, std::meta::access_context::current())) {
+    if (std::meta::has_identifier(member) &&
+        std::meta::identifier_of(member) == name) {
+      return member;
+    }
+  }
+  return std::meta::info{};
+}
+
+// A member's return type plus its parameter types, gathered by reflection
+// rather than named in source, are exactly the pieces substitute needs to
+// build the matching function pointer type below.
+consteval std::vector<std::meta::info> fn_ptr_arguments(
+    std::meta::info member) {
+  std::vector<std::meta::info> types{
+      std::meta::dealias(std::meta::return_type_of(member))};
+  for (std::meta::info parameter : std::meta::parameters_of(member)) {
+    types.push_back(std::meta::dealias(std::meta::type_of(parameter)));
+  }
+  return types;
+}
+
+TEST(ReflectionSubstitute, BuildsFunctionPointerTypeFromAMember) {
+  constexpr std::meta::info compute_member = find_member(^^Widget, "compute");
+  constexpr auto arguments =
+      std::define_static_array(fn_ptr_arguments(compute_member));
+  constexpr std::meta::info fn_ptr_info =
+      std::meta::substitute(^^fn_ptr_t, arguments);
+
+  static_assert(std::is_same_v<typename[:fn_ptr_info:], int (*)(double)>);
+}
+
+}  // namespace section_8
+
+// ---------------------------------------------------------------------------
+// 9. Reading a constant out of an info with extract.
+//
+// std::meta::extract<T>(info) converts a std::meta::info that reflects a
+// value back into an ordinary T (a real value you can return, store, or
+// pass around), rather than something you can only splice into source
+// code at a fixed spot.
+//
+// member_array_extent, below, takes a struct's info and a member name,
+// finds that member, and reads N off its array type: std::array<T, N>.
+// std::meta::template_arguments_of gives back N only as an info, held in
+// an ordinary local variable rather than spelled at a splice site, so it
+// can't be spliced. extract is what turns it into an actual size_t.
+// ---------------------------------------------------------------------------
+namespace section_9 {
+
+struct Row {
+  std::array<int, 4> values{};
+};
+
+consteval std::meta::info find_member(std::meta::info type,
+                                      std::string_view name) {
+  for (std::meta::info member :
+       std::meta::members_of(type, std::meta::access_context::current())) {
+    if (std::meta::has_identifier(member) &&
+        std::meta::identifier_of(member) == name) {
+      return member;
+    }
+  }
+  return std::meta::info{};
+}
+
+consteval size_t member_array_extent(std::meta::info type,
+                                     std::string_view name) {
+  std::meta::info member_type = std::meta::type_of(find_member(type, name));
+  std::meta::info extent = std::meta::template_arguments_of(member_type)[1];
+  return std::meta::extract<size_t>(extent);
+}
+
+TEST(ReflectionExtract, ReadsANonTypeTemplateArgument) {
+  static_assert(member_array_extent(^^Row, "values") == 4);
+}
+
+}  // namespace section_9
