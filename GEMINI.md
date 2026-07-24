@@ -23,7 +23,8 @@ general defaults for this repository.
 - **Tooling:** Always use `uv` for Python dependency management (`uv run ...`).
 - **Build & Test:** Use `scripts/cmake.sh` for all build and test operations.
   The `scripts/cmake.sh` entrypoint supports `--debug`, `--release`,
-  `--asan`, `--ubsan`, `--tsan`, and `--msan`.
+  `--asan`, `--ubsan`, `--tsan`, `--msan`, and `--reflection` (builds and
+  tests `tutorials/3_reflection.cc`, requires a P2996 reflection compiler).
 - **Compiler Preferences:** Prefer Clang 19+ for sanitizer-based verification
   and CI, as it provides superior support for MSAN and TSAN compared to
   older GCC versions.

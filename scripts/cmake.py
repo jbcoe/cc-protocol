@@ -37,6 +37,12 @@ def main() -> None:
     )
     parser.add_argument("--tsan", action="store_true", help="Enable Thread Sanitizer")
     parser.add_argument("--msan", action="store_true", help="Enable Memory Sanitizer")
+    parser.add_argument(
+        "--reflection",
+        action="store_true",
+        help="Build and test tutorials/3_reflection.cc (requires a P2996 "
+        "reflection compiler, e.g. CXX=g++-16 CC=gcc-16)",
+    )
     parser.add_argument("-B", "--build-dir", help="Build directory")
     parser.add_argument(
         "--clean", action="store_true", help="Fresh configuration and clean-first build"
@@ -74,6 +80,8 @@ def main() -> None:
         f"-DENABLE_UBSAN={'ON' if args.ubsan else 'OFF'}",
         f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",
         f"-DENABLE_MSAN={'ON' if args.msan else 'OFF'}",
+        "-DXYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL="
+        + ("ON" if args.reflection else "OFF"),
     ]
     if args.build_dir:
         configure_args.extend(["-B", args.build_dir])
