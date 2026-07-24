@@ -27,6 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //   2. Recovering the owner pointer.
 //   3. Ordinary call syntax from a data member.
 //   4. What breaks when offset zero is violated, and the guard against it.
+//   5. Composing several such members through inheritance.
 
 #include <gtest/gtest.h>
 
@@ -225,3 +226,74 @@ TEST(ThisPointerOffsetViolated, GuardConfirmsGoodCase) {
 }
 
 }  // namespace section_4
+
+// ---------------------------------------------------------------------------
+// 5. Composing several such members through inheritance.
+//
+// Owner in section 3 has one wrapper data member, greet. Giving it a
+// second, shout, the same way needs each in its own small base struct,
+// GreetBase and ShoutBase below, combined by having Owner inherit from
+// both.
+//
+// Each wrapper's own this only has to recover its own base's address:
+// GreetWrapper is GreetBase's sole member, so it sits at offset zero of
+// GreetBase unconditionally, exactly as section 2's Wrapper sits at
+// offset zero of Owner. Getting from GreetBase's address to Owner's is
+// then a base-to-derived static_cast, which the compiler performs
+// correctly regardless of GreetBase's actual offset within Owner.
+// [[no_unique_address]] on greet and shout still matters for size, same
+// as sections 1 and 4, but no longer for correctness: with flat data
+// members, an unhonored [[no_unique_address]] misplaces every member
+// after the first (section 4's failure mode); here it only costs Owner
+// some otherwise-unnecessary bytes. This is the technique Duck (cited
+// above) uses to build its vtable_wrapper, one base per interface member.
+// ---------------------------------------------------------------------------
+namespace section_5 {
+
+struct GreetWrapper {
+  std::string operator()(std::string_view visitor) const;
+};
+
+struct GreetBase {
+  [[no_unique_address]] GreetWrapper greet;
+};
+
+struct ShoutWrapper {
+  std::string operator()(std::string_view visitor) const;
+};
+
+struct ShoutBase {
+  [[no_unique_address]] ShoutWrapper shout;
+};
+
+struct Owner : GreetBase, ShoutBase {
+  std::string name = "World";
+};
+
+std::string GreetWrapper::operator()(std::string_view visitor) const {
+  const auto* base =
+      static_cast<const GreetBase*>(static_cast<const void*>(this));
+  const auto* owner = static_cast<const Owner*>(base);
+  return "Hello, " + std::string(visitor) + ", from " + owner->name + "!";
+}
+
+std::string ShoutWrapper::operator()(std::string_view visitor) const {
+  const auto* base =
+      static_cast<const ShoutBase*>(static_cast<const void*>(this));
+  const auto* owner = static_cast<const Owner*>(base);
+  return std::string(visitor) + ", " + owner->name + " SHOUTS HELLO!";
+}
+
+TEST(ThisPointerInheritance, EachMemberReachesTheSameOwner) {
+  Owner owner;
+  owner.name = "Owner";
+
+  EXPECT_EQ(owner.greet("Reader"), "Hello, Reader, from Owner!");
+  EXPECT_EQ(owner.shout("Reader"), "Reader, Owner SHOUTS HELLO!");
+}
+
+TEST(ThisPointerInheritance, NoExtraStorage) {
+  EXPECT_EQ(sizeof(Owner), sizeof(std::string));
+}
+
+}  // namespace section_5
