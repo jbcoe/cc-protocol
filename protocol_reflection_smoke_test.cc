@@ -21,14 +21,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // interface, keeping this file's compile/link surface minimal.
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
 #include "interface_A.h"
+#include "interface_A_Subset.h"
 #include "interface_B.h"
 #include "interface_C.h"
 #include "protocol.h"
@@ -295,6 +298,173 @@ TEST(ProtocolReflectionSmoke, AllocatorExtendedMoveFromValueless) {
   xyz::protocol<xyz::A> ppp(std::allocator_arg, std::allocator<std::byte>(),
                             std::move(p));
   EXPECT_TRUE(ppp.valueless_after_move());
+}
+
+// Narrowing conversions: A (name, count) -> A_Subset (name only), the
+// machinery wired into protocol_reflection.hxx's converting constructors
+// and get_owning_vtable/get_mapped_vtable (protocol.cc, backend-agnostic).
+
+TEST(ProtocolReflectionSmoke, NarrowingCopyConversion) {
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p(
+      std::allocator_arg, std::allocator<std::byte>(),
+      std::in_place_type<ALike>);
+  xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset(p);
+  EXPECT_FALSE(p.valueless_after_move());
+  EXPECT_FALSE(p_subset.valueless_after_move());
+  EXPECT_EQ(p.name(), "ALike");
+  EXPECT_EQ(p_subset.name(), "ALike");
+}
+
+TEST(ProtocolReflectionSmoke, NarrowingMoveConversionEqualAllocators) {
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p(
+      std::allocator_arg, std::allocator<std::byte>(),
+      std::in_place_type<ALike>);
+  xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset =
+      std::move(p);
+  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_FALSE(p_subset.valueless_after_move());
+  EXPECT_EQ(p_subset.name(), "ALike");
+}
+
+TEST(ProtocolReflectionSmoke, NarrowingCopyConversionFromValueless) {
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p(
+      std::allocator_arg, std::allocator<std::byte>(),
+      std::in_place_type<ALike>);
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p2 = std::move(p);
+  EXPECT_TRUE(p.valueless_after_move());
+  xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset(p);
+  EXPECT_TRUE(p_subset.valueless_after_move());
+}
+
+TEST(ProtocolReflectionSmoke, CountAllocationsForNarrowingCopyConversion) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> p(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>);
+    EXPECT_EQ(alloc_counter, 1u);
+    xyz::protocol<xyz::A_Subset, xyz::TrackingAllocator<std::byte>> p_subset(p);
+    EXPECT_EQ(alloc_counter, 2u);
+    EXPECT_EQ(dealloc_counter, 0u);
+  }
+  EXPECT_EQ(alloc_counter, 2u);
+  EXPECT_EQ(dealloc_counter, 2u);
+}
+
+TEST(ProtocolReflectionSmoke, CountAllocationsForNarrowingMoveConversion) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>);
+    // Equal allocators: the pointer is stolen, no new allocation.
+    xyz::protocol<xyz::A_Subset, xyz::TrackingAllocator<std::byte>> aa(
+        std::move(a));
+    EXPECT_TRUE(a.valueless_after_move());
+    EXPECT_FALSE(aa.valueless_after_move());
+    EXPECT_EQ(alloc_counter, 1u);
+    EXPECT_EQ(dealloc_counter, 0u);
+  }
+  EXPECT_EQ(alloc_counter, 1u);
+  EXPECT_EQ(dealloc_counter, 1u);
+}
+
+TEST(ProtocolReflectionSmoke, NarrowingCopyConversionNonEqualAllocators) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, NonEqualTrackingAllocator<std::byte>> p(
+        std::allocator_arg,
+        NonEqualTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>);
+    EXPECT_EQ(alloc_counter, 1u);
+    NonEqualTrackingAllocator<std::byte> target_alloc(&alloc_counter,
+                                                      &dealloc_counter);
+    xyz::protocol<xyz::A_Subset, NonEqualTrackingAllocator<std::byte>> p_subset(
+        std::allocator_arg, target_alloc, p);
+    EXPECT_FALSE(p.valueless_after_move());
+    EXPECT_FALSE(p_subset.valueless_after_move());
+    EXPECT_EQ(p_subset.name(), "ALike");
+    // 1 allocation for the source, 1 more for the cloned target.
+    EXPECT_EQ(alloc_counter, 2u);
+    EXPECT_EQ(dealloc_counter, 0u);
+  }
+  EXPECT_EQ(alloc_counter, 2u);
+  EXPECT_EQ(dealloc_counter, 2u);
+}
+
+TEST(ProtocolReflectionSmoke, NarrowingMoveConversionNonEqualAllocators) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, NonEqualTrackingAllocator<std::byte>> p(
+        std::allocator_arg,
+        NonEqualTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>);
+    EXPECT_EQ(alloc_counter, 1u);
+    // Non-equal allocators force move-construction into new storage on the
+    // target's allocator, and the source is destroyed immediately.
+    xyz::protocol<xyz::A_Subset, NonEqualTrackingAllocator<std::byte>> p_subset(
+        std::move(p));
+    EXPECT_TRUE(p.valueless_after_move());
+    EXPECT_FALSE(p_subset.valueless_after_move());
+    EXPECT_EQ(p_subset.name(), "ALike");
+    EXPECT_EQ(alloc_counter, 2u);
+    EXPECT_EQ(dealloc_counter, 1u);
+  }
+  EXPECT_EQ(alloc_counter, 2u);
+  EXPECT_EQ(dealloc_counter, 2u);
+}
+
+TEST(ProtocolReflectionSmoke, NarrowingMoveConversionFromValueless) {
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p(
+      std::allocator_arg, std::allocator<std::byte>(),
+      std::in_place_type<ALike>);
+  xyz::protocol<xyz::A, std::allocator<std::byte>> p2 = std::move(p);
+  EXPECT_TRUE(p.valueless_after_move());
+  xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset =
+      std::move(p);
+  EXPECT_TRUE(p_subset.valueless_after_move());
+}
+
+// Owning-conversion slice of protocol_test.cc's
+// NarrowingConversionConcurrentStressing: exercises protocol.cc's
+// get_mapped_vtable caching/locking under contention.
+TEST(ProtocolReflectionSmoke, NarrowingConversionConcurrentStressing) {
+  constexpr int kNumThreads = 20;
+  constexpr int kIterationsPerThread = 50;
+  std::vector<std::thread> threads;
+  std::atomic<bool> start_signal{false};
+
+  for (int i = 0; i < kNumThreads; ++i) {
+    threads.emplace_back([&start_signal]() {
+      while (!start_signal.load()) {
+        std::this_thread::yield();
+      }
+      for (int iter = 0; iter < kIterationsPerThread; ++iter) {
+        xyz::protocol<xyz::A, std::allocator<std::byte>> p(
+            std::in_place_type<ALike>);
+        xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset =
+            std::move(p);
+        EXPECT_EQ(p_subset.name(), "ALike");
+
+        xyz::protocol<xyz::A, std::allocator<char>> p_char(
+            std::in_place_type<ALike>);
+        xyz::protocol<xyz::A_Subset, std::allocator<char>> p_subset_char =
+            std::move(p_char);
+        EXPECT_EQ(p_subset_char.name(), "ALike");
+      }
+    });
+  }
+
+  start_signal.store(true);
+  for (auto& thread : threads) {
+    thread.join();
+  }
 }
 
 }  // namespace

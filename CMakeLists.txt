@@ -248,10 +248,13 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
         protocol_reflection_smoke_test
         VERSION
         26
+        LINK_LIBRARIES
+        protocol
         FILES
         protocol.h
         protocol_reflection.hxx
         interface_A.h
+        interface_A_Subset.h
         interface_B.h
         interface_C.h
         tracking_allocator.h

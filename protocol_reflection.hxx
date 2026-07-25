@@ -143,10 +143,48 @@ using protocol_bases = typename[:protocol_bases_type<Interface, Allocator>():];
 
 }  // namespace reflection_detail
 
+// protocol<Interface, Allocator>'s own nested vtable already is the owning
+// vtable used for narrowing; this trait just names it the way
+// protocol.h's get_owning_vtable expects, matching how the Python/libclang
+// backend's own generated protocol_owning_vtable_traits<::xyz::A,
+// Allocator> is a bare alias to protocol<::xyz::A, Allocator>::vtable, not
+// a separately-designed type.
+template <typename Interface, typename Allocator>
+struct protocol_owning_vtable_traits {
+  using vtable = typename protocol<Interface, Allocator>::vtable;
+};
+
+// Narrows a source owning vtable to a target one by copying every entry
+// the target has (by exact name -- including xyz_protocol_clone/_move/
+// _destroy, which every protocol's own vtable always declares) from the
+// matching entry in the source. FromVtable/ToVtable are deduced directly
+// from the pointer arguments, not from an Interface/Allocator template
+// argument list: unlike the Python/libclang backend, where a per-interface
+// generated overload hardcodes its own target type, this one generic
+// definition works for any (FromInterface, ToInterface, Allocator), since
+// it reflects on the two concrete vtable struct types themselves rather
+// than needing to know which interfaces they came from. Found via ADL
+// from get_owning_vtable (protocol.h): FromVtable/ToVtable are nested
+// types of xyz::protocol<...>, so this must live in namespace xyz, not
+// xyz::reflection_detail, to be visible there.
+template <typename FromVtable, typename ToVtable>
+void map_owning_vtable_members(const FromVtable* from, ToVtable* to) {
+  template for (constexpr std::meta::info to_member :
+                std::define_static_array(std::meta::nonstatic_data_members_of(
+                    ^^ToVtable, std::meta::access_context::current()))) {
+    constexpr std::string_view name = std::meta::identifier_of(to_member);
+    constexpr std::meta::info from_member =
+        reflection_detail::find_data_member(^^FromVtable, name);
+    to->[:to_member:] = from->[:from_member:];
+  }
+}
+
 template <typename T, typename Allocator>
 class protocol : public reflection_detail::protocol_bases<T, Allocator> {
   template <typename, typename, std::meta::info, typename, typename...>
   friend struct reflection_detail::protocol_single_overload_wrapper;
+  template <typename, typename>
+  friend class protocol;
 
   using clone_or_move_fn = void* (*)(void*, const Allocator&);
   using destroy_fn = void (*)(void*, const Allocator&);
@@ -338,6 +376,82 @@ class protocol : public reflection_detail::protocol_bases<T, Allocator> {
   constexpr protocol(protocol&& other) noexcept(
       allocator_traits::is_always_equal::value)
       : protocol(std::allocator_arg_t{}, other.alloc_, std::move(other)) {}
+
+  template <typename Other>
+    requires(!std::same_as<Other, T>)
+  constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                     const protocol<Other, Allocator>& other)
+      : alloc_(alloc) {
+    if (!other.valueless_after_move()) {
+      p_ = other.vtable_->xyz_protocol_clone(other.p_, alloc_);
+      vtable_ = get_owning_vtable<Other, T, Allocator>(other.vtable_);
+    } else {
+      p_ = nullptr;
+      vtable_ = nullptr;
+    }
+  }
+
+  template <typename Other>
+    requires(!std::same_as<Other, T>)
+  constexpr protocol(const protocol<Other, Allocator>& other)
+      : alloc_(allocator_traits::select_on_container_copy_construction(
+            other.alloc_)) {
+    if (!other.valueless_after_move()) {
+      p_ = other.vtable_->xyz_protocol_clone(other.p_, alloc_);
+      vtable_ = get_owning_vtable<Other, T, Allocator>(other.vtable_);
+    } else {
+      p_ = nullptr;
+      vtable_ = nullptr;
+    }
+  }
+
+  template <typename Other>
+    requires(!std::same_as<Other, T>)
+  constexpr protocol(
+      std::allocator_arg_t, const Allocator& alloc,
+      protocol<Other, Allocator>&&
+          other) noexcept(allocator_traits::is_always_equal::value)
+      : alloc_(alloc) {
+    if (alloc_ == other.alloc_) {
+      p_ = std::exchange(other.p_, nullptr);
+      vtable_ = get_owning_vtable<Other, T, Allocator>(
+          std::exchange(other.vtable_, nullptr));
+    } else {
+      if (!other.valueless_after_move()) {
+        p_ = other.vtable_->xyz_protocol_move(other.p_, alloc_);
+        vtable_ = get_owning_vtable<Other, T, Allocator>(other.vtable_);
+        other.vtable_->xyz_protocol_destroy(other.p_, other.alloc_);
+        other.p_ = nullptr;
+        other.vtable_ = nullptr;
+      } else {
+        p_ = nullptr;
+        vtable_ = nullptr;
+      }
+    }
+  }
+
+  template <typename Other>
+    requires(!std::same_as<Other, T>)
+  constexpr protocol(protocol<Other, Allocator>&& other) noexcept(
+      allocator_traits::is_always_equal::value)
+      : alloc_(other.alloc_) {
+    if (alloc_ == other.alloc_) {
+      p_ = std::exchange(other.p_, nullptr);
+      vtable_ = get_owning_vtable<Other, T, Allocator>(
+          std::exchange(other.vtable_, nullptr));
+    } else {
+      if (!other.valueless_after_move()) {
+        p_ = other.vtable_->xyz_protocol_move(other.p_, alloc_);
+        vtable_ = get_owning_vtable<Other, T, Allocator>(other.vtable_);
+        other.vtable_->xyz_protocol_destroy(other.p_, other.alloc_);
+        other.p_ = nullptr;
+        other.vtable_ = nullptr;
+      } else {
+        p_ = nullptr;
+        vtable_ = nullptr;
+      }
+    }
+  }
 
   constexpr bool valueless_after_move() const noexcept { return p_ == nullptr; }
 

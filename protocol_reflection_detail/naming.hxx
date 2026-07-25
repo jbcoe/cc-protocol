@@ -29,6 +29,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string>
 #include <string_view>
 
+#include "protocol_reflection_detail/types.hxx"
+
 namespace xyz::reflection_detail {
 
 // `identifier_safe_string` must run at compile time.
@@ -68,15 +70,31 @@ consteval std::string vtable_entry_name(std::meta::info member) {
   return std::string(std::meta::identifier_of(member));
 }
 
-// A generated vtable struct's entry name for `member`, unique per exact
-// overload. Unlike vtable_entry_name above, this qualifies by the member's
-// full display string (return type, parameter types, constness), not just
-// its identifier: a vtable struct is an internal, never user-visible
-// implementation detail with one data member per overload, so two
-// overloads sharing a name (e.g. interface C's three `compute`s) need two
-// distinct entries here, even though they share one forwarder name.
+// A vtable struct's entry name for `member`, unique per exact overload
+// (unlike vtable_entry_name above): interface C's overloaded `compute`s
+// need one distinct entry each despite sharing one forwarder name.
+//
+// Built from the return type, parameter types, and constness individually,
+// not from std::meta::display_string_of(member): a member's own display
+// string is qualified by its declaring class (e.g. "int A::compute(int)"),
+// which would make A::name and A_Subset::name get different names despite
+// being the same conceptual member for narrowing's cross-interface matching
+// to find.
 consteval std::string vtable_slot_name(std::meta::info member) {
-  return identifier_safe_string(std::meta::display_string_of(member));
+  std::string result =
+      identifier_safe_string(std::string(std::meta::identifier_of(member)));
+  result += "_";
+  result += identifier_safe_string(std::meta::display_string_of(
+      std::meta::dealias(std::meta::return_type_of(member))));
+  for (std::meta::info parameter_type : parameter_types_of(member)) {
+    result += "_";
+    result +=
+        identifier_safe_string(std::meta::display_string_of(parameter_type));
+  }
+  if (std::meta::is_const(member)) {
+    result += "_const";
+  }
+  return result;
 }
 
 // The data member of `struct_type` named `name`, for reading or writing
