@@ -291,11 +291,9 @@ consteval const_view_vtable<Interface> build_const_view_vtable() {
       constexpr std::meta::info merged_type = candidate_overload_set_type(
           resolve_implementation_candidates(member, ^^Implementation),
           ^^const Implementation&);
-      using Thunk = erased_call_thunk<
-          Implementation,
-          typename[:merged_type:], typename
-                    [:member_function_type(
-                          member):], true, std::meta::is_noexcept(member)>;
+      // clang-format off
+      using Thunk = erased_call_thunk<Implementation, typename[:merged_type:], typename[:member_function_type(member):], true, std::meta::is_noexcept(member)>;
+      // clang-format on
       vt.[:entry:] = &Thunk::call;
     }
   }
@@ -318,10 +316,9 @@ consteval view_vtable<Interface> build_view_vtable() {
     constexpr std::meta::info merged_type = candidate_overload_set_type(
         resolve_implementation_candidates(member, ^^Implementation),
         ^^Implementation&);
-    using Thunk = erased_call_thunk<
-        Implementation, typename[:merged_type:], typename[:member_function_type(
-                                                               member):
-    ], false, std::meta::is_noexcept(member)>;
+    // clang-format off
+    using Thunk = erased_call_thunk<Implementation, typename[:merged_type:], typename[:member_function_type(member):], false, std::meta::is_noexcept(member)>;
+    // clang-format on
     vt.[:entry:] = &Thunk::call;
   }
   return vt;
@@ -571,11 +568,9 @@ class protocol : public reflection_detail::protocol_bases<T, Allocator> {
                 reflection_detail::resolve_implementation_candidates(
                     member, ^^Implementation),
                 ^^Implementation&);
-        using Thunk = reflection_detail::erased_call_thunk<
-            Implementation,
-            typename[:merged_type:], typename
-                      [:reflection_detail::member_function_type(
-                            member):], false, std::meta::is_noexcept(member)>;
+        // clang-format off
+        using Thunk = reflection_detail::erased_call_thunk<Implementation, typename[:merged_type:], typename[:reflection_detail::member_function_type(member):], false, std::meta::is_noexcept(member)>;
+        // clang-format on
         vt.[:entry:] = &Thunk::call;
       }
       return vt;
