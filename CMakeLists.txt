@@ -252,6 +252,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
         protocol.h
         protocol_reflection.hxx
         interface_A.h
+        interface_C.h
         protocol_reflection_smoke_test.cc)
       target_compile_options(protocol_reflection_smoke_test
                              PRIVATE -freflection)

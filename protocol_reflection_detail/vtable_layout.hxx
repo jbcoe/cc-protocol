@@ -44,7 +44,11 @@ namespace xyz::reflection_detail {
 
 // One data_member_spec per dispatchable member of `interface` (const-only
 // if `const_only`), each a named function pointer of the member's vtable
-// entry type, erased through `erased_pointer_type`.
+// entry type, erased through `erased_pointer_type`. Named by
+// vtable_slot_name, not vtable_entry_name: a vtable is an internal struct
+// with one data member per exact overload, so overloads sharing an
+// identifier (e.g. interface C's overloaded `compute`s) still need
+// distinct entries here.
 consteval std::vector<std::meta::info> define_vtable_entries(
     std::meta::info interface, std::meta::info erased_pointer_type,
     bool const_only) {
@@ -55,7 +59,7 @@ consteval std::vector<std::meta::info> define_vtable_entries(
     }
     specs.push_back(std::meta::data_member_spec(
         vtable_entry_pointer_type(member, erased_pointer_type),
-        {.name = vtable_entry_name(member)}));
+        {.name = vtable_slot_name(member)}));
   }
   return specs;
 }

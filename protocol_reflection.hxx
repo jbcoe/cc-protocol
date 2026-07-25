@@ -47,54 +47,100 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 namespace xyz {
 namespace reflection_detail {
 
-// The data member of `struct_type` named `name`, as produced by
-// naming.hxx's escaping: for splicing a value into a reflection-built
-// vtable's entry, once the entry's own name (not just its position) is
-// the only thing identifying it.
-consteval std::meta::info find_data_member(std::meta::info struct_type,
-                                           std::string_view name) {
-  for (std::meta::info member : std::meta::nonstatic_data_members_of(
-           struct_type, std::meta::access_context::current())) {
-    if (std::meta::identifier_of(member) == name) return member;
+// Every member of `interface` sharing `member`'s own name, in declaration
+// order: the sibling overloads a forwarder's single named data member has
+// to merge into one callable (e.g. interface C's overloaded `compute`s).
+consteval std::vector<std::meta::info> members_named_like(
+    std::meta::info interface, std::meta::info member) {
+  std::string_view name = std::meta::identifier_of(member);
+  std::vector<std::meta::info> result;
+  for (std::meta::info candidate : interface_member_functions(interface)) {
+    if (std::meta::has_identifier(candidate) &&
+        std::meta::identifier_of(candidate) == name) {
+      result.push_back(candidate);
+    }
   }
-  throw std::meta::exception("data member not found", ^^void);
+  return result;
 }
 
-// A per-interface-member forwarder, giving protocol<Interface, Allocator>
-// ordinary call syntax for that member with no splicing at any call site.
-// operator() is a member function template because its return type and
-// arguments vary per Member, which a single fixed declaration can't
-// express; unlike conformance.hxx's candidate forwarders, there is exactly
-// one operator() per Wrapper here, so a generic template creates no
-// overload-resolution ambiguity to worry about.
-template <typename Interface, typename Allocator, std::meta::info Member>
-struct protocol_member_wrapper {
-  template <typename... Args>
-  auto operator()(Args&&... args) const
-      noexcept(std::meta::is_noexcept(Member));
+// A concrete, non-generic forwarder for one interface overload: its
+// operator() has that overload's own parameter types rather than a
+// forwarding template, so overload resolution across several such
+// forwarders (protocol_member_wrapper_combinator) ranks them the way it
+// would rank the interface's own overloads. Same reason
+// conformance.hxx's single_candidate_forwarder is concrete, one level up:
+// there it merges an implementation's candidates for one interface member;
+// here it merges an interface's own overloads sharing one name.
+template <typename Interface, typename Allocator, std::meta::info Member,
+          typename R, typename... Ps>
+struct protocol_single_overload_wrapper {
+  R operator()(Ps... ps) const noexcept(std::meta::is_noexcept(Member));
 };
+
+// Merges N single-overload forwarders into one callable type via
+// `using Bases::operator()...`, exactly conformance.hxx's
+// candidate_overload_set technique, applied to an interface's own
+// overloads instead of an implementation's candidates.
+template <typename... Bases>
+struct protocol_member_wrapper_combinator : Bases... {
+  using Bases::operator()...;
+};
+
+// The merged forwarder type for the whole name-group `member` belongs to
+// (a single overload if `member` isn't overloaded). A plain function, not
+// a function template keyed only on Member: every member in the group
+// produces the same result, so protocol_single_overload_wrapper's
+// operator() can recompute it from just its own Member, without
+// protocol_bases_type threading the whole group through separately.
+consteval std::meta::info protocol_member_wrapper_type(
+    std::meta::info interface, std::meta::info allocator,
+    std::meta::info member) {
+  std::vector<std::meta::info> base_types;
+  for (std::meta::info sibling : members_named_like(interface, member)) {
+    std::vector<std::meta::info> args{
+        interface, allocator, std::meta::reflect_constant(sibling),
+        std::meta::dealias(std::meta::return_type_of(sibling))};
+    for (std::meta::info parameter_type : parameter_types_of(sibling)) {
+      args.push_back(parameter_type);
+    }
+    base_types.push_back(
+        std::meta::substitute(^^protocol_single_overload_wrapper, args));
+  }
+  return std::meta::substitute(^^protocol_member_wrapper_combinator,
+                               base_types);
+}
+
+template <typename Interface, typename Allocator, std::meta::info Member>
+using protocol_member_wrapper =
+    typename[:protocol_member_wrapper_type(^^Interface, ^^Allocator, Member):];
 
 template <typename Interface, typename Allocator>
 consteval std::meta::info protocol_bases_type() {
   std::vector<std::meta::info> bases;
   for (std::meta::info member : interface_member_functions(^^Interface)) {
-    std::meta::info wrapper_type = std::meta::substitute(
-        ^^protocol_member_wrapper,
-        {
-            ^^Interface, ^^Allocator, std::meta::reflect_constant(member)});
+    // Every member in a name-group produces the same
+    // members_named_like(...)[0]; only process the group once, at its
+    // first member, so an overloaded name doesn't get a forwarder_base
+    // (and hence a same-named data member) built once per overload.
+    std::meta::info representative = members_named_like(^^Interface, member)[0];
+    if (representative != member) {
+      continue;
+    }
+    std::meta::info wrapper_type =
+        protocol_member_wrapper_type(^^Interface, ^^Allocator, member);
     bases.push_back(std::meta::substitute(
         ^^forwarder_base,
         {
-            wrapper_type, std::meta::reflect_constant(member)}));
+            wrapper_type, std::meta::reflect_constant(representative)}));
   }
   return forwarders_type(bases);
 }
 
 // protocol<Interface, Allocator>'s own base list: one forwarder_base per
-// interface member, combined via forwarders.hxx's combinator. protocol
-// inherits this directly (not through an intermediate type) so that each
+// distinct member name, combined via forwarders.hxx's combinator. protocol
+// inherits this directly, not through an intermediate type, so each
 // Wrapper's base-to-derived static_cast to protocol<Interface, Allocator>
-// (defined out of line below, once protocol is complete) is valid.
+// is valid once protocol is complete.
 template <typename Interface, typename Allocator>
 using protocol_bases = typename[:protocol_bases_type<Interface, Allocator>():];
 
@@ -102,8 +148,8 @@ using protocol_bases = typename[:protocol_bases_type<Interface, Allocator>():];
 
 template <typename T, typename Allocator>
 class protocol : public reflection_detail::protocol_bases<T, Allocator> {
-  template <typename, typename, std::meta::info>
-  friend struct reflection_detail::protocol_member_wrapper;
+  template <typename, typename, std::meta::info, typename, typename...>
+  friend struct reflection_detail::protocol_single_overload_wrapper;
 
   using clone_or_move_fn = void* (*)(void*, const Allocator&);
   using destroy_fn = void (*)(void*, const Allocator&);
@@ -184,7 +230,7 @@ class protocol : public reflection_detail::protocol_bases<T, Allocator> {
       template for (constexpr std::meta::info member : std::define_static_array(
                         reflection_detail::interface_member_functions(^^T))) {
         constexpr std::meta::info entry = reflection_detail::find_data_member(
-            ^^vtable, reflection_detail::vtable_entry_name(member));
+            ^^vtable, reflection_detail::vtable_slot_name(member));
         constexpr std::meta::info merged_type =
             reflection_detail::candidate_overload_set_type(
                 reflection_detail::resolve_implementation_candidates(
@@ -277,17 +323,27 @@ class protocol : public reflection_detail::protocol_bases<T, Allocator> {
 
 namespace reflection_detail {
 
-template <typename Interface, typename Allocator, std::meta::info Member>
-template <typename... Args>
-auto protocol_member_wrapper<Interface, Allocator, Member>::operator()(
-    Args&&... args) const noexcept(std::meta::is_noexcept(Member)) {
+template <typename Interface, typename Allocator, std::meta::info Member,
+          typename R, typename... Ps>
+R protocol_single_overload_wrapper<Interface, Allocator, Member, R,
+                                   Ps...>::operator()(Ps... ps) const
+    noexcept(std::meta::is_noexcept(Member)) {
   using Owner = protocol<Interface, Allocator>;
-  using Base = forwarder_base<protocol_member_wrapper, Member>;
-  const auto* base = static_cast<const Base*>(static_cast<const void*>(this));
+  using Combined = protocol_member_wrapper<Interface, Allocator, Member>;
+  // The same representative every group member recomputes identically, so
+  // this names the exact forwarder_base specialization Combined is wrapped
+  // in as its sole member, regardless of which sibling overload this
+  // wrapper is for.
+  constexpr std::meta::info representative =
+      members_named_like(^^Interface, Member)[0];
+  using Base = forwarder_base<Combined, representative>;
+  const auto* combined = static_cast<const Combined*>(this);
+  const auto* base =
+      static_cast<const Base*>(static_cast<const void*>(combined));
   const auto* owner = static_cast<const Owner*>(base);
   constexpr std::meta::info entry =
-      find_data_member(^^typename Owner::vtable, vtable_entry_name(Member));
-  return owner->vtable_->[:entry:](owner->p_, std::forward<Args>(args)...);
+      find_data_member(^^typename Owner::vtable, vtable_slot_name(Member));
+  return owner->vtable_->[:entry:](owner->p_, std::forward<Ps>(ps)...);
 }
 
 }  // namespace reflection_detail

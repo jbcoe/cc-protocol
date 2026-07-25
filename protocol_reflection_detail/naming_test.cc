@@ -29,6 +29,7 @@ namespace {
 
 using xyz::reflection_detail::identifier_safe_string;
 using xyz::reflection_detail::vtable_entry_name;
+using xyz::reflection_detail::vtable_slot_name;
 
 TEST(IdentifierSafeString, AlphanumericPassesThroughUnchanged) {
   EXPECT_EQ(identifier_safe_string("abcXYZ123"), "abcXYZ123");
@@ -81,6 +82,42 @@ TEST(VtableEntryName, NamesAnOrdinaryMemberByItsIdentifier) {
 
   EXPECT_STREQ(value_name, "value");
   EXPECT_STREQ(set_value_name, "set_5fvalue");
+}
+
+struct Overloaded {
+  int compute(int x) { return x; }
+
+  double compute(double x) const { return x; }
+};
+
+consteval std::meta::info compute_overload(bool take_double) {
+  for (std::meta::info member : std::meta::members_of(
+           ^^Overloaded, std::meta::access_context::current())) {
+    if (std::meta::has_identifier(member) &&
+        std::meta::identifier_of(member) == "compute" &&
+        std::meta::is_const(member) == take_double) {
+      return member;
+    }
+  }
+  throw std::meta::exception("overload not found", ^^void);
+}
+
+TEST(VtableSlotName, DistinctOverloadsGetDistinctNames) {
+  constexpr const char* int_overload =
+      std::define_static_string(vtable_slot_name(compute_overload(false)));
+  constexpr const char* double_overload =
+      std::define_static_string(vtable_slot_name(compute_overload(true)));
+
+  EXPECT_STRNE(int_overload, double_overload);
+}
+
+TEST(VtableSlotName, SameOverloadGivesTheSameNameEveryTime) {
+  constexpr const char* first =
+      std::define_static_string(vtable_slot_name(compute_overload(false)));
+  constexpr const char* second =
+      std::define_static_string(vtable_slot_name(compute_overload(false)));
+
+  EXPECT_STREQ(first, second);
 }
 
 }  // namespace

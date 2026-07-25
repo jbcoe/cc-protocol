@@ -26,6 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <type_traits>
 
 #include "interface_A.h"
+#include "interface_C.h"
 #include "protocol.h"
 
 namespace {
@@ -89,6 +90,26 @@ TEST(ProtocolReflectionSmoke, DispatchesBothConstAndNonConstMembersOfA) {
 TEST(ProtocolReflectionSmoke, ANameIsActuallyNoexcept) {
   xyz::protocol<xyz::A> a(std::in_place_type<ALike>);
   static_assert(noexcept(a.name()));
+}
+
+// Interface C's compute() overloads share one name but need one distinct
+// vtable entry each and one merged forwarder: proves the overload grouping
+// in protocol_reflection.hxx (protocol_member_wrapper_combinator) actually
+// resolves through real duck-typed dispatch, not just that the concept in
+// conformance_test.cc accepts it.
+struct CLike {
+  int compute(int x) { return x * 2; }
+
+  double compute(double x) { return x * 3.0; }
+
+  std::string compute(const std::string& x) const { return x + x; }
+};
+
+TEST(ProtocolReflectionSmoke, DispatchesEachOverloadOfCToTheMatchingCandidate) {
+  xyz::protocol<xyz::C> c(std::in_place_type<CLike>);
+  EXPECT_EQ(c.compute(5), 10);
+  EXPECT_EQ(c.compute(2.0), 6.0);
+  EXPECT_EQ(c.compute(std::string("ab")), "abab");
 }
 
 }  // namespace

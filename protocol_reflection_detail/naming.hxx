@@ -58,9 +58,36 @@ constexpr std::string identifier_safe_string(std::string_view s) {
 
 // The generated vtable-entry name for a reflected member function or data
 // member, found by name. Operators, which have no identifier_of, need
-// separate handling.
+// separate handling. Deliberately identifier-only, not signature-qualified:
+// this names a forwarder's single public-facing data member (forwarders.hxx),
+// which must stay callable as e.g. `.compute(...)` regardless of how many
+// overloads `compute` has. Every overload of the same name shares this
+// name on purpose.
 consteval std::string vtable_entry_name(std::meta::info member) {
   return identifier_safe_string(std::meta::identifier_of(member));
+}
+
+// A generated vtable struct's entry name for `member`, unique per exact
+// overload. Unlike vtable_entry_name above, this qualifies by the member's
+// full display string (return type, parameter types, constness), not just
+// its identifier: a vtable struct is an internal, never user-visible
+// implementation detail with one data member per overload, so two
+// overloads sharing a name (e.g. interface C's three `compute`s) need two
+// distinct entries here, even though they share one forwarder name.
+consteval std::string vtable_slot_name(std::meta::info member) {
+  return identifier_safe_string(std::meta::display_string_of(member));
+}
+
+// The data member of `struct_type` named `name`, for reading or writing
+// a reflection-built struct's entry by name (a vtable_slot_name or
+// vtable_entry_name result) rather than position.
+consteval std::meta::info find_data_member(std::meta::info struct_type,
+                                           std::string_view name) {
+  for (std::meta::info member : std::meta::nonstatic_data_members_of(
+           struct_type, std::meta::access_context::current())) {
+    if (std::meta::identifier_of(member) == name) return member;
+  }
+  throw std::meta::exception("data member not found", ^^void);
 }
 
 }  // namespace xyz::reflection_detail
