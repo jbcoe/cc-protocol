@@ -57,14 +57,15 @@ constexpr std::string identifier_safe_string(std::string_view s) {
 }
 
 // The generated vtable-entry name for a reflected member function or data
-// member, found by name. Operators, which have no identifier_of, need
-// separate handling. Deliberately identifier-only, not signature-qualified:
-// this names a forwarder's single public-facing data member (forwarders.hxx),
-// which must stay callable as e.g. `.compute(...)` regardless of how many
-// overloads `compute` has. Every overload of the same name shares this
-// name on purpose.
+// member: `member`'s own identifier, verbatim, not escaped, since a named
+// member's identifier is already a valid C++ identifier. Operators, which
+// have no identifier_of, need separate handling. This is what a forwarder's
+// single public-facing data member is called (forwarders.hxx); it must
+// stay callable as e.g. `.compute(...)` regardless of how many overloads
+// `compute` has, so every overload of the same name shares this name on
+// purpose.
 consteval std::string vtable_entry_name(std::meta::info member) {
-  return identifier_safe_string(std::meta::identifier_of(member));
+  return std::string(std::meta::identifier_of(member));
 }
 
 // A generated vtable struct's entry name for `member`, unique per exact

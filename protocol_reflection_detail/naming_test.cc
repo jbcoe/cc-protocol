@@ -74,14 +74,15 @@ struct Fixture {
   void set_value(int) {}
 };
 
-TEST(VtableEntryName, NamesAnOrdinaryMemberByItsIdentifier) {
+TEST(VtableEntryName, NamesAnOrdinaryMemberByItsExactIdentifier) {
+  // Unlike vtable_slot_name's internal, escaped names below.
   constexpr const char* value_name =
       std::define_static_string(vtable_entry_name(^^Fixture::value));
   constexpr const char* set_value_name =
       std::define_static_string(vtable_entry_name(^^Fixture::set_value));
 
   EXPECT_STREQ(value_name, "value");
-  EXPECT_STREQ(set_value_name, "set_5fvalue");
+  EXPECT_STREQ(set_value_name, "set_value");
 }
 
 struct Overloaded {

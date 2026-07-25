@@ -24,8 +24,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 
 #include "interface_A.h"
+#include "interface_B.h"
 #include "interface_C.h"
 #include "protocol.h"
 
@@ -110,6 +112,30 @@ TEST(ProtocolReflectionSmoke, DispatchesEachOverloadOfCToTheMatchingCandidate) {
   EXPECT_EQ(c.compute(5), 10);
   EXPECT_EQ(c.compute(2.0), 6.0);
   EXPECT_EQ(c.compute(std::string("ab")), "abab");
+}
+
+// Interface B: plain, non-overloaded members. No new protocol_reflection.hxx
+// machinery.
+struct BLike {
+  std::vector<int> results_;
+  bool ready_ = false;
+
+  void process(const std::string& input) {
+    results_.push_back(static_cast<int>(input.length()));
+    ready_ = true;
+  }
+
+  std::vector<int> get_results() const { return results_; }
+
+  bool is_ready() const { return ready_; }
+};
+
+TEST(ProtocolReflectionSmoke, DispatchesAllThreeMembersOfB) {
+  xyz::protocol<xyz::B> b(std::in_place_type<BLike>);
+  EXPECT_FALSE(b.is_ready());
+  b.process("hello");
+  EXPECT_TRUE(b.is_ready());
+  EXPECT_EQ(b.get_results(), (std::vector<int>{5}));
 }
 
 }  // namespace
