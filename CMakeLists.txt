@@ -222,11 +222,20 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
         protocol_reflection_detail/thunk.hxx
         protocol_reflection_detail/thunk_test.cc
         protocol_reflection_detail/conformance.hxx
-        protocol_reflection_detail/conformance_test.cc)
+        protocol_reflection_detail/conformance_test.cc
+        protocol_reflection_detail/forwarders.hxx
+        protocol_reflection_detail/forwarders_test.cc)
       target_compile_options(protocol_reflection_detail_test
                              PRIVATE -freflection)
       target_include_directories(protocol_reflection_detail_test
                                  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+      # GCC 16 trunk cannot stream std::meta::info-typed constants through
+      # LTO ("internal compiler error: tree code 'meta_type' is not
+      # supported in LTO streams"), which forwarders.hxx's substitute-built
+      # base-class lists trigger; this target is a test binary with no need
+      # for LTO's runtime performance benefit.
+      set_target_properties(protocol_reflection_detail_test PROPERTIES
+                            INTERPROCEDURAL_OPTIMIZATION OFF)
     endif()
 
     add_executable(protocol_benchmark protocol_benchmark.cc)
