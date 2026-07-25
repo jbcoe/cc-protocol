@@ -236,6 +236,30 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       # for LTO's runtime performance benefit.
       set_target_properties(protocol_reflection_detail_test PROPERTIES
                             INTERPROCEDURAL_OPTIMIZATION OFF)
+
+      # Wires real xyz::protocol dispatch through the reflection backend on
+      # a throwaway interface. XYZ_PROTOCOL_ENABLE_REFLECTION is the
+      # source-level macro protocol.h checks to include protocol_reflection.hxx
+      # instead of its placeholder primary templates; it is distinct from
+      # this XYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL CMake option, which only
+      # gates whether this target exists at all.
+      xyz_add_test(
+        NAME
+        protocol_reflection_smoke_test
+        VERSION
+        26
+        FILES
+        protocol.h
+        protocol_reflection.hxx
+        protocol_reflection_smoke_test.cc)
+      target_compile_options(protocol_reflection_smoke_test
+                             PRIVATE -freflection)
+      target_compile_definitions(protocol_reflection_smoke_test
+                                 PRIVATE XYZ_PROTOCOL_ENABLE_REFLECTION)
+      target_include_directories(protocol_reflection_smoke_test
+                                 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+      set_target_properties(protocol_reflection_smoke_test PROPERTIES
+                            INTERPROCEDURAL_OPTIMIZATION OFF)
     endif()
 
     add_executable(protocol_benchmark protocol_benchmark.cc)

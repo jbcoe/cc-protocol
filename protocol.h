@@ -124,6 +124,7 @@ get_owning_vtable(const typename protocol_owning_vtable_traits<
                         sizeof(ToVtable), mapping_function));
 }
 
+#ifndef XYZ_PROTOCOL_ENABLE_REFLECTION
 template <typename T, typename A>
 class protocol {
   static_assert(
@@ -165,7 +166,12 @@ class protocol_view {
       "Note: protocol_view specializations are automatically generated "
       "alongside protocol specializations.");
 };
+#endif  // XYZ_PROTOCOL_ENABLE_REFLECTION
 
 }  // namespace xyz
+
+#ifdef XYZ_PROTOCOL_ENABLE_REFLECTION
+#include "protocol_reflection.hxx"
+#endif  // XYZ_PROTOCOL_ENABLE_REFLECTION
 
 #endif  // XYZ_PROTOCOL_H_
