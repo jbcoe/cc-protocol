@@ -214,7 +214,9 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
         protocol_reflection_detail/naming.hxx
         protocol_reflection_detail/naming_test.cc
         protocol_reflection_detail/members.hxx
-        protocol_reflection_detail/members_test.cc)
+        protocol_reflection_detail/members_test.cc
+        protocol_reflection_detail/types.hxx
+        protocol_reflection_detail/types_test.cc)
       target_compile_options(protocol_reflection_detail_test
                              PRIVATE -freflection)
       target_include_directories(protocol_reflection_detail_test
