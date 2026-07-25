@@ -21,6 +21,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // interface, keeping this file's compile/link surface minimal.
 #include <gtest/gtest.h>
 
+#include <cstddef>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -30,6 +32,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "interface_B.h"
 #include "interface_C.h"
 #include "protocol.h"
+#include "tracking_allocator.h"
 
 namespace {
 
@@ -76,6 +79,10 @@ TEST(ProtocolReflectionSmoke, NonConformingTypeFailsToCompile) {
 struct ALike {
   std::string name_ = "ALike";
   int count_ = 0;
+
+  ALike() = default;
+
+  explicit ALike(std::string_view name) : name_(name) {}
 
   std::string_view name() const noexcept { return name_; }
 
@@ -136,6 +143,158 @@ TEST(ProtocolReflectionSmoke, DispatchesAllThreeMembersOfB) {
   b.process("hello");
   EXPECT_TRUE(b.is_ready());
   EXPECT_EQ(b.get_results(), (std::vector<int>{5}));
+}
+
+// Allocator-awareness: standalone equivalents of protocol_test.cc's own
+// TrackingAllocator-based tests, proving the allocator-extended
+// constructors, select_on_container_copy_construction, and the
+// equal-vs-non-equal-allocator move/swap paths all really run through
+// TrackingAllocator rather than silently falling back to Allocator{}.
+
+TEST(ProtocolReflectionSmoke, CountAllocationsForInPlaceConstruction) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>);
+    EXPECT_EQ(alloc_counter, 1u);
+    EXPECT_EQ(dealloc_counter, 0u);
+  }
+  EXPECT_EQ(alloc_counter, 1u);
+  EXPECT_EQ(dealloc_counter, 1u);
+}
+
+TEST(ProtocolReflectionSmoke, CountAllocationsForCopyConstruction) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>);
+    xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> aa(a);
+    EXPECT_EQ(alloc_counter, 2u);
+  }
+  EXPECT_EQ(dealloc_counter, 2u);
+}
+
+TEST(ProtocolReflectionSmoke, CountAllocationsForMoveConstruction) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>);
+    xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> aa(std::move(a));
+  }
+  EXPECT_EQ(alloc_counter, 1u);
+  EXPECT_EQ(dealloc_counter, 1u);
+}
+
+TEST(ProtocolReflectionSmoke, CountAllocationsForMoveAssignment) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>);
+    xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> aa(
+        std::allocator_arg,
+        xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>);
+    aa = std::move(a);
+  }
+  EXPECT_EQ(alloc_counter, 2u);
+  EXPECT_EQ(dealloc_counter, 2u);
+}
+
+template <typename T>
+struct NonEqualTrackingAllocator : xyz::TrackingAllocator<T> {
+  using xyz::TrackingAllocator<T>::TrackingAllocator;
+  using propagate_on_container_move_assignment = std::true_type;
+
+  template <typename Other>
+  struct rebind {
+    using other = NonEqualTrackingAllocator<Other>;
+  };
+
+  friend bool operator==(const NonEqualTrackingAllocator&,
+                         const NonEqualTrackingAllocator&) noexcept {
+    return false;
+  }
+
+  friend bool operator!=(const NonEqualTrackingAllocator&,
+                         const NonEqualTrackingAllocator&) noexcept {
+    return true;
+  }
+};
+
+TEST(ProtocolReflectionSmoke,
+     CountAllocationsForMoveAssignmentWhenAllocatorsDontCompareEqual) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  {
+    xyz::protocol<xyz::A, NonEqualTrackingAllocator<std::byte>> a(
+        std::allocator_arg,
+        NonEqualTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>);
+    xyz::protocol<xyz::A, NonEqualTrackingAllocator<std::byte>> aa(
+        std::allocator_arg,
+        NonEqualTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+        std::in_place_type<ALike>);
+    EXPECT_EQ(alloc_counter, 2u);
+    aa = std::move(a);  // Copies (move-constructs into new storage): the
+                        // allocators never compare equal, so the cheap
+                        // pointer-steal path isn't available.
+  }
+  EXPECT_EQ(alloc_counter, 3u);
+  EXPECT_EQ(dealloc_counter, 3u);
+}
+
+template <typename T>
+struct POCSTrackingAllocator : xyz::TrackingAllocator<T> {
+  using xyz::TrackingAllocator<T>::TrackingAllocator;
+  using propagate_on_container_swap = std::true_type;
+
+  template <typename Other>
+  struct rebind {
+    using other = POCSTrackingAllocator<Other>;
+  };
+};
+
+TEST(ProtocolReflectionSmoke, MemberSwapWhenAllocatorsDontCompareEqual) {
+  unsigned alloc_counter = 0;
+  unsigned dealloc_counter = 0;
+  xyz::protocol<xyz::A, POCSTrackingAllocator<std::byte>> p(
+      std::allocator_arg,
+      POCSTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+      std::in_place_type<ALike>);
+  xyz::protocol<xyz::A, POCSTrackingAllocator<std::byte>> pp(
+      std::allocator_arg,
+      POCSTrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
+      std::in_place_type<ALike>, "pp");
+  p.swap(pp);
+  EXPECT_EQ(p.name(), "pp");
+  EXPECT_EQ(pp.name(), "ALike");
+}
+
+TEST(ProtocolReflectionSmoke, AllocatorExtendedCopyFromValueless) {
+  xyz::protocol<xyz::A> p(std::in_place_type<ALike>);
+  xyz::protocol<xyz::A> pp(std::move(p));
+  xyz::protocol<xyz::A> ppp(std::allocator_arg, std::allocator<std::byte>(), p);
+  EXPECT_TRUE(ppp.valueless_after_move());
+}
+
+TEST(ProtocolReflectionSmoke, AllocatorExtendedMoveFromValueless) {
+  xyz::protocol<xyz::A> p(std::in_place_type<ALike>);
+  xyz::protocol<xyz::A> pp(std::move(p));
+  xyz::protocol<xyz::A> ppp(std::allocator_arg, std::allocator<std::byte>(),
+                            std::move(p));
+  EXPECT_TRUE(ppp.valueless_after_move());
 }
 
 }  // namespace

@@ -17,17 +17,14 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==============================================================================*/
-// The first end-to-end vertical slice of the C++26-reflection backend: a
-// single xyz::protocol<T, Allocator> class template body that works for any
-// interface satisfying reflection_protocol_concept, with no per-interface
-// code generation step.
+// The C++26-reflection backend: a single xyz::protocol<T, Allocator> class
+// template body that works for any interface satisfying
+// reflection_protocol_concept, with no per-interface code generation step.
 //
-// Deliberately narrow: default-allocator construction (using the real
-// Allocator template parameter, but none of the allocator-extended
-// constructor overloads yet), copy/move/destroy, and dispatch, one
-// interface at a time with no narrowing conversions between
-// protocol<T,...> specializations. xyz::protocol_view is out of scope
-// here; it is added once dispatch is proven.
+// Allocator-aware construction, copy/move/destroy/swap, and dispatch, one
+// interface at a time. No narrowing conversions between protocol<T,...>
+// specializations yet. xyz::protocol_view is out of scope here; it is
+// added once dispatch is proven.
 #ifndef XYZ_PROTOCOL_REFLECTION_HXX_
 #define XYZ_PROTOCOL_REFLECTION_HXX_
 
@@ -269,7 +266,21 @@ class protocol : public reflection_detail::protocol_bases<T, Allocator> {
   const vtable* vtable_;
   [[no_unique_address]] Allocator alloc_;
 
+  using allocator_traits = std::allocator_traits<Allocator>;
+
  public:
+  template <class U, class... Ts>
+  explicit constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                              std::in_place_type_t<U>, Ts&&... ts)
+    requires std::same_as<std::remove_cvref_t<U>, U> &&
+             not_protocol_or_view<U> && std::constructible_from<U, Ts&&...> &&
+             std::copy_constructible<U> &&
+             reflection_detail::reflection_protocol_concept<U, T>
+      : alloc_(alloc) {
+    p_ = create_storage<U>(std::forward<Ts>(ts)...);
+    vtable_ = &vtable_impl<U>::vtable_;
+  }
+
   template <class U, class... Ts>
   explicit constexpr protocol(std::in_place_type_t<U>, Ts&&... ts)
     requires std::same_as<std::remove_cvref_t<U>, U> &&
@@ -277,12 +288,12 @@ class protocol : public reflection_detail::protocol_bases<T, Allocator> {
              std::copy_constructible<U> &&
              std::default_initializable<Allocator> &&
              reflection_detail::reflection_protocol_concept<U, T>
-      : alloc_() {
-    p_ = create_storage<U>(std::forward<Ts>(ts)...);
-    vtable_ = &vtable_impl<U>::vtable_;
-  }
+      : protocol(std::allocator_arg_t{}, Allocator{}, std::in_place_type<U>,
+                 std::forward<Ts>(ts)...) {}
 
-  constexpr protocol(const protocol& other) : alloc_(other.alloc_) {
+  constexpr protocol(std::allocator_arg_t, const Allocator& alloc,
+                     const protocol& other)
+      : alloc_(alloc) {
     if (!other.valueless_after_move()) {
       p_ = other.vtable_->xyz_protocol_clone(other.p_, alloc_);
       vtable_ = other.vtable_;
@@ -292,10 +303,41 @@ class protocol : public reflection_detail::protocol_bases<T, Allocator> {
     }
   }
 
-  constexpr protocol(protocol&& other) noexcept : alloc_(other.alloc_) {
-    p_ = std::exchange(other.p_, nullptr);
-    vtable_ = std::exchange(other.vtable_, nullptr);
+  constexpr protocol(const protocol& other)
+      : protocol(std::allocator_arg_t{},
+                 allocator_traits::select_on_container_copy_construction(
+                     other.alloc_),
+                 other) {}
+
+  constexpr protocol(
+      std::allocator_arg_t, const Allocator& alloc,
+      protocol&& other) noexcept(allocator_traits::is_always_equal::value)
+      : alloc_(alloc) {
+    if constexpr (allocator_traits::is_always_equal::value) {
+      p_ = std::exchange(other.p_, nullptr);
+      vtable_ = std::exchange(other.vtable_, nullptr);
+    } else {
+      if (alloc_ == other.alloc_) {
+        p_ = std::exchange(other.p_, nullptr);
+        vtable_ = std::exchange(other.vtable_, nullptr);
+      } else {
+        if (!other.valueless_after_move()) {
+          p_ = other.vtable_->xyz_protocol_move(other.p_, alloc_);
+          vtable_ = other.vtable_;
+          other.vtable_->xyz_protocol_destroy(other.p_, other.alloc_);
+          other.p_ = nullptr;
+          other.vtable_ = nullptr;
+        } else {
+          p_ = nullptr;
+          vtable_ = nullptr;
+        }
+      }
+    }
   }
+
+  constexpr protocol(protocol&& other) noexcept(
+      allocator_traits::is_always_equal::value)
+      : protocol(std::allocator_arg_t{}, other.alloc_, std::move(other)) {}
 
   constexpr bool valueless_after_move() const noexcept { return p_ == nullptr; }
 
@@ -305,20 +347,29 @@ class protocol : public reflection_detail::protocol_bases<T, Allocator> {
     }
   }
 
-  protocol& operator=(protocol other) noexcept {
+  protocol& operator=(protocol other) noexcept(
+      allocator_traits::is_always_equal::value) {
     std::swap(p_, other.p_);
     std::swap(vtable_, other.vtable_);
-    std::swap(alloc_, other.alloc_);
+    if constexpr (!allocator_traits::is_always_equal::value) {
+      std::swap(alloc_, other.alloc_);
+    }
     return *this;
   }
 
-  void swap(protocol& other) noexcept {
+  void swap(protocol& other) noexcept(
+      allocator_traits::is_always_equal::value) {
     std::swap(p_, other.p_);
     std::swap(vtable_, other.vtable_);
-    std::swap(alloc_, other.alloc_);
+    if constexpr (!allocator_traits::is_always_equal::value) {
+      std::swap(alloc_, other.alloc_);
+    }
   }
 
-  friend void swap(protocol& lhs, protocol& rhs) noexcept { lhs.swap(rhs); }
+  friend void swap(protocol& lhs, protocol& rhs) noexcept(
+      allocator_traits::is_always_equal::value) {
+    lhs.swap(rhs);
+  }
 };
 
 namespace reflection_detail {
