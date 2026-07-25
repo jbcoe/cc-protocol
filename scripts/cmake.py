@@ -2,6 +2,7 @@
 """CMake helper script for building and testing the project."""
 
 import argparse
+import os
 import subprocess
 from typing import Any
 
@@ -90,8 +91,17 @@ def main() -> None:
 
     configure_args.extend(extra)
 
+    # A P2996 reflection compiler is required to configure with
+    # XYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL=ON. CMake only reads CXX/CC
+    # from the environment, not from -D cache variables, so set them here
+    # rather than as configure_args.
+    configure_env = os.environ.copy()
+    if args.reflection:
+        configure_env["CXX"] = "g++-16"
+        configure_env["CC"] = "gcc-16"
+
     log(f"Running: {' '.join(configure_args)}")
-    subprocess.check_call(configure_args)
+    subprocess.check_call(configure_args, env=configure_env)
 
     # Build step (required for build, test, benchmark)
     build_args = ["cmake", "--build"]
