@@ -25,6 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string_view>
 #include <type_traits>
 
+#include "interface_A.h"
 #include "protocol.h"
 
 namespace {
@@ -64,6 +65,30 @@ TEST(ProtocolReflectionSmoke, MoveLeavesTheSourceValuelessAndTargetWorking) {
 TEST(ProtocolReflectionSmoke, NonConformingTypeFailsToCompile) {
   static_assert(!std::is_constructible_v<xyz::protocol<Greeter>,
                                          std::in_place_type_t<NotAGreeter>>);
+}
+
+// name() is const and noexcept; count() is not. The vtable already erases
+// every entry through void* uniformly regardless of member constness, so
+// this proves mixed const/non-const dispatch works.
+struct ALike {
+  std::string name_ = "ALike";
+  int count_ = 0;
+
+  std::string_view name() const noexcept { return name_; }
+
+  int count() { return ++count_; }
+};
+
+TEST(ProtocolReflectionSmoke, DispatchesBothConstAndNonConstMembersOfA) {
+  xyz::protocol<xyz::A> a(std::in_place_type<ALike>);
+  EXPECT_EQ(a.name(), "ALike");
+  EXPECT_EQ(a.count(), 1);
+  EXPECT_EQ(a.count(), 2);
+}
+
+TEST(ProtocolReflectionSmoke, ANameIsActuallyNoexcept) {
+  xyz::protocol<xyz::A> a(std::in_place_type<ALike>);
+  static_assert(noexcept(a.name()));
 }
 
 }  // namespace
