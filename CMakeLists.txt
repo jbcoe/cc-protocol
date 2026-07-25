@@ -201,6 +201,22 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
         FILES
         tutorials/3_reflection.cc)
       target_compile_options(reflection_tutorial PRIVATE -freflection)
+
+      # Unit tests for the reflection backend's own detail headers
+      # (protocol_reflection_detail/*.h), independent of any interface or
+      # xyz::protocol machinery.
+      xyz_add_test(
+        NAME
+        protocol_reflection_detail_test
+        VERSION
+        26
+        FILES
+        protocol_reflection_detail/naming.hxx
+        protocol_reflection_detail/naming_test.cc)
+      target_compile_options(protocol_reflection_detail_test
+                             PRIVATE -freflection)
+      target_include_directories(protocol_reflection_detail_test
+                                 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     endif()
 
     add_executable(protocol_benchmark protocol_benchmark.cc)

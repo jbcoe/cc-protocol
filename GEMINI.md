@@ -12,8 +12,10 @@ general defaults for this repository.
   names. Use descriptive names like `XYZ_GENERATE_MANUAL_VTABLE` instead of
   `XYZ_GEN_MAN_VT`.
 - **Stability:** Ensure that generated symbols (e.g., vtable entry names) remain
-  deterministic and stable between runs by using MD5 hashing of function
-  signatures.
+  deterministic, stable between runs, and free of collisions between distinct
+  signatures. See `scripts/generate_protocol.py` and
+  `protocol_reflection_detail/naming.hxx` for each backend's approach; no
+  specific mangling scheme is mandated.
 - **WG21 Style:** `DRAFT.md` must adhere to ISO C++ standardization proposal
   norms <https://www.open-std.org/jtc1/sc22/wg21/docs/papers>
 - **Paper Format:** We use pure Markdown, no YAML frontmatter, and no HTML blocks.
