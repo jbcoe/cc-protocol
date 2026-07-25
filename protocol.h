@@ -29,7 +29,7 @@ namespace xyz {
 template <typename T>
 struct is_protocol : std::false_type {};
 
-template <typename T, typename Alloc>
+template <typename T, typename Alloc = std::allocator<T>>
 class protocol;
 
 template <typename T, typename Alloc>
@@ -123,7 +123,7 @@ get_owning_vtable(const typename protocol_owning_vtable_traits<
                         sizeof(ToVtable), mapping_function));
 }
 
-template <typename T, typename A = std::allocator<T>>
+template <typename T, typename A>
 class protocol {
   static_assert(
       sizeof(T) == 0,
