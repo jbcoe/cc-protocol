@@ -436,8 +436,6 @@ namespace section_6 {
 //     bool no_unique_address = false;
 // };
 
-// Shared by both tests below, so each only has to spell out the one line
-// that actually differs: the consteval block calling define_aggregate.
 consteval std::vector<std::meta::info> count_ratio_specs() {
   std::vector<std::meta::info> specs;
   specs.push_back(data_member_spec(^^int, {
