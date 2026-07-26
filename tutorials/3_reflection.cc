@@ -540,6 +540,19 @@ TEST(ReflectionSubstitute, InstantiatesTemplateFromInfos) {
   EXPECT_EQ(boxed.value, 5);
 }
 
+template <int N>
+struct Sized {};
+
+TEST(ReflectionSubstitute, SubstitutesANonTypeTemplateArgument) {
+  // substitute's argument list isn't limited to type infos: reflect_constant
+  // turns an ordinary value into an info for a non-type template argument.
+  constexpr std::meta::info sized_five_info =
+      std::meta::substitute(^^Sized, {
+                                         std::meta::reflect_constant(5)});
+
+  static_assert(std::is_same_v<typename[:sized_five_info:], Sized<5>>);
+}
+
 struct Widget {
   int compute(double) const { return 1; }
 };
