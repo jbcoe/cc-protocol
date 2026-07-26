@@ -175,6 +175,17 @@ struct Greeter {
   int value = 0;
 };
 
+// members_of takes an access_context controlling which members it is
+// allowed to see. access_context::current() applies ordinary C++ access
+// rules as they hold at this point in the source (a member or friend
+// function sees private members here; free-standing code like find_member
+// does not, so private members stay invisible to it, just as they would to
+// ordinary code written at this call site). access_context::unprivileged()
+// always restricts the query to public members, however privileged the
+// calling code actually is, useful for reflecting on a type the way an
+// arbitrary external caller would see it. access_context::unchecked()
+// removes access checking entirely, useful for tooling that must reach
+// every member regardless of access, such as a serializer.
 consteval std::meta::info find_member(std::meta::info type,
                                       std::string_view name) {
   for (std::meta::info member :
