@@ -467,4 +467,179 @@ TEST(ProtocolReflectionSmoke, NarrowingConversionConcurrentStressing) {
   }
 }
 
+// xyz::protocol_view<T>/protocol_view<const T>: standalone equivalents of
+// protocol_test.cc's own ProtocolViewTest suite.
+
+TEST(ProtocolReflectionSmoke, ViewFromMutableConcrete) {
+  ALike a("view_test");
+  xyz::protocol_view<xyz::A> view(a);
+  EXPECT_EQ(view.name(), "view_test");
+  EXPECT_EQ(view.count(), 1);
+  EXPECT_EQ(a.count_, 1);  // The view mutated `a` directly.
+}
+
+TEST(ProtocolReflectionSmoke, ViewFromMutableProtocol) {
+  xyz::protocol<xyz::A> a(std::in_place_type<ALike>, "proto_view");
+  xyz::protocol_view<xyz::A> view(a);
+  EXPECT_EQ(view.name(), "proto_view");
+  EXPECT_EQ(view.count(), 1);
+  EXPECT_EQ(a.count(), 2);  // The view mutated `a` directly.
+}
+
+TEST(ProtocolReflectionSmoke, ConstViewFromMutableConcrete) {
+  ALike a("view_test");
+  xyz::protocol_view<const xyz::A> view(a);
+  EXPECT_EQ(view.name(), "view_test");
+}
+
+TEST(ProtocolReflectionSmoke, ConstViewFromMutableProtocol) {
+  xyz::protocol<xyz::A> a(std::in_place_type<ALike>, "proto_view");
+  xyz::protocol_view<const xyz::A> view(a);
+  EXPECT_EQ(view.name(), "proto_view");
+}
+
+TEST(ProtocolReflectionSmoke, ConstViewFromMutViewConcrete) {
+  ALike a("view_test");
+  xyz::protocol_view<xyz::A> mut_view(a);
+  xyz::protocol_view<const xyz::A> const_view(mut_view);
+  EXPECT_EQ(const_view.name(), "view_test");
+}
+
+TEST(ProtocolReflectionSmoke, ConstViewFromConstProtocol) {
+  const xyz::protocol<xyz::A> a(std::in_place_type<ALike>, "proto_view");
+  xyz::protocol_view<const xyz::A> view(a);
+  EXPECT_EQ(view.name(), "proto_view");
+}
+
+TEST(ProtocolReflectionSmoke, ViewConstnessRouting) {
+  BLike b;
+  xyz::protocol_view<xyz::B> view(b);
+  EXPECT_FALSE(view.is_ready());
+  view.process("view processing");
+  EXPECT_TRUE(view.is_ready());
+  auto results = view.get_results();
+  ASSERT_EQ(results.size(), 1u);
+  EXPECT_EQ(results[0], 15);
+}
+
+class CopyCounter {
+ public:
+  int* copies_;
+
+  explicit CopyCounter(int* copies) : copies_(copies) {}
+
+  CopyCounter(const CopyCounter& other) : copies_(other.copies_) {
+    if (copies_) (*copies_)++;
+  }
+
+  CopyCounter& operator=(const CopyCounter& other) {
+    copies_ = other.copies_;
+    if (copies_) (*copies_)++;
+    return *this;
+  }
+
+  CopyCounter(CopyCounter&&) = default;
+  CopyCounter& operator=(CopyCounter&&) = default;
+
+  std::string_view name() const noexcept { return "CopyCounter"; }
+
+  int count() { return 0; }
+};
+
+TEST(ProtocolReflectionSmoke, ViewCopiesAreShallow) {
+  int copies = 0;
+  CopyCounter c(&copies);
+  xyz::protocol_view<xyz::A> view(c);
+  EXPECT_EQ(copies, 0);
+
+  xyz::protocol_view<xyz::A> view2 = view;
+  EXPECT_EQ(copies, 0);
+
+  xyz::protocol_view<xyz::A> view3(view2);
+  EXPECT_EQ(view3.count(), 0);
+  EXPECT_EQ(copies, 0);
+}
+
+TEST(ProtocolReflectionSmoke, ViewMoveIsStandard) {
+  ALike a("move_test");
+  xyz::protocol_view<xyz::A> view(a);
+  xyz::protocol_view<xyz::A> view2 = std::move(view);
+
+  // Moved-from view is still valid: it's just a pointer copy.
+  EXPECT_EQ(view.name(), "move_test");
+  EXPECT_EQ(view2.name(), "move_test");
+}
+
+TEST(ProtocolReflectionSmoke, PreventConstructionFromRValues) {
+  static_assert(!std::constructible_from<xyz::protocol_view<xyz::A>, ALike>);
+  static_assert(!std::constructible_from<xyz::protocol_view<xyz::A>,
+                                         xyz::protocol<xyz::A>>);
+  static_assert(
+      !std::constructible_from<xyz::protocol_view<const xyz::A>, ALike>);
+  static_assert(!std::constructible_from<xyz::protocol_view<const xyz::A>,
+                                         xyz::protocol<xyz::A>>);
+  static_assert(!std::constructible_from<xyz::protocol_view<const xyz::A>,
+                                         const xyz::protocol<xyz::A>>);
+  static_assert(!std::constructible_from<xyz::protocol_view<xyz::A_Subset>,
+                                         xyz::protocol<xyz::A>>);
+  static_assert(
+      !std::constructible_from<xyz::protocol_view<const xyz::A_Subset>,
+                               xyz::protocol<xyz::A>>);
+}
+
+// Narrowing conversions between views: A -> A_Subset, mirroring the owning
+// narrowing tests above but through get_const_vtable/get_vtable instead of
+// get_owning_vtable.
+
+TEST(ProtocolReflectionSmoke, NarrowingViewConversions) {
+  ALike a_obj;
+  xyz::protocol_view<xyz::A> view_a(a_obj);
+
+  xyz::protocol_view<const xyz::A_Subset> const_view_subset = view_a;
+  EXPECT_EQ(const_view_subset.name(), "ALike");
+
+  xyz::protocol_view<xyz::A_Subset> view_subset = view_a;
+  EXPECT_EQ(view_subset.name(), "ALike");
+}
+
+TEST(ProtocolReflectionSmoke, ConstViewNarrowingFromConstView) {
+  ALike a_obj;
+  xyz::protocol_view<const xyz::A> const_a(a_obj);
+  xyz::protocol_view<const xyz::A_Subset> const_subset(const_a);
+  EXPECT_EQ(const_subset.name(), "ALike");
+}
+
+// The protocol_view counterpart to NarrowingConversionConcurrentStressing:
+// proves get_mapped_vtable caching/locking under contention for
+// protocol_view's own narrowing path too.
+TEST(ProtocolReflectionSmoke, ViewNarrowingConversionConcurrentStressing) {
+  constexpr int kNumThreads = 20;
+  constexpr int kIterationsPerThread = 50;
+  std::vector<std::thread> threads;
+  std::atomic<bool> start_signal{false};
+
+  for (int i = 0; i < kNumThreads; ++i) {
+    threads.emplace_back([&start_signal]() {
+      while (!start_signal.load()) {
+        std::this_thread::yield();
+      }
+      for (int iter = 0; iter < kIterationsPerThread; ++iter) {
+        ALike a_obj;
+        xyz::protocol_view<xyz::A> view_a(a_obj);
+
+        xyz::protocol_view<const xyz::A_Subset> const_view = view_a;
+        EXPECT_EQ(const_view.name(), "ALike");
+
+        xyz::protocol_view<xyz::A_Subset> mut_view = view_a;
+        EXPECT_EQ(mut_view.name(), "ALike");
+      }
+    });
+  }
+
+  start_signal.store(true);
+  for (auto& thread : threads) {
+    thread.join();
+  }
+}
+
 }  // namespace
