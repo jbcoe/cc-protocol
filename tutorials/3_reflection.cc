@@ -413,6 +413,16 @@ TEST(ReflectionHelpers, SignatureDistinguishesOverloads) {
 // ---------------------------------------------------------------------------
 namespace section_6 {
 
+// Adapted from
+// https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2996r13.html
+//
+// struct data_member_options {
+//     optional<name_type> name; // name_type is a string
+//     optional<int> alignment;
+//     optional<int> bit_width;
+//     bool no_unique_address = false;
+// };
+
 // Shared by both tests below, so each only has to spell out the one line
 // that actually differs: the consteval block calling define_aggregate.
 consteval std::vector<std::meta::info> count_ratio_specs() {
