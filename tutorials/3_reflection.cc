@@ -207,6 +207,9 @@ consteval std::meta::info find_member(std::meta::info type,
       return member;
     }
   }
+  // A default-constructed std::meta::info is a valid, comparable sentinel value
+  // that specifically means "nothing here," rather than describing any real
+  // type, function, variable, or namespace.
   return std::meta::info{};
 }
 
@@ -362,7 +365,8 @@ TEST(ReflectionHelpers, ClassifiesConstCorrectly) {
 // A parameter's type isn't a named declaration, so std::meta::identifier_of
 // (which reads a declaration's own name) doesn't apply to it.
 // std::meta::display_string_of is the primitive for turning a type into a
-// readable string.
+// readable string. The output of std::meta::display_string_of is
+// implementation-defined and should not be used outside of debug output.
 consteval std::string simple_signature_string(std::meta::info member) {
   std::string result(identifier_of(member));
   result += "(";
@@ -417,6 +421,8 @@ TEST(ReflectionHelpers, SignatureDistinguishesOverloads) {
 // statement, not a function, that always runs during translation regardless
 // of where it appears, even directly inside an ordinary, non-constexpr
 // function body, as the first test below does.
+//
+// In C++26, define_aggregate, is the only avenue available for code generation.
 // ---------------------------------------------------------------------------
 namespace section_6 {
 
