@@ -32,6 +32,29 @@ RUN ARCH=$(dpkg --print-architecture) && \
     && chmod +x /usr/local/bin/bazelisk \
     && ln -s /usr/local/bin/bazelisk /usr/local/bin/bazel
 
+# Install the GitHub CLI (gh) from its own apt repository, per
+# https://github.com/cli/cli/blob/trunk/docs/install_linux.md (not reliably
+# available via Ubuntu 24.04's default repos).
+RUN mkdir -p -m 755 /etc/apt/keyrings \
+&& wget -nv -O /etc/apt/keyrings/githubcli-archive-keyring.gpg https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+&& chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list >/dev/null \
+&& apt-get update && apt-get install -y --no-install-recommends gh \
+&& rm -rf /var/lib/apt/lists/*
+
+# Install jj (Jujutsu VCS) from its GitHub release binary. The jujutsu apt
+# package isn't built for Ubuntu 24.04 (noble) or Debian stable; it only
+# reaches Debian testing/unstable and Ubuntu's current development release.
+RUN ARCH=$(dpkg --print-architecture) && \
+    case "$ARCH" in \
+        amd64) JJ_ARCH=x86_64 ;; \
+        arm64) JJ_ARCH=aarch64 ;; \
+        *) echo "Unsupported architecture for jj: $ARCH" >&2; exit 1 ;; \
+    esac && \
+    wget https://github.com/jj-vcs/jj/releases/download/v0.43.0/jj-v0.43.0-${JJ_ARCH}-unknown-linux-musl.tar.gz -O /tmp/jj.tar.gz \
+    && tar -xzf /tmp/jj.tar.gz -C /usr/local/bin ./jj \
+    && rm /tmp/jj.tar.gz
+
 # Create non-root user.
 RUN useradd -m -s /bin/bash vscode \
     && mkdir -p /workspace \
