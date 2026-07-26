@@ -88,7 +88,8 @@ TEST(ThisPointerOffsetZero, EmptyWrapperAddsNoStorage) {
 // Because a Wrapper sitting at offset zero of an Owner shares the Owner's
 // address (section 1), a method defined on Wrapper can compute a pointer to
 // its owner just by casting its own `this`, without Wrapper storing a
-// back-pointer anywhere.
+// back-pointer anywhere. This is undefined behavior unless Wrapper is the first
+// data member of Owner, and Owner is a standard layout type.
 // ---------------------------------------------------------------------------
 namespace section_2 {
 
@@ -137,7 +138,7 @@ struct GreetWrapper {
 };
 
 struct Owner {
-  GreetWrapper greet;
+  [[no_unique_address]] GreetWrapper greet;
   std::string name = "World";
 };
 
@@ -185,7 +186,7 @@ struct Wrapper {
 // offset zero.
 struct BadOwner {
   int preceding_member = 0;
-  Wrapper wrapper;
+  [[no_unique_address]] Wrapper wrapper;
 };
 
 TEST(ThisPointerOffsetViolated, AddressNoLongerMatches) {
