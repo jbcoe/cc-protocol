@@ -29,11 +29,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <utility>
 #include <vector>
 
+#ifdef XYZ_PROTOCOL_ENABLE_REFLECTION
+// interface_D.h isn't needed: D's operator tests are excluded below.
+#include "interface_A.h"
+#include "interface_A_Subset.h"
+#include "interface_B.h"
+#include "interface_C.h"
+#else
 #include "generated/protocol_A.h"
 #include "generated/protocol_A_Subset.h"
 #include "generated/protocol_B.h"
 #include "generated/protocol_C.h"
 #include "generated/protocol_D.h"
+#endif  // XYZ_PROTOCOL_ENABLE_REFLECTION
 #include "tracking_allocator.h"
 
 namespace {
@@ -701,6 +709,11 @@ TEST(ProtocolViewTest, PreventConstructionFromRValues) {
       "compatible protocol");
 }
 
+// D's operators aren't supported by the reflection backend yet: naming.hxx
+// has no scheme for operators (they have no identifier_of), so reflecting
+// over D's members is a compile error, not just a failing dispatch call.
+#ifndef XYZ_PROTOCOL_ENABLE_REFLECTION
+
 class DLike {
   int value_ = 0;
 
@@ -916,6 +929,8 @@ TEST(ProtocolViewTest, ProtocolViewDOperators) {
   EXPECT_EQ(d(), 42);
   EXPECT_EQ(d[5], 10);
 }
+
+#endif  // XYZ_PROTOCOL_ENABLE_REFLECTION
 
 TEST(ProtocolViewTest, NarrowingConversion) {
   ALike a_obj;
