@@ -42,7 +42,9 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
 && apt-get update && apt-get install -y --no-install-recommends gh \
 && rm -rf /var/lib/apt/lists/*
 
-# Install jj (Jujutsu VCS) from its GitHub release binary.
+# Install jj (Jujutsu VCS) from its GitHub release binary. The jujutsu apt
+# package isn't built for Ubuntu 24.04 (noble) or Debian stable; it only
+# reaches Debian testing/unstable and Ubuntu's current development release.
 RUN ARCH=$(dpkg --print-architecture) && \
     case "$ARCH" in \
         amd64) JJ_ARCH=x86_64 ;; \
