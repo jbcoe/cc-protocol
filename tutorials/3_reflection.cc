@@ -509,15 +509,17 @@ TEST(ReflectionEnumToString, UnmatchedValueFallsThrough) {
 // ---------------------------------------------------------------------------
 // 8. Instantiating a template from infos with substitute.
 //
-// A template specialization built by splicing needs one [:e:] slot per
-// argument, each already sitting at a fixed position in source, e.g.
-// Boxed<typename[:int_info:]>. That breaks down when the argument list
-// itself is only known as a range of infos computed at compile time.
-// std::meta::substitute(template_info, argument_infos) instantiates a class,
-// alias, or function template directly from such a range instead, as an
-// ordinary consteval function call, and returns an info reflecting the
-// resulting specialization. Splicing that result, as in section 2, turns it
-// into a usable type.
+// A splice like typename[:int_info:] needs its operand to be a constant
+// expression, e.g. a constexpr variable, not just any info that happens to
+// exist while a consteval function runs. A range-based for loop over a
+// std::vector<std::meta::info> doesn't give you that: the loop variable is
+// rebound on each iteration, so it isn't a constant expression, even though
+// the whole loop runs at compile time. A template specialization whose
+// argument list is only known as such a range can't be built one splice at
+// a time. std::meta::substitute(template_info, argument_infos) takes
+// the whole range as an ordinary function argument instead, and returns an
+// info for the resulting specialization directly. Splicing that result, as
+// in section 2, turns it into a usable type.
 // ---------------------------------------------------------------------------
 namespace section_8 {
 
