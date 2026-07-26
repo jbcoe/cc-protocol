@@ -76,6 +76,19 @@ TEST(ReflectionMetaInfo, SameEntityEqualValues) {
   // other type in this respect.
 }
 
+using AliasForPoint = Point;
+
+TEST(ReflectionMetaInfo, AliasesCompareDistinctUntilDealiased) {
+  // ^^ reflects the name as written, not what it eventually names: an
+  // alias and its underlying type are different entities to ^^, even
+  // though AliasForPoint is nothing more than another name for Point.
+  static_assert(^^Point != ^^AliasForPoint);
+
+  // std::meta::dealias strips away any aliasing, giving back the info
+  // you'd get by reflecting the underlying type directly.
+  static_assert(std::meta::dealias(^^AliasForPoint) == ^^Point);
+}
+
 // ^^ isn't limited to types. It can also reflect a namespace, a function, a
 // specific member, and more. This tutorial mostly needs "reflect a type" and
 // "reflect a member," both shown here just to establish that both work with
