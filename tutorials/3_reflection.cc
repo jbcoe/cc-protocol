@@ -86,7 +86,7 @@ TEST(ReflectionMetaInfo, AliasesCompareDistinctUntilDealiased) {
 
   // std::meta::dealias strips away any aliasing, giving back the info
   // you'd get by reflecting the underlying type directly.
-  static_assert(std::meta::dealias(^^AliasForPoint) == ^^Point);
+  static_assert(dealias(^^AliasForPoint) == ^^Point);
 }
 
 // ^^ isn't limited to types. It can also reflect a namespace, a function, a
@@ -104,9 +104,9 @@ TEST(ReflectionMetaInfo, OtherEntityKinds) {
   // like std::meta::is_namespace. What you can do with each (splice it as a
   // type, call it, read its name) depends on this kind, covered starting in
   // section 2.
-  static_assert(std::meta::is_namespace(reflected_namespace));
-  static_assert(std::meta::is_function(reflected_function));
-  static_assert(std::meta::is_nonstatic_data_member(reflected_member));
+  static_assert(is_namespace(reflected_namespace));
+  static_assert(is_function(reflected_function));
+  static_assert(is_nonstatic_data_member(reflected_member));
 }
 
 }  // namespace section_1
@@ -202,9 +202,8 @@ struct Greeter {
 consteval std::meta::info find_member(std::meta::info type,
                                       std::string_view name) {
   for (std::meta::info member :
-       std::meta::members_of(type, std::meta::access_context::current())) {
-    if (std::meta::has_identifier(member) &&
-        std::meta::identifier_of(member) == name) {
+       members_of(type, std::meta::access_context::current())) {
+    if (has_identifier(member) && identifier_of(member) == name) {
       return member;
     }
   }
@@ -253,8 +252,7 @@ struct Point {
 };
 
 consteval std::vector<std::meta::info> data_members_of(std::meta::info type) {
-  return std::meta::nonstatic_data_members_of(
-      type, std::meta::access_context::current());
+  return nonstatic_data_members_of(type, std::meta::access_context::current());
 }
 
 // define_static_array is what makes the enumerated members usable as a
@@ -264,9 +262,9 @@ constexpr auto point_data_members =
 
 TEST(ReflectionEnumerate, MembersInDeclarationOrder) {
   static_assert(point_data_members.size() == 3);
-  static_assert(std::meta::identifier_of(point_data_members[0]) == "x");
-  static_assert(std::meta::identifier_of(point_data_members[1]) == "y");
-  static_assert(std::meta::identifier_of(point_data_members[2]) == "z");
+  static_assert(identifier_of(point_data_members[0]) == "x");
+  static_assert(identifier_of(point_data_members[1]) == "y");
+  static_assert(identifier_of(point_data_members[2]) == "z");
 }
 
 struct Widget {
@@ -283,10 +281,9 @@ consteval std::vector<std::meta::info> member_functions_of(
   // (default constructor, destructor, ...); is_special_member_function
   // excludes those, leaving just the two ordinary methods below.
   const auto is_member_function = [](std::meta::info member) {
-    return std::meta::is_function(member) &&
-           !std::meta::is_special_member_function(member);
+    return is_function(member) && !is_special_member_function(member);
   };
-  return std::meta::members_of(type, std::meta::access_context::current()) |
+  return members_of(type, std::meta::access_context::current()) |
          std::ranges::views::filter(is_member_function) |
          std::ranges::to<std::vector<std::meta::info>>();
 }
@@ -298,10 +295,8 @@ TEST(ReflectionEnumerate, FilteredToFunctionsOnly) {
   // payload (a data member) is excluded; value() and set_value(int) (member
   // functions) are the only two results.
   static_assert(widget_member_functions.size() == 2);
-  static_assert(std::meta::identifier_of(widget_member_functions[0]) ==
-                "value");
-  static_assert(std::meta::identifier_of(widget_member_functions[1]) ==
-                "set_value");
+  static_assert(identifier_of(widget_member_functions[0]) == "value");
+  static_assert(identifier_of(widget_member_functions[1]) == "set_value");
 }
 
 }  // namespace section_4
@@ -335,9 +330,9 @@ consteval std::vector<std::meta::info> members_named(std::meta::info type,
                                                      std::string_view name) {
   std::vector<std::meta::info> result;
   for (std::meta::info member :
-       std::meta::members_of(type, std::meta::access_context::current())) {
-    if (std::meta::is_function(member) && std::meta::has_identifier(member) &&
-        std::meta::identifier_of(member) == name) {
+       members_of(type, std::meta::access_context::current())) {
+    if (is_function(member) && has_identifier(member) &&
+        identifier_of(member) == name) {
       result.push_back(member);
     }
   }
@@ -351,11 +346,11 @@ TEST(ReflectionHelpers, ClassifiesConstCorrectly) {
       std::define_static_array(members_named(^^Widget, "write"));
 
   static_assert(read_candidates.size() == 1);
-  static_assert(std::meta::is_const(read_candidates[0]));
+  static_assert(is_const(read_candidates[0]));
 
   static_assert(write_candidates.size() == 2);
-  static_assert(!std::meta::is_const(write_candidates[0]));
-  static_assert(!std::meta::is_const(write_candidates[1]));
+  static_assert(!is_const(write_candidates[0]));
+  static_assert(!is_const(write_candidates[1]));
 }
 
 // A simplified signature-string builder: name plus each parameter type's
@@ -369,14 +364,13 @@ TEST(ReflectionHelpers, ClassifiesConstCorrectly) {
 // std::meta::display_string_of is the primitive for turning a type into a
 // readable string.
 consteval std::string simple_signature_string(std::meta::info member) {
-  std::string result(std::meta::identifier_of(member));
+  std::string result(identifier_of(member));
   result += "(";
   bool first = true;
-  for (std::meta::info parameter : std::meta::parameters_of(member)) {
+  for (std::meta::info parameter : parameters_of(member)) {
     if (!first) result += ",";
     first = false;
-    result += std::meta::display_string_of(
-        std::meta::dealias(std::meta::type_of(parameter)));
+    result += display_string_of(dealias(type_of(parameter)));
   }
   result += ")";
   return result;
@@ -440,28 +434,27 @@ namespace section_6 {
 // that actually differs: the consteval block calling define_aggregate.
 consteval std::vector<std::meta::info> count_ratio_specs() {
   std::vector<std::meta::info> specs;
-  specs.push_back(std::meta::data_member_spec(^^int, {
-                                                         .name = "count"}));
-  specs.push_back(std::meta::data_member_spec(^^double, {
-                                                            .name = "ratio"}));
+  specs.push_back(data_member_spec(^^int, {
+                                              .name = "count"}));
+  specs.push_back(data_member_spec(^^double, {
+                                                 .name = "ratio"}));
   return specs;
 }
 
 TEST(ReflectionSynthesize, SynthesizedMembersEnumerable) {
   struct Incomplete;
-  consteval { std::meta::define_aggregate(^^Incomplete, count_ratio_specs()); }
+  consteval { define_aggregate(^^Incomplete, count_ratio_specs()); }
 
   // The consteval block above already ran during translation, so by the
   // time this ordinary, runtime TEST body executes, Incomplete already has
   // its two members. Enumerating it works exactly like enumerating an
   // ordinary, hand-written type (section 4). define_aggregate produces an
   // ordinary type, usable the same way as a hand-written one.
-  constexpr auto members =
-      std::define_static_array(std::meta::nonstatic_data_members_of(
-          ^^Incomplete, std::meta::access_context::current()));
+  constexpr auto members = std::define_static_array(nonstatic_data_members_of(
+      ^^Incomplete, std::meta::access_context::current()));
   static_assert(members.size() == 2);
-  static_assert(std::meta::identifier_of(members[0]) == "count");
-  static_assert(std::meta::identifier_of(members[1]) == "ratio");
+  static_assert(identifier_of(members[0]) == "count");
+  static_assert(identifier_of(members[1]) == "ratio");
 }
 
 // Unlike the test above, this one constructs an instance of the synthesized
@@ -470,7 +463,7 @@ TEST(ReflectionSynthesize, SynthesizedMembersEnumerable) {
 // expression, confirming a synthesized type isn't only usable at runtime.
 TEST(ReflectionSynthesize, MembersFromSpecList) {
   struct Incomplete;
-  consteval { std::meta::define_aggregate(^^Incomplete, count_ratio_specs()); }
+  consteval { define_aggregate(^^Incomplete, count_ratio_specs()); }
   constexpr Incomplete instance{.count = 3, .ratio = 1.5};
   static_assert(instance.count == 3 && instance.ratio == 1.5);
 }
@@ -508,8 +501,8 @@ template <typename E>
   requires std::is_enum_v<E>
 std::string enum_to_string(E value) {
   template for (constexpr std::meta::info e :
-                std::define_static_array(std::meta::enumerators_of(^^E))) {
-    if (value == [:e:]) return std::string(std::meta::identifier_of(e));
+                std::define_static_array(enumerators_of(^^E))) {
+    if (value == [:e:]) return std::string(identifier_of(e));
   }
   return "<unnamed>";
 }
@@ -552,9 +545,8 @@ struct Boxed {
 };
 
 TEST(ReflectionSubstitute, InstantiatesTemplateFromInfos) {
-  constexpr std::meta::info boxed_int_info =
-      std::meta::substitute(^^Boxed, {
-                                         ^^int});
+  constexpr std::meta::info boxed_int_info = substitute(^^Boxed, {
+                                                                     ^^int});
 
   // The substitution names the same type as writing Boxed<int> directly.
   static_assert(std::is_same_v<typename[:boxed_int_info:], Boxed<int>>);
@@ -570,8 +562,8 @@ TEST(ReflectionSubstitute, SubstitutesANonTypeTemplateArgument) {
   // substitute's argument list isn't limited to type infos: reflect_constant
   // turns an ordinary value into an info for a non-type template argument.
   constexpr std::meta::info sized_five_info =
-      std::meta::substitute(^^Sized, {
-                                         std::meta::reflect_constant(5)});
+      substitute(^^Sized, {
+                              std::meta::reflect_constant(5)});
 
   static_assert(std::is_same_v<typename[:sized_five_info:], Sized<5>>);
 }
@@ -586,9 +578,8 @@ using fn_ptr_t = R (*)(Args...);
 consteval std::meta::info find_member(std::meta::info type,
                                       std::string_view name) {
   for (std::meta::info member :
-       std::meta::members_of(type, std::meta::access_context::current())) {
-    if (std::meta::has_identifier(member) &&
-        std::meta::identifier_of(member) == name) {
+       members_of(type, std::meta::access_context::current())) {
+    if (has_identifier(member) && identifier_of(member) == name) {
       return member;
     }
   }
@@ -600,10 +591,9 @@ consteval std::meta::info find_member(std::meta::info type,
 // build the matching function pointer type below.
 consteval std::vector<std::meta::info> fn_ptr_arguments(
     std::meta::info member) {
-  std::vector<std::meta::info> types{
-      std::meta::dealias(std::meta::return_type_of(member))};
-  for (std::meta::info parameter : std::meta::parameters_of(member)) {
-    types.push_back(std::meta::dealias(std::meta::type_of(parameter)));
+  std::vector<std::meta::info> types{dealias(return_type_of(member))};
+  for (std::meta::info parameter : parameters_of(member)) {
+    types.push_back(dealias(type_of(parameter)));
   }
   return types;
 }
@@ -612,8 +602,7 @@ TEST(ReflectionSubstitute, BuildsFunctionPointerTypeFromAMember) {
   constexpr std::meta::info compute_member = find_member(^^Widget, "compute");
   constexpr auto arguments =
       std::define_static_array(fn_ptr_arguments(compute_member));
-  constexpr std::meta::info fn_ptr_info =
-      std::meta::substitute(^^fn_ptr_t, arguments);
+  constexpr std::meta::info fn_ptr_info = substitute(^^fn_ptr_t, arguments);
 
   static_assert(std::is_same_v<typename[:fn_ptr_info:], int (*)(double)>);
 }
@@ -643,9 +632,8 @@ struct Row {
 consteval std::meta::info find_member(std::meta::info type,
                                       std::string_view name) {
   for (std::meta::info member :
-       std::meta::members_of(type, std::meta::access_context::current())) {
-    if (std::meta::has_identifier(member) &&
-        std::meta::identifier_of(member) == name) {
+       members_of(type, std::meta::access_context::current())) {
+    if (has_identifier(member) && identifier_of(member) == name) {
       return member;
     }
   }
@@ -654,9 +642,9 @@ consteval std::meta::info find_member(std::meta::info type,
 
 consteval size_t member_array_extent(std::meta::info type,
                                      std::string_view name) {
-  std::meta::info member_type = std::meta::type_of(find_member(type, name));
-  std::meta::info extent = std::meta::template_arguments_of(member_type)[1];
-  return std::meta::extract<size_t>(extent);
+  std::meta::info member_type = type_of(find_member(type, name));
+  std::meta::info extent = template_arguments_of(member_type)[1];
+  return extract<size_t>(extent);
 }
 
 TEST(ReflectionExtract, ReadsANonTypeTemplateArgument) {
