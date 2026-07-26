@@ -20,7 +20,7 @@ echo "--- Starting Interactive Docker Shell ---"
 echo "Project root ${WORKSPACE_ROOT} is mounted at /workspace"
 echo ""
 echo "To build and test with the C++26 reflection backend (GCC 16):"
-echo "  CXX=g++-16 CC=gcc-16 ./scripts/cmake.sh --release -B build-reflection"
+echo "  ./scripts/cmake.sh --release --reflection -B build-reflection"
 echo ""
 
 exec docker run -it --rm \
