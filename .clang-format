@@ -1,7 +1,5 @@
-# No `Language: Cpp` key: clang-format's language guesser classifies
-# protocol_reflection.h (C++26 `^^` reflection syntax) as Objective-C, and a
-# Cpp-only configuration makes it error out on that file. A single
-# language-agnostic document applies to every language clang-format detects.
+---
+Language:        Cpp
 # BasedOnStyle:  Google
 AccessModifierOffset: -1
 AlignAfterOpenBracket: Align
@@ -155,3 +153,4 @@ StatementMacros:
   - QT_REQUIRE_VERSION
 TabWidth:        8
 UseTab:          Never
+...
