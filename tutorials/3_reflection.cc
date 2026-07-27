@@ -436,10 +436,10 @@ namespace section_6 {
 
 consteval std::vector<std::meta::info> count_ratio_specs() {
   std::vector<std::meta::info> specs;
-  specs.push_back(data_member_spec(^^int, {
-                                              .name = "count"}));
-  specs.push_back(data_member_spec(^^double, {
-                                                 .name = "ratio"}));
+  // clang-format off
+  specs.push_back(data_member_spec(^^int, {.name = "count"}));
+  specs.push_back(data_member_spec(^^double, {.name = "ratio"}));
+  // clang-format on
   return specs;
 }
 
@@ -548,8 +548,9 @@ struct Boxed {
 };
 
 TEST(ReflectionSubstitute, InstantiatesTemplateFromInfos) {
-  constexpr std::meta::info boxed_int_info = substitute(^^Boxed, {
-                                                                     ^^int});
+  // clang-format off
+  constexpr std::meta::info boxed_int_info = substitute(^^Boxed, {^^int});
+  // clang-format on
 
   // The substitution names the same type as writing Boxed<int> directly.
   static_assert(std::is_same_v<typename[:boxed_int_info:], Boxed<int>>);
@@ -564,10 +565,10 @@ struct Sized {};
 TEST(ReflectionSubstitute, SubstitutesANonTypeTemplateArgument) {
   // substitute's argument list isn't limited to type infos: reflect_constant
   // turns an ordinary value into an info for a non-type template argument.
+  // clang-format off
   constexpr std::meta::info sized_five_info =
-      substitute(^^Sized, {
-                              std::meta::reflect_constant(5)});
-
+      substitute(^^Sized, {std::meta::reflect_constant(5)});
+  // clang-format on
   static_assert(std::is_same_v<typename[:sized_five_info:], Sized<5>>);
 }
 
