@@ -237,14 +237,12 @@ TEST(ReflectionSpliceCall, DataMemberAccess) {
 // ---------------------------------------------------------------------------
 // 4. Enumerating a type's members.
 //
-// std::meta::members_of and std::meta::nonstatic_data_members_of return
-// every member of a type as a std::vector<std::meta::info>, computed inside
-// a consteval function. That vector only exists during constant evaluation,
-// so std::define_static_array copies it into static storage as an ordinary
-// constexpr array, usable anywhere, not just inside the consteval function
-// that computed it. The enumeration function below (data_members_of) does
-// the walk; the constexpr variables below it (point_data_members,
-// widget_member_functions) are where that copy happens.
+// std::meta::members_of and std::meta::nonstatic_data_members_of enumerate a
+// type's members as a std::vector<std::meta::info>, but that vector exists
+// only during constant evaluation, so it can only be built inside a
+// consteval function. std::define_static_array copies the vector into
+// static storage as a constexpr array, extending its lifetime past the
+// return of that consteval function.
 // ---------------------------------------------------------------------------
 namespace section_4 {
 
@@ -422,7 +420,7 @@ TEST(ReflectionHelpers, SignatureDistinguishesOverloads) {
 // of where it appears, even directly inside an ordinary, non-constexpr
 // function body, as the first test below does.
 //
-// In C++26, define_aggregate, is the only avenue available for code generation.
+// In C++26, define_aggregate is the only avenue available for code generation.
 // ---------------------------------------------------------------------------
 namespace section_6 {
 
