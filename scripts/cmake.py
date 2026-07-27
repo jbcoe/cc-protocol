@@ -81,8 +81,7 @@ def main() -> None:
         f"-DENABLE_UBSAN={'ON' if args.ubsan else 'OFF'}",
         f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",
         f"-DENABLE_MSAN={'ON' if args.msan else 'OFF'}",
-        "-DXYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL="
-        + ("ON" if args.reflection else "OFF"),
+        "-DXYZ_PROTOCOL_USE_REFLECTION=" + ("ON" if args.reflection else "OFF"),
     ]
     if args.build_dir:
         configure_args.extend(["-B", args.build_dir])
@@ -92,7 +91,7 @@ def main() -> None:
     configure_args.extend(extra)
 
     # A P2996 reflection compiler is required to configure with
-    # XYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL=ON. CMake only reads CXX/CC
+    # XYZ_PROTOCOL_USE_REFLECTION=ON. CMake only reads CXX/CC
     # from the environment, not from -D cache variables, so set them here
     # rather than as configure_args.
     configure_env = os.environ.copy()

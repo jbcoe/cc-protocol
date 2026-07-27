@@ -30,12 +30,14 @@ option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
 option(ENABLE_MSAN "Enable Memory Sanitizer" OFF)
 
 option(
-  XYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL
-  "Also build and test tutorials/3_reflection.cc, which requires a compiler \
-with C++26 P2996 reflection support (GCC 16+ with -freflection)."
+  XYZ_PROTOCOL_USE_REFLECTION
+  "Build and test the C++26-reflection backend for xyz::protocol/ \
+xyz::protocol_view (protocol_reflection.h) and its teaching tutorial \
+(tutorials/3_reflection.cc), which require a compiler with C++26 P2996 \
+reflection support (GCC 16+ with -freflection)."
   OFF)
 
-if(XYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL)
+if(XYZ_PROTOCOL_USE_REFLECTION)
   include(CheckCXXSourceCompiles)
   set(CMAKE_REQUIRED_FLAGS "-std=c++26 -freflection")
   check_cxx_source_compiles(
@@ -49,7 +51,7 @@ if(XYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL)
   if(NOT XYZ_PROTOCOL_REFLECTION_SUPPORTED)
     message(
       FATAL_ERROR
-        "XYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL is ON but the compiler "
+        "XYZ_PROTOCOL_USE_REFLECTION is ON but the compiler "
         "(${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}) does not "
         "accept '-std=c++26 -freflection'. C++26 reflection currently "
         "requires GCC 16 or newer; configure with e.g. "
@@ -190,7 +192,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       FILES
       tutorials/2_vanishing_this_pointer.cc)
 
-    if(XYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL)
+    if(XYZ_PROTOCOL_USE_REFLECTION)
       xyz_add_test(
         NAME
         reflection_tutorial
