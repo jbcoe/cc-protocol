@@ -155,7 +155,7 @@ To launch an interactive bash shell in the pre-configured Docker container (whic
 Inside the shell, GCC 16 is what lets you build and run the `tutorials/3_reflection.cc` tutorial, which needs C++26 reflection support:
 
 ```bash
-CXX=g++-16 CC=gcc-16 ./scripts/cmake.sh --release -DXYZ_PROTOCOL_BUILD_REFLECTION_TUTORIAL=ON -B build-reflection
+./scripts/cmake.sh --release --reflection -B build-reflection
 ```
 
 ## AI Coding Sandboxes
