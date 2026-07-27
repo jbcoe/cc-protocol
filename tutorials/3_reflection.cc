@@ -461,10 +461,11 @@ TEST(ReflectionSynthesize, SynthesizedMembersEnumerable) {
   static_assert(identifier_of(members[1]) == "ratio");
 }
 
-// Unlike the test above, this one constructs an instance of the synthesized
-// type and reads its members back, not just enumerates them. constexpr on
-// instance forces that construction and read to happen in a constant
-// expression, confirming a synthesized type isn't only usable at runtime.
+// This test goes further than the one above: it constructs an instance and
+// reads its members back, not just enumerates them. Declaring that instance
+// constexpr forces its construction to happen in a constant expression,
+// showing the synthesized type supports compile-time use like an ordinary
+// type.
 TEST(ReflectionSynthesize, MembersFromSpecList) {
   struct Incomplete;
   consteval { define_aggregate(^^Incomplete, count_ratio_specs()); }
