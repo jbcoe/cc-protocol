@@ -24,7 +24,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //   2. Splicing an info back into a type.
 //   3. Splicing an info as a call target.
 //   4. Enumerating a type's members.
-//   5. Writing your own consteval helpers about a member.
+//   5. Building a signature string from a member's parameters.
 //   6. Synthesizing a type's data members with define_aggregate.
 //   7. Converting an enum value to its name with template for.
 //   8. Instantiating a template from infos with substitute.
@@ -201,16 +201,19 @@ struct Greeter {
 // every member regardless of access, such as a serializer.
 consteval std::meta::info find_member(std::meta::info type,
                                       std::string_view name) {
-  for (std::meta::info member :
-       members_of(type, std::meta::access_context::current())) {
-    if (has_identifier(member) && identifier_of(member) == name) {
-      return member;
-    }
+  auto const members = members_of(type, std::meta::access_context::current());
+  auto const is_member = [&](std::meta::info member) {
+    return has_identifier(member) && identifier_of(member) == name;
+  };
+
+  if (auto const member = std::ranges::find_if(members, is_member);
+      member != members.end()) {
+    return *member;
   }
   // A default-constructed std::meta::info is a valid, comparable sentinel value
   // that specifically means "nothing here," rather than describing any real
   // type, function, variable, or namespace.
-  return std::meta::info{};
+  return {};
 }
 
 TEST(ReflectionSpliceCall, MemberFunctionAsTarget) {
@@ -258,7 +261,7 @@ consteval std::vector<std::meta::info> data_members_of(std::meta::info type) {
 
 // define_static_array is what makes the enumerated members usable as a
 // constexpr array outside the consteval function that found them.
-constexpr auto point_data_members =
+constexpr std::ranges::range auto point_data_members =
     std::define_static_array(data_members_of(^^Point));
 
 TEST(ReflectionEnumerate, MembersInDeclarationOrder) {
@@ -289,7 +292,7 @@ consteval std::vector<std::meta::info> member_functions_of(
          std::ranges::to<std::vector<std::meta::info>>();
 }
 
-constexpr auto widget_member_functions =
+constexpr std::ranges::range auto widget_member_functions =
     std::define_static_array(member_functions_of(^^Widget));
 
 TEST(ReflectionEnumerate, FilteredToFunctionsOnly) {
@@ -298,35 +301,39 @@ TEST(ReflectionEnumerate, FilteredToFunctionsOnly) {
   static_assert(widget_member_functions.size() == 2);
   static_assert(identifier_of(widget_member_functions[0]) == "value");
   static_assert(identifier_of(widget_member_functions[1]) == "set_value");
+
+  // std::meta::is_const reads a member function's own constness the same
+  // way identifier_of reads its name.
+  static_assert(is_const(widget_member_functions[0]));
+  static_assert(!is_const(widget_member_functions[1]));
 }
 
 }  // namespace section_4
 
 // ---------------------------------------------------------------------------
-// 5. Writing your own consteval helpers about a member.
+// 5. Building a signature string from a member's parameters.
 //
-// The standard library's reflection queries (std::meta::is_const,
-// std::meta::parameters_of, std::meta::return_type_of, ...) are small,
-// single-fact primitives. Answering richer questions means building
-// consteval helpers on top of them. This section writes
-// two such helpers: one classifying constness, and one building a
-// signature string that distinguishes a member from other overloads of the
-// same name.
+// Two members can share a name and still be different functions,
+// distinguished only by their parameter types. std::meta::parameters_of
+// enumerates those parameter types, and std::meta::display_string_of
+// renders each one as a string. Combined with the member's own name, that's
+// enough to build a string distinguishing every overload of that name,
+// useful wherever generated code needs a unique identifier per overload.
 // ---------------------------------------------------------------------------
 namespace section_5 {
 
 struct Widget {
-  int read() const { return 1; }
-
   void write(int) {}
 
   void write(double) {}
+
+  void write(int, double) {}
 };
 
-// Unlike section 4's member_functions_of, this doesn't also filter out
-// special member functions. The name check below already excludes them,
-// since none of Widget's constructors, destructor, or assignment operators
-// is named "read" or "write".
+// The same filter pattern as section 4's member_functions_of, matching by
+// name instead of by kind. There's no need to also exclude special member
+// functions here: none of Widget's constructors, destructor, or assignment
+// operators is named "write", so the name check alone is enough.
 consteval std::vector<std::meta::info> members_named(std::meta::info type,
                                                      std::string_view name) {
   std::vector<std::meta::info> result;
@@ -340,20 +347,6 @@ consteval std::vector<std::meta::info> members_named(std::meta::info type,
   return result;
 }
 
-TEST(ReflectionHelpers, ClassifiesConstCorrectly) {
-  constexpr auto read_candidates =
-      std::define_static_array(members_named(^^Widget, "read"));
-  constexpr auto write_candidates =
-      std::define_static_array(members_named(^^Widget, "write"));
-
-  static_assert(read_candidates.size() == 1);
-  static_assert(is_const(read_candidates[0]));
-
-  static_assert(write_candidates.size() == 2);
-  static_assert(!is_const(write_candidates[0]));
-  static_assert(!is_const(write_candidates[1]));
-}
-
 // A simplified signature-string builder: name plus each parameter type's
 // display string, joined together, turning a member's signature into a
 // distinguishable string. A real version would go on to escape that string
@@ -363,41 +356,51 @@ TEST(ReflectionHelpers, ClassifiesConstCorrectly) {
 // A parameter's type isn't a named declaration, so std::meta::identifier_of
 // (which reads a declaration's own name) doesn't apply to it.
 // std::meta::display_string_of is the primitive for turning a type into a
-// readable string. The output of std::meta::display_string_of is
-// implementation-defined and should not be used outside of debug output.
+// readable string.
+//
+// The output of `std::meta::display_string_of` is implementation-defined and
+// should not be used outside of debug output.
 consteval std::string simple_signature_string(std::meta::info member) {
   std::string result(identifier_of(member));
   result += "(";
-  bool first = true;
+  // Join parameter types with commas; no comma before the first parameter.
+  bool is_first_parameter = true;
   for (std::meta::info parameter : parameters_of(member)) {
-    if (!first) result += ",";
-    first = false;
+    if (!is_first_parameter) result += ",";
+    is_first_parameter = false;
     result += display_string_of(dealias(type_of(parameter)));
   }
   result += ")";
   return result;
 }
 
-TEST(ReflectionHelpers, SignatureDistinguishesOverloads) {
-  constexpr auto write_candidates =
+TEST(ReflectionHelpers, BuildSignatureString) {
+  constexpr std::ranges::range auto write_candidates =
       std::define_static_array(members_named(^^Widget, "write"));
+  static_assert(write_candidates.size() == 3);
 
   // define_static_array returns a span sized to exactly the string's own
   // length, with no guarantee of a trailing null byte, so wrap it in a
   // string_view (which carries its own length) rather than treating .data()
   // as a C-string, so comparisons never read past the span's actual bounds.
-  constexpr auto int_overload_signature =
+  constexpr std::ranges::range auto int_overload_signature =
       std::define_static_array(simple_signature_string(write_candidates[0]));
-  constexpr auto double_overload_signature =
+  constexpr std::ranges::range auto double_overload_signature =
       std::define_static_array(simple_signature_string(write_candidates[1]));
+  // write(int, double) is the only overload with more than one parameter,
+  // so this is the only signature that exercises the comma join above.
+  constexpr std::ranges::range auto int_double_overload_signature =
+      std::define_static_array(simple_signature_string(write_candidates[2]));
   std::string_view int_signature(int_overload_signature.data(),
                                  int_overload_signature.size());
   std::string_view double_signature(double_overload_signature.data(),
                                     double_overload_signature.size());
+  std::string_view int_double_signature(int_double_overload_signature.data(),
+                                        int_double_overload_signature.size());
 
   EXPECT_EQ(int_signature, "write(int)");
   EXPECT_EQ(double_signature, "write(double)");
-  EXPECT_NE(int_signature, double_signature);
+  EXPECT_EQ(int_double_signature, "write(int,double)");
 }
 
 }  // namespace section_5
@@ -424,8 +427,7 @@ TEST(ReflectionHelpers, SignatureDistinguishesOverloads) {
 // ---------------------------------------------------------------------------
 namespace section_6 {
 
-// Adapted from
-// https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2996r13.html
+// The struct std::meta::data_member_options used below is defined as
 //
 // struct data_member_options {
 //     optional<name_type> name; // name_type is a string
@@ -437,8 +439,8 @@ namespace section_6 {
 consteval std::vector<std::meta::info> count_ratio_specs() {
   std::vector<std::meta::info> specs;
   // clang-format off
-  specs.push_back(data_member_spec(^^int, {.name = "count"}));
-  specs.push_back(data_member_spec(^^double, {.name = "ratio"}));
+  specs.push_back(data_member_spec(^^int, std::meta::data_member_options{.name = "count"}));
+  specs.push_back(data_member_spec(^^double, std::meta::data_member_options{.name = "ratio"}));
   // clang-format on
   return specs;
 }
@@ -452,8 +454,9 @@ TEST(ReflectionSynthesize, SynthesizedMembersEnumerable) {
   // its two members. Enumerating it works exactly like enumerating an
   // ordinary, hand-written type (section 4). define_aggregate produces an
   // ordinary type, usable the same way as a hand-written one.
-  constexpr auto members = std::define_static_array(nonstatic_data_members_of(
-      ^^Incomplete, std::meta::access_context::current()));
+  constexpr std::ranges::range auto members =
+      std::define_static_array(nonstatic_data_members_of(
+          ^^Incomplete, std::meta::access_context::current()));
   static_assert(members.size() == 2);
   static_assert(identifier_of(members[0]) == "count");
   static_assert(identifier_of(members[1]) == "ratio");
@@ -604,7 +607,7 @@ consteval std::vector<std::meta::info> fn_ptr_arguments(
 
 TEST(ReflectionSubstitute, BuildsFunctionPointerTypeFromAMember) {
   constexpr std::meta::info compute_member = find_member(^^Widget, "compute");
-  constexpr auto arguments =
+  constexpr std::ranges::range auto arguments =
       std::define_static_array(fn_ptr_arguments(compute_member));
   constexpr std::meta::info fn_ptr_info = substitute(^^fn_ptr_t, arguments);
 
