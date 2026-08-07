@@ -98,6 +98,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
     enable_testing()
 
+    add_subdirectory(reflection)
+
     xyz_generate_protocol(
       CLASS_NAME A INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
       HEADER interface_A.h
