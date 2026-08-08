@@ -10,7 +10,7 @@ using xyz::reflection::protocol_view;
 
 namespace {
 
-TEST(RProtocolViewTest, CheckSpecialMembers) {
+TEST(ReflectionProtocolViewTest, CheckSpecialMembers) {
   // protocol_view is not default-constructible but can be copied, moved,
   // assigned, move assigned and deleted.
   struct A {};
