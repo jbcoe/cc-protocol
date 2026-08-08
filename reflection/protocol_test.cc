@@ -94,6 +94,7 @@ TEST(ReflectionProtocolTest,
 
 TEST(ConformsToTest, EmptyInterfaceIsAlwaysSatisfied) {
   struct EmptyInterface {};
+
   struct Concrete {};
 
   static_assert(conforms_to<EmptyInterface, Concrete>());
@@ -104,8 +105,10 @@ TEST(ConformsToTest, ConcreteTypeConformsWhenAllMethodsMatch) {
     std::string_view name() const noexcept;
     int count();
   };
+
   struct Concrete {
     std::string_view name() const noexcept { return "test"; }
+
     int count() { return 42; }
   };
 
@@ -116,9 +119,12 @@ TEST(ConformsToTest, ConcreteTypeConformsWithExtraMethodsPresent) {
   struct Interface {
     void process();
   };
+
   struct ConcreteWithExtra {
     void process() {}
+
     void extra_method() {}
+
     int another() const { return 0; }
   };
 
@@ -130,6 +136,7 @@ TEST(ConformsToTest, ConcreteTypeMissingMethodDoesNotConform) {
     void foo();
     void bar();
   };
+
   struct MissingBar {
     void foo() {}
   };
@@ -141,6 +148,7 @@ TEST(ConformsToTest, WrongConstnessDoesNotConform) {
   struct Interface {
     int value() const;
   };
+
   struct NonConst {
     int value();  // not const — does not match the interface
   };
@@ -152,6 +160,7 @@ TEST(ConformsToTest, ConstMethodNotSatisfiedByNonConstDoesNotConform) {
   struct Interface {
     void process() const;
   };
+
   struct NonConstProcess {
     void process() {}  // missing const qualifier
   };
@@ -163,6 +172,7 @@ TEST(ConformsToTest, WrongReturnTypeDoesNotConform) {
   struct Interface {
     int compute();
   };
+
   struct WrongReturn {
     double compute() { return 0.0; }
   };
@@ -174,6 +184,7 @@ TEST(ConformsToTest, WrongParameterTypeDoesNotConform) {
   struct Interface {
     void process(int value);
   };
+
   struct WrongParam {
     void process(double value) {}
   };
@@ -185,6 +196,7 @@ TEST(ConformsToTest, WrongParameterCountDoesNotConform) {
   struct Interface {
     void process(int a, int b);
   };
+
   struct WrongArity {
     void process(int a) {}
   };
@@ -196,6 +208,7 @@ TEST(ConformsToTest, MultipleParametersMatchCorrectly) {
   struct Interface {
     void write(int length, double value);
   };
+
   struct Concrete {
     void write(int length, double value) {}
   };
@@ -208,8 +221,10 @@ TEST(ConformsToTest, ConcreteTypeConformsForTypicalInterfaceA) {
     std::string_view name() const noexcept;
     int count();
   };
+
   struct ConcreteA {
     std::string_view name() const noexcept { return "concrete"; }
+
     int count() { return 1; }
   };
 
@@ -222,9 +237,12 @@ TEST(ConformsToTest, ConcreteTypeConformsForTypicalInterfaceB) {
     std::vector<int> get_results() const;
     bool is_ready() const;
   };
+
   struct ConcreteB {
     void process(const std::string& input) {}
+
     std::vector<int> get_results() const { return {}; }
+
     bool is_ready() const { return true; }
   };
 

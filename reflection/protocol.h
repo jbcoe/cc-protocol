@@ -77,6 +77,10 @@ consteval bool conforms_to() {
   return true;
 }
 
+// Variable template for use in requires clauses.
+template <typename Interface, typename Concrete>
+inline constexpr bool conforms_to_v = conforms_to<Interface, Concrete>();
+
 template <typename T, typename Allocator = std::allocator<std::byte>>
 class protocol {
  public:
@@ -99,7 +103,7 @@ class protocol {
 
   // Construct from any Concrete type that conforms to the Interface T.
   template <typename Concrete>
-    requires conforms_to<T, std::remove_cvref_t<Concrete>>()
+    requires conforms_to_v<T, std::remove_cvref_t<Concrete>>
   explicit protocol(Concrete&& value);
 };
 
@@ -116,7 +120,7 @@ class protocol_view {
 
   // Construct from any Concrete type that conforms to the Interface T.
   template <typename Concrete>
-    requires conforms_to<T, std::remove_cvref_t<Concrete>>()
+    requires conforms_to_v<T, std::remove_cvref_t<Concrete>>
   explicit protocol_view(const Concrete& object);
 };
 
