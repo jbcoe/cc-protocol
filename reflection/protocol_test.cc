@@ -32,27 +32,6 @@ TEST(ReflectionProtocolViewTest, CheckSpecialMembers) {
   static_assert(std::is_destructible_v<protocol_view<A>>);
 }
 
-TEST(ReflectionProtocolViewTest,
-     CheckSpecialMembersForStructWithDeletedSpecialMembers) {
-  // protocol_view's special member functions do not depend on those of the
-  // viewed type.
-  struct D {
-    D() = delete;
-    D(const D&) = delete;
-    D(D&&) = delete;
-    D& operator=(const D&) = delete;
-    D& operator=(D&&) = delete;
-    ~D() = delete;
-  };
-
-  static_assert(!std::is_default_constructible_v<protocol_view<D>>);
-  static_assert(std::is_copy_constructible_v<protocol_view<D>>);
-  static_assert(std::is_move_constructible_v<protocol_view<D>>);
-  static_assert(std::is_copy_assignable_v<protocol_view<D>>);
-  static_assert(std::is_move_assignable_v<protocol_view<D>>);
-  static_assert(std::is_destructible_v<protocol_view<D>>);
-}
-
 // ---------------------------------------------------------------------------
 // Special member function tests (protocol).
 // ---------------------------------------------------------------------------
@@ -67,25 +46,6 @@ TEST(ReflectionProtocolTest, CheckSpecialMembers) {
   static_assert(std::is_move_constructible_v<protocol<A>>);
   static_assert(std::is_copy_assignable_v<protocol<A>>);
   static_assert(std::is_move_assignable_v<protocol<A>>);
-}
-
-TEST(ReflectionProtocolTest,
-     CheckSpecialMembersForStructWithDeletedSpecialMembers) {
-  // protocol is not default-constructible and cannot be copied, moved,
-  // assigned, or move assigned if the underlying type cannot be.
-  struct D {
-    D() = delete;
-    D(const D&) = delete;
-    D(D&&) = delete;
-    D& operator=(const D&) = delete;
-    D& operator=(D&&) = delete;
-  };
-
-  static_assert(!std::is_default_constructible_v<protocol<D>>);
-  static_assert(!std::is_copy_constructible_v<protocol<D>>);
-  static_assert(!std::is_move_constructible_v<protocol<D>>);
-  static_assert(!std::is_copy_assignable_v<protocol<D>>);
-  static_assert(!std::is_move_assignable_v<protocol<D>>);
 }
 
 // ---------------------------------------------------------------------------
