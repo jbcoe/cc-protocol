@@ -89,6 +89,41 @@ TEST(ReflectionProtocolTest,
 }
 
 // ---------------------------------------------------------------------------
+// Constructability tests.
+// ---------------------------------------------------------------------------
+
+TEST(ReflectionProtocolTest, IsConstructibleFromConformingType) {
+  struct Interface {
+    std::string_view name() const noexcept;
+  };
+
+  struct Conforming {
+    std::string_view name() const noexcept { return "conforming"; }
+  };
+
+  struct NonConforming {};
+
+  static_assert(std::is_constructible_v<protocol<Interface>, Conforming>);
+  static_assert(!std::is_constructible_v<protocol<Interface>, NonConforming>);
+}
+
+TEST(ReflectionProtocolViewTest, IsConstructibleFromConformingType) {
+  struct Interface {
+    std::string_view name() const noexcept;
+  };
+
+  struct Conforming {
+    std::string_view name() const noexcept { return "conforming"; }
+  };
+
+  struct NonConforming {};
+
+  static_assert(std::is_constructible_v<protocol_view<Interface>, Conforming>);
+  static_assert(
+      !std::is_constructible_v<protocol_view<Interface>, NonConforming>);
+}
+
+// ---------------------------------------------------------------------------
 // Conformance check tests.
 // ---------------------------------------------------------------------------
 

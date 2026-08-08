@@ -101,10 +101,10 @@ class protocol {
 
   ~protocol();  // Unconstrained.
 
-  // Construct from any Concrete type that conforms to the Interface T.
-  template <typename Concrete>
-    requires conforms_to_v<T, std::remove_cvref_t<Concrete>>
-  explicit protocol(Concrete&& value);
+  // Construct from any type U that conforms to the Interface T.
+  template <typename U>
+    requires conforms_to_v<T, std::remove_cvref_t<U>>
+  explicit protocol(U&& value);
 };
 
 template <typename T>
@@ -118,10 +118,10 @@ class protocol_view {
   protocol_view& operator=(protocol_view&&) = default;
   ~protocol_view() = default;
 
-  // Construct from any Concrete type that conforms to the Interface T.
-  template <typename Concrete>
-    requires conforms_to_v<T, std::remove_cvref_t<Concrete>>
-  explicit protocol_view(const Concrete& object);
+  // Construct from any type U that conforms to the Interface T.
+  template <typename U>
+    requires conforms_to_v<T, std::remove_cvref_t<U>>
+  explicit protocol_view(const U& object);
 };
 
 }  // namespace xyz::reflection
