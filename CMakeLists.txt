@@ -29,6 +29,35 @@ option(ENABLE_UBSAN "Enable Undefined Behaviour Sanitizer" OFF)
 option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
 option(ENABLE_MSAN "Enable Memory Sanitizer" OFF)
 
+option(
+  XYZ_PROTOCOL_BUILD_REFLECTION_IMPLEMENTATION
+  "Also build and test the C++26-reflection-based implementation of protocol, \
+which requires a compiler with C++26 P2996 reflection support \
+(GCC 16+ with -freflection)."
+  OFF)
+
+if(XYZ_PROTOCOL_BUILD_REFLECTION_IMPLEMENTATION)
+  include(CheckCXXSourceCompiles)
+  set(CMAKE_REQUIRED_FLAGS "-std=c++26 -freflection")
+  check_cxx_source_compiles(
+    "
+    #include <meta>
+    constexpr std::meta::info reflection_of_int = ^^int;
+    int main() {}
+    "
+    XYZ_PROTOCOL_REFLECTION_SUPPORTED)
+  unset(CMAKE_REQUIRED_FLAGS)
+  if(NOT XYZ_PROTOCOL_REFLECTION_SUPPORTED)
+    message(
+      FATAL_ERROR
+        "XYZ_PROTOCOL_BUILD_REFLECTION_IMPLEMENTATION is ON but the compiler "
+        "(${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}) does not "
+        "accept '-std=c++26 -freflection'. C++26 reflection currently "
+        "requires GCC 16 or newer; configure with e.g. "
+        "CXX=g++-16 CC=gcc-16 and a separate build directory (-B).")
+  endif()
+endif()
+
 if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN OR ENABLE_MSAN)
   set(ENABLE_SANITIZERS ON)
 endif()
@@ -97,6 +126,10 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
     FetchContent_MakeAvailable(googletest google_benchmark)
 
     enable_testing()
+
+    if(XYZ_PROTOCOL_BUILD_REFLECTION_IMPLEMENTATION)
+      add_subdirectory(reflection)
+    endif()
 
     xyz_generate_protocol(
       CLASS_NAME A INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
