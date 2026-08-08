@@ -64,7 +64,7 @@ template <typename T>
 struct is_protocol_view<protocol_view<T>> : std::true_type {};
 
 template <typename T>
-concept is_neither_protocol_nor_protocol_view =
+concept not_protocol_or_view =
     !is_protocol<std::remove_cvref_t<T>>::value &&
     !is_protocol_view<std::remove_cvref_t<T>>::value;
 
@@ -263,6 +263,7 @@ consteval bool conforms_to() {
        members_of(^^Interface, std::meta::access_context::unprivileged())) {
     if (!is_function(interface_member)) continue;
     if (!has_identifier(interface_member)) continue;
+    if (is_special_member_function(interface_member)) continue;
     bool found = false;
     for (std::meta::info concrete_member :
          members_of(^^Concrete, std::meta::access_context::unprivileged())) {
@@ -340,7 +341,7 @@ class protocol : public protocol_member_stubs<T> {
   // Construct from any type U that conforms to the Interface T.
   template <typename U>
     requires conforms_to_v<T, std::remove_cvref_t<U>> &&
-             is_neither_protocol_nor_protocol_view<U>
+             not_protocol_or_view<U>
   explicit protocol(U&& value);
 };
 
@@ -368,7 +369,7 @@ class protocol_view : public protocol_view_member_stubs<T> {
   // Construct from any type U that conforms to the Interface T.
   template <typename U>
     requires conforms_to_v<T, std::remove_cvref_t<U>> &&
-             is_neither_protocol_nor_protocol_view<U>
+             not_protocol_or_view<U>
   explicit protocol_view(const U& object);
 };
 
