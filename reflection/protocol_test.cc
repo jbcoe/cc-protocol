@@ -13,6 +13,7 @@ namespace {
 TEST(ReflectionProtocolViewTest, CheckSpecialMembers) {
   // protocol_view is not default-constructible but can be copied, moved,
   // assigned, move assigned and destroyed.
+  struct A {};
 
   static_assert(!std::is_default_constructible_v<protocol_view<A>>);
   static_assert(std::is_copy_constructible_v<protocol_view<A>>);
