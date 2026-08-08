@@ -71,11 +71,11 @@ template <typename Interface, typename Concrete>
 consteval bool conforms_to() {
   for (std::meta::info interface_member :
        members_of(^^Interface, std::meta::access_context::unprivileged())) {
-    if (!is_member_function(interface_member)) continue;
+    if (!is_function(interface_member)) continue;
     bool found = false;
     for (std::meta::info concrete_member :
          members_of(^^Concrete, std::meta::access_context::unprivileged())) {
-      if (!is_member_function(concrete_member)) continue;
+      if (!is_function(concrete_member)) continue;
       if (detail::member_function_signatures_match(interface_member,
                                                    concrete_member)) {
         found = true;
