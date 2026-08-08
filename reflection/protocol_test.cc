@@ -284,4 +284,94 @@ TEST(ConformsToTest, ConcreteTypeConformsForTypicalInterfaceB) {
   static_assert(conforms_to<InterfaceB, ConcreteB>());
 }
 
+TEST(ConformsToTest, NoexceptInterfaceRequiresNoexceptConcrete) {
+  struct Interface {
+    void f() noexcept;
+  };
+
+  struct Conforming {
+    void f() noexcept {}
+  };
+
+  struct NonNoexcept {
+    void f() {}
+  };
+
+  static_assert(conforms_to<Interface, Conforming>());
+  static_assert(!conforms_to<Interface, NonNoexcept>());
+}
+
+TEST(ConformsToTest, NonNoexceptInterfaceAcceptsNoexceptConcrete) {
+  struct Interface {
+    void f();
+  };
+
+  struct NoexceptConcrete {
+    void f() noexcept {}
+  };
+
+  static_assert(conforms_to<Interface, NoexceptConcrete>());
+}
+
+TEST(ConformsToTest, LvalueRefQualifierMustMatch) {
+  struct Interface {
+    void f() &;
+  };
+
+  struct Conforming {
+    void f() & {}
+  };
+
+  struct UnqualifiedConcrete {
+    void f() {}
+  };
+
+  struct RvalueRefConcrete {
+    void f() && {}
+  };
+
+  static_assert(conforms_to<Interface, Conforming>());
+  static_assert(!conforms_to<Interface, UnqualifiedConcrete>());
+  static_assert(!conforms_to<Interface, RvalueRefConcrete>());
+}
+
+TEST(ConformsToTest, RvalueRefQualifierMustMatch) {
+  struct Interface {
+    void f() &&;
+  };
+
+  struct Conforming {
+    void f() && {}
+  };
+
+  struct UnqualifiedConcrete {
+    void f() {}
+  };
+
+  struct LvalueRefConcrete {
+    void f() & {}
+  };
+
+  static_assert(conforms_to<Interface, Conforming>());
+  static_assert(!conforms_to<Interface, UnqualifiedConcrete>());
+  static_assert(!conforms_to<Interface, LvalueRefConcrete>());
+}
+
+TEST(ConformsToTest, UnqualifiedInterfaceDoesNotMatchRefQualifiedConcrete) {
+  struct Interface {
+    void f();
+  };
+
+  struct LvalueRefConcrete {
+    void f() & {}
+  };
+
+  struct RvalueRefConcrete {
+    void f() && {}
+  };
+
+  static_assert(!conforms_to<Interface, LvalueRefConcrete>());
+  static_assert(!conforms_to<Interface, RvalueRefConcrete>());
+}
+
 }  // namespace

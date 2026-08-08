@@ -33,13 +33,23 @@ namespace xyz::reflection {
 
 namespace detail {
 
-// Returns true if both member functions share the same name, return type,
-// parameter types, and constness.
+// Returns true if the concrete member function (rhs) satisfies the interface
+// member function (lhs) with respect to: name, return type, parameter types,
+// constness, ref-qualifier, and noexcept. For noexcept, the rule is:
+// - If the interface requires noexcept, the concrete must also be noexcept.
+// - If the interface does not require noexcept, the concrete may be either
+//   (a noexcept concrete is still conformant with a non-noexcept interface).
+// Ref-qualifiers (none, &, &&) must match exactly.
 consteval bool member_function_signatures_match(std::meta::info lhs,
                                                 std::meta::info rhs) {
   if (!has_identifier(lhs) || !has_identifier(rhs)) return false;
   if (identifier_of(lhs) != identifier_of(rhs)) return false;
   if (is_const(lhs) != is_const(rhs)) return false;
+  if (is_lvalue_reference_qualified(lhs) != is_lvalue_reference_qualified(rhs))
+    return false;
+  if (is_rvalue_reference_qualified(lhs) != is_rvalue_reference_qualified(rhs))
+    return false;
+  if (is_noexcept(lhs) && !is_noexcept(rhs)) return false;
   if (dealias(return_type_of(lhs)) != dealias(return_type_of(rhs)))
     return false;
   std::vector<std::meta::info> lhs_params = parameters_of(lhs);
@@ -56,7 +66,7 @@ consteval bool member_function_signatures_match(std::meta::info lhs,
 
 // Returns true at compile time if every public member function declared in
 // Interface is present in Concrete with a matching signature (name, return
-// type, parameter types, and constness).
+// type, parameter types, constness, ref-qualifier, and noexcept).
 template <typename Interface, typename Concrete>
 consteval bool conforms_to() {
   for (std::meta::info interface_member :
