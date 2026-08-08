@@ -62,3 +62,4 @@ class protocol_view {
 };
 
 }  // namespace xyz::reflection
+#endif  // XYZ_REFLECTION_PROTOCOL_H_
