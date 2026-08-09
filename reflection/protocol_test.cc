@@ -44,11 +44,11 @@ TEST(RProtocolViewTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
 }
 
 TEST(RProtocolTest, CheckSpecialMembers) {
-  // protocol is not default-constructible but can be copied, moved,
-  // assigned and move assigned if the underlying type can be.
+  // protocol is default-constructible when the interface and allocator are,
+  // and can be copied, moved, assigned, and move assigned.
   struct A {};
 
-  static_assert(!std::is_default_constructible_v<protocol<A>>);
+  static_assert(std::is_default_constructible_v<protocol<A>>);
   static_assert(std::is_copy_constructible_v<protocol<A>>);
   static_assert(std::is_move_constructible_v<protocol<A>>);
   static_assert(std::is_copy_assignable_v<protocol<A>>);
@@ -56,8 +56,8 @@ TEST(RProtocolTest, CheckSpecialMembers) {
 }
 
 TEST(RProtocolTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
-  // protocol is not default-constructible and cannot be copied, moved,
-  // assigned, move assigned and deleted if the underlying type cannot be.
+  // protocol's default constructor depends on the interface, but its copy and
+  // move support does not.
   struct D {
     D() = delete;
     D(const D&) = delete;
@@ -67,9 +67,29 @@ TEST(RProtocolTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
   };
 
   static_assert(!std::is_default_constructible_v<protocol<D>>);
-  static_assert(!std::is_copy_constructible_v<protocol<D>>);
-  static_assert(!std::is_move_constructible_v<protocol<D>>);
-  static_assert(!std::is_copy_assignable_v<protocol<D>>);
-  static_assert(!std::is_move_assignable_v<protocol<D>>);
+  static_assert(std::is_copy_constructible_v<protocol<D>>);
+  static_assert(std::is_move_constructible_v<protocol<D>>);
+  static_assert(std::is_copy_assignable_v<protocol<D>>);
+  static_assert(std::is_move_assignable_v<protocol<D>>);
+}
+
+TEST(RProtocolTest, CheckDefaultConstructionRequiresCopyableInterface) {
+  struct A {
+    A() = default;
+    A(const A&) = delete;
+  };
+
+  static_assert(!std::is_default_constructible_v<protocol<A>>);
+}
+
+TEST(RProtocolTest, CheckDefaultConstructionRequiresDefaultAllocator) {
+  struct A {};
+
+  struct NonDefaultAllocator {
+    NonDefaultAllocator() = delete;
+  };
+
+  static_assert(
+      !std::is_default_constructible_v<protocol<A, NonDefaultAllocator>>);
 }
 }  // namespace

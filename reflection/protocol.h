@@ -32,19 +32,18 @@ template <typename T, typename Allocator = std::allocator<std::byte>>
 class protocol {
  public:
   // Special member functions.
-  protocol() = delete;
+  protocol()
+    requires std::is_default_constructible_v<Allocator> &&
+             std::is_default_constructible_v<T> &&
+             std::is_copy_constructible_v<T>;
 
-  protocol(const protocol&)
-    requires std::is_copy_constructible_v<T>;
+  protocol(const protocol&);
 
-  protocol(protocol&&)
-    requires std::is_move_constructible_v<T>;
+  protocol(protocol&&);
 
-  protocol& operator=(const protocol&)
-    requires std::is_copy_assignable_v<T>;
+  protocol& operator=(const protocol&);
 
-  protocol& operator=(protocol&&)
-    requires std::is_move_assignable_v<T>;
+  protocol& operator=(protocol&&);
 
   ~protocol();  // Unconstrained.
 };
