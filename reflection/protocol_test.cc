@@ -68,19 +68,10 @@ TEST(RProtocolTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
   };
 
   static_assert(!std::is_default_constructible_v<protocol<D>>);
-  static_assert(std::is_copy_constructible_v<protocol<D>>);
+  static_assert(!std::is_copy_constructible_v<protocol<D>>);
   static_assert(std::is_move_constructible_v<protocol<D>>);
-  static_assert(std::is_copy_assignable_v<protocol<D>>);
+  static_assert(!std::is_copy_assignable_v<protocol<D>>);
   static_assert(std::is_move_assignable_v<protocol<D>>);
-}
-
-TEST(RProtocolTest, CheckDefaultConstructionRequiresCopyableInterface) {
-  struct A {
-    A() = default;
-    A(const A&) = delete;
-  };
-
-  static_assert(!std::is_default_constructible_v<protocol<A>>);
 }
 
 TEST(RProtocolTest,

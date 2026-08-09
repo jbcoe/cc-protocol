@@ -34,14 +34,15 @@ class protocol {
   // Special member functions.
   protocol()
     requires std::is_default_constructible_v<Allocator> &&
-             std::is_default_constructible_v<T> &&
-             std::is_copy_constructible_v<T>;
+             std::is_default_constructible_v<T>;
 
-  protocol(const protocol&);
+  protocol(const protocol&)
+    requires std::is_copy_constructible_v<T>;
 
   protocol(protocol&&);
 
-  protocol& operator=(const protocol&);
+  protocol& operator=(const protocol&)
+    requires std::is_copy_assignable_v<T>;
 
   protocol& operator=(protocol&&);
 
