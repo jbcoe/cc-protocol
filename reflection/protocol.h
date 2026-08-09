@@ -55,9 +55,9 @@ class protocol_view {
   // Special member functions.
   protocol_view() = delete;
   protocol_view(const protocol_view&) = default;
-  protocol_view(protocol_view&&) = default;
+  protocol_view(protocol_view&&) noexcept = default;
   protocol_view& operator=(const protocol_view&) = default;
-  protocol_view& operator=(protocol_view&&) = default;
+  protocol_view& operator=(protocol_view&&) noexcept = default;
   ~protocol_view() = default;
 };
 
