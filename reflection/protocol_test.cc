@@ -44,8 +44,9 @@ TEST(RProtocolViewTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
 }
 
 TEST(RProtocolTest, CheckSpecialMembers) {
-  // protocol is default-constructible when the interface and allocator are,
-  // and can be copied, moved, assigned, and move assigned.
+  // protocol is default-constructible when the interface is both default- and
+  // copy-constructible and the allocator is default-constructible. It can also
+  // be copied, moved, assigned, and move assigned.
   struct A {};
 
   static_assert(std::is_default_constructible_v<protocol<A>>);
@@ -77,6 +78,16 @@ TEST(RProtocolTest, CheckDefaultConstructionRequiresCopyableInterface) {
   struct A {
     A() = default;
     A(const A&) = delete;
+  };
+
+  static_assert(!std::is_default_constructible_v<protocol<A>>);
+}
+
+TEST(RProtocolTest,
+     CheckDefaultConstructionRequiresDefaultConstructibleInterface) {
+  struct A {
+    A() = delete;
+    A(const A&) = default;
   };
 
   static_assert(!std::is_default_constructible_v<protocol<A>>);
