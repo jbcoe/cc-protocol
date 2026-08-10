@@ -58,7 +58,8 @@ const void* get_mapped_vtable(const void* source_vtable_pointer,
                                                        void* target));
 
 template <typename FromProtocol, typename ToProtocol>
-const typename protocol_vtable_traits<ToProtocol>::const_vtable* get_vtable(
+const typename protocol_vtable_traits<ToProtocol>::const_vtable*
+get_const_vtable(
     const typename protocol_vtable_traits<FromProtocol>::const_vtable*
         source_vtable_pointer) {
   using FromVtable =
@@ -68,8 +69,8 @@ const typename protocol_vtable_traits<ToProtocol>::const_vtable* get_vtable(
   static const char conversion_anchor = 0;
 
   auto mapping_function = [](const void* source, void* target) {
-    map_vtable_members(static_cast<const FromVtable*>(source),
-                       static_cast<ToVtable*>(target));
+    map_const_vtable_members(static_cast<const FromVtable*>(source),
+                             static_cast<ToVtable*>(target));
   };
 
   return static_cast<const ToVtable*>(
@@ -78,7 +79,7 @@ const typename protocol_vtable_traits<ToProtocol>::const_vtable* get_vtable(
 }
 
 template <typename FromProtocol, typename ToProtocol>
-const typename protocol_vtable_traits<ToProtocol>::vtable* get_mutable_vtable(
+const typename protocol_vtable_traits<ToProtocol>::vtable* get_vtable(
     const typename protocol_vtable_traits<FromProtocol>::vtable*
         source_vtable_pointer) {
   using FromVtable = typename protocol_vtable_traits<FromProtocol>::vtable;
@@ -87,8 +88,8 @@ const typename protocol_vtable_traits<ToProtocol>::vtable* get_mutable_vtable(
   static const char conversion_anchor = 0;
 
   auto mapping_function = [](const void* source, void* target) {
-    map_mutable_vtable_members(static_cast<const FromVtable*>(source),
-                               static_cast<ToVtable*>(target));
+    map_vtable_members(static_cast<const FromVtable*>(source),
+                       static_cast<ToVtable*>(target));
   };
 
   return static_cast<const ToVtable*>(
