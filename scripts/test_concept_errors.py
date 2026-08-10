@@ -113,7 +113,7 @@ def test_wrong_return_type(compile_check: Callable[[str, List[str]], None]) -> N
     class BadALike_WrongReturnType {
     public:
         std::string_view name() const noexcept { return "name"; }
-        std::string count() { return "42"; }  // not convertible to int
+        std::string count() { return "42"; }  // not the same type as int
     };
 
     void test() {

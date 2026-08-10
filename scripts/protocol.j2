@@ -32,11 +32,7 @@ concept protocol_const_concept_{{ c.name }} = requires(const T& t) {
       {% set _ = declvals.append("std::declval<" ~ a.type.name ~ ">()") %}
     {% endfor %}
     {% set args_str = declvals | join(", ") %}
-    {% if m.return_type.name == 'void' %}
-  { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %};
-    {% else %}
-  { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %} -> std::convertible_to<{{ m.return_type.name }}>;
-    {% endif %}
+  { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %} -> std::same_as<{{ m.return_type.name }}>;
   {% endif %}
 {% endfor %}
 };
@@ -52,11 +48,7 @@ concept protocol_concept_{{ c.name }} = protocol_const_concept_{{ c.name }}<T>{%
     {% set _ = declvals.append("std::declval<" ~ a.type.name ~ ">()") %}
   {% endfor %}
   {% set args_str = declvals | join(", ") %}
-  {% if m.return_type.name == 'void' %}
-  { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %};
-  {% else %}
-  { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %} -> std::convertible_to<{{ m.return_type.name }}>;
-  {% endif %}
+  { t.{{ m.name }}({{ args_str }}) }{% if m.is_noexcept %} noexcept{% endif %} -> std::same_as<{{ m.return_type.name }}>;
 {% endfor %}
 }{% endif %};
 

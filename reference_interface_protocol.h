@@ -23,31 +23,31 @@ namespace xyz {
 
 template <typename T>
 concept protocol_const_concept_ReferenceInterface = requires(const T& t) {
-  { t.get_value() } -> std::convertible_to<int>;
+  { t.get_value() } -> std::same_as<int>;
 
-  { t.overloaded(std::declval<int>()) };
+  { t.overloaded(std::declval<int>()) } -> std::same_as<void>;
 
-  { t.overloaded(std::declval<std::string_view>()) };
+  { t.overloaded(std::declval<std::string_view>()) } -> std::same_as<void>;
 
   {
     t.operator()(std::declval<int>(), std::declval<int>())
-  } -> std::convertible_to<int>;
+  } -> std::same_as<int>;
 };
 
 template <typename T>
 concept protocol_concept_ReferenceInterface =
     protocol_const_concept_ReferenceInterface<T> && requires(T& t) {
-      { t.update(std::declval<const ReferencePoint&>(), std::declval<int*>()) };
-
       {
-        t.compute(std::declval<double>())
-      } noexcept -> std::convertible_to<double>;
+        t.update(std::declval<const ReferencePoint&>(), std::declval<int*>())
+      } -> std::same_as<void>;
 
-      { t.overloaded(std::declval<int>()) };
+      { t.compute(std::declval<double>()) } noexcept -> std::same_as<double>;
 
-      { t.operator+=(std::declval<int>()) };
+      { t.overloaded(std::declval<int>()) } -> std::same_as<void>;
 
-      { t.operator[](std::declval<std::size_t>()) } -> std::convertible_to<int>;
+      { t.operator+=(std::declval<int>()) } -> std::same_as<void>;
+
+      { t.operator[](std::declval<std::size_t>()) } -> std::same_as<int>;
     };
 
 struct const_view_vtable_ReferenceInterface {

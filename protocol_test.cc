@@ -506,41 +506,39 @@ TEST(ProtocolTest, SwapFromValueless) {
   EXPECT_TRUE(ppp.valueless_after_move());
 }
 
-class CovariantBImpl {
+// A B-shaped type whose methods return implicitly-convertible types instead
+// of B's exact declared return types.
+class AlmostBImpl {
   std::string last_input_;
 
  public:
-  // Testing discard: interface returns void, implementation returns int
   int process(const std::string& input) {
     last_input_ = input;
     return 42;
   }
 
-  // Testing implicit conversion: returns an implicitly convertible struct
-  // instead of std::vector
   struct VectorConvertible {
     operator std::vector<int>() const { return {1, 2, 3}; }
   };
 
   VectorConvertible get_results() const { return {}; }
 
-  // Testing implicit conversion: returns const char* instead of bool
   const char* is_ready() const { return "ready"; }
 
   std::string last_input() const { return last_input_; }
 };
 
-TEST(ProtocolTest, CovariantReturns) {
-  xyz::protocol<xyz::B> p(std::in_place_type<CovariantBImpl>);
-
-  p.process("hello covariant");
-  EXPECT_TRUE(p.is_ready());
-
-  std::vector<int> results = p.get_results();
-  ASSERT_EQ(results.size(), 3u);
-  EXPECT_EQ(results[0], 1);
-  EXPECT_EQ(results[1], 2);
-  EXPECT_EQ(results[2], 3);
+TEST(ProtocolTest, ConvertibleReturnsDoNotConform) {
+  // protocol requires exactly matching function signatures; it does not
+  // accept conformance through implicit conversion (the relaxed structural
+  // subtyping DRAFT.md considers and rejects as a design alternative).
+  // AlmostBImpl's methods are all individually callable but none returns
+  // B's exact declared type, so it does not conform.
+  static_assert(
+      !std::constructible_from<xyz::protocol<xyz::B>,
+                               std::in_place_type_t<AlmostBImpl>>,
+      "protocol<B> should not be constructible from a type whose methods "
+      "return convertible, not exact, types");
 }
 
 TEST(ProtocolViewTest, ViewFromMutableConcrete) {
