@@ -23,31 +23,31 @@ namespace xyz {
 
 template <typename T>
 concept protocol_const_concept_ReferenceInterface = requires(const T& t) {
-  { t.get_value() } -> std::convertible_to<int>;
+  { t.get_value() } -> std::same_as<int>;
 
-  { t.overloaded(std::declval<int>()) };
+  { t.overloaded(std::declval<int>()) } -> std::same_as<void>;
 
-  { t.overloaded(std::declval<std::string_view>()) };
+  { t.overloaded(std::declval<std::string_view>()) } -> std::same_as<void>;
 
   {
     t.operator()(std::declval<int>(), std::declval<int>())
-  } -> std::convertible_to<int>;
+  } -> std::same_as<int>;
 };
 
 template <typename T>
 concept protocol_concept_ReferenceInterface =
     protocol_const_concept_ReferenceInterface<T> && requires(T& t) {
-      { t.update(std::declval<const ReferencePoint&>(), std::declval<int*>()) };
-
       {
-        t.compute(std::declval<double>())
-      } noexcept -> std::convertible_to<double>;
+        t.update(std::declval<const ReferencePoint&>(), std::declval<int*>())
+      } -> std::same_as<void>;
 
-      { t.overloaded(std::declval<int>()) };
+      { t.compute(std::declval<double>()) } noexcept -> std::same_as<double>;
 
-      { t.operator+=(std::declval<int>()) };
+      { t.overloaded(std::declval<int>()) } -> std::same_as<void>;
 
-      { t.operator[](std::declval<std::size_t>()) } -> std::convertible_to<int>;
+      { t.operator+=(std::declval<int>()) } -> std::same_as<void>;
+
+      { t.operator[](std::declval<std::size_t>()) } -> std::same_as<int>;
     };
 
 struct const_view_vtable_ReferenceInterface {
@@ -141,8 +141,8 @@ struct protocol_owning_vtable_traits<::xyz::ReferenceInterface, Allocator> {
 };
 
 template <typename From>
-inline void map_vtable_members(const From* from,
-                               const_view_vtable_ReferenceInterface* to) {
+inline void map_const_vtable_members(const From* from,
+                                     const_view_vtable_ReferenceInterface* to) {
   to->get_value_51992268 = from->get_value_51992268;
 
   to->overloaded_c1840915 = from->overloaded_c1840915;
@@ -153,8 +153,8 @@ inline void map_vtable_members(const From* from,
 }
 
 template <typename From>
-inline void map_mutable_vtable_members(const From* from,
-                                       view_vtable_ReferenceInterface* to) {
+inline void map_vtable_members(const From* from,
+                               view_vtable_ReferenceInterface* to) {
   to->const_view.get_value_51992268 = from->const_view.get_value_51992268;
 
   to->const_view.overloaded_c1840915 = from->const_view.overloaded_c1840915;
@@ -184,8 +184,9 @@ inline void map_owning_vtable_members(
   to->xyz_protocol_clone = from->xyz_protocol_clone;
   to->xyz_protocol_move = from->xyz_protocol_move;
   to->xyz_protocol_destroy = from->xyz_protocol_destroy;
-  to->view_vt = get_mutable_vtable<typename From::protocol_type,
-                                   ::xyz::ReferenceInterface>(from->view_vt);
+  to->view_vt =
+      get_vtable<typename From::protocol_type, ::xyz::ReferenceInterface>(
+          from->view_vt);
 
   to->get_value_51992268 = from->get_value_51992268;
 
@@ -715,13 +716,14 @@ class protocol_view<const ::xyz::ReferenceInterface> {
     requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
   protocol_view(const protocol_view<const Other>& other) noexcept
       : ptr_(other.ptr_),
-        vptr_(get_vtable<Other, ::xyz::ReferenceInterface>(other.vptr_)) {}
+        vptr_(get_const_vtable<Other, ::xyz::ReferenceInterface>(other.vptr_)) {
+  }
 
   template <typename Other>
     requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
   protocol_view(const protocol_view<Other>& other) noexcept
       : ptr_(other.ptr_),
-        vptr_(get_vtable<Other, ::xyz::ReferenceInterface>(
+        vptr_(get_const_vtable<Other, ::xyz::ReferenceInterface>(
             &other.vptr_->const_view)) {}
 
   template <typename Other, typename Alloc>
@@ -795,9 +797,7 @@ class protocol_view<::xyz::ReferenceInterface> {
     requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
   protocol_view(const protocol_view<Other>& other) noexcept
       : ptr_(other.ptr_),
-        vptr_(
-            get_mutable_vtable<Other, ::xyz::ReferenceInterface>(other.vptr_)) {
-  }
+        vptr_(get_vtable<Other, ::xyz::ReferenceInterface>(other.vptr_)) {}
 
   template <typename Other, typename Alloc>
     requires(!std::same_as<Other, ::xyz::ReferenceInterface>)
