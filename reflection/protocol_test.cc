@@ -11,7 +11,7 @@ using xyz::reflection::protocol_view;
 namespace {
 
 TEST(ReflectionProtocolViewTest, CheckSpecialMembers) {
-  // protocol_view is not default-constructible but can be copied, moved,
+  // `protocol_view` is not default-constructible but can be copied, moved,
   // assigned, move assigned and destroyed.
   struct A {};
 
@@ -24,7 +24,7 @@ TEST(ReflectionProtocolViewTest, CheckSpecialMembers) {
 }
 
 TEST(RProtocolViewTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
-  // protocol_view's special member functions do not depend on those of the
+  // `protocol_view`'s special member functions do not depend on those of the
   // viewed type.
   struct D {
     D() = delete;
@@ -44,7 +44,7 @@ TEST(RProtocolViewTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
 }
 
 TEST(RProtocolTest, CheckSpecialMembers) {
-  // protocol is not default-constructible but can be copied, moved,
+  // `protocol` is not default-constructible but can be copied, moved,
   // assigned and move assigned if the underlying type can be copied.
   struct A {};
 
@@ -56,14 +56,15 @@ TEST(RProtocolTest, CheckSpecialMembers) {
 }
 
 TEST(RProtocolTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
-  // protocol is not default-constructible and cannot be copied, or assigned,
-  // if the interface type cannot be copied.
+  // `protocol` is not default-constructible and cannot be copied, or
+  // assigned to if the interface type cannot be copied.
+  // `protocol` can unconditionally be move constructed and move assigned.
   struct D {
-    D() = default;         // Ignored by `protocol<D>`.
+    D() = default;         // Ignored.
     D(const D&) = delete;  // Suppresses copy and assigment for `protocol<D>`.
-    D(D&&) = default;
-    D& operator=(const D&) = default;  // Not used by `protocol<D>`.
-    D& operator=(D&&) = default;
+    D(D&&) = default;      // Ignored.
+    D& operator=(const D&) = default;  // Ignored.
+    D& operator=(D&&) = default;       // Ignored.
   };
 
   static_assert(!std::is_default_constructible_v<protocol<D>>);
