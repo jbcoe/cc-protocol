@@ -31,20 +31,17 @@ namespace xyz::reflection {
 template <typename T, typename Allocator = std::allocator<std::byte>>
 class protocol {
  public:
-  // Special member functions.
-  protocol()
-    requires std::is_default_constructible_v<Allocator> &&
-             std::is_default_constructible_v<T>;
+  protocol() = delete;  // Deleted as `T` is used as an interface type.
 
   protocol(const protocol&)
     requires std::is_copy_constructible_v<T>;
 
-  protocol(protocol&&);
+  protocol(protocol&&);  // Unconstrained
 
   protocol& operator=(const protocol&)
-    requires std::is_copy_assignable_v<T>;
+    requires std::is_copy_constructible_v<T>;
 
-  protocol& operator=(protocol&&);
+  protocol& operator=(protocol&&);  // Unconstrained.
 
   ~protocol();  // Unconstrained.
 };
@@ -52,8 +49,11 @@ class protocol {
 template <typename T>
 class protocol_view {
  public:
-  // Special member functions.
+  // The default construtor is deleted as a default constructed protocol_view
+  // would be empty.
   protocol_view() = delete;
+
+  // Remaining special member functions are defaulted.
   protocol_view(const protocol_view&) = default;
   protocol_view(protocol_view&&) noexcept = default;
   protocol_view& operator=(const protocol_view&) = default;
