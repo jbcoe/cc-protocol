@@ -57,7 +57,7 @@ jobs:
       - name: Install build dependencies and IWYU
         run: |
           sudo apt update
-          sudo apt install -y llvm-dev cmake git ninja-build libcurl4-openssl-dev libedit-dev
+          sudo apt install -y llvm-dev git libcurl4-openssl-dev libedit-dev
           # Build and install IWYU
           git clone https://github.com/include-what-you-use/include-what-you-use.git
           cd include-what-you-use
