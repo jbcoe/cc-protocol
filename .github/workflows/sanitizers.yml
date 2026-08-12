@@ -38,7 +38,7 @@ jobs:
         clang_version: ["19"]
     steps:
       - uses: actions/checkout@v4
-      - uses: seanmiddleditch/gha-setup-ninja@master
+      - uses: lukka/get-cmake@v4.4.2
       - name: Install Clang
         uses: egor-tensin/setup-clang@v1
         with:

@@ -213,7 +213,7 @@ jobs:
             }
     steps:
       - uses: actions/checkout@v4
-      - uses: seanmiddleditch/gha-setup-ninja@master
+      - uses: lukka/get-cmake@v4.4.2
       - name: Add msbuild to PATH
         if: matrix.settings.os == 'windows-latest'
         uses: microsoft/setup-msbuild@v2
