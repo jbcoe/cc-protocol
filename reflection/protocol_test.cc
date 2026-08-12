@@ -74,4 +74,97 @@ TEST(RProtocolTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
   static_assert(!std::is_copy_assignable_v<protocol<D>>);
   static_assert(std::is_move_assignable_v<protocol<D>>);
 }
+
+TEST(RProtocolViewTest, TrivialConformance) {
+  struct A {};
+
+  static_assert(std::is_constructible_v<protocol_view<A>, A>);
+}
+
+TEST(RProtocolViewTest, Conformance) {
+  struct A {
+    std::size_t size() const;
+    std::string_view name();
+  };
+
+  struct ALike {
+    std::size_t size() const;
+    std::string_view name();
+  };
+
+  static_assert(std::is_constructible_v<protocol_view<A>, ALike>);
+}
+
+TEST(RProtocolViewTest, NonConformance) {
+  struct A {
+    std::size_t size() const;
+    std::string_view name();
+  };
+
+  struct NotA {};
+
+  static_assert(!std::is_constructible_v<protocol_view<A>, NotA>);
+}
+
+TEST(RProtocolViewTest, MissingConstRestrictsConformance) {
+  struct A {
+    std::size_t size() const;
+  };
+
+  struct NotA {
+    std::size_t size();  // Missing `const`.
+  };
+
+  static_assert(!std::is_constructible_v<protocol_view<A>, NotA>);
+}
+
+TEST(RProtocolViewTest, MissingNoexceptRestrictsConformance) {
+  struct A {
+    std::size_t size() noexcept;
+  };
+
+  struct NotA {
+    std::size_t size();  // Missing `noexcept`.
+  };
+
+  static_assert(!std::is_constructible_v<protocol_view<A>, NotA>);
+}
+
+TEST(RProtocolViewTest, ExtraConstIsConformant) {
+  struct A {
+    std::size_t size();
+  };
+
+  struct ALike {
+    std::size_t size() const;  // Extra `const`.
+  };
+
+  static_assert(std::is_constructible_v<protocol_view<A>, ALike>);
+}
+
+TEST(RProtocolViewTest, ExtraNoexceptIsConformant) {
+  struct A {
+    std::size_t size();
+  };
+
+  struct ALike {
+    std::size_t size() noexcept;  // Extra `const`.
+  };
+
+  static_assert(std::is_constructible_v<protocol_view<A>, ALike>);
+}
+
+TEST(RProtocolViewTest, ConvertibleReturnTypesAreNotConformat) {
+  struct A {
+    std::size_t size();
+  };
+
+  struct NotA {
+    int size();
+  };
+
+  static_assert(std::is_convertible_v<int, std::size_t>);
+  static_assert(!std::is_constructible_v<protocol_view<A>, NotA>);
+}
+}
 }  // namespace
