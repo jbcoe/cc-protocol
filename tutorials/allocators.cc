@@ -40,7 +40,7 @@ class Owner {
 
   static void destroy(T* obj) { delete obj; }
 
-  static T* copy(T* obj) {
+  static T* copy(const T* obj) {
     if (obj == nullptr) {
       return nullptr;
     }
@@ -49,9 +49,8 @@ class Owner {
 
  public:
   Owner() = default;
-
+  
   explicit Owner(const T& obj) : obj_(new T(obj)) {}
-
   explicit Owner(T&& obj) : obj_(new T(std::move(obj))) {}
 
   // Rule-of-five implementation below.
@@ -99,7 +98,7 @@ TEST(TutorialsAllocators, OwningType) {
   Owner<int> o1;
   EXPECT_FALSE(o1.has_value());
 
-  Owner o2{10};  // CTAD deduces this is Owner<int>.
+  Owner<int> o2{10};
   EXPECT_TRUE(o2.has_value());
   EXPECT_EQ(o2.get(), 10);
 
@@ -109,23 +108,21 @@ TEST(TutorialsAllocators, OwningType) {
 
   o3 = o1;
   EXPECT_FALSE(o3.has_value());
-
-  // All of the memory gets cleaned up at the end of scope.
 }
 
 }  // namespace xyz::tutorials::owning_type
 
 // Next, we add very rudimentary support for allocators. We do
 // not expose it anywhere in the public interface, aside from
-// the template argument; instead, we require that it the allocator
+// the template argument; instead, we require that the allocator
 // type is default-constructible (stateless).
 namespace xyz::tutorials::simple_allocator {
 
 template <typename T, typename Alloc = std::allocator<T>>
   requires std::default_initializable<Alloc>
 class Owner {
-  T* obj_ = nullptr;
   [[no_unique_address]] Alloc alloc_;
+  T* obj_ = nullptr;
 
   // The allocator_traits struct provides a useful wrapper
   // around the provided allocator type. It gives us an easy
@@ -134,7 +131,6 @@ class Owner {
 
   // We use auto&& so this works for both lvalue and rvalue construction.
   T* create(auto&& source) {
-
     T* obj = traits::allocate(alloc_, 1);  // Allocate room for one T
     // We must make sure to reclaim the memory from
     // the previous line in case the constructor throws.
@@ -156,7 +152,7 @@ class Owner {
     traits::deallocate(alloc_, obj, 1);
   }
 
-  T* copy(T* obj) {
+  T* copy(const T* obj) {
     if (obj == nullptr) {
       return nullptr;
     }
@@ -167,7 +163,6 @@ class Owner {
   Owner() = default;
 
   explicit Owner(const T& obj) : obj_(create(obj)) {}
-
   explicit Owner(T&& obj) : obj_(create(std::move(obj))) {}
 
   // Everything else about the implementation is the same;
@@ -210,15 +205,19 @@ class Owner {
     assert(has_value());
     return *obj_;
   }
+
+  const Alloc& get_allocator() const { return alloc_; }
 };
 
 // We now test the exact same behavior, this time using the
 // allocator-aware version of Owner and std::allocator<int>.
 TEST(TutorialsAllocators, SimpleAllocatorOwner) {
   Owner<int> o1;
+  EXPECT_EQ(o1.get_allocator(), std::allocator<int>{});
   EXPECT_FALSE(o1.has_value());
 
-  Owner o2{10};  // CTAD deduces this is Owner<int>.
+  Owner<int> o2{10};
+  EXPECT_EQ(o2.get_allocator(), std::allocator<int>{});
   EXPECT_TRUE(o2.has_value());
   EXPECT_EQ(o2.get(), 10);
 
@@ -233,3 +232,190 @@ TEST(TutorialsAllocators, SimpleAllocatorOwner) {
 }
 
 }  // namespace xyz::tutorials::simple_allocator
+
+// Now, let's allow allocators that hold state, and add
+// allocator-aware constructors. For now, we will remove
+// the ability for Owner to be move assigned or swapped. 
+// We will discuss the complexity of adding these features in the next section.
+namespace xyz::tutorials::stateful_allocator {
+
+template <typename T, typename Alloc = std::allocator<T>>
+class Owner {
+  // We still use no_unique_address because we can still accept
+  // stateless allocators.
+  [[no_unique_address]] Alloc alloc_;
+  T* obj_ = nullptr;
+
+  using traits = std::allocator_traits<Alloc>;
+
+  // create, destroy, and copy are the same as before.
+
+  T* create(auto&& source) {
+    T* obj = traits::allocate(alloc_, 1);
+    try {
+      traits::construct(alloc_, obj, std::forward<decltype(source)>(source));
+    } catch (...) {
+      traits::deallocate(alloc_, obj, 1);
+      throw;
+    }
+
+    return obj;
+  }
+
+  void destroy(T* obj) {
+    if (obj == nullptr) {
+      return;
+    }
+    traits::destroy(alloc_, obj);
+    traits::deallocate(alloc_, obj, 1);
+  }
+
+  T* copy(const T* obj) {
+    if (obj == nullptr) {
+      return nullptr;
+    }
+    return create(*obj);
+  }
+
+ public:
+  Owner()
+    requires std::default_initializable<Alloc>
+  = default;
+
+  explicit Owner(const T& obj)
+    requires std::default_initializable<Alloc>
+      : obj_(create(obj)) {}
+
+  explicit Owner(T&& obj)
+    requires std::default_initializable<Alloc>
+      : obj_(create(std::move(obj))) {}
+
+  // There are two styles for constructors accepting allocator arguments:
+  // a trailing allocator parameter, i.e. Owner(const T&, Alloc), and
+  // the style shown below, tagged with allocator_arg_t. The following style
+  // works with variadic constructors, whereas the trailing style does not.
+  explicit Owner(std::allocator_arg_t, const Alloc& a, const T& obj)
+    : alloc_(a), obj_(create(obj)) {}
+
+  explicit Owner(std::allocator_arg_t, const Alloc& a, T&& obj)
+    : alloc_(a), obj_(create(std::move(obj))) {}
+
+  ~Owner() { destroy(obj_); }
+
+  // Allocators can define how they should be copied when the
+  // container is copied. select_on_container_copy_construction will dispatch
+  // to the allocator's unique copy function, or perform a regular copy if it
+  // is not defined.
+  Owner(const Owner& other)
+      : alloc_(traits::select_on_container_copy_construction(other.alloc_)),
+        obj_(copy(other.obj_)) {}
+
+  // Allocator-aware copy construction.
+  Owner(std::allocator_arg_t, const Alloc& a, const Owner& other)
+      : alloc_(a), obj_(copy(other.obj_)) {}
+
+  Owner(Owner&& other) noexcept : 
+    alloc_(std::move(other.alloc_)), obj_(std::exchange(other.obj_, nullptr)) {}
+
+  // Allocator-aware move construction is complex - see the following step.
+  Owner(std::allocator_arg_t, const Alloc& a, Owner&& other) = delete;
+
+  // Similarly to copy construction, allocators can define whether they should
+  // propagate on copy assignment. We manually check this property below, and
+  // only reassign our allocator if it is true.
+  Owner& operator=(const Owner& other) {
+    if (this != &other) {
+      destroy(obj_); // Destroy with the old allocator.
+      if constexpr (traits::propagate_on_container_copy_assignment::value) {
+        alloc_ = other.alloc_;
+      }
+      obj_ = copy(other.obj_); // Construct with the new allocator.
+    }
+    return *this;
+  }
+
+  Owner& operator=(Owner&& other) = delete;
+
+  void swap(Owner& other) = delete;
+
+  bool has_value() const { return obj_ != nullptr; }
+
+  T& get() {
+    assert(has_value());
+    return *obj_;
+  }
+
+  const T& get() const {
+    assert(has_value());
+    return *obj_;
+  }
+
+  const Alloc& get_allocator() const { return alloc_; }
+};
+
+// To demonstrate that our new Owner works, we will make a simple stateful
+// allocator.
+template <typename T>
+class TestAlloc {
+public:
+  using value_type = T;
+  int tag = 0; // Our "state"
+
+  TestAlloc() = default;
+  explicit TestAlloc(int tag) : tag(tag) {}
+
+  T* allocate(std::size_t count) {
+    return std::allocator<T>{}.allocate(count);
+  }
+
+  void deallocate(T* ptr, std::size_t count) {
+    std::allocator<T>{}.deallocate(ptr, count);
+  }
+
+  bool operator==(const TestAlloc&) const = default;
+};
+
+TEST(TutorialsAllocators, StatefulAllocator) {
+  using TestOwner = Owner<int, TestAlloc<int>>;
+  
+  // Default constructs the allocator.
+  TestOwner o1;
+  EXPECT_EQ(o1.get_allocator().tag, 0);
+
+  // Default constructs the allocator, even though we provide a value.
+  TestOwner o2{42};
+  EXPECT_EQ(o2.get(), 42);
+  EXPECT_EQ(o2.get_allocator().tag, 0);
+
+
+  // Provides an explicit allocator.
+  TestOwner o3{std::allocator_arg, TestAlloc<int>{5}, 10};
+  EXPECT_EQ(o3.get(), 10); // 10 is the value stored in Owner.
+  EXPECT_EQ(o3.get_allocator().tag, 5); // 5 is the value stored in TestAlloc.
+
+  // Copy assignment does NOT take the allocator by default.
+  // If our allocator set propagate_on_container_copy_assignment to true, 
+  // it would take o3's allocator.
+  o2 = o3;
+  EXPECT_EQ(o2.get(), 10);
+  EXPECT_EQ(o2.get_allocator().tag, 0);
+
+  // Copy construction copies the allocator.
+  TestOwner o4{o3};
+  EXPECT_EQ(o4.get(), 10);
+  // If TestAlloc had a unique select_on_container_copy_construction function, 
+  // the tag could differ here.
+  EXPECT_EQ(o4.get_allocator().tag, 5);
+
+  // Allocator-aware copy construction uses the new allocator.
+  TestOwner o5{std::allocator_arg, TestAlloc<int>{20}, o3};
+  EXPECT_EQ(o5.get(), 10);// Take o3's value.
+  EXPECT_EQ(o5.get_allocator().tag, 20); // Use the new allocator.
+
+  // Move construction takes the allocator.
+  TestOwner o6{std::move(o5)};
+  EXPECT_EQ(o6.get(), 10);
+  EXPECT_EQ(o6.get_allocator().tag, 20);
+}
+
+}  // namespace xyz::tutorials::stateful_allocator
