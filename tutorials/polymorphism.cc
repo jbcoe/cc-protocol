@@ -73,14 +73,14 @@ class Animal {
 
 class Cat : public Animal {
  public:
-  std::string_view noise() const { return "Meow"; }
+  std::string_view noise() const override { return "Meow"; }
 
   std::string_view identity() const { return "Cat"; }  // non-virtual
 };
 
 class Dog : public Animal {
  public:
-  std::string_view noise() const { return "Woof"; }
+  std::string_view noise() const override { return "Woof"; }
 
   std::string_view identity() const { return "Dog"; }  // non-virtual
 };
