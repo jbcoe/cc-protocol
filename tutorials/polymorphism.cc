@@ -50,9 +50,6 @@ TEST(TutorialsPolymorphism, PolymorphismWithTemplates) {
   Cat cat;
   Dog dog;
 
-  // Cat and Dog have no common type so we can't store them directly in a
-  // container. The function template can be used on either instance.
-
   EXPECT_EQ(make_noise(cat), "Meow");
   EXPECT_EQ(make_noise(dog), "Woof");
 }
