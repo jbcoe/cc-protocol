@@ -23,6 +23,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string_view>
 #include <vector>
 
+// An intentionally brief exploration of polymorphism in C++.
+
 // Polymorphism with templates (compile-time polymorphism).
 
 // Cat and Dog have no common type but we can use compile-time polymorphism
@@ -142,7 +144,8 @@ class AnimalPtr {
   std::string_view noise() const { return noise_func_(data_); }
 };
 
-std::string_view make_noise(const AnimalPtr& animal) { return animal.noise(); }
+// `animal` is passed by value as AnimalPtr is small like `std::string_view`.
+std::string_view make_noise(AnimalPtr animal) { return animal.noise(); }
 
 TEST(TutorialsPolymorphism, PolymorphismWithTypeErasure) {
   Cat cat;
@@ -186,12 +189,12 @@ struct vtable {
 
 class AnimalPtr {
   void* data_;
-  vtable* vtable_;
+  const vtable* vtable_;
 
  public:
   template <typename T>
   AnimalPtr(T* t) : data_(t) {
-    static vtable vtable_for_type = {
+    constexpr static vtable vtable_for_type = {
         .noise_func_ =
             +[](const void* data) {
               return static_cast<const T*>(data)->noise();
@@ -210,7 +213,9 @@ class AnimalPtr {
   std::string_view identity() const { return vtable_->identity_func_(data_); }
 };
 
-std::string_view make_noise(const AnimalPtr& animal) { return animal.noise(); }
+// Storing the vtable as apointer ensure that `AnimalPtr` is cheap to copy,
+// regardless of how many member functions we want to resolve at run time.
+std::string_view make_noise(AnimalPtr animal) { return animal.noise(); }
 
 TEST(TutorialsPolymorphism, PolymorphismWithTypeErasureAndVtable) {
   Cat cat;
@@ -242,7 +247,7 @@ struct vtable {
 
 class Animal {
  protected:
-  vtable* vtable_;
+  const vtable* vtable_;
 
  public:
   std::string_view noise() const { return vtable_->noise_func_(this); }
@@ -251,7 +256,7 @@ class Animal {
 class Cat : public Animal {
  public:
   Cat() {
-    static vtable vtable_for_type = {
+    constexpr static vtable vtable_for_type = {
         .noise_func_ =
             +[](const void* data) {
               return static_cast<const Cat*>(data)->noise();
@@ -266,7 +271,7 @@ class Cat : public Animal {
 class Dog : public Animal {
  public:
   Dog() {
-    static vtable vtable_for_type = {
+    constexpr static vtable vtable_for_type = {
         .noise_func_ =
             +[](const void* data) {
               return static_cast<const Dog*>(data)->noise();
