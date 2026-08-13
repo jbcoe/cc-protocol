@@ -362,7 +362,7 @@ template <typename T>
 class TestAlloc {
  public:
   using value_type = T;
-  int tag = 0;  // Our "state"
+  int tag = 0;  // Our "state".
 
   TestAlloc() = default;
 
@@ -597,5 +597,73 @@ class Owner {
 
   const Alloc& get_allocator() const { return alloc_; }
 };
+
+// Take TestAlloc from the previous section.
+using stateful_allocator::TestAlloc;
+
+// A variant of TestAlloc that requires propagation on move assignment.
+template <typename T>
+class PocmaAlloc : public TestAlloc<T> {
+ public:
+  using TestAlloc<T>::TestAlloc;
+  using propagate_on_container_move_assignment = std::true_type;
+};
+
+// A variant of TestAlloc that requires propagation on swap.
+template <typename T>
+class PocsAlloc : public TestAlloc<T> {
+ public:
+  using TestAlloc<T>::TestAlloc;
+  using propagate_on_container_swap = std::true_type;
+};
+
+TEST(TutorialsAllocators, PropagatingAllocatorMoves) {
+  using TestOwner = Owner<int, TestAlloc<int>>;
+
+  // Because TestAlloc does not define pocma or is_always_equal as
+  // true, moving is not always noexcept.
+  static_assert(!std::is_nothrow_move_assignable_v<TestOwner>);
+
+  // Allocator-aware move construction.
+  TestOwner o1{std::allocator_arg, TestAlloc<int>{1}, 10};
+  // An allocation is performed when o2 is constructed.
+  TestOwner o2{std::allocator_arg, TestAlloc<int>{2}, std::move(o1)};
+  EXPECT_FALSE(o1.has_value());
+  EXPECT_EQ(o2.get(), 10);
+  EXPECT_EQ(o2.get_allocator().tag, 2);
+
+  // Move assignment with unequal allocators.
+  TestOwner o3{std::allocator_arg, TestAlloc<int>{3}, 10};
+  TestOwner o4{std::allocator_arg, TestAlloc<int>{4}, 20};
+  // o3 will allocate space for a new int instead of reusing o4's object.
+  o3 = std::move(o4);
+  EXPECT_EQ(o3.get(), 20);
+
+  using PocmaOwner = Owner<int, PocmaAlloc<int>>;
+  PocmaOwner o5{std::allocator_arg, PocmaAlloc<int>{5}, 10};
+  PocmaOwner o6{std::allocator_arg, PocmaAlloc<int>{6}, 20};
+  o5 = std::move(o6);
+  // Move assignment now propagates the allocator.
+  EXPECT_EQ(o5.get_allocator().tag, 6);
+}
+
+TEST(TutorialsAllocators, PropagatingAllocatorSwaps) {
+  using TestOwner = Owner<int, TestAlloc<int>>;
+
+  TestOwner o1{std::allocator_arg, TestAlloc<int>{1}, 10};
+  TestOwner o2{std::allocator_arg, TestAlloc<int>{1}, 20};
+  // If the allocators were not equal, this would be UB.
+  o1.swap(o2);
+  EXPECT_EQ(o1.get(), 20);
+  EXPECT_EQ(o2.get(), 10);
+
+  using PocsOwner = Owner<int, PocsAlloc<int>>;
+
+  PocsOwner o3{std::allocator_arg, PocsAlloc<int>{3}, 10};
+  PocsOwner o4{std::allocator_arg, PocsAlloc<int>{4}, 20};
+  o3.swap(o4);
+  EXPECT_EQ(o3.get_allocator().tag, 4);
+  EXPECT_EQ(o4.get_allocator().tag, 3);
+}
 
 }  // namespace xyz::tutorials::propagating_allocator
