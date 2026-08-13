@@ -125,6 +125,7 @@ template <typename T, typename Alloc = std::allocator<T>>
   requires std::default_initializable<Alloc>
 class Owner {
   T* obj_ = nullptr;
+  [[no_unique_address]] Alloc alloc_;
 
   // The allocator_traits struct provides a useful wrapper
   // around the provided allocator type. It gives us an easy
@@ -132,32 +133,30 @@ class Owner {
   using traits = std::allocator_traits<Alloc>;
 
   // We use auto&& so this works for both lvalue and rvalue construction.
-  static T* create(auto&& source) {
-    Alloc alloc;  // This is ONLY okay because we assume Alloc is stateless
+  T* create(auto&& source) {
 
-    T* obj = traits::allocate(alloc, 1);  // Allocate room for one T
+    T* obj = traits::allocate(alloc_, 1);  // Allocate room for one T
     // We must make sure to reclaim the memory from
     // the previous line in case the constructor throws.
     try {
-      traits::construct(alloc, obj, std::forward<decltype(source)>(source));
+      traits::construct(alloc_, obj, std::forward<decltype(source)>(source));
     } catch (...) {
-      traits::deallocate(alloc, obj, 1);
+      traits::deallocate(alloc_, obj, 1);
       throw;
     }
 
     return obj;
   }
 
-  static void destroy(T* obj) {
+  void destroy(T* obj) {
     if (obj == nullptr) {
       return;
     }
-    Alloc alloc;
-    traits::destroy(alloc, obj);
-    traits::deallocate(alloc, obj, 1);
+    traits::destroy(alloc_, obj);
+    traits::deallocate(alloc_, obj, 1);
   }
 
-  static T* copy(T* obj) {
+  T* copy(T* obj) {
     if (obj == nullptr) {
       return nullptr;
     }
