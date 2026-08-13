@@ -27,7 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // Polymorphism with templates (compile-time polymorphism).
 
-// Cat and Dog have no common type but we can use compile-time polymorphism
+// `Cat` and `Dog` have no common type but we can use compile-time polymorphism
 // (templates) to write a function template to talk to both types.
 namespace xyz::tutorials::compile_time_polymorphism {
 
@@ -58,10 +58,10 @@ TEST(TutorialsPolymorphism, PolymorphismWithTemplates) {
 
 // Polymorphism with inheritance
 
-// Cat and Dog have a common type. We can use a single function for both types.
-// This form of inheritance is intrusive. Cat and Dog must declare Animal as a
-// base class and Animal must declare which member functions can be used
-// polymorphically.
+// `Cat` and `Dog` have a common type. We can use a single function for both
+// types. This form of inheritance is intrusive: `Cat` and `Dog` must declare
+// `Animal` as a base class at class-definition time and `Animal` must declare
+// which member functions can be used polymorphically.
 namespace xyz::tutorials::polymorphism_with_inheritance {
 
 class Animal {
@@ -73,14 +73,14 @@ class Animal {
 
 class Cat : public Animal {
  public:
-  std::string_view noise() const { return "Meow"; }
+  std::string_view noise() const override { return "Meow"; }
 
   std::string_view identity() const { return "Cat"; }  // non-virtual
 };
 
 class Dog : public Animal {
  public:
-  std::string_view noise() const { return "Woof"; }
+  std::string_view noise() const override { return "Woof"; }
 
   std::string_view identity() const { return "Dog"; }  // non-virtual
 };
@@ -91,12 +91,12 @@ TEST(TutorialsPolymorphism, PolymorphismWithInheritance) {
   Cat cat;
   Dog dog;
 
-  // We can store pointers to Cat and Dog as pointers to Animal.
+  // We can store pointers to `Cat` and `Dog` as pointers to `Animal`.
   std::vector<Animal*> animals;
   animals.reserve(2);
   animals.push_back(&cat);
   animals.push_back(&dog);
-  // Note: std::polymorphic could be used to allow the vector to own the
+  // Note: `std::polymorphic` could be used to allow the vector to own the
   // animals.
 
   EXPECT_EQ(make_noise(*animals[0]), "Meow");
@@ -111,9 +111,10 @@ TEST(TutorialsPolymorphism, PolymorphismWithInheritance) {
 
 // Polymorphism with type-erasure.
 
-// Cat and Dog have no common type; we can define a type-erasing wide-pointer to
-// determine which member functions to call at run time.
-
+// `Cat` and `Dog` have no common type; we can define a type-erasing
+// wide-pointer to determine which member functions to call at run time. The
+// decision to dispatch functions polymorphically is made by the `AnimalPtr`
+// class, not `Cat` or `Dog` classes.
 namespace xyz::tutorials::polymorphism_with_type_erasure {
 
 class Cat {
@@ -141,14 +142,14 @@ class AnimalPtr {
   std::string_view noise() const { return noise_func_(data_); }
 };
 
-// `animal` is passed by value as AnimalPtr is small like `std::string_view`.
+// `AnimalPtr` is small like `std::string_view` so `animal` is passed by value.
 std::string_view make_noise(AnimalPtr animal) { return animal.noise(); }
 
 TEST(TutorialsPolymorphism, PolymorphismWithTypeErasure) {
   Cat cat;
   Dog dog;
 
-  // We can store pointers to Cat and Dog using our wide pointer type.
+  // We can store pointers to `Cat` and `Dog` using our wide pointer type.
   std::vector<AnimalPtr> animals;
   animals.reserve(2);
   animals.emplace_back(&cat);
@@ -161,8 +162,8 @@ TEST(TutorialsPolymorphism, PolymorphismWithTypeErasure) {
 }  // namespace xyz::tutorials::polymorphism_with_type_erasure
 
 // When we have multiple functions, we can use a vtable to dispatch them.
-// Note that the decision to dispatch functions polymorphically is made by the
-// AnimalPtr class, not Cat or Dog classes.
+// Storing the vtable as a pointer ensures that `AnimalPtr` is cheap to copy,
+// regardless of how many member functions we want to resolve at run time.
 namespace xyz::tutorials::polymorphism_with_type_erasure_vtable {
 
 class Cat {
@@ -191,6 +192,8 @@ class AnimalPtr {
  public:
   template <typename T>
   AnimalPtr(T* t) : data_(t) {
+    // Making the vtable `constexpr`avoids runtime cost (synchronization between
+    // threads) when accessing static variables.
     constexpr static vtable vtable_for_type = {
         .noise_func_ =
             +[](const void* data) {
@@ -210,15 +213,13 @@ class AnimalPtr {
   std::string_view identity() const { return vtable_->identity_func_(data_); }
 };
 
-// Storing the vtable as apointer ensure that `AnimalPtr` is cheap to copy,
-// regardless of how many member functions we want to resolve at run time.
 std::string_view make_noise(AnimalPtr animal) { return animal.noise(); }
 
 TEST(TutorialsPolymorphism, PolymorphismWithTypeErasureAndVtable) {
   Cat cat;
   Dog dog;
 
-  // We can store pointers to Cat and Dog using our wide pointer type.
+  // We can store pointers to `Cat` and `Dog` using our wide pointer type.
   std::vector<AnimalPtr> animals;
   animals.reserve(2);
   animals.emplace_back(&cat);
@@ -233,8 +234,12 @@ TEST(TutorialsPolymorphism, PolymorphismWithTypeErasureAndVtable) {
 
 }  // namespace xyz::tutorials::polymorphism_with_type_erasure_vtable
 
-// We can implement inheritance-like intrusive polymorphism manually.
+// We can implement inheritance-like, intrusive polymorphism manually.
 // This is just an exercise, not recommended practice.
+// Note that the vtable pointer is now part of the class, whereas our
+// type erased wide-pointer stores the vtable pointer alongside a pointer to
+// the class: intrusive polymorphism affects class design and requires the class
+// to store an additional pointer for the vtable.
 
 namespace xyz::tutorials::manual_intrusive_vtable {
 
@@ -286,7 +291,7 @@ TEST(TutorialsPolymorphism, PolymorphismWithManualInheritance) {
   Cat cat;
   Dog dog;
 
-  // We can store pointers to Cat and Dog as pointers to Animal.
+  // We can store pointers to `Cat` and `Dog` as pointers to `Animal`.
   std::vector<Animal*> animals;
   animals.reserve(2);
   animals.push_back(&cat);
