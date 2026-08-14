@@ -20,20 +20,30 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cmath>
 #include <meta>
+#include <optional>
 #include <ranges>
+#include <string>
+#include <string_view>
+#include <type_traits>
 
 // A very brief (and intentionally incomplete) tour of C++26 reflection.
 
-namespace xyz::tutorials::introspection {
+namespace xyz::tutorials {
 
+// A.simple type, shared across many tests.
 struct Point {
   double x = 0;
   double y = 0;
 
   double norm() const noexcept { return std::sqrt(x * x + y * y); }
 };
+
+}  // namespace xyz::tutorials
+
+namespace xyz::tutorials::introspection {
 
 TEST(TutorialsReflection, MetaInfoIdentifier) {
   // The reflection operator `^^` can be used to get information about the
@@ -169,3 +179,120 @@ TEST(TutorialsReflection, AccessContext) {
 }
 
 }  // namespace xyz::tutorials::introspection
+
+// C++26 offers some support for code generation.
+
+namespace xyz::tutorials::code_generation {
+
+TEST(TutorialsReflection, SpliceTypeFromInfo) {
+  // `typename [: info :]` splices an info back into the type it reflects.
+  constexpr std::meta::info point_info = ^^Point;
+
+  // `[: :]` is used for both type-splices and value-splices.
+  // `typename` is needed to disambiguate.
+  static_assert(std::is_same_v<typename[:point_info:], Point>);
+}
+
+TEST(TutorialsReflection, SpliceValueFromInfo) {
+  // `[: :]` can be used to splice a value.
+  enum class Color { Red, Green, Blue };
+
+  constexpr std::meta::info green_info = ^^Color::Green;
+  constexpr Color green = [:green_info:];
+
+  static_assert(green == Color::Green);
+}
+
+TEST(TutorialsReflection, SpliceCallToMember) {
+  // `obj.[:member_info:](args)` calls whichever member `member_info` reflects.
+  constexpr auto norm = ^^Point::norm;
+
+  Point point{.x = 3, .y = 4};
+  EXPECT_EQ(point.[:norm:](), point.norm());
+}
+
+template <typename E>
+  requires std::is_enum_v<E>
+std::string enum_to_string(E value) {
+  // `template for` unrolls a compile-time range into ordinary code.
+  template for (constexpr std::meta::info e :
+                std::define_static_array(enumerators_of(^^E))) {
+    if (value == [:e:]) return std::string(identifier_of(e));
+  }
+  return "<unknown>";
+}
+
+enum class Suit { Clubs, Diamonds, Hearts, Spades };
+
+TEST(TutorialsReflection, EnumToString) {
+  EXPECT_EQ(enum_to_string(Suit::Clubs), "Clubs");
+  EXPECT_EQ(enum_to_string(Suit::Diamonds), "Diamonds");
+  EXPECT_EQ(enum_to_string(Suit::Hearts), "Hearts");
+  EXPECT_EQ(enum_to_string(Suit::Spades), "Spades");
+}
+
+consteval std::optional<Suit> suit_from_name(std::string_view name) {
+  for (std::meta::info e : enumerators_of(^^Suit)) {
+    // `e` is a loop variable, not a constant expression: `[:e:]` wouldn't
+    // compile here. `extract<Suit>` only needs `e` to be reachable during the
+    // evaluation of this call.
+    if (identifier_of(e) == name) {
+      return extract<Suit>(e);
+    }
+  }
+  return std::nullopt;
+}
+
+TEST(TutorialsReflection, Extract) {
+  static_assert(suit_from_name("Hearts") == Suit::Hearts);
+  static_assert(suit_from_name("Joker") == std::nullopt);
+}
+
+TEST(TutorialsReflection, DefineAggregate) {
+  // `define_aggregate` gives a forward-declared, incomplete type real data
+  // members, built from a `vector<data_member_spec>` instead of hand-written
+  // struct syntax; `data_member_options` names each member.
+  // `no_unique_address` mirrors the `[[no_unique_address]]` attribute,
+  // letting an empty member avoid inflating the type's size.
+  struct Empty {};
+  struct Synthesized;
+  // clang-format off
+  consteval {
+    define_aggregate(^^Synthesized, {
+        data_member_spec(^^int, {.name = "value"}),
+        data_member_spec(^^Empty,
+                          {.name = "empty", .no_unique_address = true}),
+    });
+  }
+  // clang-format on
+
+  constexpr std::ranges::range auto members =
+      std::define_static_array(nonstatic_data_members_of(
+          ^^Synthesized, std::meta::access_context::unchecked()));
+
+  static_assert(members.size() == 2);
+  static_assert(identifier_of(members[0]) == "value");
+  static_assert(identifier_of(members[1]) == "empty");
+
+  static_assert(sizeof(Synthesized) == sizeof(int));
+}
+
+TEST(TutorialsReflection, Substitute) {
+  // `substitute(^^Template, {args...})` instantiates a template from infos;
+  // `reflect_constant` turns an ordinary value into an info usable as a
+  // non-type template argument.
+  // clang-format off
+  constexpr std::meta::info array_info =
+      substitute(^^std::array, {^^double, std::meta::reflect_constant(3)});
+  // clang-format on
+
+  static_assert(std::is_same_v<typename[:array_info:], std::array<double, 3>>);
+}
+
+TEST(TutorialsReflection, DisplayStringOf) {
+  // `display_string_of` returns an implementation-defined string.
+  // Another implementation could choose to display `double` differently.
+  static_assert(display_string_of(^^double) == "double");
+}
+
+}  // namespace xyz::tutorials::code_generation
