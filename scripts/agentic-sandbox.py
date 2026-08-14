@@ -30,6 +30,17 @@ AGENT_CLIS: dict[str, AgentCli] = {
     "antigravity": {"npm_package": None, "cmd": "agy"},
 }
 
+IMAGE_NAME = "cc-protocol-sandbox"
+
+AGENT_CLIS = {
+    "gemini": {"npm_package": "@google/gemini-cli", "cmd": "gemini"},
+    "claude": {
+        "npm_package": "@anthropic-ai/claude-code",
+        "cmd": "claude --dangerously-skip-permissions",
+    },
+    "antigravity": {"npm_package": None, "cmd": "agy"},
+}
+
 
 def _seed_config_file(path: str, content: bytes) -> None:
     """Create path with content and mode 0o600, skipping silently if it exists."""
