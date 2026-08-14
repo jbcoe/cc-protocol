@@ -23,7 +23,8 @@ TEST(ReflectionProtocolViewTest, CheckSpecialMembers) {
   static_assert(std::is_destructible_v<protocol_view<A>>);
 }
 
-TEST(RProtocolViewTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
+TEST(ReflectionProtocolViewTest,
+     CheckSpecialMembersForStructWithDeletedSpecialMembers) {
   // `protocol_view`'s special member functions do not depend on those of the
   // viewed type.
   struct D {
@@ -43,7 +44,7 @@ TEST(RProtocolViewTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
   static_assert(std::is_destructible_v<protocol_view<D>>);
 }
 
-TEST(RProtocolTest, CheckSpecialMembers) {
+TEST(ReflectionProtocolTest, CheckSpecialMembers) {
   // `protocol` is not default-constructible but can be copied, moved,
   // assigned and move assigned if the underlying type can be copied.
   struct A {};
@@ -55,7 +56,8 @@ TEST(RProtocolTest, CheckSpecialMembers) {
   static_assert(std::is_move_assignable_v<protocol<A>>);
 }
 
-TEST(RProtocolTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
+TEST(ReflectionProtocolTest,
+     CheckSpecialMembersForStructWithDeletedSpecialMembers) {
   // `protocol` is not default-constructible and cannot be copied, or
   // assigned to if the interface type cannot be copied.
   // `protocol` can unconditionally be move constructed and move assigned.
@@ -69,7 +71,6 @@ TEST(RProtocolTest, CheckSpecialMembersForStructWithDeletedSpecialMembers) {
 
   static_assert(!std::is_default_constructible_v<protocol<D>>);
   static_assert(!std::is_copy_constructible_v<protocol<D>>);
-  static_assert(std::is_move_constructible_v<protocol<D>>);
   static_assert(std::is_move_constructible_v<protocol<D>>);
   static_assert(!std::is_copy_assignable_v<protocol<D>>);
   static_assert(std::is_move_assignable_v<protocol<D>>);
