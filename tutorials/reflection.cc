@@ -97,10 +97,11 @@ TEST(TutorialsReflection, MembersOfWithConstevalBlock) {
 }
 
 TEST(TutorialsReflection, MembersOfWithDefineStaticArray) {
-  // `nonstatic_data_members_of` returns a `std::vector` of `std::meta::info`
-  // backed by a transient constexpr allocation, which can't persist as a
-  // constexpr value across evaluations; `define_static_array` copies the data
-  // into static storage instead.
+  // `nonstatic_data_members_of` returns a `std::vector` of `std::meta::info`.
+  // Its backing allocation must be freed within the same constant
+  // evaluation that created it, so it can't persist as a constexpr value
+  // across evaluations; `define_static_array` copies the data into static
+  // storage instead.
 
   constexpr std::ranges::range auto members = std::define_static_array(
       nonstatic_data_members_of(^^Point, std::meta::access_context::current()));
@@ -136,7 +137,7 @@ TEST(TutorialsReflection, MemberFunctions) {
 
 TEST(TutorialsReflection, EnumeratorsOfWithDefineStaticArray) {
   // `enumerators_of` returns a `std::vector` of `std::meta::info`, one per
-  // enumerator, with the same transient-constexpr-allocation restriction as
+  // enumerator, with the same allocation restriction as
   // `nonstatic_data_members_of` above.
 
   enum class Color { Red, Green, Blue };
@@ -248,9 +249,9 @@ TEST(TutorialsReflection, Extract) {
 }
 
 TEST(TutorialsReflection, DefineAggregate) {
-  // `define_aggregate` gives a forward-declared, incomplete type real data
-  // members, built from a `vector<data_member_spec>` instead of hand-written
-  // struct syntax; `data_member_options` names each member.
+  // `define_aggregate` gives an incomplete class type real data members,
+  // built from a `vector<data_member_spec>` instead of hand-written struct
+  // syntax; `data_member_options` names each member.
   // `no_unique_address` mirrors the `[[no_unique_address]]` attribute,
   // letting an empty member avoid inflating the type's size.
   struct Empty {};
