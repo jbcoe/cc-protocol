@@ -89,6 +89,45 @@ TEST(ProtocolTest, CopyConstructionAllocs) {
   EXPECT_EQ(deallocs, 2);
 }
 
+TEST(ProtocolTest, CopyConstructionEqualAllocs) {
+  unsigned allocs{};
+  unsigned deallocs{};
+  {
+    xyz::TrackingAllocator<std::byte> alloc1{&allocs, &deallocs};
+    xyz::protocol<Blank, decltype(alloc1)> p1{std::allocator_arg, alloc, Tester{100}};
+    
+    xyz::TrackingAllocator<std::byte> alloc2{&allocs, &deallocs};
+    xyz::protocol<Blank, decltype(alloc2)> p2{std::allocator_arg, alloc2, p1};
+
+    EXPECT_EQ(allocs, 2);
+    EXPECT_EQ(deallocs, 0);
+  }
+  EXPECT_EQ(allocs, 2);
+  EXPECT_EQ(deallocs, 2);
+}
+
+TEST(ProtocolTest, CopyConstructionUnequalAllocs) {
+  unsigned allocs1{};
+  unsigned deallocs1{};
+
+  unsigned allocs2{};
+  unsigned deallocs2{};
+  {
+    xyz::TrackingAllocator<std::byte> alloc1{&allocs1, &deallocs1};
+    xyz::protocol<Blank, decltype(alloc1)> p1{std::allocator_arg, alloc, Tester{100}};
+    
+    xyz::TrackingAllocator<std::byte> alloc2{&allocs2, &deallocs2};
+    xyz::protocol<Blank, decltype(alloc2)> p2{std::allocator_arg, alloc2, p1};
+
+    EXPECT_EQ(allocs1, 1);
+    EXPECT_EQ(allocs2, 1);
+    EXPECT_EQ(deallocs1, 0);
+    EXPECT_EQ(deallocs2, 0);
+  }
+  EXPECT_EQ(dealloc1, 1);
+  EXPECT_EQ(dealloc2, 1);
+}
+
 TEST(ProtocolTest, CopyAssignmentAllocs) {
   unsigned allocs{};
   unsigned deallocs{};
@@ -96,7 +135,7 @@ TEST(ProtocolTest, CopyAssignmentAllocs) {
     xyz::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
     
     xyz::protocol<Blank, decltype(alloc)> p1{std::allocator_arg, alloc, Tester{30}};
-    xyz::protocol p2{std::allocator_arg, alloc, Tester{40}};
+    xyz::protocol<Blank, decltype(alloc)> p2{Tester{40}};
     EXPECT_EQ(allocs, 2);
     EXPECT_EQ(deallocs, 0);
 
@@ -104,6 +143,21 @@ TEST(ProtocolTest, CopyAssignmentAllocs) {
     EXPECT_EQ(allocs, 3);
     EXPECT_EQ(deallocs, 1);
   }
-  EXPECT_EQ(allocs, 2);
-  EXPECT_EQ(deallocs, 2);
+  EXPECT_EQ(allocs, 3);
+  EXPECT_EQ(deallocs, 3);
+}
+
+Test(ProtocolTest, MoveConstructionAllocs) {
+  unsigned allocs{};
+  unsigned deallocs{};
+  {
+    xyz::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
+    
+    xyz::protocol<Blank, decltype(alloc)> p1{std::allocator_arg, alloc, Tester{50}};
+    xyz::protocol p2{std::move(p1)};
+    EXPECT_EQ(allocs, 1);
+    EXPECT_EQ(deallocs, 0);
+  }
+  EXPECT_EQ(allocs, 1);
+  EXPECT_EQ(deallocs, 1);
 }
