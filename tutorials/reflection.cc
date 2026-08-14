@@ -33,7 +33,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace xyz::tutorials {
 
-// A.simple type, shared across many tests.
+// A simple type, shared across many tests.
 struct Point {
   double x = 0;
   double y = 0;
@@ -46,8 +46,8 @@ struct Point {
 namespace xyz::tutorials::introspection {
 
 TEST(TutorialsReflection, MetaInfoIdentifier) {
-  // The reflection operator `^^` can be used to get information about the
-  // program at compile time.
+  // The reflection operator `^^` gets information about the program at
+  // compile time.
   constexpr std::meta::info point_info = ^^Point;
 
   static_assert(identifier_of(point_info) == "Point");
@@ -64,8 +64,8 @@ TEST(TutorialsReflection, AliasesCompareDifferent) {
 }
 
 TEST(TutorialsReflection, MetaInfoQueries) {
-  // std::meta has assorted functions for querying meta-info.
-  // The functions can be found by ADL so need no std::meta prefix.
+  // std::meta has assorted functions for querying meta-info, found by ADL
+  // so used without an std::meta prefix.
 
   // This list is illustrative, not exhaustive.
   // See: https://en.cppreference.com/cpp/meta/reflection for <meta> functions.
@@ -77,12 +77,12 @@ TEST(TutorialsReflection, MetaInfoQueries) {
 }
 
 TEST(TutorialsReflection, MembersOfWithConstevalBlock) {
-  // `nonstatic_data_members_of` allows inspection of class members.
+  // `nonstatic_data_members_of` inspects a class's members.
 
   // We use `throw` inside a `consteval` block rather than `static_assert`
   // or `EXPECT_*`: `static_assert` needs `members` to independently be a
-  // constant expression, and gtest's comparison helpers used by `EXPECT_*`
-  // aren't `constexpr` functions.
+  // constant expression, and `EXPECT_*`'s comparison helpers aren't
+  // `constexpr` functions.
 
   consteval {
     auto members = nonstatic_data_members_of(
@@ -116,8 +116,8 @@ TEST(TutorialsReflection, MembersOfWithDefineStaticArray) {
 TEST(TutorialsReflection, MemberFunctions) {
   // `members_of` returns every member, including implicitly-declared special
   // member functions that have no identifier; `is_function` narrows the
-  // range to functions, and `has_identifier` further narrows it to the ones
-  // `identifier_of` can be called on.
+  // range to functions, and `has_identifier` further narrows it to ones
+  // `identifier_of` accepts.
 
   constexpr std::ranges::range auto member_functions = std::define_static_array(
       members_of(^^Point, std::meta::access_context::current()) |
@@ -180,7 +180,7 @@ TEST(TutorialsReflection, AccessContext) {
 
 }  // namespace xyz::tutorials::introspection
 
-// C++26 offers some support for code generation.
+// C++26 reflection also supports code generation.
 
 namespace xyz::tutorials::code_generation {
 
@@ -188,13 +188,12 @@ TEST(TutorialsReflection, SpliceTypeFromInfo) {
   // `typename [: info :]` splices an info back into the type it reflects.
   constexpr std::meta::info point_info = ^^Point;
 
-  // `[: :]` is used for both type-splices and value-splices.
-  // `typename` is needed to disambiguate.
+  // `[: :]` splices both types and values; `typename` disambiguates which.
   static_assert(std::is_same_v<typename[:point_info:], Point>);
 }
 
 TEST(TutorialsReflection, SpliceValueFromInfo) {
-  // `[: :]` can be used to splice a value.
+  // `[: :]` also splices a value.
   enum class Color { Red, Green, Blue };
 
   constexpr std::meta::info green_info = ^^Color::Green;
@@ -233,10 +232,10 @@ TEST(TutorialsReflection, EnumToString) {
 
 consteval std::optional<Suit> suit_from_name(std::string_view name) {
   for (std::meta::info e : enumerators_of(^^Suit)) {
-    // `e` is a loop variable, not a constant expression: `[:e:]` wouldn't
-    // compile here. `extract<Suit>` only needs `e` to be reachable during the
-    // evaluation of this call.
     if (identifier_of(e) == name) {
+      // `e` is a loop variable, not a constant expression, so we can't
+      // splice it with `return [:e:];`. `extract<Suit>(e)` only needs a
+      // value, not a fixed compile-time constant.
       return extract<Suit>(e);
     }
   }
