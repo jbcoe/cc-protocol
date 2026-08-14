@@ -523,8 +523,8 @@ class PocsAlloc : public TestAlloc<T> {
 TEST(TutorialsAllocators, CopyAssignment) {
   using TestOwner = Owner<int, TestAlloc<int>>;
 
-  Owner o1{std::allocator_arg, TestAlloc<int>{0}, 10};
-  Owner o2{20};
+  TestOwner o1{std::allocator_arg, TestAlloc<int>{0}, 10};
+  TestOwner o2{20};
   // Copy assignment does NOT take the allocator by default.
   // If our allocator set propagate_on_container_copy_assignment to true,
   // it would take o2's allocator.
