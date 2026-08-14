@@ -61,7 +61,7 @@ TEST(TutorialsPolymorphism, PolymorphismWithTemplates) {
 // `Cat` and `Dog` have a common type. We can use a single function for both
 // types. This form of inheritance is intrusive: `Cat` and `Dog` must declare
 // `Animal` as a base class at class-definition time and `Animal` must declare
-// which member functions can be used polymorphically.
+// member functions as `virtual` so that they can be used polymorphically.
 namespace xyz::tutorials::polymorphism_with_inheritance {
 
 class Animal {
@@ -111,8 +111,8 @@ TEST(TutorialsPolymorphism, PolymorphismWithInheritance) {
 
 // Polymorphism with type-erasure.
 
-// `Cat` and `Dog` have no common type; we can define a type-erasing
-// wide-pointer to determine which member functions to call at run time. The
+// `Cat` and `Dog` have no common type; we can define a type-erased
+// wide pointer to determine which member functions to call at run time. The
 // decision to dispatch functions polymorphically is made by the `AnimalPtr`
 // class, not `Cat` or `Dog` classes.
 namespace xyz::tutorials::polymorphism_with_type_erasure {
@@ -127,6 +127,8 @@ class Dog {
   std::string_view noise() const { return "Woof"; }
 };
 
+// AnimalPtr is a wide pointer: it has a pointer to data a function pointer to
+// support dynamic dispatch.
 class AnimalPtr {
   void* data_;
   std::string_view (*noise_func_)(const void* data);
@@ -149,7 +151,7 @@ TEST(TutorialsPolymorphism, PolymorphismWithTypeErasure) {
   Cat cat;
   Dog dog;
 
-  // We can store pointers to `Cat` and `Dog` using our wide pointer type.
+  // We can store pointers to `Cat` and `Dog` using our wide-pointer type.
   std::vector<AnimalPtr> animals;
   animals.reserve(2);
   animals.emplace_back(&cat);
@@ -219,7 +221,7 @@ TEST(TutorialsPolymorphism, PolymorphismWithTypeErasureAndVtable) {
   Cat cat;
   Dog dog;
 
-  // We can store pointers to `Cat` and `Dog` using our wide pointer type.
+  // We can store pointers to `Cat` and `Dog` using our wide-pointer type.
   std::vector<AnimalPtr> animals;
   animals.reserve(2);
   animals.emplace_back(&cat);
@@ -237,7 +239,7 @@ TEST(TutorialsPolymorphism, PolymorphismWithTypeErasureAndVtable) {
 // We can implement inheritance-like, intrusive polymorphism manually.
 // This is just an exercise, not recommended practice.
 // Note that the vtable pointer is now part of the class, whereas our
-// type erased wide-pointer stores the vtable pointer alongside a pointer to
+// type-erased wide pointer stores the vtable pointer alongside a pointer to
 // the class: intrusive polymorphism affects class design and requires the class
 // to store an additional pointer for the vtable.
 
