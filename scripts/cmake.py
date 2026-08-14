@@ -2,6 +2,7 @@
 """CMake helper script for building and testing the project."""
 
 import argparse
+import os
 import subprocess
 from typing import Any
 
@@ -37,6 +38,12 @@ def main() -> None:
     )
     parser.add_argument("--tsan", action="store_true", help="Enable Thread Sanitizer")
     parser.add_argument("--msan", action="store_true", help="Enable Memory Sanitizer")
+    parser.add_argument(
+        "--reflection",
+        action="store_true",
+        help="Build and test tutorials/reflection.cc (requires a P2996 "
+        "reflection compiler, e.g. CXX=g++-16 CC=gcc-16)",
+    )
     parser.add_argument("-B", "--build-dir", help="Build directory")
     parser.add_argument(
         "--clean", action="store_true", help="Fresh configuration and clean-first build"
@@ -74,6 +81,7 @@ def main() -> None:
         f"-DENABLE_UBSAN={'ON' if args.ubsan else 'OFF'}",
         f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",
         f"-DENABLE_MSAN={'ON' if args.msan else 'OFF'}",
+        "-DXYZ_PROTOCOL_BUILD_REFLECTION=" + ("ON" if args.reflection else "OFF"),
     ]
     if args.build_dir:
         configure_args.extend(["-B", args.build_dir])
@@ -82,8 +90,17 @@ def main() -> None:
 
     configure_args.extend(extra)
 
+    # A P2996 reflection compiler is required to configure with
+    # XYZ_PROTOCOL_BUILD_REFLECTION=ON. CMake only reads CXX/CC
+    # from the environment, not from -D cache variables, so set them here
+    # rather than as configure_args.
+    configure_env = os.environ.copy()
+    if args.reflection:
+        configure_env["CXX"] = "g++-16"
+        configure_env["CC"] = "gcc-16"
+
     log(f"Running: {' '.join(configure_args)}")
-    subprocess.check_call(configure_args)
+    subprocess.check_call(configure_args, env=configure_env)
 
     # Build step (required for build, test, benchmark)
     build_args = ["cmake", "--build"]
