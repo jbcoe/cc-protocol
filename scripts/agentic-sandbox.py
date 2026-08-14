@@ -9,10 +9,19 @@ import argparse
 import os
 import subprocess
 import sys
+from typing import TypedDict
 
 IMAGE_NAME = "cc-protocol-sandbox"
 
-AGENT_CLIS = {
+
+class AgentCli(TypedDict):
+    """npm package and launch command for an agent CLI."""
+
+    npm_package: str | None
+    cmd: str
+
+
+AGENT_CLIS: dict[str, AgentCli] = {
     "gemini": {"npm_package": "@google/gemini-cli", "cmd": "gemini"},
     "claude": {
         "npm_package": "@anthropic-ai/claude-code",
