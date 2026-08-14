@@ -127,8 +127,8 @@ class Dog {
   std::string_view noise() const { return "Woof"; }
 };
 
-// AnimalPtr is a wide pointer: it has a pointer to data a function pointer to
-// support dynamic dispatch.
+// AnimalPtr is a wide pointer: it has a pointer to data and a function pointer
+// to support dynamic dispatch.
 class AnimalPtr {
   void* data_;
   std::string_view (*noise_func_)(const void* data);
@@ -194,8 +194,8 @@ class AnimalPtr {
  public:
   template <typename T>
   AnimalPtr(T* t) : data_(t) {
-    // Making the vtable `constexpr`avoids runtime cost (synchronization between
-    // threads) when accessing static variables.
+    // Making the vtable `constexpr` avoids runtime cost (synchronization
+    // between threads) when accessing static variables.
     constexpr static vtable vtable_for_type = {
         .noise_func_ =
             +[](const void* data) {
