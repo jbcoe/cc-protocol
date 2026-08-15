@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstddef>
-#include <vector>
+#include <new>
+#include <type_traits>
 
 #include "protocol.h"
 #include "tagged_allocator.h"
@@ -142,7 +144,7 @@ TEST(ProtocolTest, CopyAssignmentEqual) {
     TestAlloc alloc{&allocs, &deallocs};
 
     TestProtocol p1{std::allocator_arg, alloc, Tester{30}};
-    TestProtocol p2{Tester{40}};
+    TestProtocol p2{std::allocator_arg, alloc, Tester{40}};
     EXPECT_EQ(allocs, 2);
     EXPECT_EQ(deallocs, 0);
 
@@ -320,7 +322,7 @@ TEST(ProtocolTest, SwapUnequal) {
   TestProtocol p2{std::allocator_arg, alloc2, p1};
 
   using std::swap;
-  EXPECT_DEATH(swap(p1, p2));
+  EXPECT_DEATH(swap(p1, p2), "allocators must compare equal or propagate on swap");
 }
 #endif
 
@@ -332,7 +334,7 @@ struct PoccaAllocator : xyz::TrackingAllocator<T> {
   template <typename Other>
   struct rebind {
     using other = PoccaAllocator<Other>;
-  }
+  };
 };
 
 TEST(ProtocolTest, CopyAssignmentUnequalPocca) {
@@ -355,9 +357,11 @@ TEST(ProtocolTest, CopyAssignmentUnequalPocca) {
     EXPECT_EQ(allocs2, 1);
 
     p1 = p2;
-    EXPECT_EQ(allocs1, 2);
+
+    EXPECT_EQ(allocs1, 1);
+    EXPECT_EQ(allocs2, 2);
     EXPECT_EQ(deallocs1, 1);
-    EXPECT_EQ(deallocs2, 1);
+    EXPECT_EQ(deallocs2, 0);
   }
 
   EXPECT_EQ(deallocs1, 2);
@@ -371,7 +375,7 @@ struct PocmaAllocator : xyz::TrackingAllocator<T> {
   template <typename Other>
   struct rebind {
     using other = PocmaAllocator<Other>;
-  }
+  };
 };
 
 TEST(ProtocolTest, MoveAssignmentUnequalPocma) {
@@ -412,7 +416,7 @@ struct PocsAllocator : xyz::TrackingAllocator<T> {
   template <typename Other>
   struct rebind {
     using other = PocsAllocator<Other>;
-  }
+  };
 };
 
 TEST(ProtocolTest, SwapUnequalPocs) {
@@ -434,7 +438,7 @@ TEST(ProtocolTest, SwapUnequalPocs) {
     EXPECT_EQ(allocs2, 1);
 
     using std::swap;
-    swap(alloc1, alloc2);
+    swap(p1, p2);
 
     EXPECT_EQ(p1.get_allocator(), alloc2);
     EXPECT_EQ(p2.get_allocator(), alloc1);
@@ -447,17 +451,15 @@ TEST(ProtocolTest, SwapUnequalPocs) {
   EXPECT_EQ(deallocs2, 1);
 }
 
-struct TestException : std::bad_alloc {
-  const char* what() const noexcept override { return bad_alloc::what(); }
-};
+struct TestException : std::bad_alloc {};
 
 template <typename T>
 struct ThrowingAllocator : xyz::TrackingAllocator<T> {
   const bool* should_throw_;
 
-  template <typename U>
+  template <typename Other>
   struct rebind {
-    using other = ThrowingAllocator<T>;
+    using other = ThrowingAllocator<Other>;
   };
 
   ThrowingAllocator(unsigned* allocs, unsigned* deallocs,
@@ -466,15 +468,15 @@ struct ThrowingAllocator : xyz::TrackingAllocator<T> {
 
   T* allocate(std::size_t count) {
     if (should_throw_) {
-      throw std::bad_alloc{};
+      throw TestException{};
     }
-    TrackingAllocator::allocate();
+    return TrackingAllocator<T>::allocate(count);
   }
 };
 
 using ThrowingAlloc = ThrowingAllocator<std::byte>;
 
-using ThrowingProtocol = xyz::protocol<IntLike, ThrowingAlloc>
+using ThrowingProtocol = xyz::protocol<IntLike, ThrowingAlloc>;
 
 TEST(ProtocolTest, ConstructionException) {
   unsigned allocs{};
@@ -519,13 +521,13 @@ TEST(ProtocolTest, CopyAssignmentException) {
     ThrowingProtocol p2{std::allocator_arg, alloc, Tester{20}};
 
     EXPECT_EQ(allocs, 2);
-    EXPECT_EQ(allocs, 0);
+    EXPECT_EQ(deallocs, 0);
 
     should_throw = true;
     EXPECT_THROW(p2 = p1, TestException);
 
     EXPECT_EQ(p1.value(), 10);
-    EXPECT_EQ(p2.value(), 10);
+    EXPECT_EQ(p2.value(), 20);
   }
   EXPECT_EQ(deallocs, 2);
 }
@@ -564,7 +566,7 @@ TEST(ProtocolTest, UnequalMoveConstructionException) {
    
     should_throw = true;
     ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw};
-    EXPECT_THROW(ThrowingProtocol{std::allocator_arg, alloc, std::move(p1)}, TestException);
+    EXPECT_THROW(ThrowingProtocol{std::allocator_arg, alloc2, std::move(p1)}, TestException);
 
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(deallocs1, 0);
