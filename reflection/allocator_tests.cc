@@ -15,6 +15,8 @@ struct IntLike {
   int value() const noexcept;
 };
 
+struct Blank {};
+
 using TestAlloc = xyz::TrackingAllocator<std::byte>;
 using TestProtocol = xyz::protocol<IntLike, TestAlloc>;
 
@@ -305,6 +307,87 @@ TEST(ProtocolTest, SwapEqual) {
     EXPECT_EQ(p2.get_allocator(), alloc2);
   }
   EXPECT_EQ(deallocs, 2);
+}
+
+TEST(ProtocolTest, NarrowingCopyConstruction) {
+  unsigned allocs{};
+  unsigned deallocs{};
+  {
+    TestAlloc alloc1{&allocs, &deallocs};
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1, Tester{25}};
+    xyz::protocol<Blank, TestAlloc> p2{p1};
+    EXPECT_EQ(allocs, 2);
+    EXPECT_EQ(deallocs, 0);
+  }
+  EXPECT_EQ(deallocs, 2);
+}
+
+TEST(ProtocolTest, NarrowingCopyConstructionUnequal) {
+  unsigned allocs1{};
+  unsigned deallocs1{};
+
+  unsigned allocs2{};
+  unsigned deallocs2{};
+
+  {
+    TestAlloc alloc1{&allocs1, &deallocs1};
+    TestAlloc alloc2{&allocs2, &deallocs2};
+
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1, Tester{25}};
+    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2, p1};
+    EXPECT_EQ(allocs1, 1);
+    EXPECT_EQ(allocs2, 1);
+  }
+  EXPECT_EQ(deallocs1, 1);
+  EXPECT_EQ(deallocs2, 1);
+}
+
+TEST(ProtocolTest, NarrowingMoveConstruction) {
+  unsigned allocs{};
+  unsigned deallocs{};
+  {
+    TestAlloc alloc1{&allocs, &deallocs};
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1, Tester{25}};
+    xyz::protocol<Blank, TestAlloc> p2{std::move(p1)};
+    EXPECT_EQ(allocs, 1);
+    EXPECT_EQ(deallocs, 0);
+  }
+  EXPECT_EQ(deallocs, 1);
+}
+
+TEST(ProtocolTest, NarrowingMoveConstructionEqual) {
+  unsigned allocs{};
+  unsigned deallocs{};
+
+  {
+    TestAlloc alloc1{&allocs, &deallocs};
+    TestAlloc alloc2{&allocs, &deallocs};
+
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1, Tester{25}};
+    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2, std::move(p1)};
+    EXPECT_EQ(allocs, 1);
+  }
+  EXPECT_EQ(deallocs, 1);
+}
+
+TEST(ProtocolTest, NarrowingMoveConstructionUnequal) {
+  unsigned allocs1{};
+  unsigned deallocs1{};
+
+  unsigned allocs2{};
+  unsigned deallocs2{};
+
+  {
+    TestAlloc alloc1{&allocs1, &deallocs1};
+    TestAlloc alloc2{&allocs2, &deallocs2};
+
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1, Tester{25}};
+    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2, std::move(p1)};
+    EXPECT_EQ(allocs1, 1);
+    EXPECT_EQ(allocs2, 1);
+  }
+  EXPECT_EQ(deallocs1, 1);
+  EXPECT_EQ(deallocs2, 1);
 }
 
 // Tests that swap fails gracefully with an assert in debug mode.
