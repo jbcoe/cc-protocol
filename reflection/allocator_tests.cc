@@ -334,7 +334,8 @@ TEST(ProtocolTest, NarrowingCopyConstruction) {
   unsigned deallocs{};
   {
     TestAlloc alloc1{&allocs, &deallocs};
-    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1, Tester{25}};
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
+                                         Tester{25}};
     xyz::protocol<Blank, TestAlloc> p2{p1};
     EXPECT_EQ(allocs, 2);
     EXPECT_EQ(deallocs, 0);
@@ -353,7 +354,8 @@ TEST(ProtocolTest, NarrowingCopyConstructionUnequal) {
     TestAlloc alloc1{&allocs1, &deallocs1};
     TestAlloc alloc2{&allocs2, &deallocs2};
 
-    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1, Tester{25}};
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
+                                         Tester{25}};
     xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2, p1};
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
@@ -367,7 +369,8 @@ TEST(ProtocolTest, NarrowingMoveConstruction) {
   unsigned deallocs{};
   {
     TestAlloc alloc1{&allocs, &deallocs};
-    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1, Tester{25}};
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
+                                         Tester{25}};
     xyz::protocol<Blank, TestAlloc> p2{std::move(p1)};
     EXPECT_EQ(allocs, 1);
     EXPECT_EQ(deallocs, 0);
@@ -383,8 +386,10 @@ TEST(ProtocolTest, NarrowingMoveConstructionEqual) {
     TestAlloc alloc1{&allocs, &deallocs};
     TestAlloc alloc2{&allocs, &deallocs};
 
-    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1, Tester{25}};
-    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2, std::move(p1)};
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
+                                         Tester{25}};
+    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2,
+                                       std::move(p1)};
     EXPECT_EQ(allocs, 1);
   }
   EXPECT_EQ(deallocs, 1);
@@ -401,8 +406,10 @@ TEST(ProtocolTest, NarrowingMoveConstructionUnequal) {
     TestAlloc alloc1{&allocs1, &deallocs1};
     TestAlloc alloc2{&allocs2, &deallocs2};
 
-    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1, Tester{25}};
-    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2, std::move(p1)};
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
+                                         Tester{25}};
+    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2,
+                                       std::move(p1)};
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
   }
@@ -425,7 +432,8 @@ TEST(ProtocolTest, SwapUnequal) {
   TestProtocol p2{std::allocator_arg, alloc2, p1};
 
   using std::swap;
-  EXPECT_DEATH(swap(p1, p2), "allocators must compare equal or propagate on swap");
+  EXPECT_DEATH(swap(p1, p2),
+               "allocators must compare equal or propagate on swap");
 }
 #endif
 
@@ -647,7 +655,7 @@ TEST(ProtocolTest, EqualMoveConstructionNoException) {
     EXPECT_EQ(allocs, 1);
 
     should_throw = true;
-    ThrowingProtocol p2{std::move(p1)}; // Does not throw.
+    ThrowingProtocol p2{std::move(p1)};  // Does not throw.
     EXPECT_EQ(allocs, 1);
   }
 
@@ -666,10 +674,11 @@ TEST(ProtocolTest, UnequalMoveConstructionException) {
 
     ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw};
     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester{25}};
-   
+
     should_throw = true;
     ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw};
-    EXPECT_THROW(ThrowingProtocol{std::allocator_arg, alloc2, std::move(p1)}, TestException);
+    EXPECT_THROW(ThrowingProtocol{std::allocator_arg, alloc2, std::move(p1)},
+                 TestException);
 
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(deallocs1, 0);
@@ -694,7 +703,7 @@ TEST(ProtocolTest, EqualMoveAssignmentNoException) {
     EXPECT_EQ(allocs, 2);
 
     should_throw = true;
-    p1 = std::move(p2); // Does not throw.
+    p1 = std::move(p2);  // Does not throw.
     EXPECT_EQ(allocs, 2);
     EXPECT_EQ(deallocs, 1);
   }
@@ -715,7 +724,7 @@ TEST(ProtocolTest, UnequalMoveAssignmentException) {
 
     ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw1};
     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester{25}};
-   
+
     ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw2};
     ThrowingProtocol p2{std::allocator_arg, alloc2, Tester{55}};
 
