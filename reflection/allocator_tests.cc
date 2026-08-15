@@ -9,34 +9,28 @@
 
 namespace {
 
-struct Blank {};
-
-struct NonCopyable {
-  NonCopyable(const NonCopyable&) = delete;
-  NonCopyable& operator=(const NonCopyable&) = delete;
-
-  NonCopyable(NonCopyable&&) = default;
-  NonCopyable& operator=(NonCopyable&&) = default;
-
-  ~NonCopyable() = default;
+struct IntLike {
+  int value() const noexcept;
 };
 
 using TestAlloc = xyz::TrackingAllocator<std::byte>;
-using TestProtocol = xyz::protocol<Blank, TestAlloc>;
+using TestProtocol = xyz::protocol<IntLike, TestAlloc>;
 
-struct Tester {
-  int val;
+class Tester {
+  int val_;
 
-  Tester(int value) noexcept : val(value) {}
+  // protocol should probably implement small buffer optimization, and therefore
+  // we may find there are fewer allocations than these tests suggest. To
+  // sidestep this, we can use a type that is guaranteed to be larger than
+  // protocol.
+  std::array<std::byte, sizeof(TestProtocol)> padding_;
+
+ public:
+  Tester(int value) noexcept : val_(value) {}
 
   Tester(std::initializer_list<int>) noexcept {}
 
- private:
-  // protocol should probably
-  // implement small buffer optimization, and therefore we may find there are
-  // fewer allocations than these tests suggest. To sidestep this, we can use
-  // a type that is guaranteed to be larger than protocol.
-  std::array<std::byte, sizeof(P)> padding;
+  int value() const noexcept { return val_; }
 };
 
 TEST(ProtocolTest, Construction) {
@@ -350,12 +344,12 @@ TEST(ProtocolTest, CopyAssignmentUnequalPocca) {
 
   {
     PoccaAllocator<std::byte> alloc1{&allocs1, &deallocs1};
-    xyz::protocol<Blank, PoccaAllocator<std::byte>> p1{std::allocator_arg,
-                                                       alloc1, Tester{0}};
+    xyz::protocol<IntLike, PoccaAllocator<std::byte>> p1{std::allocator_arg,
+                                                         alloc1, Tester{0}};
 
     PoccaAllocator<std::byte> alloc2{&allocs2, &deallocs2};
-    xyz::protocol<Blank, PoccaAllocator<std::byte>> p2{std::allocator_arg,
-                                                       alloc2, Tester{0}};
+    xyz::protocol<IntLike, PoccaAllocator<std::byte>> p2{std::allocator_arg,
+                                                         alloc2, Tester{0}};
 
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
@@ -389,12 +383,12 @@ TEST(ProtocolTest, MoveAssignmentUnequalPocma) {
 
   {
     PocmaAllocator<std::byte> alloc1{&allocs1, &deallocs1};
-    xyz::protocol<Blank, PocmaAllocator<std::byte>> p1{std::allocator_arg,
-                                                       alloc1, Tester{0}};
+    xyz::protocol<IntLike, PocmaAllocator<std::byte>> p1{std::allocator_arg,
+                                                         alloc1, Tester{0}};
 
     PocmaAllocator<std::byte> alloc2{&allocs2, &deallocs2};
-    xyz::protocol<Blank, PocmaAllocator<std::byte>> p2{std::allocator_arg,
-                                                       alloc2, Tester{10}};
+    xyz::protocol<IntLike, PocmaAllocator<std::byte>> p2{std::allocator_arg,
+                                                         alloc2, Tester{10}};
 
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
@@ -429,12 +423,12 @@ TEST(ProtocolTest, SwapUnequalPocs) {
   unsigned deallocs2{};
   {
     PocsAllocator<std::byte> alloc1{&allocs1, &deallocs1};
-    xyz::protocol<Blank, PocsAllocator<std::byte>> p1{std::allocator_arg, alloc1,
-                                                       Tester{0}};
-  
+    xyz::protocol<IntLike, PocsAllocator<std::byte>> p1{std::allocator_arg,
+                                                        alloc1, Tester{0}};
+
     PocsAllocator<std::byte> alloc2{&allocs2, &deallocs2};
-    xyz::protocol<Blank, PocsAllocator<std::byte>> p2{std::allocator_arg, alloc2,
-                                                       Tester{10}};
+    xyz::protocol<IntLike, PocsAllocator<std::byte>> p2{std::allocator_arg,
+                                                        alloc2, Tester{10}};
 
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
@@ -453,8 +447,186 @@ TEST(ProtocolTest, SwapUnequalPocs) {
   EXPECT_EQ(deallocs2, 1);
 }
 
-// TODO: Add exception checks
+struct TestException : std::bad_alloc {
+  const char* what() const noexcept override { return bad_alloc::what(); }
+};
 
-// TODO: Add tests with PMR / STL
+template <typename T>
+struct ThrowingAllocator : xyz::TrackingAllocator<T> {
+  const bool* should_throw_;
+
+  template <typename U>
+  struct rebind {
+    using other = ThrowingAllocator<T>;
+  };
+
+  ThrowingAllocator(unsigned* allocs, unsigned* deallocs,
+                    const bool* shouldThrow)
+      : TrackingAllocator(allocs, deallocs), should_throw_(shouldThrow) {}
+
+  T* allocate(std::size_t count) {
+    if (should_throw_) {
+      throw std::bad_alloc{};
+    }
+    TrackingAllocator::allocate();
+  }
+};
+
+using ThrowingAlloc = ThrowingAllocator<std::byte>;
+
+using ThrowingProtocol = xyz::protocol<IntLike, ThrowingAlloc>
+
+TEST(ProtocolTest, ConstructionException) {
+  unsigned allocs{};
+  unsigned deallocs{};
+  bool should_throw{true};
+
+  ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
+  EXPECT_THROW(ThrowingProtocol{std::allocator_arg, alloc, Tester{0}},
+               TestException);
+  EXPECT_EQ(allocs, 0);
+  EXPECT_EQ(deallocs, 0);
+}
+
+TEST(ProtocolTest, CopyConstructionException) {
+  unsigned allocs{};
+  unsigned deallocs{};
+
+  {
+    bool should_throw{false};
+
+    ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
+    ThrowingProtocol p1{std::allocator_arg, alloc, Tester{10}};
+    EXPECT_EQ(allocs, 1);
+
+    should_throw = true;
+    EXPECT_THROW(ThrowingProtocol{p1}, TestException);
+    EXPECT_EQ(p1.value(), 10);
+  }
+
+  EXPECT_EQ(deallocs, 1);
+}
+
+TEST(ProtocolTest, CopyAssignmentException) {
+  unsigned allocs{};
+  unsigned deallocs{};
+
+  {
+    bool should_throw{false};
+
+    ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
+    ThrowingProtocol p1{std::allocator_arg, alloc, Tester{10}};
+    ThrowingProtocol p2{std::allocator_arg, alloc, Tester{20}};
+
+    EXPECT_EQ(allocs, 2);
+    EXPECT_EQ(allocs, 0);
+
+    should_throw = true;
+    EXPECT_THROW(p2 = p1, TestException);
+
+    EXPECT_EQ(p1.value(), 10);
+    EXPECT_EQ(p2.value(), 10);
+  }
+  EXPECT_EQ(deallocs, 2);
+}
+
+TEST(ProtocolTest, EqualMoveConstructionNoException) {
+  unsigned allocs{};
+  unsigned deallocs{};
+
+  {
+    bool should_throw{false};
+
+    ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
+    ThrowingProtocol p1{std::allocator_arg, alloc, Tester{15}};
+    EXPECT_EQ(allocs, 1);
+
+    should_throw = true;
+    ThrowingProtocol p2{std::move(p1)}; // Does not throw.
+    EXPECT_EQ(allocs, 1);
+  }
+
+  EXPECT_EQ(deallocs, 1);
+}
+
+TEST(ProtocolTest, UnequalMoveConstructionException) {
+  unsigned allocs1{};
+  unsigned deallocs1{};
+
+  unsigned allocs2{};
+  unsigned deallocs2{};
+
+  {
+    bool should_throw{false};
+
+    ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw};
+    ThrowingProtocol p1{std::allocator_arg, alloc1, Tester{25}};
+   
+    should_throw = true;
+    ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw};
+    EXPECT_THROW(ThrowingProtocol{std::allocator_arg, alloc, std::move(p1)}, TestException);
+
+    EXPECT_EQ(allocs1, 1);
+    EXPECT_EQ(deallocs1, 0);
+    EXPECT_EQ(allocs2, 0);
+
+    EXPECT_EQ(p1.value(), 25);
+  }
+
+  EXPECT_EQ(deallocs1, 1);
+}
+
+TEST(ProtocolTest, EqualMoveAssignmentNoException) {
+  unsigned allocs{};
+  unsigned deallocs{};
+
+  {
+    bool should_throw{false};
+
+    ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
+    ThrowingProtocol p1{std::allocator_arg, alloc, Tester{15}};
+    ThrowingProtocol p2{std::allocator_arg, alloc, Tester{35}};
+    EXPECT_EQ(allocs, 2);
+
+    should_throw = true;
+    p1 = std::move(p2); // Does not throw.
+    EXPECT_EQ(allocs, 2);
+    EXPECT_EQ(deallocs, 1);
+  }
+
+  EXPECT_EQ(deallocs, 2);
+}
+
+TEST(ProtocolTest, UnequalMoveAssignmentException) {
+  unsigned allocs1{};
+  unsigned deallocs1{};
+
+  unsigned allocs2{};
+  unsigned deallocs2{};
+
+  {
+    bool should_throw1{false};
+    bool should_throw2{false};
+
+    ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw1};
+    ThrowingProtocol p1{std::allocator_arg, alloc1, Tester{25}};
+   
+    ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw2};
+    ThrowingProtocol p2{std::allocator_arg, alloc2, Tester{55}};
+
+    EXPECT_EQ(allocs1, 1);
+    EXPECT_EQ(allocs2, 1);
+
+    should_throw1 = true;
+    EXPECT_THROW(p1 = std::move(p2), TestException);
+
+    EXPECT_EQ(deallocs2, 0);
+    EXPECT_EQ(p1.value(), 25);
+    EXPECT_EQ(p2.value(), 55);
+  }
+
+  EXPECT_EQ(deallocs1, 1);
+  EXPECT_EQ(deallocs2, 1);
+}
 
 }  // namespace
