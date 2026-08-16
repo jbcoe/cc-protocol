@@ -98,6 +98,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
     enable_testing()
 
+    add_subdirectory(reflection)
+
     xyz_generate_protocol(
       CLASS_NAME A INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
       HEADER interface_A.h
@@ -147,6 +149,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
     add_dependencies(protocol_test generate_protocols)
     target_include_directories(protocol_test
                                PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+    add_subdirectory(tutorials)
 
     add_executable(protocol_benchmark protocol_benchmark.cc)
     target_link_libraries(protocol_benchmark PRIVATE protocol benchmark::benchmark)
