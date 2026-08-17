@@ -62,8 +62,8 @@ TEST(ProtocolTest, Construction) {
       not std::is_nothrow_constructible_v<TestProtocol, std::allocator_arg_t,
                                           TestAlloc, Tester>);
 
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc{&allocs, &deallocs};
     TestProtocol p{std::allocator_arg, alloc, Tester{15}};
@@ -76,8 +76,8 @@ TEST(ProtocolTest, Construction) {
 }
 
 TEST(ProtocolTest, InPlaceConstruction) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc{&allocs, &deallocs};
     TestProtocol p{std::allocator_arg, alloc, std::in_place_type<Tester>, 15};
@@ -90,8 +90,8 @@ TEST(ProtocolTest, InPlaceConstruction) {
 }
 
 TEST(ProtocolTest, InitListConstruction) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc{&allocs, &deallocs};
     TestProtocol p{
@@ -107,8 +107,8 @@ TEST(ProtocolTest, InitListConstruction) {
 TEST(ProtocolTest, CopyConstruction) {
   static_assert(not std::is_nothrow_copy_constructible_v<TestProtocol>);
 
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc{&allocs, &deallocs};
     TestProtocol p1{std::allocator_arg, alloc, Tester{25}};
@@ -121,8 +121,8 @@ TEST(ProtocolTest, CopyConstruction) {
 }
 
 TEST(ProtocolTest, CopyConstructionEqual) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc1{&allocs, &deallocs};
     TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
@@ -138,11 +138,11 @@ TEST(ProtocolTest, CopyConstructionEqual) {
 }
 
 TEST(ProtocolTest, CopyConstructionUnequal) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
   {
     TestAlloc alloc1{&allocs1, &deallocs1};
     TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
@@ -160,8 +160,8 @@ TEST(ProtocolTest, CopyConstructionUnequal) {
 }
 
 TEST(ProtocolTest, CopyAssignmentEqual) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc{&allocs, &deallocs};
 
@@ -179,11 +179,11 @@ TEST(ProtocolTest, CopyAssignmentEqual) {
 }
 
 TEST(ProtocolTest, CopyAssignmentUnequal) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
   {
     TestAlloc alloc1{&allocs1, &deallocs1};
     TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
@@ -206,8 +206,8 @@ TEST(ProtocolTest, CopyAssignmentUnequal) {
 TEST(ProtocolTest, MoveConstruction) {
   static_assert(std::is_nothrow_move_constructible_v<TestProtocol>);
 
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc{&allocs, &deallocs};
 
@@ -225,8 +225,8 @@ TEST(ProtocolTest, MoveConstructionEqual) {
       not std::is_nothrow_constructible_v<TestProtocol, std::allocator_arg_t,
                                           TestAlloc, TestProtocol&&>);
 
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc1{&allocs, &deallocs};
     TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
@@ -242,11 +242,11 @@ TEST(ProtocolTest, MoveConstructionEqual) {
 }
 
 TEST(ProtocolTest, MoveConstructionUnequal) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
   {
     TestAlloc alloc1{&allocs1, &deallocs1};
     TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
@@ -263,8 +263,8 @@ TEST(ProtocolTest, MoveConstructionUnequal) {
 }
 
 TEST(ProtocolTest, MoveAssignmentEqual) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc{&allocs, &deallocs};
 
@@ -282,11 +282,11 @@ TEST(ProtocolTest, MoveAssignmentEqual) {
 }
 
 TEST(ProtocolTest, MoveAssignmentUnequal) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
   {
     TestAlloc alloc1{&allocs1, &deallocs1};
     TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
@@ -307,8 +307,8 @@ TEST(ProtocolTest, MoveAssignmentUnequal) {
 }
 
 TEST(ProtocolTest, SwapEqual) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc1{&allocs, &deallocs};
     TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
@@ -330,8 +330,8 @@ TEST(ProtocolTest, SwapEqual) {
 }
 
 TEST(ProtocolTest, NarrowingCopyConstruction) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc1{&allocs, &deallocs};
     xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
@@ -344,11 +344,11 @@ TEST(ProtocolTest, NarrowingCopyConstruction) {
 }
 
 TEST(ProtocolTest, NarrowingCopyConstructionUnequal) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
 
   {
     TestAlloc alloc1{&allocs1, &deallocs1};
@@ -365,8 +365,8 @@ TEST(ProtocolTest, NarrowingCopyConstructionUnequal) {
 }
 
 TEST(ProtocolTest, NarrowingMoveConstruction) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   {
     TestAlloc alloc1{&allocs, &deallocs};
     xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
@@ -379,8 +379,8 @@ TEST(ProtocolTest, NarrowingMoveConstruction) {
 }
 
 TEST(ProtocolTest, NarrowingMoveConstructionEqual) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
 
   {
     TestAlloc alloc1{&allocs, &deallocs};
@@ -396,11 +396,11 @@ TEST(ProtocolTest, NarrowingMoveConstructionEqual) {
 }
 
 TEST(ProtocolTest, NarrowingMoveConstructionUnequal) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
 
   {
     TestAlloc alloc1{&allocs1, &deallocs1};
@@ -421,13 +421,13 @@ TEST(ProtocolTest, NarrowingMoveConstructionUnequal) {
 // In release mode, this is undefined behavior.
 #if (defined(_MSC_VER) && defined(_DEBUG)) || (!defined(NDEBUG))
 TEST(ProtocolTest, SwapUnequal) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
   TestAlloc alloc1{&allocs1, &deallocs1};
   TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
   TestAlloc alloc2{&allocs2, &deallocs2};
   TestProtocol p2{std::allocator_arg, alloc2, p1};
 
@@ -449,11 +449,11 @@ struct PoccaAllocator : xyz::TrackingAllocator<T> {
 };
 
 TEST(ProtocolTest, CopyAssignmentUnequalPocca) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
 
   {
     PoccaAllocator<std::byte> alloc1{&allocs1, &deallocs1};
@@ -490,11 +490,11 @@ struct PocmaAllocator : xyz::TrackingAllocator<T> {
 };
 
 TEST(ProtocolTest, MoveAssignmentUnequalPocma) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
 
   {
     PocmaAllocator<std::byte> alloc1{&allocs1, &deallocs1};
@@ -531,11 +531,11 @@ struct PocsAllocator : xyz::TrackingAllocator<T> {
 };
 
 TEST(ProtocolTest, SwapUnequalPocs) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
   {
     PocsAllocator<std::byte> alloc1{&allocs1, &deallocs1};
     xyz::protocol<IntLike, PocsAllocator<std::byte>> p1{std::allocator_arg,
@@ -590,8 +590,8 @@ using ThrowingAlloc = ThrowingAllocator<std::byte>;
 using ThrowingProtocol = xyz::protocol<IntLike, ThrowingAlloc>;
 
 TEST(ProtocolTest, ConstructionException) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
   bool should_throw{true};
 
   ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
@@ -602,8 +602,8 @@ TEST(ProtocolTest, ConstructionException) {
 }
 
 TEST(ProtocolTest, CopyConstructionException) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
 
   {
     bool should_throw{false};
@@ -621,8 +621,8 @@ TEST(ProtocolTest, CopyConstructionException) {
 }
 
 TEST(ProtocolTest, CopyAssignmentException) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
 
   {
     bool should_throw{false};
@@ -644,8 +644,8 @@ TEST(ProtocolTest, CopyAssignmentException) {
 }
 
 TEST(ProtocolTest, EqualMoveConstructionNoException) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
 
   {
     bool should_throw{false};
@@ -663,11 +663,11 @@ TEST(ProtocolTest, EqualMoveConstructionNoException) {
 }
 
 TEST(ProtocolTest, UnequalMoveConstructionException) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
 
   {
     bool should_throw{false};
@@ -691,8 +691,8 @@ TEST(ProtocolTest, UnequalMoveConstructionException) {
 }
 
 TEST(ProtocolTest, EqualMoveAssignmentNoException) {
-  unsigned allocs{};
-  unsigned deallocs{};
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
 
   {
     bool should_throw{false};
@@ -712,11 +712,11 @@ TEST(ProtocolTest, EqualMoveAssignmentNoException) {
 }
 
 TEST(ProtocolTest, UnequalMoveAssignmentException) {
-  unsigned allocs1{};
-  unsigned deallocs1{};
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-  unsigned allocs2{};
-  unsigned deallocs2{};
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
 
   {
     bool should_throw1{false};
