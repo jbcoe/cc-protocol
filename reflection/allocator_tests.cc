@@ -31,15 +31,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace {
 
+// A simple interface to test protocol with.
 struct IntLike {
   int value() const noexcept;
 };
 
+// A narrower interface than IntLike, so we can
+// test narrowing constructors.
 struct Blank {};
 
 using TestAlloc = xyz::TrackingAllocator<std::byte>;
 using TestProtocol = xyz::protocol<IntLike, TestAlloc>;
 
+// A simple test class that we will place in protocol.
 class Tester {
   int val_;
 
@@ -52,6 +56,7 @@ class Tester {
  public:
   Tester(int value) noexcept : val_(value) {}
 
+  // Just so we can exercise protocol's in-place init list constructor.
   Tester(std::initializer_list<int>) noexcept {}
 
   int value() const noexcept { return val_; }
@@ -71,6 +76,7 @@ TEST(ProtocolTest, Construction) {
     EXPECT_EQ(allocs, 1);
     EXPECT_EQ(deallocs, 0);
   }
+  // Memory is cleaned up after the block scope closes.
   EXPECT_EQ(allocs, 1);
   EXPECT_EQ(deallocs, 1);
 }
@@ -113,7 +119,7 @@ TEST(ProtocolTest, CopyConstruction) {
     TestAlloc alloc{&allocs, &deallocs};
     TestProtocol p1{std::allocator_arg, alloc, Tester{25}};
     xyz::protocol p2{p1};
-    EXPECT_EQ(allocs, 2);
+    EXPECT_EQ(allocs, 2);  // Once for p1, and once for p2.
     EXPECT_EQ(deallocs, 0);
   }
   EXPECT_EQ(allocs, 2);
@@ -124,12 +130,18 @@ TEST(ProtocolTest, CopyConstructionEqual) {
   unsigned allocs = 0;
   unsigned deallocs = 0;
   {
+    // TestAllocs are considered equivalent if they point to
+    // the same allocs and deallocs variables. Therefore,
+    // alloc1 == alloc2 here.
     TestAlloc alloc1{&allocs, &deallocs};
+    TestAlloc alloc2{&allocs, &deallocs};
+    ASSERT_EQ(alloc1, alloc2);
+
     TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
 
-    TestAlloc alloc2{&allocs, &deallocs};
     TestProtocol p2{std::allocator_arg, alloc2, p1};
 
+    // Both alloc1 and alloc2 point at the same counter.
     EXPECT_EQ(allocs, 2);
     EXPECT_EQ(deallocs, 0);
   }
@@ -144,14 +156,18 @@ TEST(ProtocolTest, CopyConstructionUnequal) {
   unsigned allocs2 = 0;
   unsigned deallocs2 = 0;
   {
+    // alloc1 != alloc2 now, so p1 and p2 should allocate with
+    // their own respective allocators.
     TestAlloc alloc1{&allocs1, &deallocs1};
-    TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
-
     TestAlloc alloc2{&allocs2, &deallocs2};
+    ASSERT_NE(alloc1, alloc2);
+
+    TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
+    // p2 copies from p1, but allocates using alloc2.
     TestProtocol p2{std::allocator_arg, alloc2, p1};
 
-    EXPECT_EQ(allocs1, 1);
-    EXPECT_EQ(allocs2, 1);
+    EXPECT_EQ(allocs1, 1);  // From p1.
+    EXPECT_EQ(allocs2, 1);  // From p2.
     EXPECT_EQ(deallocs1, 0);
     EXPECT_EQ(deallocs2, 0);
   }
@@ -171,7 +187,10 @@ TEST(ProtocolTest, CopyAssignmentEqual) {
     EXPECT_EQ(deallocs, 0);
 
     p1 = p2;
+    // One allocation for constructing p1; one for p2; and
+    // one for copy assignment.
     EXPECT_EQ(allocs, 3);
+    // p1's original state should have been deallocated.
     EXPECT_EQ(deallocs, 1);
   }
   EXPECT_EQ(allocs, 3);
@@ -186,17 +205,23 @@ TEST(ProtocolTest, CopyAssignmentUnequal) {
   unsigned deallocs2 = 0;
   {
     TestAlloc alloc1{&allocs1, &deallocs1};
-    TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
-
     TestAlloc alloc2{&allocs2, &deallocs2};
-    TestProtocol p2{std::allocator_arg, alloc2, p1};
+    ASSERT_NE(alloc1, alloc2);
+
+    TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
+    TestProtocol p2{std::allocator_arg, alloc2, Tester{200}};
 
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
 
     p1 = p2;
 
+    // The new copy is created with alloc1, and the original
+    // p1 is deallocated with alloc1.
     EXPECT_EQ(allocs1, 2);
+    EXPECT_EQ(deallocs1, 1);
+
+    // alloc2 was never used for additional memory.
     EXPECT_EQ(allocs2, 1);
   }
   EXPECT_EQ(deallocs1, 2);
@@ -204,6 +229,7 @@ TEST(ProtocolTest, CopyAssignmentUnequal) {
 }
 
 TEST(ProtocolTest, MoveConstruction) {
+  // protocol should always be nothrow move constructible.
   static_assert(std::is_nothrow_move_constructible_v<TestProtocol>);
 
   unsigned allocs = 0;
@@ -212,8 +238,10 @@ TEST(ProtocolTest, MoveConstruction) {
     TestAlloc alloc{&allocs, &deallocs};
 
     TestProtocol p1{std::allocator_arg, alloc, Tester{50}};
-    xyz::protocol p2{std::move(p1)};
     EXPECT_EQ(allocs, 1);
+
+    TestProtocol p2{std::move(p1)};
+    EXPECT_EQ(allocs, 1);  // No new allocations.
     EXPECT_EQ(deallocs, 0);
   }
   EXPECT_EQ(allocs, 1);
@@ -234,6 +262,8 @@ TEST(ProtocolTest, MoveConstructionEqual) {
     TestAlloc alloc2{&allocs, &deallocs};
     TestProtocol p2{std::allocator_arg, alloc2, std::move(p1)};
 
+    // alloc1 == alloc2, so no new memory needs to be allocated by
+    // p2.
     EXPECT_EQ(allocs, 1);
     EXPECT_EQ(deallocs, 0);
   }
@@ -250,19 +280,28 @@ TEST(ProtocolTest, MoveConstructionUnequal) {
   {
     TestAlloc alloc1{&allocs1, &deallocs1};
     TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
+    EXPECT_EQ(allocs1, 1);
 
+    // alloc2 != alloc1. We cannot perform a simple pointer-swap
+    // in this case, and must reallocate and move the underlying
+    // memory.
     TestAlloc alloc2{&allocs2, &deallocs2};
     TestProtocol p2{std::allocator_arg, alloc2, std::move(p1)};
-
-    EXPECT_EQ(allocs1, 1);
+    // A new allocation is performed by alloc2.
     EXPECT_EQ(allocs2, 1);
+    // p1 is moved-from and therefore has deallocated its memory.
     EXPECT_EQ(deallocs1, 1);
+
     EXPECT_EQ(deallocs2, 0);
   }
   EXPECT_EQ(deallocs2, 1);
 }
 
 TEST(ProtocolTest, MoveAssignmentEqual) {
+  // Since TestAllocs are not always equivalent and do not propagate on move,
+  // operator=(TestProtocol&&) should not be noexcept.
+  static_assert(not std::is_nothrow_move_assignable_v<TestProtocol>);
+
   unsigned allocs = 0;
   unsigned deallocs = 0;
   {
@@ -273,9 +312,10 @@ TEST(ProtocolTest, MoveAssignmentEqual) {
     EXPECT_EQ(allocs, 2);
     EXPECT_EQ(deallocs, 0);
 
+    // Both use the same allocator, so moving is a simple pointer swap.
     p1 = std::move(p2);
     EXPECT_EQ(allocs, 2);
-    EXPECT_EQ(deallocs, 1);
+    EXPECT_EQ(deallocs, 1);  // p2 has been deallocated.
   }
   EXPECT_EQ(allocs, 2);
   EXPECT_EQ(deallocs, 2);
@@ -297,13 +337,15 @@ TEST(ProtocolTest, MoveAssignmentUnequal) {
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
 
+    // alloc1 != alloc2, so the underlying type must be moved into
+    // a new storage.
     p1 = std::move(p2);
 
+    // Allocates for original construction, and once for move assignment.
     EXPECT_EQ(allocs1, 2);
-    EXPECT_EQ(allocs2, 1);
+    EXPECT_EQ(deallocs2, 1);
   }
   EXPECT_EQ(deallocs1, 2);
-  EXPECT_EQ(deallocs2, 1);
 }
 
 TEST(ProtocolTest, SwapEqual) {
@@ -318,103 +360,19 @@ TEST(ProtocolTest, SwapEqual) {
 
     EXPECT_EQ(allocs, 2);
 
-    std::swap(p1, p2);
+    // alloc1 == alloc2, so p1 and p2 should swap safely.
+    using std::swap;
+    swap(p1, p2);
 
     EXPECT_EQ(allocs, 2);
     EXPECT_EQ(deallocs, 0);
 
+    // Both keep their original allocator, but now manage
+    // each other's memory.
     EXPECT_EQ(p1.get_allocator(), alloc1);
     EXPECT_EQ(p2.get_allocator(), alloc2);
   }
   EXPECT_EQ(deallocs, 2);
-}
-
-TEST(ProtocolTest, NarrowingCopyConstruction) {
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  {
-    TestAlloc alloc1{&allocs, &deallocs};
-    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
-                                         Tester{25}};
-    xyz::protocol<Blank, TestAlloc> p2{p1};
-    EXPECT_EQ(allocs, 2);
-    EXPECT_EQ(deallocs, 0);
-  }
-  EXPECT_EQ(deallocs, 2);
-}
-
-TEST(ProtocolTest, NarrowingCopyConstructionUnequal) {
-  unsigned allocs1 = 0;
-  unsigned deallocs1 = 0;
-
-  unsigned allocs2 = 0;
-  unsigned deallocs2 = 0;
-
-  {
-    TestAlloc alloc1{&allocs1, &deallocs1};
-    TestAlloc alloc2{&allocs2, &deallocs2};
-
-    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
-                                         Tester{25}};
-    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2, p1};
-    EXPECT_EQ(allocs1, 1);
-    EXPECT_EQ(allocs2, 1);
-  }
-  EXPECT_EQ(deallocs1, 1);
-  EXPECT_EQ(deallocs2, 1);
-}
-
-TEST(ProtocolTest, NarrowingMoveConstruction) {
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  {
-    TestAlloc alloc1{&allocs, &deallocs};
-    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
-                                         Tester{25}};
-    xyz::protocol<Blank, TestAlloc> p2{std::move(p1)};
-    EXPECT_EQ(allocs, 1);
-    EXPECT_EQ(deallocs, 0);
-  }
-  EXPECT_EQ(deallocs, 1);
-}
-
-TEST(ProtocolTest, NarrowingMoveConstructionEqual) {
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-
-  {
-    TestAlloc alloc1{&allocs, &deallocs};
-    TestAlloc alloc2{&allocs, &deallocs};
-
-    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
-                                         Tester{25}};
-    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2,
-                                       std::move(p1)};
-    EXPECT_EQ(allocs, 1);
-  }
-  EXPECT_EQ(deallocs, 1);
-}
-
-TEST(ProtocolTest, NarrowingMoveConstructionUnequal) {
-  unsigned allocs1 = 0;
-  unsigned deallocs1 = 0;
-
-  unsigned allocs2 = 0;
-  unsigned deallocs2 = 0;
-
-  {
-    TestAlloc alloc1{&allocs1, &deallocs1};
-    TestAlloc alloc2{&allocs2, &deallocs2};
-
-    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
-                                         Tester{25}};
-    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2,
-                                       std::move(p1)};
-    EXPECT_EQ(allocs1, 1);
-    EXPECT_EQ(allocs2, 1);
-  }
-  EXPECT_EQ(deallocs1, 1);
-  EXPECT_EQ(deallocs2, 1);
 }
 
 // Tests that swap fails gracefully with an assert in debug mode.
@@ -436,6 +394,115 @@ TEST(ProtocolTest, SwapUnequal) {
                "allocators must compare equal or propagate on swap");
 }
 #endif
+
+TEST(ProtocolTest, NarrowingCopyConstruction) {
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+  {
+    TestAlloc alloc1{&allocs, &deallocs};
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
+                                         Tester{25}};
+    // Blank is a subset of IntLike.
+    xyz::protocol<Blank, TestAlloc> p2{p1};
+    // This is a deep copy still, so space must be allocated once for
+    // p1 and once for p2.
+    EXPECT_EQ(allocs, 2);
+    EXPECT_EQ(deallocs, 0);
+  }
+  EXPECT_EQ(deallocs, 2);
+}
+
+TEST(ProtocolTest, NarrowingCopyConstructionUnequal) {
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
+
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
+
+  {
+    TestAlloc alloc1{&allocs1, &deallocs1};
+    TestAlloc alloc2{&allocs2, &deallocs2};
+
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
+                                         Tester{25}};
+    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2, p1};
+    EXPECT_EQ(allocs1, 1);  // Allocated p1.
+    EXPECT_EQ(allocs2, 1);  // Allocated p2.
+  }
+  EXPECT_EQ(deallocs1, 1);
+  EXPECT_EQ(deallocs2, 1);
+}
+
+TEST(ProtocolTest, NarrowingMoveConstruction) {
+  // Narrowing move construction should always be noexcept.
+  static_assert(
+      std::is_nothrow_constructible<xyz::protocol<IntLike, TestAlloc>,
+                                    xyz::protocol<Blank, TestAlloc>&&>);
+
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+  {
+    TestAlloc alloc1{&allocs, &deallocs};
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
+                                         Tester{25}};
+    xyz::protocol<Blank, TestAlloc> p2{std::move(p1)};
+    // Even though the interfaces are different, the allocators are the
+    // same. Move construction is a pointer swap.
+    EXPECT_EQ(allocs, 1);
+    EXPECT_EQ(deallocs, 0);
+  }
+  EXPECT_EQ(deallocs, 1);
+}
+
+TEST(ProtocolTest, NarrowingMoveConstructionEqual) {
+  // TestAllocs are not always equal, so allocator-aware narrowing move
+  // construction can potentially throw.
+  static_assert(
+      not std::is_nothrow_constructible<xyz::protocol<IntLike, TestAlloc>,
+                                        std::allocator_arg_t, TestAlloc,
+                                        xyz::protocol<Blank, TestAlloc>&&>);
+
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+
+  {
+    TestAlloc alloc1{&allocs, &deallocs};
+    TestAlloc alloc2{&allocs, &deallocs};
+
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
+                                         Tester{25}};
+    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2,
+                                       std::move(p1)};
+    // Even though we explicitly provide an allocator, they both
+    // compare equal, so move construction is still a pointer swap.
+    EXPECT_EQ(allocs, 1);
+  }
+  EXPECT_EQ(deallocs, 1);
+}
+
+TEST(ProtocolTest, NarrowingMoveConstructionUnequal) {
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
+
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
+
+  {
+    TestAlloc alloc1{&allocs1, &deallocs1};
+    TestAlloc alloc2{&allocs2, &deallocs2};
+
+    xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
+                                         Tester{25}};
+    xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2,
+                                       std::move(p1)};
+    // alloc1 != alloc2, so we must perform a new allocation for p2
+    // and move the underlying data.
+    EXPECT_EQ(allocs1, 1);
+    EXPECT_EQ(allocs2, 1);
+  }
+  EXPECT_EQ(deallocs1, 1);
+  EXPECT_EQ(deallocs2, 1);
+}
 
 template <typename T>
 struct PoccaAllocator : xyz::TrackingAllocator<T> {
