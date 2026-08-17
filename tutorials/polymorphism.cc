@@ -56,6 +56,35 @@ TEST(TutorialsPolymorphism, PolymorphismWithTemplates) {
 
 }  // namespace xyz::tutorials::compile_time_polymorphism
 
+namespace xyz::tutorials::polymorphism_with_void {
+
+class Cat {
+ public:
+  std::string_view noise() const { return "Meow"; }
+};
+
+class Dog {
+ public:
+  std::string_view noise() const { return "Woof"; }
+};
+
+TEST(TutorialsPolymorphism, PolymorphismWithVoid) {
+  Cat cat;
+  Dog dog;
+
+  // We could use `void*` as a common type but then we need to manually track
+  // the types.
+  std::vector<void*> animals;
+  animals.reserve(2);
+  animals.push_back(&cat);
+  animals.push_back(&dog);
+
+  EXPECT_EQ(static_cast<Cat*>(animals[0])->noise(), "Meow");
+  EXPECT_EQ(static_cast<Dog*>(animals[1])->noise(), "Woof");
+}
+
+}  // namespace xyz::tutorials::polymorphism_with_void
+
 // Polymorphism with inheritance
 
 // `Cat` and `Dog` have a common type. We can use a single function for both
