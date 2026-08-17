@@ -766,7 +766,7 @@ TEST(ProtocolTest, EqualMoveConstructionNoException) {
   // not require any allocation and therefore not throw.
   EXPECT_NO_THROW(ThrowingProtocol{std::move(p1)});
   EXPECT_EQ(allocs, 1);
-  EXPECT_EQ(deallocs, 1); 
+  EXPECT_EQ(deallocs, 1);
 }
 
 TEST(ProtocolTest, UnequalMoveConstructionException) {
@@ -785,8 +785,9 @@ TEST(ProtocolTest, UnequalMoveConstructionException) {
     should_throw = true;
     ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw};
 
-    // We now construct with an alloc2, which is not equal to alloc1. This requires
-    // us to allocate space and then move from p1, which triggers an exception.
+    // We now construct with an alloc2, which is not equal to alloc1. This
+    // requires us to allocate space and then move from p1, which triggers an
+    // exception.
     EXPECT_THROW(ThrowingProtocol{std::allocator_arg, alloc2, std::move(p1)},
                  TestException);
 
@@ -850,7 +851,7 @@ TEST(ProtocolTest, UnequalMoveAssignmentException) {
     should_throw1 = true;
     EXPECT_THROW(p1 = std::move(p2), TestException);
     EXPECT_EQ(deallocs2, 0);
-    
+
     // p1 should be valid after the exception is caught.
     EXPECT_EQ(p1.value(), 25);
 
