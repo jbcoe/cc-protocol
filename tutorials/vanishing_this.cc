@@ -40,8 +40,8 @@ TEST(TutorialsVanishingThis, CastMemberToParent) {
   };
 
   A a{.x = 5, .name = "Ozymandias"};
-  void* x_ptr = &a.x;
-  auto* a_ptr = static_cast<A*>(x_ptr);
+  int* x_ptr = &a.x;
+  auto* a_ptr = reinterpret_cast<A*>(x_ptr);
   EXPECT_EQ(a_ptr->name, "Ozymandias");
 }
 
