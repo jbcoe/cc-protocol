@@ -5,11 +5,16 @@ xyz_add_test(
     FILES
     polymorphism.cc)
 
+
+if(XYZ_PROTOCOL_BUILD_REFLECTION)
 xyz_add_test(
     NAME
     vanishing_this_tutorial
+    VERSION
+    26
     FILES
     vanishing_this.cc)
+endif()
 
 if(XYZ_PROTOCOL_BUILD_REFLECTION)
     xyz_add_test(

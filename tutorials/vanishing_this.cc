@@ -24,6 +24,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <exception>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -41,6 +42,12 @@ TEST(TutorialsVanishingThis, CastMemberToParent) {
 
   A a{.x = 5, .name = "Ozymandias"};
   int* x_ptr = &a.x;
+
+  // `A` must be a standard layout type for a cast from a member at offset 0
+  // to the parent object to be valid.
+  static_assert(std::is_standard_layout_v<A>);
+  static_assert(offsetof(A, x) == 0);
+
   auto* a_ptr = reinterpret_cast<A*>(x_ptr);
   EXPECT_EQ(a_ptr->name, "Ozymandias");
 }
@@ -76,10 +83,8 @@ TEST(TutorialsVanishingThis, ParentClassAccessFromMemberDataCall) {
   class A {
     struct Callable {
       int operator()(int x) const {
-        static_assert(
-            offsetof(A, fn_) == 0,
-            "The callable member must be A's first data member for the "
-            "vanishing-this-pointer cast to be valid");
+        static_assert(std::is_standard_layout_v<A>);
+        static_assert(offsetof(A, fn_) == 0);
 
         // Use reinterpret_cast as static_cast is not valid here.
         int value = reinterpret_cast<const A*>(this)->value_;
@@ -135,6 +140,7 @@ struct A : AddBase, MultiplyBase {
 // to be complete types.
 
 int Add::operator()(int x) const {
+  static_assert(std::is_standard_layout_v<AddBase>);
   static_assert(offsetof(AddBase, add) == 0,
                 "add must be AddBase's first data member for the "
                 "vanishing-this-pointer cast to be valid");
@@ -145,6 +151,7 @@ int Add::operator()(int x) const {
 }
 
 int Multiply::operator()(int x) const {
+  static_assert(std::is_standard_layout_v<MultiplyBase>);
   static_assert(offsetof(MultiplyBase, multiply) == 0,
                 "multiply must be MultiplyBase's first data member for the "
                 "vanishing-this-pointer cast to be valid");
@@ -167,3 +174,59 @@ TEST(TutorialsVanishingThis, ParentClassAccessFromMultipleMemberDataCalls) {
 }
 
 }  // namespace xyz::tutorials::access_parent_from_multiple_callable_members
+
+// `reinterepret_cast` cannot be used at constant-evaluation time but C++ 26
+// permits `static_cast` from `void*` to `T*` where `T` is a standard-layout
+// type. We can exploit this to implement the `reinterpret_cast` logic above as
+// two, chained, `constexpr` `static_cast` expressions.
+
+namespace xyz::tutorials::constexpr_access_parent_from_callable_member {
+
+template <typename To, typename From>
+constexpr To type_erased_cast(From* ptr) noexcept {
+  static_assert(std::is_pointer_v<To>, "Target type must be a pointer");
+  using Target = std::remove_pointer_t<To>;
+  static_assert(
+      std::is_standard_layout_v<Target>,
+      "Target type must be standard-layout for pointer interconvertibility");
+  return static_cast<To>(static_cast<void*>(ptr));
+}
+
+template <typename To, typename From>
+constexpr To type_erased_cast(const From* ptr) noexcept {
+  static_assert(std::is_pointer_v<To>, "Target type must be a pointer");
+  using Target = std::remove_pointer_t<To>;
+  static_assert(std::is_const_v<Target>,
+                "Cannot cast from const pointer to non-const pointer");
+  static_assert(
+      std::is_standard_layout_v<Target>,
+      "Target type must be standard-layout for pointer interconvertibility");
+  return static_cast<To>(static_cast<const void*>(ptr));
+}
+
+struct Add {
+  constexpr int operator()(int x) const;
+};
+
+struct AddBase {
+  [[no_unique_address]] Add add;
+};
+
+struct A : AddBase {
+  int value_;
+
+  constexpr A(int value) : value_(value) {}
+};
+
+constexpr int Add::operator()(int x) const {
+  const auto* base = type_erased_cast<const AddBase*>(this);
+  const auto* owner = static_cast<const A*>(base);
+  return x + owner->value_;
+}  // namespace xyz::tutorials::constexpr_access_parent_from_callable_member
+
+TEST(TutorialsVanishingThis, ConstexprParentClassAccessFromMemberDataCall) {
+  constexpr A a(3);
+  static_assert(a.add(5) == 8);
+}
+
+}  // namespace xyz::tutorials::constexpr_access_parent_from_callable_member
