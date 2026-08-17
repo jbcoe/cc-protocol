@@ -657,8 +657,13 @@ TEST(ProtocolTest, SwapUnequalPocs) {
   EXPECT_EQ(deallocs2, 1);
 }
 
+// A simple exception to test catching.
 struct TestException : std::bad_alloc {};
 
+// An extension of tracking allocator that holds a pointer to
+// a flag indicating whether or not it should throw upon allocation.
+// Tests can pass in should_throw and change its value to exercise exception
+// safety.
 template <typename T>
 struct ThrowingAllocator : xyz::TrackingAllocator<T> {
   const bool* should_throw_;
@@ -692,6 +697,7 @@ TEST(ProtocolTest, ConstructionException) {
   ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
   EXPECT_THROW(ThrowingProtocol{std::allocator_arg, alloc, Tester{0}},
                TestException);
+  // alloc threw before any allocations were performed.
   EXPECT_EQ(allocs, 0);
   EXPECT_EQ(deallocs, 0);
 }
@@ -705,10 +711,13 @@ TEST(ProtocolTest, CopyConstructionException) {
 
     ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
     ThrowingProtocol p1{std::allocator_arg, alloc, Tester{10}};
+    // p1 was allocated safely.
     EXPECT_EQ(allocs, 1);
 
     should_throw = true;
+    // We attempt to copy p1, and now throw during allocation.
     EXPECT_THROW(ThrowingProtocol{p1}, TestException);
+    // p1 should be unchanged.
     EXPECT_EQ(p1.value(), 10);
   }
 
@@ -722,6 +731,7 @@ TEST(ProtocolTest, CopyAssignmentException) {
   {
     bool should_throw{false};
 
+    // p1 and p2 are both constructed without issue.
     ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
     ThrowingProtocol p1{std::allocator_arg, alloc, Tester{10}};
     ThrowingProtocol p2{std::allocator_arg, alloc, Tester{20}};
@@ -729,9 +739,12 @@ TEST(ProtocolTest, CopyAssignmentException) {
     EXPECT_EQ(allocs, 2);
     EXPECT_EQ(deallocs, 0);
 
+    // Copy assignment triggers an allocation and throws an exception.
     should_throw = true;
     EXPECT_THROW(p2 = p1, TestException);
 
+    // Both values are left in their original states. This is the strong
+    // exception guarantee.
     EXPECT_EQ(p1.value(), 10);
     EXPECT_EQ(p2.value(), 20);
   }
@@ -742,19 +755,18 @@ TEST(ProtocolTest, EqualMoveConstructionNoException) {
   unsigned allocs = 0;
   unsigned deallocs = 0;
 
-  {
-    bool should_throw{false};
+  bool should_throw{false};
 
-    ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
-    ThrowingProtocol p1{std::allocator_arg, alloc, Tester{15}};
-    EXPECT_EQ(allocs, 1);
+  ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
+  ThrowingProtocol p1{std::allocator_arg, alloc, Tester{15}};
+  EXPECT_EQ(allocs, 1);
 
-    should_throw = true;
-    ThrowingProtocol p2{std::move(p1)};  // Does not throw.
-    EXPECT_EQ(allocs, 1);
-  }
-
-  EXPECT_EQ(deallocs, 1);
+  should_throw = true;
+  // Even though allocation will throw, moving from p1 should
+  // not require any allocation and therefore not throw.
+  EXPECT_NO_THROW(ThrowingProtocol{std::move(p1)});
+  EXPECT_EQ(allocs, 1);
+  EXPECT_EQ(deallocs, 1); 
 }
 
 TEST(ProtocolTest, UnequalMoveConstructionException) {
@@ -772,6 +784,9 @@ TEST(ProtocolTest, UnequalMoveConstructionException) {
 
     should_throw = true;
     ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw};
+
+    // We now construct with an alloc2, which is not equal to alloc1. This requires
+    // us to allocate space and then move from p1, which triggers an exception.
     EXPECT_THROW(ThrowingProtocol{std::allocator_arg, alloc2, std::move(p1)},
                  TestException);
 
@@ -779,6 +794,8 @@ TEST(ProtocolTest, UnequalMoveConstructionException) {
     EXPECT_EQ(deallocs1, 0);
     EXPECT_EQ(allocs2, 0);
 
+    // p1 should be unmodified.
+    ASSERT_FALSE(p1.valueless_after_move());
     EXPECT_EQ(p1.value(), 25);
   }
 
@@ -797,8 +814,10 @@ TEST(ProtocolTest, EqualMoveAssignmentNoException) {
     ThrowingProtocol p2{std::allocator_arg, alloc, Tester{35}};
     EXPECT_EQ(allocs, 2);
 
+    // When p1 and p2 have equal allocators, move assignment should
+    // not throw.
     should_throw = true;
-    p1 = std::move(p2);  // Does not throw.
+    p1 = std::move(p2);
     EXPECT_EQ(allocs, 2);
     EXPECT_EQ(deallocs, 1);
   }
@@ -826,11 +845,17 @@ TEST(ProtocolTest, UnequalMoveAssignmentException) {
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
 
+    // Move assignment with unequal allocators requires new allocation.
+    // This results in an exception being thrown.
     should_throw1 = true;
     EXPECT_THROW(p1 = std::move(p2), TestException);
-
     EXPECT_EQ(deallocs2, 0);
+    
+    // p1 should be valid after the exception is caught.
     EXPECT_EQ(p1.value(), 25);
+
+    // p2 should not have been destroyed.
+    EXPECT_FALSE(p2.valueless_after_move());
     EXPECT_EQ(p2.value(), 55);
   }
 
