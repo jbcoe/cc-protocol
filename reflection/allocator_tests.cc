@@ -504,6 +504,7 @@ TEST(ProtocolTest, NarrowingMoveConstructionUnequal) {
   EXPECT_EQ(deallocs2, 1);
 }
 
+// Extends TrackingAllocator with POCCA set to true.
 template <typename T>
 struct PoccaAllocator : xyz::TrackingAllocator<T> {
   using xyz::TrackingAllocator<T>::TrackingAllocator;
@@ -531,13 +532,20 @@ TEST(ProtocolTest, CopyAssignmentUnequalPocca) {
     xyz::protocol<IntLike, PoccaAllocator<std::byte>> p2{std::allocator_arg,
                                                          alloc2, Tester{0}};
 
+    // p1 and p2 are both constructed with different allocators.
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
 
+    // POCCA is true: p1 should now take p2's allocator instead of keeping its
+    // own.
     p1 = p2;
+    EXPECT_EQ(p1.get_allocator(), alloc2);
 
-    EXPECT_EQ(allocs1, 1);
+    EXPECT_EQ(allocs1, 1);  // alloc1 only allocated once for p1.
+    // alloc2 allocated once for p2, and again when copying into p1.
     EXPECT_EQ(allocs2, 2);
+
+    // p1 was deallocated when it got assigned to.
     EXPECT_EQ(deallocs1, 1);
     EXPECT_EQ(deallocs2, 0);
   }
@@ -545,6 +553,7 @@ TEST(ProtocolTest, CopyAssignmentUnequalPocca) {
   EXPECT_EQ(deallocs1, 2);
 }
 
+// Extends TrackingAllocator with POCMA set to true.
 template <typename T>
 struct PocmaAllocator : xyz::TrackingAllocator<T> {
   using xyz::TrackingAllocator<T>::TrackingAllocator;
@@ -557,6 +566,10 @@ struct PocmaAllocator : xyz::TrackingAllocator<T> {
 };
 
 TEST(ProtocolTest, MoveAssignmentUnequalPocma) {
+  // Now that POCMA is true, move assignment should be noexcept.
+  static_assert(std::is_nothrow_move_assignable_v<
+                xyz::protocol<IntLike, PocmaAllocator<std::byte>>>);
+
   unsigned allocs1 = 0;
   unsigned deallocs1 = 0;
 
@@ -572,20 +585,27 @@ TEST(ProtocolTest, MoveAssignmentUnequalPocma) {
     xyz::protocol<IntLike, PocmaAllocator<std::byte>> p2{std::allocator_arg,
                                                          alloc2, Tester{10}};
 
+    // p1 and p2 are both constructed with different allocators.
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
 
+    // POCCA is true: p1 takes p2's allocator. Even though alloc1 != alloc2,
+    // p1 can just steal p2's pointer now, because it will have alloc2
+    // henceforth.
     p1 = std::move(p2);
-    EXPECT_EQ(allocs1, 1);
-    EXPECT_EQ(deallocs1, 1);
+    EXPECT_EQ(allocs1, 1);    // Still only the one original allocation.
+    EXPECT_EQ(deallocs1, 1);  // p1's original state was deallocated.
 
+    // No new allocations since it was just a pointer swap.
     EXPECT_EQ(allocs2, 1);
-    EXPECT_EQ(deallocs2, 0);
+    // The moved-from p2 has been deallocated.
+    EXPECT_EQ(deallocs2, 1);
   }
 
-  EXPECT_EQ(deallocs2, 1);
+  EXPECT_EQ(deallocs2, 2);
 }
 
+// Extends TrackingAllocator with POCS set to true.
 template <typename T>
 struct PocsAllocator : xyz::TrackingAllocator<T> {
   using xyz::TrackingAllocator<T>::TrackingAllocator;
@@ -598,6 +618,10 @@ struct PocsAllocator : xyz::TrackingAllocator<T> {
 };
 
 TEST(ProtocolTest, SwapUnequalPocs) {
+  // Even for unequal allocators, swapping should be noexcept when POCS is true.
+  static_assert(std::is_nothrow_swappable_v<
+                xyz::protocol<IntLike, PocsAllocator<std::byte>>>);
+
   unsigned allocs1 = 0;
   unsigned deallocs1 = 0;
 
@@ -612,15 +636,19 @@ TEST(ProtocolTest, SwapUnequalPocs) {
     xyz::protocol<IntLike, PocsAllocator<std::byte>> p2{std::allocator_arg,
                                                         alloc2, Tester{10}};
 
+    // p1 and p2 were constructed with different allocators.
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
 
+    // p1 and p2 now swap both their underlying types AND their allocators.
     using std::swap;
     swap(p1, p2);
 
+    // Allocators are now swapped.
     EXPECT_EQ(p1.get_allocator(), alloc2);
     EXPECT_EQ(p2.get_allocator(), alloc1);
 
+    // No new allocations were performed.
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
   }
