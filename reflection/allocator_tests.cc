@@ -589,7 +589,7 @@ TEST(ProtocolTest, MoveAssignmentUnequalPocma) {
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
 
-    // POCCA is true: p1 takes p2's allocator. Even though alloc1 != alloc2,
+    // POCMA is true: p1 takes p2's allocator. Even though alloc1 != alloc2,
     // p1 can just steal p2's pointer now, because it will have alloc2
     // henceforth.
     p1 = std::move(p2);
