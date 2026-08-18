@@ -36,13 +36,16 @@ with C++26 P2996 reflection support (GCC 16+ with -freflection)."
   OFF)
 
 if(XYZ_PROTOCOL_BUILD_REFLECTION)
+set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_REQUIRED_FLAGS "-std=c++26 -freflection")
+  set(CMAKE_REQUIRED_FLAGS "$<$<CXX_COMPILER_ID:GNU>:-freflection>")
   include(CheckCXXSourceCompiles)
-  set(CMAKE_REQUIRED_FLAGS "-std=c++26 -freflection")
   check_cxx_source_compiles(
-    "
-    #include <meta>
-    constexpr std::meta::info reflection_of_int = ^^int;
-    int main() {}
+    "#include <version>
+
+    #ifndef __cpp_impl_reflection
+    #error No reflection support
+    #endif
     "
     XYZ_PROTOCOL_REFLECTION_SUPPORTED)
   unset(CMAKE_REQUIRED_FLAGS)
@@ -51,9 +54,7 @@ if(XYZ_PROTOCOL_BUILD_REFLECTION)
       FATAL_ERROR
         "XYZ_PROTOCOL_BUILD_REFLECTION is ON but the compiler "
         "(${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}) does not "
-        "accept '-std=c++26 -freflection'. C++26 reflection currently "
-        "requires GCC 16 or newer; configure with e.g. "
-        "CXX=g++-16 CC=gcc-16 and a separate build directory (-B).")
+        "support C++26 reflection.")
   endif()
 endif()
 
