@@ -1,8 +1,8 @@
+# syntax=docker/dockerfile:1
 FROM ubuntu:24.04
 
 # Install base tools and C++ development tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cmake \
     curl \
     g++ \
     gdb \
@@ -18,13 +18,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ssh \
     unzip \
     wget \
-&& rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Install newer CMake from kitware.
 RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null \
-&& apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ noble main' \
-&& apt-get update && apt-get install -y --no-install-recommends cmake \
-&& rm -rf /var/lib/apt/lists/*
+    && apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ noble main' \
+    && apt-get update && apt-get install -y --no-install-recommends cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install GCC 16 (experimental C++26 reflection support via -std=c++26
+# -freflection, see https://gcc.gnu.org/gcc-16/changes.html) from the Ubuntu
+# Toolchain Test PPA, since Ubuntu 24.04's own repos only go up to GCC 14.
+RUN add-apt-repository -y ppa:ubuntu-toolchain-r/test \
+    && apt-get update && apt-get install -y --no-install-recommends g++-16 gcc-16 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install bazelisk.
 RUN ARCH=$(dpkg --print-architecture) && \
@@ -36,11 +43,11 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # https://github.com/cli/cli/blob/trunk/docs/install_linux.md (not reliably
 # available via Ubuntu 24.04's default repos).
 RUN mkdir -p -m 755 /etc/apt/keyrings \
-&& wget -nv -O /etc/apt/keyrings/githubcli-archive-keyring.gpg https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-&& chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list >/dev/null \
-&& apt-get update && apt-get install -y --no-install-recommends gh \
-&& rm -rf /var/lib/apt/lists/*
+    && wget -nv -O /etc/apt/keyrings/githubcli-archive-keyring.gpg https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list >/dev/null \
+    && apt-get update && apt-get install -y --no-install-recommends gh \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install jj (Jujutsu VCS) from its GitHub release binary. The jujutsu apt
 # package isn't built for Ubuntu 24.04 (noble) or Debian stable; it only
