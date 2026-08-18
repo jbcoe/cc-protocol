@@ -10,3 +10,9 @@ xyz_add_test(
     vanishing_this_tutorial
     FILES
     vanishing_this.cc)
+
+xyz_add_test(
+    NAME
+    type_erasure_tutorial
+    FILES
+    type_erasure.cc)
