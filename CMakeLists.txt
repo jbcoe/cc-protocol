@@ -42,11 +42,10 @@ if(XYZ_PROTOCOL_BUILD_REFLECTION)
   endif()
   include(CheckCXXSourceCompiles)
   check_cxx_source_compiles(
-    "#include <version>
-
-    #ifndef __cpp_impl_reflection
-    #error No reflection support
-    #endif
+    "
+    #include <meta>
+    constexpr std::meta::info reflection_of_int = ^^int;
+    int main() {}
     "
     XYZ_PROTOCOL_REFLECTION_SUPPORTED)
   unset(CMAKE_REQUIRED_FLAGS)
