@@ -85,13 +85,10 @@ constexpr inline vtable null_vtable = {
     .copy_ = +[](const void* src) -> void* { return nullptr; }};
 
 class Animal {
-  // By default, Animal is empty.
-  void* data_ = nullptr;
-  const vtable* vtable_ = &null_vtable;
+  void* data_;
+  const vtable* vtable_;
 
  public:
-  Animal() = default;
-
   // TNorm is the decayed version of T. If T is int&&, then TNorm will be int.
   // The requires clause prevents copy and move construction from mistakenly
   // selecting this constructor.
