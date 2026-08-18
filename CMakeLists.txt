@@ -36,7 +36,7 @@ with C++26 P2996 reflection support (eg. GCC 16+ with -freflection)."
   OFF)
 
 if(XYZ_PROTOCOL_BUILD_REFLECTION)
-set(CMAKE_CXX_STANDARD 26)
+  set(CMAKE_CXX_STANDARD 26)
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(CMAKE_REQUIRED_FLAGS "-freflection")
   endif()
