@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22.4 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.25 FATAL_ERROR)
 cmake_policy(SET CMP0127 NEW)
 cmake_policy(SET CMP0135 NEW)
 cmake_policy(SET CMP0140 NEW)
