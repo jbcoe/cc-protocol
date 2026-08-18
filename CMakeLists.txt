@@ -32,13 +32,14 @@ option(ENABLE_MSAN "Enable Memory Sanitizer" OFF)
 option(
   XYZ_PROTOCOL_BUILD_REFLECTION
   "Also build and test tutorials/reflection.cc, which requires a compiler \
-with C++26 P2996 reflection support (GCC 16+ with -freflection)."
+with C++26 P2996 reflection support (eg. GCC 16+ with -freflection)."
   OFF)
 
 if(XYZ_PROTOCOL_BUILD_REFLECTION)
 set(CMAKE_CXX_STANDARD 26)
-set(CMAKE_REQUIRED_FLAGS "-std=c++26 -freflection")
-  set(CMAKE_REQUIRED_FLAGS "$<$<CXX_COMPILER_ID:GNU>:-freflection>")
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(CMAKE_REQUIRED_FLAGS "-freflection")
+  endif()
   include(CheckCXXSourceCompiles)
   check_cxx_source_compiles(
     "#include <version>
