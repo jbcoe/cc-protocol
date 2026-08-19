@@ -590,4 +590,238 @@ TEST(TutorialsAllocators, PropagatingAllocatorSwaps) {
 // we will explore adding a strong exception guarantee to these functions,
 // which states that all involved objects are returned to their original
 // state in case of an exception.
-namespace xyz::tutorials::strong_guarantee {}
+namespace xyz::tutorials::strong_guarantee {
+
+// Everything here is the same except copy and move assignment.
+template <typename T, typename Alloc = std::allocator<T>>
+class Owner {
+  using traits = std::allocator_traits<Alloc>;
+
+  using pointer = traits::pointer;
+  using const_pointer = traits::const_pointer;
+
+  [[no_unique_address]] Alloc alloc_;
+  pointer obj_ = nullptr;
+
+  constexpr static bool pocca =
+      traits::propagate_on_container_copy_assignment::value;
+  constexpr static bool pocma =
+      traits::propagate_on_container_move_assignment::value;
+  constexpr static bool pocs = traits::propagate_on_container_swap::value;
+  constexpr static bool always_equal = traits::is_always_equal::value;
+
+  static pointer create(auto&& source, Alloc& alloc) {
+    auto obj = traits::allocate(alloc, 1);
+    try {
+      traits::construct(alloc, obj, std::forward<decltype(source)>(source));
+    } catch (...) {
+      traits::deallocate(alloc, obj, 1);
+      throw;
+    }
+
+    return obj;
+  }
+
+  static void destroy(pointer obj, Alloc& alloc) {
+    if (obj == nullptr) {
+      return;
+    }
+    traits::destroy(alloc, obj);
+    traits::deallocate(alloc, obj, 1);
+  }
+
+  static pointer copy(const_pointer obj, Alloc& alloc) {
+    if (obj == nullptr) {
+      return nullptr;
+    }
+    return create(*obj, alloc);
+  }
+
+  static pointer move(pointer obj, Alloc& alloc) {
+    if (obj == nullptr) {
+      return nullptr;
+    }
+    return create(std::move(*obj), alloc);
+  }
+
+ public:
+  using allocator_type = Alloc;
+
+  Owner()
+    requires std::default_initializable<Alloc>
+  = default;
+
+  explicit Owner(const T& obj)
+    requires std::default_initializable<Alloc>
+      : obj_(create(obj, alloc_)) {}
+
+  explicit Owner(T&& obj)
+    requires std::default_initializable<Alloc>
+      : obj_(create(std::move(obj), alloc_)) {}
+
+  explicit Owner(std::allocator_arg_t, const Alloc& a, const T& obj)
+      : alloc_(a), obj_(create(obj, alloc_)) {}
+
+  explicit Owner(std::allocator_arg_t, const Alloc& a, T&& obj)
+      : alloc_(a), obj_(create(std::move(obj), alloc_)) {}
+
+  ~Owner() { destroy(obj_, alloc_); }
+
+  Owner(const Owner& other)
+      : alloc_(traits::select_on_container_copy_construction(other.alloc_)),
+        obj_(copy(other.obj_, alloc_)) {}
+
+  Owner(std::allocator_arg_t, const Alloc& a, const Owner& other)
+      : alloc_(a), obj_(copy(other.obj_, alloc_)) {}
+
+  Owner(Owner&& other) noexcept
+      : alloc_(std::move(other.alloc_)),
+        obj_(std::exchange(other.obj_, nullptr)) {}
+
+  Owner(std::allocator_arg_t, const Alloc& a,
+        Owner&& other) noexcept(always_equal)
+      : alloc_(a) {
+    if (always_equal || alloc_ == other.alloc_) {
+      obj_ = std::exchange(other.obj_, nullptr);
+    } else {
+      obj_ = move(other.obj_, alloc_);
+      destroy(other.obj_, other.alloc_);
+      other.obj_ = nullptr;
+    }
+  }
+
+  Owner& operator=(const Owner& other) {
+    if (this != &other) {
+      // We split into two cases: propagating and non-propagating.
+      if constexpr (pocca) {
+        // Use other's allocator, which we are about to take.
+        // We do this BEFORE calling destroy() since it is a
+        // potentially throwing operation.
+        pointer new_obj = copy(other.obj_, other.alloc_);
+
+        // Everything hereafter will not throw.
+        destroy(obj_, alloc_);
+        obj_ = new_obj;
+        alloc_ = other.alloc_;
+      } else {
+        // Here, we just need to allocate before destroy().
+        pointer new_obj = copy(other.obj_, alloc_);
+        destroy(obj_, alloc_);
+        obj_ = new_obj;
+      }
+    }
+    return *this;
+  }
+
+  Owner& operator=(Owner&& other) noexcept(always_equal || pocma) {
+    if (this == &other) {
+      return *this;
+    }
+
+    // Fast path.
+    if (always_equal || pocma || alloc_ == other.alloc_) {
+      // Since there is no allocation here, it's fine to do in any order.
+      destroy(obj_, alloc_);
+      obj_ = std::exchange(other.obj_, nullptr);
+
+      // Still propagate when POCMA is true.
+      if constexpr (pocma) {
+        alloc_ = other.alloc_;
+      }
+    } else {  // Slow path.
+      // The allocating line - potentially throws.
+      pointer new_obj = move(other.obj_, alloc_);
+      // After we know the allocation was safe, we destroy the existing
+      // object.
+      destroy(obj_, alloc_);
+      // Destroy the moved-from object.
+      destroy(other.obj_, other.alloc_);
+
+      // Commit the results.
+      obj_ = new_obj;
+      other.obj_ = nullptr;
+    }
+
+    return *this;
+  }
+
+  void swap(Owner& other) noexcept(always_equal || pocs) {
+    if constexpr (!always_equal && !pocs) {
+      assert(alloc_ == other.alloc_);
+    }
+
+    using std::swap;
+    if constexpr (pocs) {
+      swap(alloc_, other.alloc_);
+    }
+    swap(obj_, other.obj_);
+  }
+
+  bool has_value() const { return obj_ != nullptr; }
+
+  T& get() {
+    assert(has_value());
+    return *obj_;
+  }
+
+  const T& get() const {
+    assert(has_value());
+    return *obj_;
+  }
+
+  const Alloc& get_allocator() const { return alloc_; }
+};
+
+using constructors::TestAlloc;
+
+// An allocator that throws on allocation when told to. Lets us exercise
+// exception safety without needing a throwing T.
+template <typename T>
+class ThrowingAlloc : public TestAlloc<T> {
+ public:
+  const bool* should_throw;
+
+  using TestAlloc<T>::TestAlloc;
+
+  T* allocate(std::size_t count) {
+    if (*should_throw) {
+      throw std::bad_alloc{};
+    }
+    return TestAlloc<T>::allocate(count);
+  }
+};
+
+TEST(TutorialsAllocators, StrongGuarantee) {
+  using ThrowingOwner = Owner<int, ThrowingAlloc<int>>;
+  bool should_throw = false;
+
+  // Create two objects with unequal allocators. They both
+  // point at the same "should I throw?" flag.
+  ThrowingAlloc<int> alloc1{1};
+  alloc1.should_throw = &should_throw;
+  ThrowingOwner o1{std::allocator_arg, alloc1, 10};
+
+  ThrowingAlloc<int> alloc2{2};
+  alloc2.should_throw = &should_throw;
+  ThrowingOwner o2{std::allocator_arg, alloc2, 20};
+
+  should_throw = true;
+
+  // Copy assignment must allocate to copy o2's value, which throws.
+  EXPECT_THROW(o1 = o2, std::bad_alloc);
+
+  // o1 and o2 are left exactly as they were before the assignment.
+  EXPECT_EQ(o1.get(), 10);
+  EXPECT_EQ(o1.get_allocator().tag, 1);
+
+  EXPECT_EQ(o2.get(), 20);
+  EXPECT_EQ(o2.get_allocator().tag, 2);
+
+  // The same applies to move assignment.
+  EXPECT_THROW(o1 = std::move(o2), std::bad_alloc);
+
+  EXPECT_EQ(o1.get(), 10);
+  EXPECT_EQ(o2.get(), 20);
+}
+
+}  // namespace xyz::tutorials::strong_guarantee
