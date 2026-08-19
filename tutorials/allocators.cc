@@ -774,7 +774,7 @@ class Owner {
 
 using constructors::TestAlloc;
 
-// An allocator that throws on allocation when told to. Lets us exercise
+// An allocator that throws on allocation when told to. Exercises
 // exception safety without needing a throwing T.
 template <typename T>
 class ThrowingAlloc : public TestAlloc<T> {
