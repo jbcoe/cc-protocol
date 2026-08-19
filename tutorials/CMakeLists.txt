@@ -16,3 +16,9 @@ xyz_add_test(
     type_erasure_tutorial
     FILES
     type_erasure.cc)
+
+xyz_add_test(
+    NAME
+    allocators_tutorial
+    FILES
+    allocators.cc)
