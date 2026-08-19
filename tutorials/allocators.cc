@@ -137,33 +137,33 @@ class Owner {
   pointer obj_ = nullptr;
 
   // We use auto&& so this works for both lvalue and rvalue construction.
-  pointer create(auto&& source) {
-    auto obj = traits::allocate(alloc_, 1);  // Allocate room for one T.
+  static pointer create(auto&& source, Alloc& alloc) {
+    auto obj = traits::allocate(alloc, 1);  // Allocate room for one T.
     // We must make sure to reclaim the memory from
     // the previous line in case the constructor throws.
     try {
-      traits::construct(alloc_, obj, std::forward<decltype(source)>(source));
+      traits::construct(alloc, obj, std::forward<decltype(source)>(source));
     } catch (...) {
-      traits::deallocate(alloc_, obj, 1);
+      traits::deallocate(alloc, obj, 1);
       throw;
     }
 
     return obj;
   }
 
-  void destroy(pointer obj) {
+  static void destroy(pointer obj, Alloc& alloc) {
     if (obj == nullptr) {
       return;
     }
-    traits::destroy(alloc_, obj);
-    traits::deallocate(alloc_, obj, 1);
+    traits::destroy(alloc, obj);
+    traits::deallocate(alloc, obj, 1);
   }
 
-  pointer copy(const_pointer obj) {
+  static pointer copy(const_pointer obj, Alloc& alloc) {
     if (obj == nullptr) {
       return nullptr;
     }
-    return create(*obj);
+    return create(*obj, alloc);
   }
 
  public:
@@ -177,23 +177,23 @@ class Owner {
 
   explicit Owner(const T& obj)
     requires std::default_initializable<Alloc>
-      : obj_(create(obj)) {}
+      : obj_(create(obj, alloc_)) {}
 
   explicit Owner(T&& obj)
     requires std::default_initializable<Alloc>
-      : obj_(create(std::move(obj))) {}
+      : obj_(create(std::move(obj), alloc_)) {}
 
   // There are two styles for constructors accepting allocator arguments:
   // a trailing allocator parameter, i.e. Owner(const T&, Alloc), and
   // the style shown below, tagged with allocator_arg_t. The following style
   // works with variadic constructors, whereas the trailing style does not.
   explicit Owner(std::allocator_arg_t, const Alloc& a, const T& obj)
-      : alloc_(a), obj_(create(obj)) {}
+      : alloc_(a), obj_(create(obj, alloc_)) {}
 
   explicit Owner(std::allocator_arg_t, const Alloc& a, T&& obj)
-      : alloc_(a), obj_(create(std::move(obj))) {}
+      : alloc_(a), obj_(create(std::move(obj), alloc_)) {}
 
-  ~Owner() { destroy(obj_); }
+  ~Owner() { destroy(obj_, alloc_); }
 
   // Allocators can define how they should be copied when the
   // container is copied. select_on_container_copy_construction will dispatch
@@ -201,11 +201,11 @@ class Owner {
   // is not defined.
   Owner(const Owner& other)
       : alloc_(traits::select_on_container_copy_construction(other.alloc_)),
-        obj_(copy(other.obj_)) {}
+        obj_(copy(other.obj_, alloc_)) {}
 
   // Allocator-aware copy construction.
   Owner(std::allocator_arg_t, const Alloc& a, const Owner& other)
-      : alloc_(a), obj_(copy(other.obj_)) {}
+      : alloc_(a), obj_(copy(other.obj_, alloc_)) {}
 
   Owner(Owner&& other) noexcept
       : alloc_(std::move(other.alloc_)),
@@ -283,7 +283,7 @@ TEST(TutorialsAllocators, StatefulAllocator) {
   TestOwner o1;
   EXPECT_EQ(o1.get_allocator().tag, 0);
 
-  // Default constructs the allocator, even though we provide a value.
+  // Default constructs the allocator.
   TestOwner o2{42};
   EXPECT_EQ(o2.get(), 42);
   EXPECT_EQ(o2.get_allocator().tag, 0);
@@ -313,7 +313,7 @@ TEST(TutorialsAllocators, StatefulAllocator) {
 
 }  // namespace xyz::tutorials::constructors
 
-// Finally, we can add the missing operations back to Owner.
+// Now, we can add the missing operations back to Owner.
 // An object allocated with one allocator must be deallocated
 // with an equivalent allocator. We must pay careful attention
 // to this fact when implementing moves and swaps.
@@ -339,42 +339,42 @@ class Owner {
 
   // create, destroy, and copy are the same as before.
 
-  pointer create(auto&& source) {
-    pointer obj = traits::allocate(alloc_, 1);
+  static pointer create(auto&& source, Alloc& alloc) {
+    auto obj = traits::allocate(alloc, 1);
     try {
-      traits::construct(alloc_, obj, std::forward<decltype(source)>(source));
+      traits::construct(alloc, obj, std::forward<decltype(source)>(source));
     } catch (...) {
-      traits::deallocate(alloc_, obj, 1);
+      traits::deallocate(alloc, obj, 1);
       throw;
     }
 
     return obj;
   }
 
-  void destroy(pointer obj) {
+  static void destroy(pointer obj, Alloc& alloc) {
     if (obj == nullptr) {
       return;
     }
-    traits::destroy(alloc_, obj);
-    traits::deallocate(alloc_, obj, 1);
+    traits::destroy(alloc, obj);
+    traits::deallocate(alloc, obj, 1);
   }
 
-  pointer copy(const_pointer obj) {
+  static pointer copy(const_pointer obj, Alloc& alloc) {
     if (obj == nullptr) {
       return nullptr;
     }
-    return create(*obj);
+    return create(*obj, alloc);
   }
 
   // We may have to actually perform a move
   // for some cases now. This move constructs
   // a new T using our allocator (NOT a simple
   // pointer swap).
-  T* move(T* obj) {
+  static pointer move(pointer obj, Alloc& alloc) {
     if (obj == nullptr) {
       return nullptr;
     }
-    return create(std::move(*obj));
+    return create(std::move(*obj), alloc);
   }
 
  public:
@@ -386,26 +386,26 @@ class Owner {
 
   explicit Owner(const T& obj)
     requires std::default_initializable<Alloc>
-      : obj_(create(obj)) {}
+      : obj_(create(obj, alloc_)) {}
 
   explicit Owner(T&& obj)
     requires std::default_initializable<Alloc>
-      : obj_(create(std::move(obj))) {}
+      : obj_(create(std::move(obj), alloc_)) {}
 
   explicit Owner(std::allocator_arg_t, const Alloc& a, const T& obj)
-      : alloc_(a), obj_(create(obj)) {}
+      : alloc_(a), obj_(create(obj, alloc_)) {}
 
   explicit Owner(std::allocator_arg_t, const Alloc& a, T&& obj)
-      : alloc_(a), obj_(create(std::move(obj))) {}
+      : alloc_(a), obj_(create(std::move(obj), alloc_)) {}
 
-  ~Owner() { destroy(obj_); }
+  ~Owner() { destroy(obj_, alloc_); }
 
   Owner(const Owner& other)
       : alloc_(traits::select_on_container_copy_construction(other.alloc_)),
-        obj_(copy(other.obj_)) {}
+        obj_(copy(other.obj_, alloc_)) {}
 
   Owner(std::allocator_arg_t, const Alloc& a, const Owner& other)
-      : alloc_(a), obj_(copy(other.obj_)) {}
+      : alloc_(a), obj_(copy(other.obj_, alloc_)) {}
 
   Owner(Owner&& other) noexcept
       : alloc_(std::move(other.alloc_)),
@@ -424,8 +424,8 @@ class Owner {
     } else {
       // Slow path: alloc_ and other.alloc_ are not equivalent.
       // We must newly move-construct our object.
-      obj_ = move(other.obj_);
-      other.destroy(other.obj_);
+      obj_ = move(other.obj_, alloc_);
+      destroy(other.obj_, other.alloc_);
       other.obj_ = nullptr;
     }
   }
@@ -435,11 +435,11 @@ class Owner {
   // is true.
   Owner& operator=(const Owner& other) {
     if (this != &other) {
-      destroy(obj_);  // Destroy with the old allocator.
+      destroy(obj_, alloc_);  // Destroy with the old allocator.
       if constexpr (pocca) {
         alloc_ = other.alloc_;
       }
-      obj_ = copy(other.obj_);  // Construct with the new allocator.
+      obj_ = copy(other.obj_, alloc_);  // Construct with the new allocator.
     }
     return *this;
   }
@@ -447,7 +447,7 @@ class Owner {
   // See the code below for a justification of the noexcept specification.
   Owner& operator=(Owner&& other) noexcept(always_equal || pocma) {
     if (this != &other) {
-      destroy(obj_);  // Deallocate with the old allocator.
+      destroy(obj_, alloc_);  // Destroy with the old allocator.
 
       if constexpr (pocma) {
         alloc_ = other.alloc_;
@@ -462,8 +462,8 @@ class Owner {
         obj_ = std::exchange(other.obj_, nullptr);
       } else {
         // Slow path: we must newly move-construct our object.
-        obj_ = move(other.obj_);
-        other.destroy(other.obj_);
+        obj_ = move(other.obj_, alloc_);
+        destroy(other.obj_, other.alloc_);
         other.obj_ = nullptr;
       }
     }
@@ -583,3 +583,11 @@ TEST(TutorialsAllocators, PropagatingAllocatorSwaps) {
 }
 
 }  // namespace xyz::tutorials::propagating_allocator
+
+// In the above example, copy and move assignment only provide the basic
+// exception guarantee, which states that the involved objects will be
+// left in a valid-but-unspecified state if an exception is thrown. Here,
+// we will explore adding a strong exception guarantee to these functions,
+// which states that all involved objects are returned to their original
+// state in case of an exception.
+namespace xyz::tutorials::strong_guarantee {}
