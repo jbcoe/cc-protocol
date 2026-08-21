@@ -21,6 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <gtest/gtest.h>
 
 #include <string_view>
+#include <variant>
 #include <vector>
 
 // An intentionally brief exploration of polymorphism in C++.
@@ -332,3 +333,49 @@ TEST(TutorialsPolymorphism, PolymorphismWithManualInheritance) {
   EXPECT_EQ(make_noise(*animals[1]), "Woof");
 }
 }  // namespace xyz::tutorials::manual_intrusive_vtable
+
+// For a closed set of types, we can implement non-intrusive polymorphism
+// without vtables or function pointers using a variant.
+namespace xyz::tutorials::closed_set_polymorphism {
+
+class Cat {
+ public:
+  std::string_view noise() const { return "Meow"; }
+};
+
+class Dog {
+ public:
+  std::string_view noise() const { return "Woof"; }
+};
+
+template <typename... Ts>
+class AnimalPtr {
+  std::variant<std::add_pointer_t<Ts>...> underlying_;
+
+ public:
+  template <typename T>
+  AnimalPtr(T* t) : underlying_(t) {}
+
+  std::string_view noise() const {
+    return std::visit([](const auto* u) { return u->noise(); }, underlying_);
+  }
+};
+
+// `AnimalPtr` is small (a pointer and a `size_t`) so is passed by value.
+std::string_view make_noise(AnimalPtr<Cat, Dog> animal) {
+  return animal.noise();
+}
+
+TEST(TutorialsPolymorphism, ClosedSetPolymorphism) {
+  Cat cat;
+  Dog dog;
+
+  std::vector<AnimalPtr<Cat, Dog>> animals;
+  animals.reserve(2);
+  animals.push_back(&cat);
+  animals.push_back(&dog);
+
+  EXPECT_EQ(make_noise(animals[0]), "Meow");
+  EXPECT_EQ(make_noise(animals[1]), "Woof");
+}
+}  // namespace xyz::tutorials::closed_set_polymorphism
