@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22.4 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.25 FATAL_ERROR)
 cmake_policy(SET CMP0127 NEW)
 cmake_policy(SET CMP0135 NEW)
 cmake_policy(SET CMP0140 NEW)
@@ -28,6 +28,35 @@ option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
 option(ENABLE_UBSAN "Enable Undefined Behaviour Sanitizer" OFF)
 option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
 option(ENABLE_MSAN "Enable Memory Sanitizer" OFF)
+
+option(
+  XYZ_PROTOCOL_BUILD_REFLECTION
+  "Also build and test tutorials/reflection.cc, which requires a compiler \
+with C++26 P2996 reflection support (eg. GCC 16+ with -freflection)."
+  OFF)
+
+if(XYZ_PROTOCOL_BUILD_REFLECTION)
+  set(CMAKE_CXX_STANDARD 26)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(CMAKE_REQUIRED_FLAGS "-freflection")
+  endif()
+  include(CheckCXXSourceCompiles)
+  check_cxx_source_compiles(
+    "
+    #include <meta>
+    constexpr std::meta::info reflection_of_int = ^^int;
+    int main() {}
+    "
+    XYZ_PROTOCOL_REFLECTION_SUPPORTED)
+  unset(CMAKE_REQUIRED_FLAGS)
+  if(NOT XYZ_PROTOCOL_REFLECTION_SUPPORTED)
+    message(
+      FATAL_ERROR
+        "XYZ_PROTOCOL_BUILD_REFLECTION is ON but the compiler "
+        "(${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}) does not "
+        "support C++26 reflection.")
+  endif()
+endif()
 
 if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN OR ENABLE_MSAN)
   set(ENABLE_SANITIZERS ON)
