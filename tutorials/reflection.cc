@@ -25,6 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <meta>
 #include <optional>
 #include <ranges>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -83,15 +84,16 @@ TEST(TutorialsReflection, MembersOfWithConstevalBlock) {
   // or `EXPECT_*`: `static_assert` needs `members` to independently be a
   // constant expression, and `EXPECT_*`'s comparison helpers aren't
   // `constexpr` functions.
+  // The body of a `consteval` block runs at compile time.
 
   consteval {
     auto members = nonstatic_data_members_of(
         ^^Point, std::meta::access_context::current());
     if (identifier_of(members[0]) != "x") {
-      throw "members[0] is not \"x\"";
+      throw std::runtime_error("members[0] is not \"x\"");
     }
     if (identifier_of(members[1]) != "y") {
-      throw "members[1] is not \"y\"";
+      throw std::runtime_error("members[1] is not \"y\"");
     }
   }
 }
@@ -122,9 +124,8 @@ TEST(TutorialsReflection, MemberFunctions) {
 
   constexpr std::ranges::range auto member_functions = std::define_static_array(
       members_of(^^Point, std::meta::access_context::current()) |
-      std::views::filter([](std::meta::info member) {
-        return is_function(member) && has_identifier(member);
-      }));
+      std::views::filter(std::meta::is_function) |
+      std::views::filter(std::meta::has_identifier));
 
   constexpr std::meta::info norm = member_functions[0];
 
