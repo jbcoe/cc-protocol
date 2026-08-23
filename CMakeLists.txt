@@ -127,7 +127,9 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
     enable_testing()
 
-    add_subdirectory(reflection)
+    if(XYZ_PROTOCOL_BUILD_REFLECTION)
+      add_subdirectory(reflection)
+    endif()
 
     xyz_generate_protocol(
       CLASS_NAME A INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
