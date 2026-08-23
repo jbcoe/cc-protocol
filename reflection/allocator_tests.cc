@@ -91,7 +91,8 @@ TEST(ProtocolTest, Construction) {
 //   unsigned deallocs = 0;
 //   {
 //     TestAlloc alloc{&allocs, &deallocs};
-//     TestProtocol p{std::allocator_arg, alloc, std::in_place_type<Tester>, 15};
+//     TestProtocol p{std::allocator_arg, alloc, std::in_place_type<Tester>,
+//     15};
 
 //     EXPECT_EQ(allocs, 1);
 //     EXPECT_EQ(deallocs, 0);
@@ -679,7 +680,8 @@ struct ThrowingAllocator : xyz::TrackingAllocator<T> {
 
   ThrowingAllocator(unsigned* allocs, unsigned* deallocs,
                     const bool* should_throw)
-      : xyz::TrackingAllocator<T>(allocs, deallocs), should_throw_(should_throw) {}
+      : xyz::TrackingAllocator<T>(allocs, deallocs),
+        should_throw_(should_throw) {}
 
   T* allocate(std::size_t count) {
     if (*should_throw_) {
@@ -690,7 +692,7 @@ struct ThrowingAllocator : xyz::TrackingAllocator<T> {
 
   template <typename U>
   ThrowingAllocator(const ThrowingAllocator<U>& other)
-    : xyz::TrackingAllocator<T>(other), should_throw_(other.should_throw_) {}
+      : xyz::TrackingAllocator<T>(other), should_throw_(other.should_throw_) {}
 };
 
 using ThrowingAlloc = ThrowingAllocator<std::byte>;
@@ -796,7 +798,8 @@ TEST(ProtocolTest, EqualMoveConstructionNoException) {
 //     // We now construct with an alloc2, which is not equal to alloc1. This
 //     // requires us to allocate space and then move from p1, which triggers an
 //     // exception.
-//     EXPECT_THROW((ThrowingProtocol{std::allocator_arg, alloc2, std::move(p1)}),
+//     EXPECT_THROW((ThrowingProtocol{std::allocator_arg, alloc2,
+//     std::move(p1)}),
 //                  TestException);
 
 //     EXPECT_EQ(allocs1, 1);
