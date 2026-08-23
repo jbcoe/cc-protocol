@@ -62,8 +62,8 @@ namespace detail {
 // Returns `true` if the `candidate` member function is consistent with the
 // `interface` member function for the purposes of structural subtyping;
 // otherwise returns `false`.
-consteval bool member_function_signatures_match(std::meta::info interface,
-                                                std::meta::info candidate) {
+consteval bool member_function_conforms_to(std::meta::info candidate,
+                                           std::meta::info interface) {
   if (!has_identifier(interface) || !has_identifier(candidate)) return false;
   if (identifier_of(interface) != identifier_of(candidate)) return false;
   // If interface is `const`, `candidate` must be const.
@@ -121,11 +121,11 @@ consteval bool is_protocol_conformant() {
 
   return std::ranges::all_of(
       interface_member_functions, [&](std::meta::info interface_member) {
-        return std::ranges::any_of(
-            candidate_member_functions, [&](std::meta::info candidate_member) {
-              return detail::member_function_signatures_match(interface_member,
-                                                              candidate_member);
-            });
+        return std::ranges::any_of(candidate_member_functions,
+                                   [&](std::meta::info candidate_member) {
+                                     return detail::member_function_conforms_to(
+                                         candidate_member, interface_member);
+                                   });
       });
 }
 
