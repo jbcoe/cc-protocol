@@ -1,5 +1,13 @@
 // Tests for the C++26-reflection-based implementation of protocol and
 // protocol_view.
+//
+// Specifically covers:
+//   - Type trait tests (is_protocol_v / is_protocol_view_v).
+//   - Special member function availability.
+//   - Constructability from conforming/non-conforming types.
+//   - Conformance checking via is_protocol_conformant<>.
+//   - Member function stub invocability via the vanishing-this-pointer
+//     synthesised members.
 
 #include "protocol.hh"
 
@@ -7,6 +15,7 @@
 
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -392,6 +401,106 @@ TEST(ReflectionProtocolTest, IsConstructibleInPlaceWithArguments) {
   static_assert(std::is_constructible_v<protocol<Interface>,
                                         std::in_place_type_t<Conforming>,
                                         std::string_view>);
+}
+
+// ---------------------------------------------------------------------------
+// Member function stub invocability tests.
+//
+// These tests verify that protocol<Interface> and protocol_view<Interface>
+// expose member function stubs with the correct signatures, as synthesised
+// by the vanishing-this-pointer approach in protocol.hh.
+//
+// The stubs always call std::unreachable() internally, so the tests only
+// check that the call expressions compile; they do not invoke the stubs at
+// runtime (which would be undefined behaviour before the vtable layer
+// exists).
+// ---------------------------------------------------------------------------
+
+// Verify that a protocol with a single const method exposes that method.
+TEST(MemberStubTest, ConstMethodIsSynthesisedOnProtocol) {
+  struct Interface {
+    int get_value() const;
+  };
+
+  // The synthesised member must be accessible and have the right signature.
+  // Use decltype to confirm the return type without executing the stub.
+  static_assert(std::is_same_v<
+                decltype(std::declval<const protocol<Interface>>().get_value()),
+                int>);
+}
+
+// Verify that a protocol with a non-const method exposes that method.
+TEST(MemberStubTest, MutableMethodIsSynthesisedOnProtocol) {
+  struct Interface {
+    void update(int value);
+  };
+
+  static_assert(
+      std::is_same_v<decltype(std::declval<protocol<Interface>>().update(0)),
+                     void>);
+}
+
+// Verify that a noexcept method stub is marked noexcept on protocol.
+TEST(MemberStubTest, NoexceptMethodStubIsNoexceptOnProtocol) {
+  struct Interface {
+    double compute(double input) noexcept;
+  };
+
+  static_assert(noexcept(std::declval<protocol<Interface>>().compute(0.0)));
+}
+
+// Verify that a const noexcept method stub is noexcept on protocol.
+TEST(MemberStubTest, ConstNoexceptMethodStubIsNoexceptOnProtocol) {
+  struct Interface {
+    std::string_view name() const noexcept;
+  };
+
+  static_assert(noexcept(std::declval<const protocol<Interface>>().name()));
+}
+
+// Verify that a protocol_view exposes a const method stub.
+TEST(MemberStubTest, ConstMethodIsSynthesisedOnProtocolView) {
+  struct Interface {
+    int get_value() const;
+  };
+
+  static_assert(
+      std::is_same_v<
+          decltype(std::declval<const protocol_view<Interface>>().get_value()),
+          int>);
+}
+
+// Verify that a protocol_view exposes a non-const method stub.
+TEST(MemberStubTest, MutableMethodIsSynthesisedOnProtocolView) {
+  struct Interface {
+    void update(int value);
+  };
+
+  static_assert(
+      std::is_same_v<
+          decltype(std::declval<protocol_view<Interface>>().update(0)), void>);
+}
+
+// Verify multi-parameter method stubs compile with the correct signature.
+TEST(MemberStubTest, MultiParameterMethodIsSynthesised) {
+  struct Interface {
+    int add(int a, int b) const;
+  };
+
+  static_assert(
+      std::is_same_v<
+          decltype(std::declval<const protocol<Interface>>().add(1, 2)), int>);
+}
+
+// Verify that a method returning void is synthesised correctly.
+TEST(MemberStubTest, VoidReturnMethodIsSynthesised) {
+  struct Interface {
+    void reset();
+  };
+
+  static_assert(
+      std::is_same_v<decltype(std::declval<protocol<Interface>>().reset()),
+                     void>);
 }
 
 }  // namespace

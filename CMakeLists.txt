@@ -54,7 +54,9 @@ if(XYZ_PROTOCOL_BUILD_REFLECTION)
       FATAL_ERROR
         "XYZ_PROTOCOL_BUILD_REFLECTION is ON but the compiler "
         "(${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}) does not "
-        "support C++26 reflection.")
+        "support C++26 reflection. C++26 reflection currently requires "
+        "GCC 16 or newer; configure with e.g. CXX=g++-16 CC=gcc-16 and a "
+        "separate build directory (-B).")
   endif()
 endif()
 

@@ -21,9 +21,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define XYZ_REFLECTION_PROTOCOL_HH_
 
 // A C++26-reflection-based implementation of protocol and protocol_view.
+//
+// Member function stubs are synthesised at compile time for every public
+// non-special member function declared in the Interface type.  The stubs
+// are attached to protocol and protocol_view through data members that
+// provide ordinary member-function call syntax via the "vanishing this
+// pointer" technique described in tutorials/2_vanishing_this_pointer.cc
+// (section 5): each per-method wrapper sits as the sole member of a
+// dedicated base struct; the wrapper's operator() recovers the enclosing
+// base address through a static_cast and hands it to the derived class.
+//
+// The stubs are intentionally unimplemented beyond the signature: they
+// call std::unreachable() so that the type-system plumbing can be
+// developed before the vtable dispatch layer exists.
 
 #include <algorithm>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <meta>
 #include <ranges>
@@ -93,29 +107,125 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// Vanishing-this-pointer thunk for a synthesised member stub.
+//
+// The thunk carries a single operator() whose signature mirrors one method
+// of the Interface type.
+// ---------------------------------------------------------------------------
+template <typename FnPtrType, typename EnclosingType, bool IsConst,
+          bool IsNoexcept>
+struct method_thunk;
+
+template <typename R, typename... Args, typename EnclosingType, bool IsConst,
+          bool IsNoexcept>
+struct method_thunk<R (*)(Args...), EnclosingType, IsConst, IsNoexcept> {
+  // Provides member-function call syntax.  Recovers the EnclosingType pointer
+  // through the vanishing-this-pointer cast, then calls the protocol's
+  // stored vtable entry (not yet implemented: stub calls std::unreachable).
+  R operator()(Args... /*args*/) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    [[maybe_unused]] auto* base =
+        static_cast<EnclosingType*>(static_cast<void*>(this));
+    std::unreachable();  // vtable dispatch not yet implemented
+  }
+
+  R operator()(Args... /*args*/) const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    [[maybe_unused]] const auto* base =
+        static_cast<const EnclosingType*>(static_cast<const void*>(this));
+    std::unreachable();  // vtable dispatch not yet implemented
+  }
+};
+
+// Alias used by `generate_method_thunk_specs` below.
+template <typename R, typename... Args>
+using fn_ptr_t = R (*)(Args...);
+
+// ---------------------------------------------------------------------------
+// Returns a list of data_member_spec values, one for each member function
+// implemented by `protocol`.
+//
+// Each data_member_spec names the data member after the interface method
+// (giving the `p.method_name(args)` call syntax) and sets its type to the
+// matching thunk template specialisation.
+//
+// Because C++ disallows two data members with the same name inside the same
+// class, overloaded methods whose names collide will cause compile-time errors.
+// We will address this limitation in a follow-up PR.
+// ---------------------------------------------------------------------------
+consteval std::vector<std::meta::info> generate_method_thunk_specs(
+    std::meta::info interface_type, std::meta::info enclosing_type) {
+  std::vector<std::meta::info> method_thunk_specs;
+
+  std::ranges::range auto members =
+      std::define_static_array(members_of(
+          interface_type, std::meta::access_context::unprivileged())) |
+      std::views::filter(std::meta::is_function) |
+      std::views::filter(std::not_fn(std::meta::is_special_member_function)) |
+      std::views::filter(std::meta::has_identifier);
+
+  for (std::meta::info member : members) {
+    std::string_view name = identifier_of(member);
+
+    // Build the function-pointer type R(*)(Args...) from the method's
+    // return type and parameter types.
+    std::vector<std::meta::info> fn_args{dealias(return_type_of(member))};
+    for (std::meta::info parameter : parameters_of(member)) {
+      fn_args.push_back(dealias(type_of(parameter)));
+    }
+    std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
+
+    std::meta::info thunk_type = substitute(
+        ^^method_thunk, {
+                            fn_ptr_type, enclosing_type,
+                            std::meta::reflect_constant(is_const(member)),
+                            std::meta::reflect_constant(is_noexcept(member))});
+
+    method_thunk_specs.push_back(data_member_spec(
+        thunk_type, std::meta::data_member_options{.name = name,
+                                                   .no_unique_address = true}));
+  }
+  return method_thunk_specs;
+}
+
+// Generates a struct that has named members with `operator()` for each public,
+// non-special, member function from `T`.
+template <typename T>
+struct protocol_member_stubs_generator {
+  struct stubs;
+  consteval {
+    define_aggregate(^^stubs, generate_method_thunk_specs(^^T, ^^stubs));
+  }
+};
+
 }  // namespace detail
 
-// Returns `true` if `Candidate` is a structural subtype of `Interface`;
+// Returns `true` if `U` is a structural subtype of the interface `T`;
 // otherwise returns `false`.
-template <typename Interface, typename Candidate>
+template <typename T, typename U>
 consteval bool is_protocol_conformant() {
-  static_assert(std::is_same_v<Interface, std::remove_cvref_t<Interface>>,
-                "Interface must not be cv/ref-qualified: strip qualifiers at "
-                "the call site with std::remove_cvref_t.");
-  static_assert(std::is_same_v<Candidate, std::remove_cvref_t<Candidate>>,
-                "Candidate must not be cv/ref-qualified: strip qualifiers at "
-                "the call site with std::remove_cvref_t.");
+  static_assert(std::is_same_v<T, std::remove_cvref_t<T>>,
+                "the interface type must not be cv/ref-qualified: strip "
+                "qualifiers at the call site with std::remove_cvref_t.");
+  static_assert(std::is_same_v<U, std::remove_cvref_t<U>>,
+                "the candidate type must not be cv/ref-qualified: strip "
+                "qualifiers at the call site with std::remove_cvref_t.");
 
-  // O(N*M) over member counts, assumed to be negligible at compile time.
+  // Checking for protocol interface conformance is O(N*M) over member counts,
+  // assumed to be negligible at compile time.
   std::ranges::range auto interface_member_functions =
       std::define_static_array(
-          members_of(^^Interface, std::meta::access_context::unprivileged())) |
+          members_of(^^T, std::meta::access_context::unprivileged())) |
       std::views::filter(std::meta::is_function) |
-      std::views::filter(std::meta::has_identifier);
+      std::views::filter(std::meta::has_identifier) |
+      std::views::filter(std::not_fn(std::meta::is_special_member_function));
 
   std::ranges::range auto candidate_member_functions =
       std::define_static_array(
-          members_of(^^Candidate, std::meta::access_context::unprivileged())) |
+          members_of(^^U, std::meta::access_context::unprivileged())) |
       std::views::filter(std::meta::is_function) |
       std::views::filter(std::meta::has_identifier);
 
@@ -130,12 +240,14 @@ consteval bool is_protocol_conformant() {
 }
 
 // Variable template for use in requires clauses.
-template <typename Interface, typename Candidate>
-inline constexpr bool is_protocol_conformant_v =
-    is_protocol_conformant<Interface, Candidate>();
+template <typename T, typename U>
+inline constexpr bool is_protocol_conformant_v = is_protocol_conformant<T, U>();
 
+// ---------------------------------------------------------------------------
+// protocol<T, Allocator>
+// ---------------------------------------------------------------------------
 template <typename T, typename Allocator = std::allocator<std::byte>>
-class protocol {
+class protocol : public detail::protocol_member_stubs_generator<T>::stubs {
  public:
   protocol() = delete;  // Deleted as `T` is used as an interface type.
 
@@ -151,23 +263,27 @@ class protocol {
 
   ~protocol();  // Unconstrained.
 
-  // Construct from any type U that conforms to the Interface T.
+  // Construct from any type `U` that conforms to the interface `T`.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
              (!is_protocol_v<std::remove_cvref_t<U>>)
   explicit protocol(U&& value);
 
-  // Construct a U in place from Ts..., where U conforms to the Interface T.
+  // Construct a `U` in place from `Ts...`, where `U` conforms to the interface
+  // `T`.
   template <typename U, typename... Ts>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
              (!is_protocol_v<std::remove_cvref_t<U>>)
   explicit protocol(std::in_place_type_t<U>, Ts&&... ts);
 };
 
+// ---------------------------------------------------------------------------
+// protocol_view<T>
+// ---------------------------------------------------------------------------
 template <typename T>
-class protocol_view {
+class protocol_view : public detail::protocol_member_stubs_generator<T>::stubs {
  public:
-  // The default construtor is deleted as a default constructed protocol_view
+  // The default construtor is deleted as a default constructed `protocol_view`
   // would be empty.
   protocol_view() = delete;
 
