@@ -241,7 +241,7 @@ class protocol {
 
   constexpr protocol(std::allocator_arg_t, const Alloc& a,
            protocol&& other) noexcept(always_equal)
-      : alloc_(a) {
+      : alloc_(a), vtable_(other.vtable_) {
     if (always_equal || alloc_ == other.alloc_) {
       obj_ = other.obj_;
     } else {
