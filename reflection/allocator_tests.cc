@@ -56,7 +56,7 @@ class Tester {
   // we may find there are fewer allocations than these tests suggest. To
   // sidestep this, we can use a type that is guaranteed to be larger than
   // protocol.
-  std::array<std::byte, sizeof(TestProtocol)> padding_;
+  [[maybe_unused]] std::array<std::byte, sizeof(TestProtocol)> padding_;
 
  public:
   Tester(int value) noexcept : val_(value) {}
