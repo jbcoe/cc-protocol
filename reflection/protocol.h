@@ -22,9 +22,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // A C++26-reflection-based implementation of protocol and protocol_view.
 
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <meta>
+#include <ranges>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -59,25 +61,31 @@ namespace detail {
 
 // Returns `true` if the `candidate` member function is consistent with the
 // `interface` member function for the purposes of structural subtyping;
-// otherwise return `false`.
+// otherwise returns `false`.
 consteval bool member_function_signatures_match(std::meta::info interface,
                                                 std::meta::info candidate) {
   if (!has_identifier(interface) || !has_identifier(candidate)) return false;
   if (identifier_of(interface) != identifier_of(candidate)) return false;
+  // If interface is `const`, `candidate` must be const.
   if (is_const(interface) != is_const(candidate)) return false;
+  // If interface is `noexcept`, `candidate` must be noexcept.
+  if (is_noexcept(interface) && !is_noexcept(candidate)) return false;
+  // Reference qualifiers must match.
   if (is_lvalue_reference_qualified(interface) !=
       is_lvalue_reference_qualified(candidate))
     return false;
   if (is_rvalue_reference_qualified(interface) !=
       is_rvalue_reference_qualified(candidate))
     return false;
-  if (is_noexcept(interface) && !is_noexcept(candidate)) return false;
+  // De-aliased return types must match.
   if (dealias(return_type_of(interface)) != dealias(return_type_of(candidate)))
     return false;
   std::vector<std::meta::info> interface_params = parameters_of(interface);
   std::vector<std::meta::info> candidate_params = parameters_of(candidate);
+  // parameter counts must match.
   if (interface_params.size() != candidate_params.size()) return false;
   for (std::size_t i = 0; i < interface_params.size(); ++i) {
+    // De-aliased parameter types must match.
     if (dealias(type_of(interface_params[i])) !=
         dealias(type_of(candidate_params[i])))
       return false;
@@ -97,25 +105,28 @@ consteval bool is_protocol_conformant() {
   static_assert(std::is_same_v<Candidate, std::remove_cvref_t<Candidate>>,
                 "Candidate must not be cv/ref-qualified: strip qualifiers at "
                 "the call site with std::remove_cvref_t.");
+
   // O(N*M) over member counts, assumed to be negligible at compile time.
-  for (std::meta::info interface_member :
-       members_of(^^Interface, std::meta::access_context::unprivileged())) {
-    if (!is_function(interface_member)) continue;
-    if (!has_identifier(interface_member)) continue;
-    bool found = false;
-    for (std::meta::info candidate_member :
-         members_of(^^Candidate, std::meta::access_context::unprivileged())) {
-      if (!is_function(candidate_member)) continue;
-      if (!has_identifier(candidate_member)) continue;
-      if (detail::member_function_signatures_match(interface_member,
-                                                   candidate_member)) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) return false;
-  }
-  return true;
+  std::ranges::range auto interface_member_functions =
+      std::define_static_array(
+          members_of(^^Interface, std::meta::access_context::unprivileged())) |
+      std::views::filter(std::meta::is_function) |
+      std::views::filter(std::meta::has_identifier);
+
+  std::ranges::range auto candidate_member_functions =
+      std::define_static_array(
+          members_of(^^Candidate, std::meta::access_context::unprivileged())) |
+      std::views::filter(std::meta::is_function) |
+      std::views::filter(std::meta::has_identifier);
+
+  return std::ranges::all_of(
+      interface_member_functions, [&](std::meta::info interface_member) {
+        return std::ranges::any_of(
+            candidate_member_functions, [&](std::meta::info candidate_member) {
+              return detail::member_function_signatures_match(interface_member,
+                                                              candidate_member);
+            });
+      });
 }
 
 // Variable template for use in requires clauses.
