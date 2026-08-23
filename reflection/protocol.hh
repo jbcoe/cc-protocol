@@ -157,7 +157,7 @@ class protocol {
   constexpr static bool always_equal = traits::is_always_equal::value;
 
   template <typename T, typename TNorm = std::decay_t<T>, typename... Args>
-  constexpr static TNorm* create(Alloc& alloc, Args&&... args) {
+  constexpr static TNorm* create(const Alloc& alloc, Args&&... args) {
     rebound<TNorm> new_alloc{alloc};
 
     auto obj = rebound_traits<TNorm>::allocate(new_alloc, 1);
@@ -172,32 +172,32 @@ class protocol {
   }
 
   struct vtable {
-    void (*destroy)(Alloc& alloc, void* data);
-    void* (*copy)(Alloc& alloc, const void* data);
-    void* (*move)(Alloc& alloc, void* data);
+    void (*destroy)(const Alloc& alloc, void* data);
+    void* (*copy)(const Alloc& alloc, const void* data);
+    void* (*move)(const Alloc& alloc, void* data);
   };
 
   template <typename T, typename TNorm = std::decay_t<T>>
   constexpr static vtable vtable_for = {
-      .destroy = +[](Alloc& alloc, void* data) -> void {
+      .destroy = +[](const Alloc& alloc, void* data) -> void {
         rebound<TNorm> new_alloc{alloc};
         auto* typed = static_cast<TNorm*>(data);
         rebound_traits<TNorm>::destroy(new_alloc, typed);
         rebound_traits<TNorm>::deallocate(new_alloc, typed, 1);
       },
 
-      .copy = +[](Alloc& alloc, const void* data) -> void* {
+      .copy = +[](const Alloc& alloc, const void* data) -> void* {
         return create<TNorm>(alloc, *static_cast<const TNorm*>(data));
       },
 
-      .move = +[](Alloc& alloc, void* data) -> void* {
+      .move = +[](const Alloc& alloc, void* data) -> void* {
         return create<TNorm>(alloc, std::move(*static_cast<TNorm*>(data)));
       }};
 
   constexpr static vtable null_vtable = {
-      .destroy = +[](Alloc&, void*) -> void {},
-      .copy = +[](Alloc&, const void*) -> void* { return nullptr; },
-      .move = +[](Alloc&, void*) -> void* { return nullptr; }};
+      .destroy = +[](const Alloc&, void*) -> void {},
+      .copy = +[](const Alloc&, const void*) -> void* { return nullptr; },
+      .move = +[](const Alloc&, void*) -> void* { return nullptr; }};
 
   [[no_unique_address]] Alloc alloc_;
 
@@ -312,6 +312,10 @@ class protocol {
     }
     swap(obj_, other.obj_);
     swap(vtable_, other.vtable_);
+  }
+
+  friend constexpr void swap(protocol& lhs, protocol& rhs) noexcept(always_equal || pocs) {
+    return lhs.swap(rhs);
   }
 
   constexpr const Alloc& get_allocator() const { return alloc_; }
