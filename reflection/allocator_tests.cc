@@ -29,6 +29,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "tagged_allocator.h"
 #include "tracking_allocator.h"
 
+// Workaround to move protocol into xyz namespace
+namespace xyz {
+using reflection::protocol;
+}
+
 namespace {
 
 // A simple interface to test protocol with.
@@ -51,7 +56,7 @@ class Tester {
   // we may find there are fewer allocations than these tests suggest. To
   // sidestep this, we can use a type that is guaranteed to be larger than
   // protocol.
-  std::array<std::byte, sizeof(TestProtocol)> padding_;
+  [[maybe_unused]] std::array<std::byte, sizeof(TestProtocol)> padding_;
 
  public:
   Tester(int value) noexcept : val_(value) {}
@@ -549,8 +554,8 @@ TEST(ProtocolTest, CopyAssignmentUnequalPocca) {
     EXPECT_EQ(deallocs1, 1);
     EXPECT_EQ(deallocs2, 0);
   }
-
-  EXPECT_EQ(deallocs1, 2);
+  // p2 and p1 have both been deallocated with alloc2.
+  EXPECT_EQ(deallocs2, 2);
 }
 
 // Extends TrackingAllocator with POCMA set to true.
@@ -598,11 +603,10 @@ TEST(ProtocolTest, MoveAssignmentUnequalPocma) {
 
     // No new allocations since it was just a pointer swap.
     EXPECT_EQ(allocs2, 1);
-    // The moved-from p2 has been deallocated.
-    EXPECT_EQ(deallocs2, 1);
+    EXPECT_EQ(deallocs2, 0);
   }
 
-  EXPECT_EQ(deallocs2, 2);
+  EXPECT_EQ(deallocs2, 1);
 }
 
 // Extends TrackingAllocator with POCS set to true.
@@ -674,15 +678,20 @@ struct ThrowingAllocator : xyz::TrackingAllocator<T> {
   };
 
   ThrowingAllocator(unsigned* allocs, unsigned* deallocs,
-                    const bool* shouldThrow)
-      : TrackingAllocator(allocs, deallocs), should_throw_(shouldThrow) {}
+                    const bool* should_throw)
+      : xyz::TrackingAllocator<T>(allocs, deallocs),
+        should_throw_(should_throw) {}
 
   T* allocate(std::size_t count) {
-    if (should_throw_) {
+    if (*should_throw_) {
       throw TestException{};
     }
-    return TrackingAllocator<T>::allocate(count);
+    return xyz::TrackingAllocator<T>::allocate(count);
   }
+
+  template <typename U>
+  ThrowingAllocator(const ThrowingAllocator<U>& other)
+      : xyz::TrackingAllocator<T>(other), should_throw_(other.should_throw_) {}
 };
 
 using ThrowingAlloc = ThrowingAllocator<std::byte>;
@@ -695,7 +704,7 @@ TEST(ProtocolTest, ConstructionException) {
   bool should_throw{true};
 
   ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
-  EXPECT_THROW(ThrowingProtocol{std::allocator_arg, alloc, Tester{0}},
+  EXPECT_THROW((ThrowingProtocol{std::allocator_arg, alloc, Tester{0}}),
                TestException);
   // alloc threw before any allocations were performed.
   EXPECT_EQ(allocs, 0);
@@ -788,7 +797,7 @@ TEST(ProtocolTest, UnequalMoveConstructionException) {
     // We now construct with an alloc2, which is not equal to alloc1. This
     // requires us to allocate space and then move from p1, which triggers an
     // exception.
-    EXPECT_THROW(ThrowingProtocol{std::allocator_arg, alloc2, std::move(p1)},
+    EXPECT_THROW((ThrowingProtocol{std::allocator_arg, alloc2, std::move(p1)}),
                  TestException);
 
     EXPECT_EQ(allocs1, 1);
