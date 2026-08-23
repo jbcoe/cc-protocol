@@ -279,7 +279,10 @@ TEST(TutorialsReflection, DefineAggregate) {
 }
 
 TEST(TutorialsReflection, Substitute) {
-  // `substitute(^^Template, {args...})` instantiates a template from infos;
+  // A variable that exists during constant evaluation is not necessarily
+  // constexpr. A `std::meta::info` local variable cannot always be plugged into
+  // a template (e.g. `MyType<typename [: myLocal :]>`) since it may not be
+  // constexpr. To workaround this, we can use `substitute`.
   // `reflect_constant` turns an ordinary value into an info usable as a
   // non-type template argument.
   // clang-format off
