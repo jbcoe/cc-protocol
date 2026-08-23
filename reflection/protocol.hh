@@ -23,6 +23,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // A C++26-reflection-based implementation of protocol and protocol_view.
 
 #include <algorithm>
+#include <cassert>
+#include <concepts>
 #include <cstddef>
 #include <memory>
 #include <meta>
@@ -136,32 +138,187 @@ inline constexpr bool is_protocol_conformant_v =
 
 template <typename T, typename Allocator = std::allocator<std::byte>>
 class protocol {
+  using traits = std::allocator_traits<Alloc>;
+
+  template <typename T>
+  using rebound = traits::template rebind_alloc<T>;
+
+  template <typename T>
+  using rebound_traits = std::allocator_traits<rebound<T>>;
+
+  constexpr static bool pocca =
+      traits::propagate_on_container_copy_assignment::value;
+
+  constexpr static bool pocma =
+      traits::propagate_on_container_move_assignment::value;
+
+  constexpr static bool pocs = traits::propagate_on_container_swap::value;
+
+  constexpr static bool always_equal = traits::is_always_equal::value;
+
+  template <typename T, typename TNorm = std::decay_t<T>, typename... Args>
+  constexpr static TNorm* create(Alloc& alloc, Args&&... args) {
+    rebound<TNorm> new_alloc{alloc};
+
+    auto obj = rebound_traits<TNorm>::allocate(new_alloc, 1);
+    try {
+      rebound_traits<TNorm>::construct(new_alloc, obj, std::forward<Args>(args)...);
+    } catch (...) {
+      rebound_traits<TNorm>::deallocate(new_alloc, obj, 1);
+      throw;
+    }
+
+    return obj;
+  }
+
+  struct vtable {
+    void (*destroy)(Alloc& alloc, void* data);
+    void* (*copy)(Alloc& alloc, const void* data);
+    void* (*move)(Alloc& alloc, void* data);
+  };
+
+  template <typename T, typename TNorm = std::decay_t<T>>
+  constexpr static vtable vtable_for = {
+      .destroy = +[](Alloc& alloc, void* data) -> void {
+        rebound<TNorm> new_alloc{alloc};
+        auto* typed = static_cast<TNorm*>(data);
+        rebound_traits<TNorm>::destroy(new_alloc, typed);
+        rebound_traits<TNorm>::deallocate(new_alloc, typed, 1);
+      },
+
+      .copy = +[](Alloc& alloc, const void* data) -> void* {
+        return create<TNorm>(alloc, *static_cast<const TNorm*>(data));
+      },
+
+      .move = +[](Alloc& alloc, void* data) -> void* {
+        return create<TNorm>(alloc, std::move(*static_cast<TNorm*>(data)));
+      }};
+
+  constexpr static vtable null_vtable = {
+      .destroy = +[](Alloc&, void*) -> void {},
+      .copy = +[](Alloc&, const void*) -> void* { return nullptr; },
+      .move = +[](Alloc&, void*) -> void* { return nullptr; }};
+
+  [[no_unique_address]] Alloc alloc_;
+
+  void* obj_ = nullptr;
+  const vtable* vtable_ = &null_vtable;
+
  public:
-  protocol() = delete;  // Deleted as `T` is used as an interface type.
+  using allocator_type = Alloc;
 
-  protocol(const protocol&)
-    requires std::is_copy_constructible_v<T>;
+  protocol() = delete;
 
-  protocol(protocol&&);  // Unconstrained
+  template <typename T>
+    requires (!std::same_as<std::decay_t<T>, protocol> && detail::meets_interface<T, I> &&
+             std::default_initializable<Alloc>)
+  constexpr explicit protocol(T && obj)
+      : protocol(std::allocator_arg, Alloc{}, std::forward<T>(obj)) {}
 
-  protocol& operator=(const protocol&)
-    requires std::is_copy_constructible_v<T>;
+  template <typename T>
+    requires (!std::same_as<std::decay_t<T>, protocol> && detail::meets_interface<T, I>)
+  constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, T&& obj)
+      : alloc_(a),
+        obj_(create<T>(alloc_, std::forward<T>(obj))),
+        vtable_(&vtable_for<T>) {}
 
-  protocol& operator=(protocol&&);  // Unconstrained.
+  constexpr ~protocol() { vtable_->destroy(alloc_, obj_); }
 
-  ~protocol();  // Unconstrained.
+  constexpr protocol(const protocol& other)
+    requires std::is_copy_constructible_v<I>
+      : protocol(std::allocator_arg,
+                 traits::select_on_container_copy_construction(other.alloc_),
+                 other) {}
 
-  // Construct from any type U that conforms to the Interface T.
-  template <typename U>
-    requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
-             (!is_protocol_v<std::remove_cvref_t<U>>)
-  explicit protocol(U&& value);
+  constexpr protocol(std::allocator_arg_t, const Alloc& a, const protocol& other)
+    requires std::is_copy_constructible_v<I>
+      : alloc_(a),
+        obj_(other.vtable_->copy(alloc_, other.obj_)),
+        vtable_(other.vtable_) {}
 
-  // Construct a U in place from Ts..., where U conforms to the Interface T.
-  template <typename U, typename... Ts>
-    requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
-             (!is_protocol_v<std::remove_cvref_t<U>>)
-  explicit protocol(std::in_place_type_t<U>, Ts&&... ts);
+  constexpr protocol(protocol&& other) noexcept
+      : protocol(std::allocator_arg, other.alloc_, std::move(other)) {}
+
+  constexpr protocol(std::allocator_arg_t, const Alloc& a,
+           protocol&& other) noexcept(always_equal)
+      : alloc_(a) {
+    if (always_equal || alloc_ == other.alloc_) {
+      obj_ = other.obj_;
+    } else {
+      obj_ = other.vtable_->move(alloc_, other.obj_);
+      other.vtable_->destroy(other.alloc_, other.obj_);
+    }
+
+    other.obj_ = nullptr;
+    other.vtable_ = &null_vtable;
+  }
+
+  constexpr protocol& operator=(const protocol& other)
+    requires std::is_copy_constructible_v<I>
+  {
+    if (this == &other) {
+      return *this;
+    }
+
+    if constexpr (pocca) {
+      void* new_obj = other.vtable_->copy(other.alloc_, other.obj_);
+
+      vtable_->destroy(alloc_, obj_);
+      obj_ = new_obj;
+      alloc_ = other.alloc_;
+    } else {
+      void* new_obj = other.vtable_->copy(alloc_, other.obj_);
+      vtable_->destroy(alloc_, obj_);
+      obj_ = new_obj;
+    }
+    vtable_ = other.vtable_;
+
+    return *this;
+  }
+
+  constexpr protocol& operator=(protocol&& other) noexcept(always_equal || pocma) {
+    if (this == &other) {
+      return *this;
+    }
+
+    if (always_equal || pocma || alloc_ == other.alloc_) {
+      vtable_->destroy(alloc_, obj_);
+      obj_ = other.obj_;
+      if constexpr (pocma) {
+        alloc_ = other.alloc_;
+      }
+    } else {
+      void* new_obj = other.vtable_->move(alloc_, other.obj_);
+      vtable_->destroy(alloc_, obj_);
+      other.vtable_->destroy(other.alloc_, other.obj_);
+
+      obj_ = new_obj;
+    }
+
+    other.obj_ = nullptr;
+    vtable_ = std::exchange(other.vtable_, &null_vtable);
+
+    return *this;
+  }
+
+  constexpr void swap(protocol& other) noexcept(always_equal || pocs) {
+    if constexpr (!always_equal && !pocs) {
+      assert(alloc_ == other.alloc_);
+    }
+
+    using std::swap;
+    if constexpr (pocs) {
+      swap(alloc_, other.alloc_);
+    }
+    swap(obj_, other.obj_);
+    swap(vtable_, other.vtable_);
+  }
+
+  constexpr const Alloc& get_allocator() const { return alloc_; }
+
+  constexpr bool valueless_after_move() const {
+    return obj_ == nullptr;
+  }
 };
 
 template <typename T>
