@@ -24,9 +24,104 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <cstddef>
 #include <memory>
+#include <meta>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 namespace xyz::reflection {
+
+template <typename T, typename Allocator>
+class protocol;
+
+template <typename T>
+class protocol_view;
+
+template <typename T>
+struct is_protocol : std::false_type {};
+
+template <typename T, typename Allocator>
+struct is_protocol<protocol<T, Allocator>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_protocol_v = is_protocol<T>::value;
+
+template <typename T>
+struct is_protocol_view : std::false_type {};
+
+template <typename T>
+struct is_protocol_view<protocol_view<T>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_protocol_view_v = is_protocol_view<T>::value;
+
+namespace detail {
+
+// Returns `true` if the `candidate` member function is consistent with the
+// `interface` member function for the purposes of structural subtyping;
+// otherwise return `false`.
+consteval bool member_function_signatures_match(std::meta::info interface,
+                                                std::meta::info candidate) {
+  if (!has_identifier(interface) || !has_identifier(candidate)) return false;
+  if (identifier_of(interface) != identifier_of(candidate)) return false;
+  if (is_const(interface) != is_const(candidate)) return false;
+  if (is_lvalue_reference_qualified(interface) !=
+      is_lvalue_reference_qualified(candidate))
+    return false;
+  if (is_rvalue_reference_qualified(interface) !=
+      is_rvalue_reference_qualified(candidate))
+    return false;
+  if (is_noexcept(interface) && !is_noexcept(candidate)) return false;
+  if (dealias(return_type_of(interface)) != dealias(return_type_of(candidate)))
+    return false;
+  std::vector<std::meta::info> interface_params = parameters_of(interface);
+  std::vector<std::meta::info> candidate_params = parameters_of(candidate);
+  if (interface_params.size() != candidate_params.size()) return false;
+  for (std::size_t i = 0; i < interface_params.size(); ++i) {
+    if (dealias(type_of(interface_params[i])) !=
+        dealias(type_of(candidate_params[i])))
+      return false;
+  }
+  return true;
+}
+
+}  // namespace detail
+
+// Returns `true` if `Candidate` is a structural subtype of `Interface`;
+// otherwise returns `false`.
+template <typename Interface, typename Candidate>
+consteval bool is_protocol_conformant() {
+  static_assert(std::is_same_v<Interface, std::remove_cvref_t<Interface>>,
+                "Interface must not be cv/ref-qualified: strip qualifiers at "
+                "the call site with std::remove_cvref_t.");
+  static_assert(std::is_same_v<Candidate, std::remove_cvref_t<Candidate>>,
+                "Candidate must not be cv/ref-qualified: strip qualifiers at "
+                "the call site with std::remove_cvref_t.");
+  // O(N*M) over member counts, assumed to be negligible at compile time.
+  for (std::meta::info interface_member :
+       members_of(^^Interface, std::meta::access_context::unprivileged())) {
+    if (!is_function(interface_member)) continue;
+    if (!has_identifier(interface_member)) continue;
+    bool found = false;
+    for (std::meta::info candidate_member :
+         members_of(^^Candidate, std::meta::access_context::unprivileged())) {
+      if (!is_function(candidate_member)) continue;
+      if (!has_identifier(candidate_member)) continue;
+      if (detail::member_function_signatures_match(interface_member,
+                                                   candidate_member)) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+  return true;
+}
+
+// Variable template for use in requires clauses.
+template <typename Interface, typename Candidate>
+inline constexpr bool is_protocol_conformant_v =
+    is_protocol_conformant<Interface, Candidate>();
 
 template <typename T, typename Allocator = std::allocator<std::byte>>
 class protocol {
@@ -44,6 +139,18 @@ class protocol {
   protocol& operator=(protocol&&);  // Unconstrained.
 
   ~protocol();  // Unconstrained.
+
+  // Construct from any type U that conforms to the Interface T.
+  template <typename U>
+    requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
+             (!is_protocol_v<std::remove_cvref_t<U>>)
+  explicit protocol(U&& value);
+
+  // Construct a U in place from Ts..., where U conforms to the Interface T.
+  template <typename U, typename... Ts>
+    requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
+             (!is_protocol_v<std::remove_cvref_t<U>>)
+  explicit protocol(std::in_place_type_t<U>, Ts&&... ts);
 };
 
 template <typename T>
@@ -59,6 +166,12 @@ class protocol_view {
   protocol_view& operator=(const protocol_view&) = default;
   protocol_view& operator=(protocol_view&&) noexcept = default;
   ~protocol_view() = default;
+
+  // Construct from any type U that conforms to the Interface T.
+  template <typename U>
+    requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
+             (!is_protocol_view_v<std::remove_cvref_t<U>>)
+  explicit protocol_view(const U& object);
 };
 
 }  // namespace xyz::reflection
