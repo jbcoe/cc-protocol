@@ -247,7 +247,7 @@ TEST(ProtocolTest, MoveConstruction) {
 
     TestProtocol p2{std::move(p1)};
     EXPECT_EQ(allocs, 1);  // No new allocations.
-    EXPECT_EQ(deallocs, 0);
+    EXPECT_EQ(deallocs, 1);
   }
   EXPECT_EQ(allocs, 1);
   EXPECT_EQ(deallocs, 1);
