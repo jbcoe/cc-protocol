@@ -162,7 +162,8 @@ class protocol {
 
     auto obj = rebound_traits<TNorm>::allocate(new_alloc, 1);
     try {
-      rebound_traits<TNorm>::construct(new_alloc, obj, std::forward<Args>(args)...);
+      rebound_traits<TNorm>::construct(new_alloc, obj,
+                                       std::forward<Args>(args)...);
     } catch (...) {
       rebound_traits<TNorm>::deallocate(new_alloc, obj, 1);
       throw;
@@ -210,13 +211,14 @@ class protocol {
   protocol() = delete;
 
   template <typename T>
-    requires (!std::same_as<std::decay_t<T>, protocol> && detail::meets_interface<T, I> &&
-             std::default_initializable<Alloc>)
-  constexpr explicit protocol(T && obj)
+    requires(!std::same_as<std::decay_t<T>, protocol> &&
+             detail::meets_interface<T, I> && std::default_initializable<Alloc>)
+  constexpr explicit protocol(T&& obj)
       : protocol(std::allocator_arg, Alloc{}, std::forward<T>(obj)) {}
 
   template <typename T>
-    requires (!std::same_as<std::decay_t<T>, protocol> && detail::meets_interface<T, I>)
+    requires(!std::same_as<std::decay_t<T>, protocol> &&
+             detail::meets_interface<T, I>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, T&& obj)
       : alloc_(a),
         obj_(create<T>(alloc_, std::forward<T>(obj))),
@@ -230,7 +232,8 @@ class protocol {
                  traits::select_on_container_copy_construction(other.alloc_),
                  other) {}
 
-  constexpr protocol(std::allocator_arg_t, const Alloc& a, const protocol& other)
+  constexpr protocol(std::allocator_arg_t, const Alloc& a,
+                     const protocol& other)
     requires std::is_copy_constructible_v<I>
       : alloc_(a),
         obj_(other.vtable_->copy(alloc_, other.obj_)),
@@ -240,7 +243,7 @@ class protocol {
       : protocol(std::allocator_arg, other.alloc_, std::move(other)) {}
 
   constexpr protocol(std::allocator_arg_t, const Alloc& a,
-           protocol&& other) noexcept(always_equal)
+                     protocol&& other) noexcept(always_equal)
       : alloc_(a), vtable_(other.vtable_) {
     if (always_equal || alloc_ == other.alloc_) {
       obj_ = other.obj_;
@@ -276,7 +279,8 @@ class protocol {
     return *this;
   }
 
-  constexpr protocol& operator=(protocol&& other) noexcept(always_equal || pocma) {
+  constexpr protocol& operator=(protocol&& other) noexcept(always_equal ||
+                                                           pocma) {
     if (this == &other) {
       return *this;
     }
@@ -314,15 +318,14 @@ class protocol {
     swap(vtable_, other.vtable_);
   }
 
-  friend constexpr void swap(protocol& lhs, protocol& rhs) noexcept(always_equal || pocs) {
+  friend constexpr void swap(protocol& lhs,
+                             protocol& rhs) noexcept(always_equal || pocs) {
     return lhs.swap(rhs);
   }
 
   constexpr const Alloc& get_allocator() const { return alloc_; }
 
-  constexpr bool valueless_after_move() const {
-    return obj_ == nullptr;
-  }
+  constexpr bool valueless_after_move() const { return obj_ == nullptr; }
 };
 
 template <typename T>
