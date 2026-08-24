@@ -173,7 +173,8 @@ consteval std::vector<std::meta::info> generate_method_thunk_specs(
     // Build the function-pointer type R(*)(Args...) from the method's
     // return type and parameter types.
     std::vector<std::meta::info> fn_args{dealias(return_type_of(member))};
-    for (std::meta::info parameter : parameters_of(member)) {
+    std::vector<std::meta::info> member_parameters = parameters_of(member);
+    for (std::meta::info parameter : member_parameters) {
       fn_args.push_back(dealias(type_of(parameter)));
     }
     std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
