@@ -1,9 +1,12 @@
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 # Install base tools and C++ development tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
     curl \
     g++ \
+    gcc-16 \
+    g++-16 \
     gdb \
     git \
     gpg \
@@ -13,23 +16,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python-is-python3 \
     python3-pip \
     python3-venv \
-    software-properties-common \
     ssh \
     unzip \
     wget \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install newer CMake from kitware.
-RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null \
-    && apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ noble main' \
-    && apt-get update && apt-get install -y --no-install-recommends cmake \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install GCC 16 (experimental C++26 reflection support via -std=c++26
-# -freflection, see https://gcc.gnu.org/gcc-16/changes.html) from the Ubuntu
-# Toolchain Test PPA, since Ubuntu 24.04's own repos only go up to GCC 14.
-RUN add-apt-repository -y ppa:ubuntu-toolchain-r/test \
-    && apt-get update && apt-get install -y --no-install-recommends g++-16 gcc-16 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install bazelisk.
