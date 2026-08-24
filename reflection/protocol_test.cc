@@ -405,133 +405,147 @@ TEST(ReflectionProtocolTest, IsConstructibleInPlaceWithArguments) {
 }
 
 // ---------------------------------------------------------------------------
-// Member function stub invocability tests.
+// Member function signature tests.
 //
-// These tests verify that protocol<Interface> and protocol_view<Interface>
-// expose member function stubs with the correct signatures, as synthesised
-// by the vanishing-this-pointer approach in protocol.hh.
-//
-// The stubs always call std::unreachable() internally, so the tests only
-// check that the call expressions compile; they do not invoke the stubs at
-// runtime (which would be undefined behaviour before the vtable layer
-// exists).
+// The synthesised stubs call std::unreachable() internally because vtable
+// dispatch is not yet implemented, so these tests check only that the call
+// expressions compile with the expected signature; the TODOs below track
+// replacing them with runtime tests once dispatch exists.
 // ---------------------------------------------------------------------------
 
-// Verify that a protocol exposes a const method stub with the right return
-// type.
-TEST(MemberStubTest, ConstMethodIsSynthesisedOnProtocol) {
+TEST(ReflectionProtocolViewTest, ConstMemberFunction) {
   struct Interface {
     int get_value() const;
   };
 
-  static_assert(requires(const protocol<Interface>& p) {
-    { p.get_value() } -> std::same_as<int>;
-  });
-}
-
-// Verify that a protocol exposes a non-const method stub with the right
-// return type.
-TEST(MemberStubTest, MutableMethodIsSynthesisedOnProtocol) {
-  struct Interface {
-    void update(int value);
-  };
-
-  static_assert(requires(protocol<Interface>& p) {
-    { p.update(0) } -> std::same_as<void>;
-  });
-}
-
-// Verify that a noexcept method stub is noexcept on protocol.
-TEST(MemberStubTest, NoexceptMethodStubIsNoexceptOnProtocol) {
-  struct Interface {
-    double compute(double input) noexcept;
-  };
-
-  static_assert(requires(protocol<Interface>& p) {
-    { p.compute(0.0) } noexcept -> std::same_as<double>;
-  });
-}
-
-// Verify that a const noexcept method stub is noexcept on protocol.
-TEST(MemberStubTest, ConstNoexceptMethodStubIsNoexceptOnProtocol) {
-  struct Interface {
-    std::string_view name() const noexcept;
-  };
-
-  static_assert(requires(const protocol<Interface>& p) {
-    { p.name() } noexcept -> std::same_as<std::string_view>;
-  });
-}
-
-// Verify that a protocol_view exposes a noexcept method stub with the right
-// return type.
-TEST(MemberStubTest, NoexceptMethodStubIsNoexceptOnProtocolView) {
-  struct Interface {
-    double compute(double input) noexcept;
-  };
-
-  static_assert(requires(protocol_view<Interface>& p) {
-    { p.compute(0.0) } noexcept -> std::same_as<double>;
-  });
-}
-
-// Verify that a protocol_view exposes a const noexcept method stub with the
-// right return type.
-TEST(MemberStubTest, ConstNoexceptMethodStubIsNoexceptOnProtocolView) {
-  struct Interface {
-    std::string_view name() const noexcept;
-  };
-
-  static_assert(requires(const protocol_view<Interface>& p) {
-    { p.name() } noexcept -> std::same_as<std::string_view>;
-  });
-}
-
-// Verify that a protocol_view exposes a const method stub with the right
-// return type.
-TEST(MemberStubTest, ConstMethodIsSynthesisedOnProtocolView) {
-  struct Interface {
-    int get_value() const;
-  };
-
+  // TODO(jbcoe): replace static assertion with runtime test.
   static_assert(requires(const protocol_view<Interface>& p) {
     { p.get_value() } -> std::same_as<int>;
   });
 }
 
-// Verify that a protocol_view exposes a non-const method stub with the right
-// return type.
-TEST(MemberStubTest, MutableMethodIsSynthesisedOnProtocolView) {
+TEST(ReflectionProtocolViewTest, SingleParameterMemberFunction) {
   struct Interface {
     void update(int value);
   };
 
+  // TODO(jbcoe): replace static assertion with runtime test.
   static_assert(requires(protocol_view<Interface>& p) {
     { p.update(0) } -> std::same_as<void>;
   });
 }
 
-// Verify that a multi-parameter method stub is synthesised with the correct
-// signature on protocol.
-TEST(MemberStubTest, MultiParameterMethodIsSynthesisedOnProtocol) {
+TEST(ReflectionProtocolViewTest, NoexceptMemberFunction) {
+  struct Interface {
+    double compute(double input) noexcept;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(protocol_view<Interface>& p) {
+    { p.compute(0.0) } noexcept -> std::same_as<double>;
+  });
+}
+
+TEST(ReflectionProtocolViewTest, MultiParameterMemberFunction) {
   struct Interface {
     int add(int a, int b) const;
   };
 
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(const protocol_view<Interface>& p) {
+    { p.add(1, 2) } -> std::same_as<int>;
+  });
+}
+
+TEST(ReflectionProtocolViewTest, VoidMemberFunction) {
+  struct Interface {
+    void reset();
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(protocol_view<Interface>& p) {
+    { p.reset() } -> std::same_as<void>;
+  });
+}
+
+TEST(ReflectionProtocolViewTest, MultipleMemberFunctions) {
+  struct Interface {
+    double add(double x, double y) const noexcept;
+    double multiply(double x, double y) const noexcept;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(const protocol_view<Interface>& p) {
+    { p.add(1.0, 2.0) } noexcept -> std::same_as<double>;
+    { p.multiply(3.0, 4.0) } noexcept -> std::same_as<double>;
+  });
+}
+
+TEST(ReflectionProtocolTest, ConstMemberFunction) {
+  struct Interface {
+    int get_value() const;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(const protocol<Interface>& p) {
+    { p.get_value() } -> std::same_as<int>;
+  });
+}
+
+TEST(ReflectionProtocolTest, SingleParameterMemberFunction) {
+  struct Interface {
+    void update(int value);
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(protocol<Interface>& p) {
+    { p.update(0) } -> std::same_as<void>;
+  });
+}
+
+TEST(ReflectionProtocolTest, NoexceptMemberFunction) {
+  struct Interface {
+    double compute(double input) noexcept;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(protocol<Interface>& p) {
+    { p.compute(0.0) } noexcept -> std::same_as<double>;
+  });
+}
+
+TEST(ReflectionProtocolTest, MultiParameterMemberFunction) {
+  struct Interface {
+    int add(int a, int b) const;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
   static_assert(requires(const protocol<Interface>& p) {
     { p.add(1, 2) } -> std::same_as<int>;
   });
 }
 
-// Verify that a method returning void is synthesised correctly on protocol.
-TEST(MemberStubTest, VoidReturnMethodIsSynthesisedOnProtocol) {
+TEST(ReflectionProtocolTest, VoidMemberFunction) {
   struct Interface {
     void reset();
   };
 
+  // TODO(jbcoe): replace static assertion with runtime test.
   static_assert(requires(protocol<Interface>& p) {
     { p.reset() } -> std::same_as<void>;
   });
 }
 
+TEST(ReflectionProtocolTest, MultipleMemberFunctions) {
+  struct Interface {
+    double add(double x, double y) const noexcept;
+    double multiply(double x, double y) const noexcept;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(const protocol<Interface>& p) {
+    { p.add(1.0, 2.0) } noexcept -> std::same_as<double>;
+    { p.multiply(3.0, 4.0) } noexcept -> std::same_as<double>;
+  });
+}
 }  // namespace
