@@ -25,7 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <new>
 #include <type_traits>
 
-#include "protocol.h"
+#include "protocol.hh"
 #include "tagged_allocator.h"
 #include "tracking_allocator.h"
 

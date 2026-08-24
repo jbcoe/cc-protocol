@@ -1,7 +1,7 @@
 // Tests for the C++26-reflection-based implementation of protocol and
 // protocol_view.
 
-#include "protocol.h"
+#include "protocol.hh"
 
 #include <gtest/gtest.h>
 

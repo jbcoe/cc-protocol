@@ -3,7 +3,7 @@ xyz_add_library(
   ALIAS xyz_protocol::reflection_protocol)
 target_sources(
   reflection_protocol INTERFACE
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.h>)
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.hh>)
 
 xyz_add_test(
   NAME
