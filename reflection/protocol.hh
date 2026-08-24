@@ -17,8 +17,8 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==============================================================================*/
-#ifndef XYZ_REFLECTION_PROTOCOL_H_
-#define XYZ_REFLECTION_PROTOCOL_H_
+#ifndef XYZ_REFLECTION_PROTOCOL_HH_
+#define XYZ_REFLECTION_PROTOCOL_HH_
 
 // A C++26-reflection-based implementation of protocol and protocol_view.
 
@@ -186,4 +186,4 @@ class protocol_view {
 };
 
 }  // namespace xyz::reflection
-#endif  // XYZ_REFLECTION_PROTOCOL_H_
+#endif  // XYZ_REFLECTION_PROTOCOL_HH_
