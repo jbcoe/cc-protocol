@@ -22,10 +22,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // A C++26-reflection-based implementation of protocol and protocol_view.
 //
-// Member function stubs are synthesised at compile time for every public
-// non-special member function declared in the Interface type.
+// Member function thunks are synthesised at compile time for every public
+// non-special member function declared in the Interface type.  The thunks
+// are attached to protocol and protocol_view through data members that
+// provide ordinary member-function call syntax via the "vanishing this
+// pointer" technique described in tutorials/vanishing_this.cc
+// (TutorialsVanishingThis.ParentClassAccessFromMultipleMemberDataCalls):
+// each per-method wrapper sits as the sole member of a dedicated base
+// struct; the wrapper's operator() recovers the enclosing base address
+// through a static_cast and hands it to the derived class.
 //
-// Each stub locates and calls through the correspondingly-named entry of a
+// Each thunk locates and calls through the correspondingly-named entry of a
 // vtable that protocol and protocol_view each point to.
 //
 // protocol_view populates its vtable pointer with a per-(T, U) constexpr
@@ -144,7 +151,7 @@ consteval std::meta::info find_vtable_member() {
 }
 
 // ---------------------------------------------------------------------------
-// Vanishing-this-pointer thunk for a synthesised member stub.
+// Vanishing-this-pointer thunk for a synthesised member function.
 //
 // The thunk carries a single operator() whose signature mirrors one method
 // of the Interface type.
@@ -269,11 +276,12 @@ consteval std::vector<std::meta::info> generate_method_thunk_specs(
 // thunk needs both to reach ProtocolType's `vtable_` pointer and call
 // through it.
 template <typename T, typename ProtocolType, typename Vtable>
-struct protocol_member_stubs_generator {
-  struct stubs;
+struct method_wrapper_generator {
+  struct wrappers;
   consteval {
-    define_aggregate(^^stubs, generate_method_thunk_specs(
-                                  ^^T, ^^stubs, ^^ProtocolType, ^^Vtable));
+    define_aggregate(
+        ^^wrappers,
+        generate_method_thunk_specs(^^T, ^^wrappers, ^^ProtocolType, ^^Vtable));
   }
 };
 
@@ -448,9 +456,9 @@ inline constexpr bool is_protocol_conformant_v = is_protocol_conformant<T, U>();
 // protocol<T, Allocator>
 // ---------------------------------------------------------------------------
 template <typename T, typename Allocator = std::allocator<std::byte>>
-class protocol : public detail::protocol_member_stubs_generator<
+class protocol : public detail::method_wrapper_generator<
                      T, protocol<T, Allocator>,
-                     typename detail::vtable_generator<T>::vtable>::stubs {
+                     typename detail::vtable_generator<T>::vtable>::wrappers {
  public:
   protocol() = delete;  // Deleted as `T` is used as an interface type.
 
@@ -480,7 +488,7 @@ class protocol : public detail::protocol_member_stubs_generator<
   explicit protocol(std::in_place_type_t<U>, Ts&&... ts);
 
  private:
-  // Grants the synthesised member stubs access to `vtable_` so they can
+  // Grants the synthesised member thunks access to `vtable_` so they can
   // locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
             typename Vtable, std::meta::info Member, bool IsConst,
@@ -495,9 +503,10 @@ class protocol : public detail::protocol_member_stubs_generator<
 // protocol_view<T>
 // ---------------------------------------------------------------------------
 template <typename T>
-class protocol_view : public detail::protocol_member_stubs_generator<
-                          T, protocol_view<T>,
-                          typename detail::vtable_generator<T>::vtable>::stubs {
+class protocol_view
+    : public detail::method_wrapper_generator<
+          T, protocol_view<T>,
+          typename detail::vtable_generator<T>::vtable>::wrappers {
  public:
   // The default construtor is deleted as a default constructed `protocol_view`
   // would be empty.
@@ -524,7 +533,7 @@ class protocol_view : public detail::protocol_member_stubs_generator<
         vtable_(&detail::view_vtable_for<T, U>) {}
 
  private:
-  // Grants the synthesised member stubs access to `object_`/`vtable_` so
+  // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
             typename Vtable, std::meta::info Member, bool IsConst,

@@ -6,7 +6,7 @@
 //   - Special member function availability.
 //   - Constructability from conforming/non-conforming types.
 //   - Conformance checking via is_protocol_conformant<>.
-//   - Member function stub invocability via the vanishing-this-pointer
+//   - Member function thunk dispatch via the vanishing-this-pointer
 //     synthesised members.
 
 #include "protocol.hh"
