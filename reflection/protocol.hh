@@ -22,10 +22,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // A C++26-reflection-based implementation of protocol and protocol_view.
 //
-// Member function stubs are synthesised at compile time for every public
-// non-special member function declared in the Interface type.
+// Member function thunks are synthesised at compile time for every public
+// non-special member function declared in the Interface type.  The thunks
+// are attached to protocol and protocol_view through data members that
+// provide ordinary member-function call syntax via the "vanishing this
+// pointer" technique described in tutorials/vanishing_this.cc
+// (TutorialsVanishingThis.ParentClassAccessFromMultipleMemberDataCalls):
+// each per-method wrapper sits as the sole member of a dedicated base
+// struct; the wrapper's operator() recovers the enclosing base address
+// through a static_cast and hands it to the derived class.
 //
-// Each stub locates and calls through the correspondingly-named entry of a
+// Each thunk locates and calls through the correspondingly-named entry of a
 // vtable that protocol and protocol_view each point to.
 //
 // protocol_view populates its vtable pointer with a per-(T, U) constexpr
@@ -109,7 +116,7 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
 }
 
 // The named, non-static, non-special member functions of `Type`: the set
-// generate_stub_bases, generate_vtable_specs, make_view_vtable,
+// generate_wrapper_bases, generate_vtable_specs, make_view_vtable,
 // find_conforming_member and is_protocol_conformant search over. No
 // special member function ever satisfies has_identifier, so there's no
 // need to filter is_special_member_function separately.
@@ -130,7 +137,7 @@ constexpr inline auto protocol_interface_functions_of =
         std::views::filter(std::meta::has_identifier));
 
 // Finds the vtable_generator<T>::vtable data member with the same name as
-// `Member`. vtable_generator and generate_stub_bases enumerate the same
+// `Member`. vtable_generator and generate_wrapper_bases enumerate the same
 // interface members using the same identifier, so a match always exists.
 // `VtableType`/`Member` are template parameters for the same reason as
 // protocol_interface_functions_of's `Type`.
@@ -145,7 +152,7 @@ consteval std::meta::info find_vtable_member() {
 }
 
 // ---------------------------------------------------------------------------
-// Vanishing-this-pointer thunk for a synthesised member stub.
+// Vanishing-this-pointer thunk for a synthesised member function.
 //
 // The thunk carries a single operator() whose signature mirrors one method
 // of the Interface type.
@@ -253,17 +260,18 @@ using member_base_generator_t =
 // Combines the single-member base types produced by `member_base_generator`
 // into one type via multiple inheritance.
 template <typename... MemberBases>
-struct stub_bases : MemberBases... {};
+struct wrapper_bases : MemberBases... {};
 
-// Returns a `stub_bases` specialisation with one base per public, non-special,
-// member function of `interface_type`, giving named members with `operator()`
-// for each. `ProtocolType`/`Vtable` are forwarded to `member_base_generator`.
+// Returns a `wrapper_bases` specialisation with one base per public,
+// non-special, member function of `interface_type`, giving named members
+// with `operator()` for each. `ProtocolType`/`Vtable` are forwarded to
+// `member_base_generator`.
 //
 // Two bases defining a member of the same name make that name ambiguous to
 // look up through the derived class, so overloaded methods are unsupported
 // for now.
 template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable>
-consteval std::meta::info generate_stub_bases() {
+consteval std::meta::info generate_wrapper_bases() {
   std::vector<std::meta::info> member_base_types;
   for (std::meta::info member :
        protocol_interface_functions_of<InterfaceType>) {
@@ -274,18 +282,18 @@ consteval std::meta::info generate_stub_bases() {
       );
     // clang-format on
   }
-  return substitute(^^stub_bases, member_base_types);
+  return substitute(^^wrapper_bases, member_base_types);
 }
 
-// The generated stub type for `T`: a `stub_bases` specialisation with named
-// members with `operator()` for each public, non-special, member function
-// from `T`. `ProtocolType` is the enclosing protocol/protocol_view
+// The generated wrapper type for `T`: a `wrapper_bases` specialisation with
+// named members with `operator()` for each public, non-special, member
+// function from `T`. `ProtocolType` is the enclosing protocol/protocol_view
 // specialisation (protocol<T, Allocator> or protocol_view<T>) and `Vtable`
 // is its vtable_generator<T>::vtable: each thunk needs both to reach
 // ProtocolType's `vtable_` pointer and call through it.
 template <typename T, typename ProtocolType, typename Vtable>
-using protocol_stubs_t =
-    typename[:generate_stub_bases<^^T, ProtocolType, Vtable>():];
+using protocol_wrappers_t =
+    typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable>():];
 
 // ---------------------------------------------------------------------------
 // Returns a list of data_member_spec values, one for each member function
@@ -457,7 +465,7 @@ inline constexpr bool is_protocol_conformant_v =
     is_protocol_conformant<Interface, Candidate>();
 
 template <typename T, typename Allocator = std::allocator<std::byte>>
-class protocol : public detail::protocol_stubs_t<
+class protocol : public detail::protocol_wrappers_t<
                      T, protocol<T, Allocator>,
                      typename detail::vtable_generator<T>::vtable> {
  public:
@@ -489,7 +497,7 @@ class protocol : public detail::protocol_stubs_t<
   explicit protocol(std::in_place_type_t<U>, Ts&&... ts);
 
  private:
-  // Grants the synthesised member stubs access to `vtable_` so they can
+  // Grants the synthesised member thunks access to `vtable_` so they can
   // locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
             typename Vtable, std::meta::info Member, bool IsConst,
@@ -502,7 +510,7 @@ class protocol : public detail::protocol_stubs_t<
 
 template <typename T>
 class protocol_view
-    : public detail::protocol_stubs_t<
+    : public detail::protocol_wrappers_t<
           T, protocol_view<T>, typename detail::vtable_generator<T>::vtable> {
  public:
   // The default constructor is deleted as a default constructed
@@ -530,7 +538,7 @@ class protocol_view
         vtable_(&detail::view_vtable_for<T, U>) {}
 
  private:
-  // Grants the synthesised member stubs access to `object_`/`vtable_` so
+  // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
             typename Vtable, std::meta::info Member, bool IsConst,
