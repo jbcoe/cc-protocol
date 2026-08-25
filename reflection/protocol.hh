@@ -91,7 +91,7 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
     return false;
   std::vector<std::meta::info> interface_params = parameters_of(interface);
   std::vector<std::meta::info> candidate_params = parameters_of(candidate);
-  // parameter counts must match.
+  // Parameter counts must match.
   if (interface_params.size() != candidate_params.size()) return false;
   for (std::size_t i = 0; i < interface_params.size(); ++i) {
     // De-aliased parameter types must match.
@@ -113,12 +113,9 @@ consteval auto protocol_interface_functions_of() {
       std::views::filter(std::meta::has_identifier));
 }
 
-// ---------------------------------------------------------------------------
-// Vanishing-this-pointer thunk for a synthesised member stub.
-//
-// The thunk carries a single operator() whose signature mirrors one method
-// of the Interface type.
-// ---------------------------------------------------------------------------
+// Vanishing-this-pointer thunk for a synthesised member stub. The thunk
+// carries a single operator() whose signature mirrors one method of the
+// Interface type.
 template <typename FnPtrType, typename EnclosingType, bool IsConst,
           bool IsNoexcept>
 struct method_thunk;
@@ -129,7 +126,6 @@ struct method_thunk<R (*)(Args...), EnclosingType, IsConst, IsNoexcept> {
   R operator()(Args... /*args*/) noexcept(IsNoexcept)
     requires(!IsConst)
   {
-    // Use reinterpret_cast as static_cast is not valid here.
     [[maybe_unused]] auto* base = reinterpret_cast<EnclosingType*>(this);
     std::unreachable();  // vtable dispatch not yet implemented
   }
@@ -137,29 +133,22 @@ struct method_thunk<R (*)(Args...), EnclosingType, IsConst, IsNoexcept> {
   R operator()(Args... /*args*/) const noexcept(IsNoexcept)
     requires(IsConst)
   {
-    // Use reinterpret_cast as static_cast is not valid here.
     [[maybe_unused]] const auto* base =
         reinterpret_cast<const EnclosingType*>(this);
     std::unreachable();  // vtable dispatch not yet implemented
   }
 };
 
-// A convenient alias for function pointers.
 template <typename R, typename... Args>
 using fn_ptr_t = R (*)(Args...);
 
-// ---------------------------------------------------------------------------
 // Returns a list of data_member_spec values, one for each member function
-// implemented by `protocol`.
+// implemented by `protocol`. Each data_member_spec names the data member
+// after the interface method (giving the `p.method_name(args)` call syntax)
+// and sets its type to the matching thunk template specialisation.
 //
-// Each data_member_spec names the data member after the interface method
-// (giving the `p.method_name(args)` call syntax) and sets its type to the
-// matching thunk template specialisation.
-//
-// Because C++ disallows two data members with the same name inside the same
-// class, overloaded methods will cause compile-time errors.
-// We will address this limitation in a follow-up PR.
-// ---------------------------------------------------------------------------
+// C++ disallows two data members with the same name inside the same class,
+// so overloaded methods will cause compile-time errors; unsupported for now.
 consteval std::vector<std::meta::info> generate_method_thunk_specs(
     std::meta::info interface_type, std::meta::info enclosing_type) {
   std::vector<std::meta::info> method_thunk_specs;
@@ -509,14 +498,11 @@ class protocol : public detail::protocol_member_stubs_generator<I>::stubs {
   constexpr bool valueless_after_move() const { return obj_ == nullptr; }
 };
 
-// ---------------------------------------------------------------------------
-// protocol_view<T>
-// ---------------------------------------------------------------------------
 template <typename T>
 class protocol_view : public detail::protocol_member_stubs_generator<T>::stubs {
  public:
-  // The default construtor is deleted as a default constructed `protocol_view`
-  // would be empty.
+  // The default constructor is deleted as a default constructed
+  // `protocol_view` would be empty.
   protocol_view() = delete;
 
   // Remaining special member functions are defaulted.

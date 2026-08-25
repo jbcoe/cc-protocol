@@ -396,9 +396,7 @@ TEST(ReflectionProtocolTest, IsConstructibleInPlaceWithArguments) {
                                         std::string_view>);
 }
 
-// ---------------------------------------------------------------------------
-// Member function signature tests.
-// ---------------------------------------------------------------------------
+// Member function signature tests for protocol_view.
 
 TEST(ReflectionProtocolViewTest, ConstMemberFunction) {
   struct Interface {
@@ -467,6 +465,8 @@ TEST(ReflectionProtocolViewTest, MultipleMemberFunctions) {
     { p.multiply(3.0, 4.0) } noexcept -> std::same_as<double>;
   });
 }
+
+// Member function signature tests for protocol.
 
 TEST(ReflectionProtocolTest, ConstMemberFunction) {
   struct Interface {
