@@ -425,7 +425,7 @@ TEST(ReflectionProtocolTest, IsConstructibleInPlaceWithArguments) {
 }
 
 // ---------------------------------------------------------------------------
-// Member function tests: protocol
+// Member function tests: protocol_view.
 // ---------------------------------------------------------------------------
 
 TEST(ReflectionProtocolViewTest, ConstMemberFunction) {
