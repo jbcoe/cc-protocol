@@ -398,11 +398,6 @@ TEST(ReflectionProtocolTest, IsConstructibleInPlaceWithArguments) {
 
 // ---------------------------------------------------------------------------
 // Member function signature tests.
-//
-// The synthesised stubs call std::unreachable() internally because vtable
-// dispatch is not yet implemented, so these tests check only that the call
-// expressions compile with the expected signature; the TODOs below track
-// replacing them with runtime tests once dispatch exists.
 // ---------------------------------------------------------------------------
 
 TEST(ReflectionProtocolViewTest, ConstMemberFunction) {
