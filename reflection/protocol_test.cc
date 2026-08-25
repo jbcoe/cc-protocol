@@ -359,9 +359,29 @@ TEST(ReflectionProtocolViewTest, IsConstructibleFromConformingType) {
 
   struct NonConforming {};
 
-  static_assert(std::is_constructible_v<protocol_view<Interface>, Conforming>);
+  // protocol_view's constructor takes U&, so constructibility is checked
+  // from an lvalue, not a prvalue.
+  static_assert(std::is_constructible_v<protocol_view<Interface>, Conforming&>);
   static_assert(
-      !std::is_constructible_v<protocol_view<Interface>, NonConforming>);
+      !std::is_constructible_v<protocol_view<Interface>, NonConforming&>);
+}
+
+TEST(ReflectionProtocolViewTest, NotConstructibleFromConstObject) {
+  // protocol_view rejects a const object unconditionally: even though
+  // Interface has no non-const methods (so a const object would actually
+  // be safe to dispatch through), construction from one is still rejected,
+  // because the rule doesn't inspect Interface at all.
+  struct Interface {
+    int get() const;
+  };
+
+  struct Conforming {
+    int get() const { return 0; }
+  };
+
+  static_assert(std::is_constructible_v<protocol_view<Interface>, Conforming&>);
+  static_assert(
+      !std::is_constructible_v<protocol_view<Interface>, const Conforming&>);
 }
 
 TEST(ReflectionProtocolTest, IsConstructibleInPlaceFromConformingType) {
@@ -403,10 +423,13 @@ TEST(ReflectionProtocolViewTest, ConstMemberFunction) {
     int get_value() const;
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(const protocol_view<Interface>& p) {
-    { p.get_value() } -> std::same_as<int>;
-  });
+  struct Conforming {
+    int get_value() const { return 42; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> p(c);
+  EXPECT_EQ(p.get_value(), 42);
 }
 
 TEST(ReflectionProtocolViewTest, NonConstMemberFunctionNotInvocableFromConst) {
@@ -427,10 +450,16 @@ TEST(ReflectionProtocolViewTest, SingleParameterMemberFunction) {
     void update(int value);
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(protocol_view<Interface>& p) {
-    { p.update(0) } -> std::same_as<void>;
-  });
+  struct Conforming {
+    int last_value = 0;
+
+    void update(int value) { last_value = value; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> p(c);
+  p.update(42);
+  EXPECT_EQ(c.last_value, 42);
 }
 
 TEST(ReflectionProtocolViewTest, NoexceptMemberFunction) {
@@ -438,10 +467,13 @@ TEST(ReflectionProtocolViewTest, NoexceptMemberFunction) {
     double compute(double input) noexcept;
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(protocol_view<Interface>& p) {
-    { p.compute(0.0) } noexcept -> std::same_as<double>;
-  });
+  struct Conforming {
+    double compute(double input) noexcept { return input * 2.0; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> p(c);
+  EXPECT_EQ(p.compute(21.0), 42.0);
 }
 
 TEST(ReflectionProtocolViewTest, MultiParameterMemberFunction) {
@@ -449,10 +481,13 @@ TEST(ReflectionProtocolViewTest, MultiParameterMemberFunction) {
     int add(int a, int b) const;
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(const protocol_view<Interface>& p) {
-    { p.add(1, 2) } -> std::same_as<int>;
-  });
+  struct Conforming {
+    int add(int a, int b) const { return a + b; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> p(c);
+  EXPECT_EQ(p.add(1, 2), 3);
 }
 
 TEST(ReflectionProtocolViewTest, VoidMemberFunction) {
@@ -460,10 +495,16 @@ TEST(ReflectionProtocolViewTest, VoidMemberFunction) {
     void reset();
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(protocol_view<Interface>& p) {
-    { p.reset() } -> std::same_as<void>;
-  });
+  struct Conforming {
+    bool was_reset = false;
+
+    void reset() { was_reset = true; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> p(c);
+  p.reset();
+  EXPECT_TRUE(c.was_reset);
 }
 
 TEST(ReflectionProtocolViewTest, MultipleMemberFunctions) {
@@ -472,11 +513,38 @@ TEST(ReflectionProtocolViewTest, MultipleMemberFunctions) {
     double multiply(double x, double y) const noexcept;
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(const protocol_view<Interface>& p) {
-    { p.add(1.0, 2.0) } noexcept -> std::same_as<double>;
-    { p.multiply(3.0, 4.0) } noexcept -> std::same_as<double>;
-  });
+  struct Conforming {
+    double add(double x, double y) const noexcept { return x + y; }
+
+    double multiply(double x, double y) const noexcept { return x * y; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> p(c);
+  EXPECT_EQ(p.add(1.0, 2.0), 3.0);
+  EXPECT_EQ(p.multiply(3.0, 4.0), 12.0);
+}
+
+TEST(ReflectionProtocolViewTest, MixedConstAndMutatingMemberFunctions) {
+  struct Interface {
+    int get() const;
+    void set(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> p(c);
+  EXPECT_EQ(p.get(), 0);
+  p.set(7);
+  EXPECT_EQ(p.get(), 7);
+  EXPECT_EQ(c.value, 7);
 }
 
 // Member function signature tests for protocol.

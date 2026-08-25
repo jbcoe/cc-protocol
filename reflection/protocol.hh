@@ -25,8 +25,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // Member function stubs are synthesised at compile time for every public
 // non-special member function declared in the Interface type.
 //
-// The stubs are currently unimplemented beyond providing member function
-// signatures.
+// Each stub locates and calls through the correspondingly-named entry of a
+// vtable that protocol and protocol_view each point to.
+//
+// protocol_view populates its vtable pointer with a per-(T, U) constexpr
+// vtable of real trampolines onto the viewed object (see
+// detail::make_view_vtable), so it can be constructed and invoked at
+// runtime now. protocol still points at the default,
+// vtable_generator<T>::instance (all null: no trampolines synthesised for
+// an owned object, and no storage or constructor bodies exist yet), so it
+// can only be exercised at compile time via signature checks so far.
 
 #include <algorithm>
 #include <cstddef>
@@ -100,9 +108,19 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
   return true;
 }
 
-// The named, non-static, non-special member functions of `Type`.
-// TODO(jbcoe): Handle static functions as they can be used to satisfy interface
-// conformance.
+// The named, non-static, non-special member functions of `Type`: the set
+// generate_stub_bases, generate_vtable_specs, make_view_vtable,
+// find_conforming_member and is_protocol_conformant search over. No
+// special member function ever satisfies has_identifier, so there's no
+// need to filter is_special_member_function separately.
+//
+// TODO(jbcoe): Handle static functions as they can be used to satisfy
+// interface conformance.
+//
+// `Type` is a template parameter, not a plain function parameter: with a
+// value parameter, this compiler returns stale results for the second and
+// later distinct types (reproduced in isolation outside this file). A
+// template argument forces a separate instantiation per type, avoiding it.
 template <std::meta::info Type>
 constexpr inline auto protocol_interface_functions_of =
     std::define_static_array(
@@ -111,39 +129,93 @@ constexpr inline auto protocol_interface_functions_of =
         std::views::filter(std::not_fn(std::meta::is_static_member)) |
         std::views::filter(std::meta::has_identifier));
 
-// Vanishing-this-pointer thunk for a synthesised member stub. The thunk
-// carries a single operator() whose signature mirrors one method of the
-// Interface type.
-template <typename FnPtrType, typename EnclosingType, bool IsConst,
+// Finds the vtable_generator<T>::vtable data member with the same name as
+// `Member`. vtable_generator and generate_stub_bases enumerate the same
+// interface members using the same identifier, so a match always exists.
+// `VtableType`/`Member` are template parameters for the same reason as
+// protocol_interface_functions_of's `Type`.
+template <std::meta::info VtableType, std::meta::info Member>
+consteval std::meta::info find_vtable_member() {
+  std::string_view target_name = identifier_of(Member);
+  for (std::meta::info m :
+       members_of(VtableType, std::meta::access_context::unprivileged())) {
+    if (has_identifier(m) && identifier_of(m) == target_name) return m;
+  }
+  std::unreachable();
+}
+
+// ---------------------------------------------------------------------------
+// Vanishing-this-pointer thunk for a synthesised member stub.
+//
+// The thunk carries a single operator() whose signature mirrors one method
+// of the Interface type.
+//
+// `ProtocolType` is whichever of `protocol<T, Allocator>` or
+// `protocol_view<T>` is instantiating this thunk. `Vtable` (its
+// vtable_generator<T>::vtable) is passed explicitly: ProtocolType is still
+// incomplete at the point method_thunk<...> is instantiated (that happens
+// while protocol/protocol_view's own base-class list is being processed),
+// so nothing can be resolved through it yet.
+// ---------------------------------------------------------------------------
+template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
+          typename Vtable, std::meta::info Member, bool IsConst,
           bool IsNoexcept>
 struct method_thunk;
 
 // TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers.
-template <typename R, typename... Args, typename EnclosingType, bool IsConst,
-          bool IsNoexcept>
-struct method_thunk<R (*)(Args...), EnclosingType, IsConst, IsNoexcept> {
-  R operator()(Args... /*args*/) noexcept(IsNoexcept)
-    requires(!IsConst)
-  {
-    [[maybe_unused]] auto* base = reinterpret_cast<EnclosingType*>(this);
-    std::unreachable();  // vtable dispatch not yet implemented
+template <typename R, typename... Args, typename EnclosingType,
+          typename ProtocolType, typename Vtable, std::meta::info Member,
+          bool IsConst, bool IsNoexcept>
+struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
+                    IsConst, IsNoexcept> {
+  static consteval std::meta::info vtable_entry() {
+    return find_vtable_member<^^Vtable, Member>();
   }
 
-  R operator()(Args... /*args*/) const noexcept(IsNoexcept)
+  // Provides member-function call syntax. Recovers the EnclosingType pointer
+  // through the vanishing-this-pointer cast, widens it to the enclosing
+  // protocol/protocol_view object, then calls through its stored vtable
+  // pointer's matching function pointer, passing the viewed/owned object
+  // (not the protocol/protocol_view wrapper itself).
+  R operator()(Args... args) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* enclosing = reinterpret_cast<EnclosingType*>(this);
+    auto* protocol_object = static_cast<ProtocolType*>(enclosing);
+    const Vtable* vtable = protocol_object->vtable_;
+    constexpr std::meta::info entry = vtable_entry();
+    return (*vtable).[:entry:](protocol_object->object_, args...);
+  }
+
+  R operator()(Args... args) const noexcept(IsNoexcept)
     requires(IsConst)
   {
-    [[maybe_unused]] const auto* base =
-        reinterpret_cast<const EnclosingType*>(this);
-    std::unreachable();  // vtable dispatch not yet implemented
+    const auto* enclosing = reinterpret_cast<const EnclosingType*>(this);
+    const auto* protocol_object = static_cast<const ProtocolType*>(enclosing);
+    const Vtable* vtable = protocol_object->vtable_;
+    constexpr std::meta::info entry = vtable_entry();
+    // IsConst is true on this overload, so vtable_generator generated this
+    // entry with a leading `const void*` parameter; object_ (a plain
+    // void*) converts to that implicitly.
+    return (*vtable).[:entry:](protocol_object->object_, args...);
   }
 };
 
 template <typename R, typename... Args>
 using fn_ptr_t = R (*)(Args...);
 
+// Alias used by `generate_vtable_specs` below. Unlike fn_ptr_t, this
+// carries noexcept-ness in the function pointer type itself, so a noexcept
+// interface method's vtable entry (and the trampoline that fills it) is
+// noexcept too.
+template <bool Noexcept, typename R, typename... Args>
+using noexcept_fn_ptr_t = R (*)(Args...) noexcept(Noexcept);
+
 // A single-member base wrapping the thunk for one interface member function,
 // named after that method (giving the `p.method_name(args)` call syntax).
-template <std::meta::info Member>
+// `ProtocolType` and `Vtable` are threaded through to `method_thunk`; see its
+// comment for why they can't be recovered from `member_base` itself.
+template <std::meta::info Member, typename ProtocolType, typename Vtable>
 struct member_base_generator {
   struct member_base;
   consteval {
@@ -159,7 +231,8 @@ struct member_base_generator {
 
     // clang-format off
     std::meta::info thunk_type = substitute(
-        ^^method_thunk, {fn_ptr_type, ^^member_base,
+        ^^method_thunk, {fn_ptr_type, ^^member_base, ^^ProtocolType, ^^Vtable,
+                       std::meta::reflect_constant(Member),
                        std::meta::reflect_constant(is_const(Member)),
                        std::meta::reflect_constant(is_noexcept(Member))});
 
@@ -173,8 +246,9 @@ struct member_base_generator {
   }
 };
 
-template <std::meta::info Member>
-using member_base_generator_t = member_base_generator<Member>::member_base;
+template <std::meta::info Member, typename ProtocolType, typename Vtable>
+using member_base_generator_t =
+    member_base_generator<Member, ProtocolType, Vtable>::member_base;
 
 // Combines the single-member base types produced by `member_base_generator`
 // into one type via multiple inheritance.
@@ -183,19 +257,20 @@ struct stub_bases : MemberBases... {};
 
 // Returns a `stub_bases` specialisation with one base per public, non-special,
 // member function of `interface_type`, giving named members with `operator()`
-// for each.
+// for each. `ProtocolType`/`Vtable` are forwarded to `member_base_generator`.
 //
 // Two bases defining a member of the same name make that name ambiguous to
 // look up through the derived class, so overloaded methods are unsupported
 // for now.
-template <std::meta::info InterfaceType>
+template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable>
 consteval std::meta::info generate_stub_bases() {
   std::vector<std::meta::info> member_base_types;
   for (std::meta::info member :
        protocol_interface_functions_of<InterfaceType>) {
     // clang-format off
     member_base_types.push_back(dealias(
-        substitute(^^member_base_generator_t, {reflect_constant(member)}))
+        substitute(^^member_base_generator_t,
+                   {reflect_constant(member), ^^ProtocolType, ^^Vtable}))
       );
     // clang-format on
   }
@@ -204,9 +279,146 @@ consteval std::meta::info generate_stub_bases() {
 
 // The generated stub type for `T`: a `stub_bases` specialisation with named
 // members with `operator()` for each public, non-special, member function
-// from `T`.
+// from `T`. `ProtocolType` is the enclosing protocol/protocol_view
+// specialisation (protocol<T, Allocator> or protocol_view<T>) and `Vtable`
+// is its vtable_generator<T>::vtable: each thunk needs both to reach
+// ProtocolType's `vtable_` pointer and call through it.
+template <typename T, typename ProtocolType, typename Vtable>
+using protocol_stubs_t =
+    typename[:generate_stub_bases<^^T, ProtocolType, Vtable>():];
+
+// ---------------------------------------------------------------------------
+// Returns a list of data_member_spec values, one for each member function
+// implemented by `protocol`, each describing a vtable function pointer with
+// signature R(*)(void*, Args...) for a mutable interface method, or
+// R(*)(const void*, Args...) for a const one.
+//
+// Because C++ disallows two data members with the same name inside the same
+// class, overloaded methods will cause compile-time errors.
+// We will address this limitation in a follow-up PR.
+// ---------------------------------------------------------------------------
+consteval std::vector<std::meta::info> generate_vtable_specs(
+    std::meta::info interface_type) {
+  std::vector<std::meta::info> function_pointer_specs;
+
+  std::ranges::range auto members =
+      std::define_static_array(members_of(
+          interface_type, std::meta::access_context::unprivileged())) |
+      std::views::filter(std::meta::is_function) |
+      std::views::filter(std::not_fn(std::meta::is_static_member)) |
+      std::views::filter(std::meta::has_identifier);
+
+  for (std::meta::info member : members) {
+    std::string_view name = identifier_of(member);
+
+    // Build the function-pointer type R(*)(void*, Args...) noexcept(...)
+    // from the method's return type, parameter types and noexcept-ness; a
+    // const method takes `const void*` instead, matching the constness of
+    // the access path it's called through.
+    std::vector<std::meta::info> fn_args{
+        std::meta::reflect_constant(is_noexcept(member)),
+        dealias(return_type_of(member))};
+    fn_args.push_back(is_const(member) ? ^^const void* : ^^void*);
+    std::vector<std::meta::info> member_parameters = parameters_of(member);
+    for (std::meta::info parameter : member_parameters) {
+      fn_args.push_back(dealias(type_of(parameter)));
+    }
+    std::meta::info fn_ptr_type = substitute(^^noexcept_fn_ptr_t, fn_args);
+
+    function_pointer_specs.push_back(data_member_spec(
+        fn_ptr_type, std::meta::data_member_options{.name = name}));
+  }
+  return function_pointer_specs;
+}
+
+// Generates a vtable with named function pointers for each public,
+// non-special, member function from `T`.
 template <typename T>
-using protocol_stubs_t = typename[:generate_stub_bases<^^T>():];
+struct vtable_generator {
+  struct vtable;
+  consteval { define_aggregate(^^vtable, generate_vtable_specs(^^T)); }
+
+  // Value-initialised until a follow-up change synthesises per-method
+  // trampolines: every function pointer is currently null.
+  static constexpr vtable instance{};
+};
+
+// ---------------------------------------------------------------------------
+// Populates a vtable_generator<T>::vtable with trampolines that forward to
+// the conforming members of a concrete type `U`, for use by protocol_view.
+// ---------------------------------------------------------------------------
+
+// Finds the member of `CandidateType` that structurally conforms to
+// `Member`, using the same matching rule as is_protocol_conformant.
+// Template parameters for the same reason as protocol_interface_functions_of's
+// `Type`.
+template <std::meta::info Member, std::meta::info CandidateType>
+consteval std::meta::info find_conforming_member() {
+  for (std::meta::info candidate :
+       protocol_interface_functions_of<CandidateType>) {
+    if (member_function_conforms_to(candidate, Member)) return candidate;
+  }
+  std::unreachable();
+}
+
+// Recovers a `U*`/`const U*` from the type-erased pointer a vtable entry is
+// called with, then calls the matching member of `U`.
+template <typename FnPtrType, typename U, std::meta::info CandidateMember>
+struct mutable_view_trampoline;
+
+template <typename R, typename... Args, bool Noexcept, typename U,
+          std::meta::info CandidateMember>
+struct mutable_view_trampoline<R (*)(void*, Args...) noexcept(Noexcept), U,
+                               CandidateMember> {
+  static R call(void* ptr, Args... args) noexcept(Noexcept) {
+    return static_cast<U*>(ptr)->[:CandidateMember:](args...);
+  }
+};
+
+template <typename FnPtrType, typename U, std::meta::info CandidateMember>
+struct const_view_trampoline;
+
+template <typename R, typename... Args, bool Noexcept, typename U,
+          std::meta::info CandidateMember>
+struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
+                             CandidateMember> {
+  static R call(const void* ptr, Args... args) noexcept(Noexcept) {
+    return static_cast<const U*>(ptr)->[:CandidateMember:](args...);
+  }
+};
+
+// Builds a vtable for `T` whose entries call through to the corresponding
+// member of `U`. Every entry is populated: protocol_view's constructor only
+// accepts a non-const U (see its `!std::is_const_v<U>` constraint), so a
+// sound pointer to call any member, const or mutating, through is always
+// available.
+template <typename T, typename U>
+consteval typename vtable_generator<T>::vtable make_view_vtable() {
+  using Vtable = typename vtable_generator<T>::vtable;
+  Vtable result{};
+
+  template for (constexpr std::meta::info member :
+                protocol_interface_functions_of<^^T>) {
+    constexpr std::meta::info candidate = find_conforming_member<member, ^^U>();
+    constexpr std::meta::info vtable_member =
+        find_vtable_member<^^Vtable, member>();
+    using FnPtrType = typename[:type_of(vtable_member):];
+    if constexpr (is_const(member)) {
+      result.[:vtable_member:] = &const_view_trampoline<FnPtrType, U,
+                                                        candidate>::call;
+    } else {
+      result.[:vtable_member:] = &mutable_view_trampoline<FnPtrType, U,
+                                                          candidate>::call;
+    }
+  }
+  return result;
+}
+
+// The shared, compile-time vtable every protocol_view<T> that views a `U`
+// points to.
+template <typename T, typename U>
+inline constexpr typename vtable_generator<T>::vtable view_vtable_for =
+    make_view_vtable<T, U>();
 
 }  // namespace detail
 
@@ -245,7 +457,9 @@ inline constexpr bool is_protocol_conformant_v =
     is_protocol_conformant<Interface, Candidate>();
 
 template <typename T, typename Allocator = std::allocator<std::byte>>
-class protocol : public detail::protocol_stubs_t<T> {
+class protocol : public detail::protocol_stubs_t<
+                     T, protocol<T, Allocator>,
+                     typename detail::vtable_generator<T>::vtable> {
  public:
   protocol() = delete;  // Deleted as `T` is used as an interface type.
 
@@ -273,10 +487,23 @@ class protocol : public detail::protocol_stubs_t<T> {
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
              (!is_protocol_v<std::remove_cvref_t<U>>)
   explicit protocol(std::in_place_type_t<U>, Ts&&... ts);
+
+ private:
+  // Grants the synthesised member stubs access to `vtable_` so they can
+  // locate and call through the matching vtable entry.
+  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
+            typename Vtable, std::meta::info Member, bool IsConst,
+            bool IsNoexcept>
+  friend struct detail::method_thunk;
+
+  const typename detail::vtable_generator<T>::vtable* vtable_ =
+      &detail::vtable_generator<T>::instance;
 };
 
 template <typename T>
-class protocol_view : public detail::protocol_stubs_t<T> {
+class protocol_view
+    : public detail::protocol_stubs_t<
+          T, protocol_view<T>, typename detail::vtable_generator<T>::vtable> {
  public:
   // The default constructor is deleted as a default constructed
   // `protocol_view` would be empty.
@@ -289,11 +516,32 @@ class protocol_view : public detail::protocol_stubs_t<T> {
   protocol_view& operator=(protocol_view&&) noexcept = default;
   ~protocol_view() = default;
 
-  // Construct from any type U that conforms to the Interface T.
+  // Construct from any non-const type U that conforms to the Interface T.
+  // U being const is rejected unconditionally, regardless of whether T
+  // actually declares any non-const methods: a simple, T-independent rule
+  // is easier to reason about than one that only rejects const U when it
+  // would actually be unsound.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
-             (!is_protocol_view_v<std::remove_cvref_t<U>>)
-  explicit protocol_view(const U& object);
+                 (!is_protocol_view_v<std::remove_cvref_t<U>>) &&
+                 (!std::is_const_v<U>)
+  explicit protocol_view(U& object)
+      : object_(static_cast<void*>(std::addressof(object))),
+        vtable_(&detail::view_vtable_for<T, U>) {}
+
+ private:
+  // Grants the synthesised member stubs access to `object_`/`vtable_` so
+  // they can locate and call through the matching vtable entry.
+  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
+            typename Vtable, std::meta::info Member, bool IsConst,
+            bool IsNoexcept>
+  friend struct detail::method_thunk;
+
+  // Non-owning pointer to the viewed object.
+  void* object_ = nullptr;
+
+  const typename detail::vtable_generator<T>::vtable* vtable_ =
+      &detail::vtable_generator<T>::instance;
 };
 
 }  // namespace xyz::reflection
