@@ -185,7 +185,6 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   R operator()(Args... args) noexcept(IsNoexcept)
     requires(!IsConst)
   {
-    // Use reinterpret_cast as static_cast is not valid here.
     auto* enclosing = reinterpret_cast<EnclosingType*>(this);
     auto* protocol_object = static_cast<ProtocolType*>(enclosing);
     const Vtable* vtable = protocol_object->vtable_;
@@ -196,7 +195,6 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   R operator()(Args... args) const noexcept(IsNoexcept)
     requires(IsConst)
   {
-    // Use reinterpret_cast as static_cast is not valid here.
     const auto* enclosing = reinterpret_cast<const EnclosingType*>(this);
     const auto* protocol_object = static_cast<const ProtocolType*>(enclosing);
     const Vtable* vtable = protocol_object->vtable_;
