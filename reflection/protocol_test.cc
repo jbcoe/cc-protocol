@@ -1,13 +1,5 @@
 // Tests for the C++26-reflection-based implementation of protocol and
 // protocol_view.
-//
-// Specifically covers:
-//   - Type trait tests (is_protocol_v / is_protocol_view_v).
-//   - Special member function availability.
-//   - Constructability from conforming/non-conforming types.
-//   - Conformance checking via is_protocol_conformant<>.
-//   - Member function stub invocability via the vanishing-this-pointer
-//     synthesised members.
 
 #include "protocol.hh"
 
