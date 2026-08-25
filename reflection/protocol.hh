@@ -102,19 +102,10 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
   return true;
 }
 
-// The named, non-static, non-special member functions of `Type`: the set
-// generate_wrapper_bases, generate_vtable_specs, make_view_vtable,
-// find_conforming_member and is_protocol_conformant search over. No
-// special member function ever satisfies has_identifier, so there's no
-// need to filter is_special_member_function separately.
+// The named, non-static, non-special member functions of `Type`.
 //
 // TODO(jbcoe): Handle static functions as they can be used to satisfy
 // interface conformance.
-//
-// `Type` is a template parameter, not a plain function parameter: with a
-// value parameter, this compiler returns stale results for the second and
-// later distinct types (reproduced in isolation outside this file). A
-// template argument forces a separate instantiation per type, avoiding it.
 template <std::meta::info Type>
 constexpr inline auto protocol_interface_functions_of =
     std::define_static_array(
@@ -143,13 +134,6 @@ consteval std::meta::info find_vtable_member() {
 //
 // The thunk carries a single operator() whose signature mirrors one method
 // of the Interface type.
-//
-// `ProtocolType` is whichever of `protocol<T, Allocator>` or
-// `protocol_view<T>` is instantiating this thunk. `Vtable` (its
-// vtable_generator<T>::vtable) is passed explicitly: ProtocolType is still
-// incomplete at the point method_thunk<...> is instantiated (that happens
-// while protocol/protocol_view's own base-class list is being processed),
-// so nothing can be resolved through it yet.
 // ---------------------------------------------------------------------------
 template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
           typename Vtable, std::meta::info Member, bool IsConst,
@@ -195,15 +179,8 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   }
 };
 
-template <typename R, typename... Args>
-using fn_ptr_t = R (*)(Args...);
-
-// Alias used by `generate_vtable_specs` below. Unlike fn_ptr_t, this
-// carries noexcept-ness in the function pointer type itself, so a noexcept
-// interface method's vtable entry (and the trampoline that fills it) is
-// noexcept too.
 template <bool Noexcept, typename R, typename... Args>
-using noexcept_fn_ptr_t = R (*)(Args...) noexcept(Noexcept);
+using fn_ptr_t = R (*)(Args...) noexcept(Noexcept);
 
 // A single-member base wrapping the thunk for one interface member function,
 // named after that method (giving the `p.method_name(args)` call syntax).
@@ -217,7 +194,8 @@ struct member_base_generator {
 
     // Build the function-pointer type R(*)(Args...) from the method's
     // return type and parameter types.
-    std::vector<std::meta::info> fn_args{dealias(return_type_of(Member))};
+    std::vector<std::meta::info> fn_args{std::meta::reflect_constant(false),
+                                         dealias(return_type_of(Member))};
     std::vector<std::meta::info> member_parameters = parameters_of(Member);
     fn_args.append_range(member_parameters |
                          std::views::transform(std::meta::type_of));
@@ -318,7 +296,7 @@ consteval std::vector<std::meta::info> generate_vtable_specs(
     for (std::meta::info parameter : member_parameters) {
       fn_args.push_back(dealias(type_of(parameter)));
     }
-    std::meta::info fn_ptr_type = substitute(^^noexcept_fn_ptr_t, fn_args);
+    std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
 
     function_pointer_specs.push_back(data_member_spec(
         fn_ptr_type, std::meta::data_member_options{.name = name}));
@@ -334,15 +312,8 @@ struct vtable_generator {
   consteval { define_aggregate(^^vtable, generate_vtable_specs(^^T)); }
 };
 
-// ---------------------------------------------------------------------------
-// Populates a vtable_generator<T>::vtable with trampolines that forward to
-// the conforming members of a concrete type `U`, for use by protocol_view.
-// ---------------------------------------------------------------------------
-
 // Finds the member of `CandidateType` that structurally conforms to
 // `Member`, using the same matching rule as is_protocol_conformant.
-// Template parameters for the same reason as protocol_interface_functions_of's
-// `Type`.
 template <std::meta::info Member, std::meta::info CandidateType>
 consteval std::meta::info find_conforming_member() {
   for (std::meta::info candidate :
