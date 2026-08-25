@@ -129,16 +129,17 @@ struct method_thunk<R (*)(Args...), EnclosingType, IsConst, IsNoexcept> {
   R operator()(Args... /*args*/) noexcept(IsNoexcept)
     requires(!IsConst)
   {
-    [[maybe_unused]] auto* base =
-        static_cast<EnclosingType*>(static_cast<void*>(this));
+    // Use reinterpret_cast as static_cast is not valid here.
+    [[maybe_unused]] auto* base = reinterpret_cast<EnclosingType*>(this);
     std::unreachable();  // vtable dispatch not yet implemented
   }
 
   R operator()(Args... /*args*/) const noexcept(IsNoexcept)
     requires(IsConst)
   {
+    // Use reinterpret_cast as static_cast is not valid here.
     [[maybe_unused]] const auto* base =
-        static_cast<const EnclosingType*>(static_cast<const void*>(this));
+        reinterpret_cast<const EnclosingType*>(this);
     std::unreachable();  // vtable dispatch not yet implemented
   }
 };
