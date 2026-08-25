@@ -23,17 +23,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // A C++26-reflection-based implementation of protocol and protocol_view.
 //
 // Member function stubs are synthesised at compile time for every public
-// non-special member function declared in the Interface type.  The stubs
-// are attached to protocol and protocol_view through data members that
-// provide ordinary member-function call syntax via the "vanishing this
-// pointer" technique described in tutorials/2_vanishing_this_pointer.cc
-// (section 5): each per-method wrapper sits as the sole member of a
-// dedicated base struct; the wrapper's operator() recovers the enclosing
-// base address through a static_cast and hands it to the derived class.
+// non-special member function declared in the Interface type.
 //
-// The stubs are intentionally unimplemented beyond the signature: they
-// call std::unreachable() so that the type-system plumbing can be
-// developed before the vtable dispatch layer exists.
+// The stubs are currently unimplemented beyond providing member function
+// signatures.
 
 #include <algorithm>
 #include <cassert>
@@ -109,6 +102,17 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
   return true;
 }
 
+// The named, non-static, non-special member functions of `Type`.
+template <std::meta::info Type>
+consteval auto protocol_interface_functions_of() {
+  return std::define_static_array(
+      std::define_static_array(
+          members_of(Type, std::meta::access_context::unprivileged())) |
+      std::views::filter(std::meta::is_function) |
+      std::views::filter(std::not_fn(std::meta::is_static_member)) |
+      std::views::filter(std::meta::has_identifier));
+}
+
 // ---------------------------------------------------------------------------
 // Vanishing-this-pointer thunk for a synthesised member stub.
 //
@@ -122,9 +126,6 @@ struct method_thunk;
 template <typename R, typename... Args, typename EnclosingType, bool IsConst,
           bool IsNoexcept>
 struct method_thunk<R (*)(Args...), EnclosingType, IsConst, IsNoexcept> {
-  // Provides member-function call syntax.  Recovers the EnclosingType pointer
-  // through the vanishing-this-pointer cast, then calls the protocol's
-  // stored vtable entry (not yet implemented: stub calls std::unreachable).
   R operator()(Args... /*args*/) noexcept(IsNoexcept)
     requires(!IsConst)
   {
@@ -142,7 +143,7 @@ struct method_thunk<R (*)(Args...), EnclosingType, IsConst, IsNoexcept> {
   }
 };
 
-// Alias used by `generate_method_thunk_specs` below.
+// A convenient alias for function pointers.
 template <typename R, typename... Args>
 using fn_ptr_t = R (*)(Args...);
 
@@ -155,7 +156,7 @@ using fn_ptr_t = R (*)(Args...);
 // matching thunk template specialisation.
 //
 // Because C++ disallows two data members with the same name inside the same
-// class, overloaded methods whose names collide will cause compile-time errors.
+// class, overloaded methods will cause compile-time errors.
 // We will address this limitation in a follow-up PR.
 // ---------------------------------------------------------------------------
 consteval std::vector<std::meta::info> generate_method_thunk_specs(
@@ -167,6 +168,7 @@ consteval std::vector<std::meta::info> generate_method_thunk_specs(
           interface_type, std::meta::access_context::unprivileged())) |
       std::views::filter(std::meta::is_function) |
       std::views::filter(std::not_fn(std::meta::is_special_member_function)) |
+      std::views::filter(std::not_fn(std::meta::is_static_member)) |
       std::views::filter(std::meta::has_identifier);
 
   for (std::meta::info member : members) {
@@ -219,18 +221,10 @@ consteval bool is_protocol_conformant() {
 
   // Checking for protocol interface conformance is O(N*M) over member counts,
   // assumed to be negligible at compile time.
-  std::ranges::range auto interface_member_functions =
-      std::define_static_array(
-          members_of(^^T, std::meta::access_context::unprivileged())) |
-      std::views::filter(std::meta::is_function) |
-      std::views::filter(std::meta::has_identifier) |
-      std::views::filter(std::not_fn(std::meta::is_special_member_function));
-
-  std::ranges::range auto candidate_member_functions =
-      std::define_static_array(
-          members_of(^^U, std::meta::access_context::unprivileged())) |
-      std::views::filter(std::meta::is_function) |
-      std::views::filter(std::meta::has_identifier);
+  auto interface_member_functions =
+      detail::protocol_interface_functions_of<^^T>();
+  auto candidate_member_functions =
+      detail::protocol_interface_functions_of<^^U>();
 
   return std::ranges::all_of(
       interface_member_functions, [&](std::meta::info interface_member) {
