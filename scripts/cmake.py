@@ -41,10 +41,8 @@ def main() -> None:
     parser.add_argument(
         "--reflection",
         action="store_true",
-        help="Build and test tutorials/reflection.cc and the reflection-based "
-        "protocol implementation (requires a P2996 reflection compiler). "
-        "Defaults to g++-16/gcc-16 unless CXX/CC are already set in the "
-        "environment.",
+        help="Build and test tutorials/reflection.cc (requires a P2996 "
+        "reflection compiler, e.g. CXX=g++-16 CC=gcc-16)",
     )
     parser.add_argument("-B", "--build-dir", help="Build directory")
     parser.add_argument(
@@ -95,12 +93,11 @@ def main() -> None:
     # A P2996 reflection compiler is required to configure with
     # XYZ_PROTOCOL_BUILD_REFLECTION=ON. CMake only reads CXX/CC
     # from the environment, not from -D cache variables, so set them here
-    # rather than as configure_args.  Use setdefault so that a CXX/CC already
-    # present in the caller's environment takes precedence over the defaults.
+    # rather than as configure_args.
     configure_env = os.environ.copy()
     if args.reflection:
-        configure_env.setdefault("CXX", "g++-16")
-        configure_env.setdefault("CC", "gcc-16")
+        configure_env["CXX"] = "g++-16"
+        configure_env["CC"] = "gcc-16"
 
     log(f"Running: {' '.join(configure_args)}")
     subprocess.check_call(configure_args, env=configure_env)
