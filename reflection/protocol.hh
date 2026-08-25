@@ -22,26 +22,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // A C++26-reflection-based implementation of protocol and protocol_view.
 //
-// Member function thunks are synthesised at compile time for every public
-// non-special member function declared in the Interface type.  The thunks
-// are attached to protocol and protocol_view through data members that
-// provide ordinary member-function call syntax via the "vanishing this
-// pointer" technique described in tutorials/vanishing_this.cc
-// (TutorialsVanishingThis.ParentClassAccessFromMultipleMemberDataCalls):
-// each per-method wrapper sits as the sole member of a dedicated base
-// struct; the wrapper's operator() recovers the enclosing base address
-// through a static_cast and hands it to the derived class.
+// protocol_view has a minimal but working implementation: functions are
+// dispatched at runtime using a vtable.
 //
-// Each thunk locates and calls through the correspondingly-named entry of a
-// vtable that protocol and protocol_view each point to.
+// protocol currently supports only compile-time signature checks.
 //
-// protocol_view populates its vtable pointer with a per-(T, U) constexpr
-// vtable of real trampolines onto the viewed object (see
-// detail::make_view_vtable), so it can be constructed and invoked at
-// runtime now. protocol still points at the default,
-// vtable_generator<T>::instance (all null: no trampolines synthesised for
-// an owned object, and no storage or constructor bodies exist yet), so it
-// can only be exercised at compile time via signature checks so far.
+// Neither implementation currently supports overloaded member functions or
+// operators.
 
 #include <algorithm>
 #include <cstddef>
@@ -345,10 +332,6 @@ template <typename T>
 struct vtable_generator {
   struct vtable;
   consteval { define_aggregate(^^vtable, generate_vtable_specs(^^T)); }
-
-  // Value-initialised until a follow-up change synthesises per-method
-  // trampolines: every function pointer is currently null.
-  static constexpr vtable instance{};
 };
 
 // ---------------------------------------------------------------------------
@@ -504,8 +487,7 @@ class protocol : public detail::protocol_wrappers_t<
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
-  const typename detail::vtable_generator<T>::vtable* vtable_ =
-      &detail::vtable_generator<T>::instance;
+  const typename detail::vtable_generator<T>::vtable* vtable_;
 };
 
 template <typename T>
@@ -548,8 +530,7 @@ class protocol_view
   // Non-owning pointer to the viewed object.
   void* object_ = nullptr;
 
-  const typename detail::vtable_generator<T>::vtable* vtable_ =
-      &detail::vtable_generator<T>::instance;
+  const typename detail::vtable_generator<T>::vtable* vtable_;
 };
 
 }  // namespace xyz::reflection
