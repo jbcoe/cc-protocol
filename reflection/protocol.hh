@@ -146,18 +146,18 @@ class protocol {
   template <typename T>
   using rebound_traits = std::allocator_traits<rebound<T>>;
 
-  constexpr static bool pocca =
+  static constexpr bool pocca =
       traits::propagate_on_container_copy_assignment::value;
 
-  constexpr static bool pocma =
+  static constexpr bool pocma =
       traits::propagate_on_container_move_assignment::value;
 
-  constexpr static bool pocs = traits::propagate_on_container_swap::value;
+  static constexpr bool pocs = traits::propagate_on_container_swap::value;
 
-  constexpr static bool always_equal = traits::is_always_equal::value;
+  static constexpr bool always_equal = traits::is_always_equal::value;
 
   template <typename T, typename TNorm = std::decay_t<T>, typename... Args>
-  constexpr static TNorm* create(const Alloc& alloc, Args&&... args) {
+  static constexpr TNorm* create(const Alloc& alloc, Args&&... args) {
     rebound<TNorm> new_alloc{alloc};
 
     auto obj = rebound_traits<TNorm>::allocate(new_alloc, 1);
@@ -179,7 +179,7 @@ class protocol {
   };
 
   template <typename T, typename TNorm = std::decay_t<T>>
-  constexpr static vtable vtable_for = {
+  static constexpr vtable vtable_for = {
       .destroy = +[](const Alloc& alloc, void* data) -> void {
         rebound<TNorm> new_alloc{alloc};
         auto* typed = static_cast<TNorm*>(data);
@@ -195,7 +195,7 @@ class protocol {
         return create<TNorm>(alloc, std::move(*static_cast<TNorm*>(data)));
       }};
 
-  constexpr static vtable null_vtable = {
+  static constexpr vtable null_vtable = {
       .destroy = +[](const Alloc&, void*) -> void {},
       .copy = +[](const Alloc&, const void*) -> void* { return nullptr; },
       .move = +[](const Alloc&, void*) -> void* { return nullptr; }};
@@ -210,19 +210,23 @@ class protocol {
 
   protocol() = delete;
 
-  template <typename T>
-    requires(!std::same_as<std::decay_t<T>, protocol> &&
-             detail::meets_interface<T, I> && std::default_initializable<Alloc>)
+  template <typename T, typename TNorm = std::decay_t<T>>
+    requires(!std::same_as<TNorm, protocol> &&
+             is_protocol_conformant_v<I, TNorm> && std::default_initializable<Alloc>)
   constexpr explicit protocol(T&& obj)
       : protocol(std::allocator_arg, Alloc{}, std::forward<T>(obj)) {}
 
   template <typename T>
-    requires(!std::same_as<std::decay_t<T>, protocol> &&
-             detail::meets_interface<T, I>)
+    requires(!std::same_as<TNorm, protocol> &&
+             is_protocol_conformant_v<I, TNorm>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, T&& obj)
       : alloc_(a),
         obj_(create<T>(alloc_, std::forward<T>(obj))),
         vtable_(&vtable_for<T>) {}
+
+  template <typename T>
+    requires(!std::same_as<std::decay_t<T>, protocol> &&
+    )
 
   constexpr ~protocol() { vtable_->destroy(alloc_, obj_); }
 
