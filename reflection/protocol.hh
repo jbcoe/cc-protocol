@@ -224,9 +224,33 @@ class protocol {
         obj_(create<T>(alloc_, std::forward<T>(obj))),
         vtable_(&vtable_for<T>) {}
 
-  template <typename T>
+  template <typename T, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
-    )
+             is_protocol_conformant_v<I, T> && std::default_initializable<Alloc>)
+  constexpr explicit protocol(std::in_place_type_t<T>, Args&&... args)
+      : protocol(std::allocator_arg, Alloc{}, std::forward<Args>(args)...) {}
+
+  template <typename T, typename... Args>
+    requires(!std::same_as<std::decay_t<T>, protocol> &&
+             is_protocol_conformant_v<I, T>)
+  constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, std::in_place_type_t<T>, Args&&... args)
+      : alloc_(a),
+        obj_(create<T>(alloc_, std::forward<Args>(args)...)),
+        vtable_(&vtable_for<T>) {}
+
+  template <typename T, typename U, typename... Args>
+    requires(!std::same_as<std::decay_t<T>, protocol> &&
+             is_protocol_conformant_v<I, T> && std::default_initializable<Alloc>)
+  constexpr explicit protocol(std::in_place_type_t<T>, std::initializer_list<U> il, Args&&... args)
+      : protocol(std::allocator_arg, Alloc{}, il, std::forward<Args>(args)...) {}
+
+  template <typename T, typename U, typename... Args>
+    requires(!std::same_as<std::decay_t<T>, protocol> &&
+             is_protocol_conformant_v<I, T>)
+  constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, std::in_place_type_t<T>, std::initializer_list<U> il, Args&&... args)
+      : alloc_(a),
+        obj_(create<T>(alloc_, il, std::forward<Args>(args)...)),
+        vtable_(&vtable_for<T>) {}
 
   constexpr ~protocol() { vtable_->destroy(alloc_, obj_); }
 
