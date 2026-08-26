@@ -86,35 +86,35 @@ TEST(ProtocolTest, Construction) {
   EXPECT_EQ(deallocs, 1);
 }
 
-// TEST(ProtocolTest, InPlaceConstruction) {
-//   unsigned allocs = 0;
-//   unsigned deallocs = 0;
-//   {
-//     TestAlloc alloc{&allocs, &deallocs};
-//     TestProtocol p{std::allocator_arg, alloc, std::in_place_type<Tester>,
-//     15};
+TEST(ProtocolTest, InPlaceConstruction) {
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+  {
+    TestAlloc alloc{&allocs, &deallocs};
+    TestProtocol p{std::allocator_arg, alloc, std::in_place_type<Tester>,
+    15};
 
-//     EXPECT_EQ(allocs, 1);
-//     EXPECT_EQ(deallocs, 0);
-//   }
-//   EXPECT_EQ(allocs, 1);
-//   EXPECT_EQ(deallocs, 1);
-// }
+    EXPECT_EQ(allocs, 1);
+    EXPECT_EQ(deallocs, 0);
+  }
+  EXPECT_EQ(allocs, 1);
+  EXPECT_EQ(deallocs, 1);
+}
 
-// TEST(ProtocolTest, InitListConstruction) {
-//   unsigned allocs = 0;
-//   unsigned deallocs = 0;
-//   {
-//     TestAlloc alloc{&allocs, &deallocs};
-//     TestProtocol p{
-//         std::allocator_arg, alloc, std::in_place_type<Tester>, {1, 2, 3}};
+TEST(ProtocolTest, InitListConstruction) {
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+  {
+    TestAlloc alloc{&allocs, &deallocs};
+    TestProtocol p{
+        std::allocator_arg, alloc, std::in_place_type<Tester>, {1, 2, 3}};
 
-//     EXPECT_EQ(allocs, 1);
-//     EXPECT_EQ(deallocs, 0);
-//   }
-//   EXPECT_EQ(allocs, 1);
-//   EXPECT_EQ(deallocs, 1);
-// }
+    EXPECT_EQ(allocs, 1);
+    EXPECT_EQ(deallocs, 0);
+  }
+  EXPECT_EQ(allocs, 1);
+  EXPECT_EQ(deallocs, 1);
+}
 
 TEST(ProtocolTest, CopyConstruction) {
   static_assert(not std::is_nothrow_copy_constructible_v<TestProtocol>);
