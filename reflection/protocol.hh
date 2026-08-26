@@ -212,11 +212,12 @@ class protocol {
 
   template <typename T, typename TNorm = std::decay_t<T>>
     requires(!std::same_as<TNorm, protocol> &&
-             is_protocol_conformant_v<I, TNorm> && std::default_initializable<Alloc>)
+             is_protocol_conformant_v<I, TNorm> &&
+             std::default_initializable<Alloc>)
   constexpr explicit protocol(T&& obj)
       : protocol(std::allocator_arg, Alloc{}, std::forward<T>(obj)) {}
 
-  template <typename T>
+  template <typename T, typename TNorm = std::decay_t<T>>
     requires(!std::same_as<TNorm, protocol> &&
              is_protocol_conformant_v<I, TNorm>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, T&& obj)
@@ -226,28 +227,35 @@ class protocol {
 
   template <typename T, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
-             is_protocol_conformant_v<I, T> && std::default_initializable<Alloc>)
+             is_protocol_conformant_v<I, T> &&
+             std::default_initializable<Alloc>)
   constexpr explicit protocol(std::in_place_type_t<T>, Args&&... args)
       : protocol(std::allocator_arg, Alloc{}, std::forward<Args>(args)...) {}
 
   template <typename T, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T>)
-  constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, std::in_place_type_t<T>, Args&&... args)
+  constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
+                              std::in_place_type_t<T>, Args&&... args)
       : alloc_(a),
         obj_(create<T>(alloc_, std::forward<Args>(args)...)),
         vtable_(&vtable_for<T>) {}
 
   template <typename T, typename U, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
-             is_protocol_conformant_v<I, T> && std::default_initializable<Alloc>)
-  constexpr explicit protocol(std::in_place_type_t<T>, std::initializer_list<U> il, Args&&... args)
-      : protocol(std::allocator_arg, Alloc{}, il, std::forward<Args>(args)...) {}
+             is_protocol_conformant_v<I, T> &&
+             std::default_initializable<Alloc>)
+  constexpr explicit protocol(std::in_place_type_t<T>,
+                              std::initializer_list<U> il, Args&&... args)
+      : protocol(std::allocator_arg, Alloc{}, il, std::forward<Args>(args)...) {
+  }
 
   template <typename T, typename U, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T>)
-  constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, std::in_place_type_t<T>, std::initializer_list<U> il, Args&&... args)
+  constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
+                              std::in_place_type_t<T>,
+                              std::initializer_list<U> il, Args&&... args)
       : alloc_(a),
         obj_(create<T>(alloc_, il, std::forward<Args>(args)...)),
         vtable_(&vtable_for<T>) {}

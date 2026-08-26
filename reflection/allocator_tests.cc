@@ -91,8 +91,7 @@ TEST(ProtocolTest, InPlaceConstruction) {
   unsigned deallocs = 0;
   {
     TestAlloc alloc{&allocs, &deallocs};
-    TestProtocol p{std::allocator_arg, alloc, std::in_place_type<Tester>,
-    15};
+    TestProtocol p{std::allocator_arg, alloc, std::in_place_type<Tester>, 15};
 
     EXPECT_EQ(allocs, 1);
     EXPECT_EQ(deallocs, 0);
