@@ -140,6 +140,8 @@ template <typename I, typename Alloc = std::allocator<std::byte>>
 class protocol {
   using traits = std::allocator_traits<Alloc>;
 
+  // When using allocators in a type-erased context, we must rebind
+  // the allocator for whatever type the user provides.
   template <typename T>
   using rebound = traits::template rebind_alloc<T>;
 
@@ -172,12 +174,17 @@ class protocol {
     return obj;
   }
 
+  // Stores necessary functions for rule-of-five implementation.
+  // NOTE: This should be extended/unified with the view vtable.
+  // Maybe the owning vtable can inherit from the view one?
   struct vtable {
     void (*destroy)(const Alloc& alloc, void* data);
     void* (*copy)(const Alloc& alloc, const void* data);
     void* (*move)(const Alloc& alloc, void* data);
   };
 
+  // Creates a vtable for the type T. TNorm is used throughout
+  // this file to create a convenient alias for a decayed type.
   template <typename T, typename TNorm = std::decay_t<T>>
   static constexpr vtable vtable_for = {
       .destroy = +[](const Alloc& alloc, void* data) -> void {
@@ -195,6 +202,8 @@ class protocol {
         return create<TNorm>(alloc, std::move(*static_cast<TNorm*>(data)));
       }};
 
+  // A no-op vtable that is the stand-in for a nullptr vtable. Prevents
+  // redundant null checks throughout the code.
   static constexpr vtable null_vtable = {
       .destroy = +[](const Alloc&, void*) -> void {},
       .copy = +[](const Alloc&, const void*) -> void* { return nullptr; },
@@ -210,6 +219,7 @@ class protocol {
 
   protocol() = delete;
 
+  // Construction from conforming T.
   template <typename T, typename TNorm = std::decay_t<T>>
     requires(!std::same_as<TNorm, protocol> &&
              is_protocol_conformant_v<I, TNorm> &&
@@ -217,6 +227,7 @@ class protocol {
   constexpr explicit protocol(T&& obj)
       : protocol(std::allocator_arg, Alloc{}, std::forward<T>(obj)) {}
 
+  // Allocator-aware construction from conforming T.
   template <typename T, typename TNorm = std::decay_t<T>>
     requires(!std::same_as<TNorm, protocol> &&
              is_protocol_conformant_v<I, TNorm>)
@@ -225,6 +236,7 @@ class protocol {
         obj_(create<T>(alloc_, std::forward<T>(obj))),
         vtable_(&vtable_for<T>) {}
 
+  // In-place construction from conforming T.
   template <typename T, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T> &&
@@ -232,6 +244,7 @@ class protocol {
   constexpr explicit protocol(std::in_place_type_t<T>, Args&&... args)
       : protocol(std::allocator_arg, Alloc{}, std::forward<Args>(args)...) {}
 
+  // Allocator-aware in-place construction from conforming T.
   template <typename T, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T>)
@@ -241,6 +254,8 @@ class protocol {
         obj_(create<T>(alloc_, std::forward<Args>(args)...)),
         vtable_(&vtable_for<T>) {}
 
+  // In-place construction needs this overload because templates cannot
+  // deduce initializer lists.
   template <typename T, typename U, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T> &&
@@ -250,6 +265,7 @@ class protocol {
       : protocol(std::allocator_arg, Alloc{}, il, std::forward<Args>(args)...) {
   }
 
+  // Allocator-aware in-place init-list construction from conforming T.
   template <typename T, typename U, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T>)
@@ -262,12 +278,14 @@ class protocol {
 
   constexpr ~protocol() { vtable_->destroy(alloc_, obj_); }
 
+  // Copy construction.
   constexpr protocol(const protocol& other)
     requires std::is_copy_constructible_v<I>
       : protocol(std::allocator_arg,
                  traits::select_on_container_copy_construction(other.alloc_),
                  other) {}
 
+  // Allocator-aware copy construction.
   constexpr protocol(std::allocator_arg_t, const Alloc& a,
                      const protocol& other)
     requires std::is_copy_constructible_v<I>
@@ -275,15 +293,19 @@ class protocol {
         obj_(other.vtable_->copy(alloc_, other.obj_)),
         vtable_(other.vtable_) {}
 
+  // Move construction.
   constexpr protocol(protocol&& other) noexcept
       : protocol(std::allocator_arg, other.alloc_, std::move(other)) {}
 
+  // Allocator-aware move construction.
   constexpr protocol(std::allocator_arg_t, const Alloc& a,
                      protocol&& other) noexcept(always_equal)
       : alloc_(a), vtable_(other.vtable_) {
     if (always_equal || alloc_ == other.alloc_) {
+      // Fast path, we can just do a pointer swap.
       obj_ = other.obj_;
     } else {
+      // Slow path, we have to heap allocate and move construct.
       obj_ = other.vtable_->move(alloc_, other.obj_);
       other.vtable_->destroy(other.alloc_, other.obj_);
     }
@@ -292,6 +314,7 @@ class protocol {
     other.vtable_ = &null_vtable;
   }
 
+  // Copy assignment.
   constexpr protocol& operator=(const protocol& other)
     requires std::is_copy_constructible_v<I>
   {
@@ -300,6 +323,7 @@ class protocol {
     }
 
     if constexpr (pocca) {
+      // Allocate before destruction for strong exception safety.
       void* new_obj = other.vtable_->copy(other.alloc_, other.obj_);
 
       vtable_->destroy(alloc_, obj_);
@@ -315,6 +339,7 @@ class protocol {
     return *this;
   }
 
+  // Move assignment.
   constexpr protocol& operator=(protocol&& other) noexcept(always_equal ||
                                                            pocma) {
     if (this == &other) {
@@ -322,12 +347,15 @@ class protocol {
     }
 
     if (always_equal || pocma || alloc_ == other.alloc_) {
+      // Fast path: just swap the pointers and (conditionally) the allocators.
       vtable_->destroy(alloc_, obj_);
       obj_ = other.obj_;
       if constexpr (pocma) {
         alloc_ = other.alloc_;
       }
     } else {
+      // Slow path: heap construct and move the object directly. Allocate first
+      // for strong exception safety.
       void* new_obj = other.vtable_->move(alloc_, other.obj_);
       vtable_->destroy(alloc_, obj_);
       other.vtable_->destroy(other.alloc_, other.obj_);
@@ -343,7 +371,9 @@ class protocol {
 
   constexpr void swap(protocol& other) noexcept(always_equal || pocs) {
     if constexpr (!always_equal && !pocs) {
-      assert(alloc_ == other.alloc_);
+      // The behavior is undefined if the allocators are not equal.
+      assert(alloc_ == other.alloc_ &&
+             "allocators must compare equal or propagate on swap");
     }
 
     using std::swap;
@@ -354,6 +384,7 @@ class protocol {
     swap(vtable_, other.vtable_);
   }
 
+  // Can be discovered by ADL for more optimal swapping than std::swap.
   friend constexpr void swap(protocol& lhs,
                              protocol& rhs) noexcept(always_equal || pocs) {
     return lhs.swap(rhs);
