@@ -136,7 +136,7 @@ template <typename Interface, typename Candidate>
 inline constexpr bool is_protocol_conformant_v =
     is_protocol_conformant<Interface, Candidate>();
 
-template <typename T, typename Allocator = std::allocator<std::byte>>
+template <typename I, typename Alloc = std::allocator<std::byte>>
 class protocol {
   using traits = std::allocator_traits<Alloc>;
 
