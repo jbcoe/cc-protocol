@@ -76,12 +76,12 @@ TEST(TutorialsVanishingThis, ParentClassAccessFromMemberDataCall) {
   class A {
     struct Callable {
       int operator()(int x) const {
-        static_assert(
-            offsetof(A, fn_) == 0,
-            "The callable member must be A's first data member for the "
-            "vanishing-this-pointer cast to be valid");
-
-        // Use reinterpret_cast as static_cast is not valid here.
+        // Two objects are pointer-interconvertible if one is a standard-layout
+        // class object and the other is the first non-static data member of
+        // that object.
+        // https://eel.is/c++draft/basic.compound [7.3]
+        static_assert(offsetof(A, fn_) == 0);
+        static_assert(std::is_standard_layout_v<A>);
         int value = reinterpret_cast<const A*>(this)->value_;
         return x + value;
       }
@@ -131,24 +131,20 @@ struct A : AddBase, MultiplyBase {
 };
 
 // `operator()` for `Add` and `Multiply` must be defined out of line: the
-// `reinterpret_cast` and static_cast require `AddBase`, `MultiplyBase` and `A`
-// to be complete types.
+// `reinterpret_cast` and `static_cast` require `AddBase`, `MultiplyBase` and
+// `A` to be complete types.
 
 int Add::operator()(int x) const {
-  static_assert(offsetof(AddBase, add) == 0,
-                "add must be AddBase's first data member for the "
-                "vanishing-this-pointer cast to be valid");
-
+  static_assert(offsetof(AddBase, add) == 0);
+  static_assert(std::is_standard_layout_v<AddBase>);
   const auto* base = reinterpret_cast<const AddBase*>(this);
   const auto* owner = static_cast<const A*>(base);
   return x + owner->value_;
 }
 
 int Multiply::operator()(int x) const {
-  static_assert(offsetof(MultiplyBase, multiply) == 0,
-                "multiply must be MultiplyBase's first data member for the "
-                "vanishing-this-pointer cast to be valid");
-
+  static_assert(offsetof(MultiplyBase, multiply) == 0);
+  static_assert(std::is_standard_layout_v<MultiplyBase>);
   const auto* base = reinterpret_cast<const MultiplyBase*>(this);
   const auto* owner = static_cast<const A*>(base);
   return x * owner->value_;
