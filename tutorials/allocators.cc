@@ -141,7 +141,7 @@ class Owner {
 
   // We use auto&& so this works for both lvalue and rvalue construction.
   static pointer create(auto&& source, Alloc& alloc) {
-    auto* obj = traits::allocate(alloc, 1);  // Allocate room for one T.
+    pointer obj = traits::allocate(alloc, 1);  // Allocate room for one T.
     // We must make sure to reclaim the memory from
     // the previous line in case the constructor throws.
     try {
@@ -348,7 +348,7 @@ class Owner {
   // create, destroy, and copy are the same as before.
 
   static pointer create(auto&& source, Alloc& alloc) {
-    auto* obj = traits::allocate(alloc, 1);
+    pointer obj = traits::allocate(alloc, 1);
     try {
       traits::construct(alloc, obj, std::forward<decltype(source)>(source));
     } catch (...) {
@@ -628,7 +628,7 @@ class Owner {
   constexpr static bool always_equal = traits::is_always_equal::value;
 
   static pointer create(auto&& source, Alloc& alloc) {
-    auto* obj = traits::allocate(alloc, 1);
+    pointer obj = traits::allocate(alloc, 1);
     try {
       traits::construct(alloc, obj, std::forward<decltype(source)>(source));
     } catch (...) {
