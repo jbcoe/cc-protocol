@@ -104,7 +104,10 @@ TEST(TutorialsAllocators, OwningType) {
   EXPECT_EQ(o2.get(), 10);
 
   Owner o3{std::move(o2)};
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // tutorial demonstrates the moved-from state on purpose.
   EXPECT_FALSE(o2.has_value());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_EQ(o3.get(), 10);
 
   o3 = o1;
@@ -138,7 +141,7 @@ class Owner {
 
   // We use auto&& so this works for both lvalue and rvalue construction.
   static pointer create(auto&& source, Alloc& alloc) {
-    auto obj = traits::allocate(alloc, 1);  // Allocate room for one T.
+    pointer obj = traits::allocate(alloc, 1);  // Allocate room for one T.
     // We must make sure to reclaim the memory from
     // the previous line in case the constructor throws.
     try {
@@ -249,7 +252,10 @@ TEST(TutorialsAllocators, SimpleAllocatorOwner) {
   EXPECT_EQ(o2.get(), 10);
 
   Owner o3{std::move(o2)};
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // tutorial demonstrates the moved-from state on purpose.
   EXPECT_FALSE(o2.has_value());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_EQ(o3.get(), 10);
 
   // All of the memory gets cleaned up at the end of scope.
@@ -293,7 +299,9 @@ TEST(TutorialsAllocators, StatefulAllocator) {
   EXPECT_EQ(o3.get(), 10);               // 10 is the value stored in Owner.
   EXPECT_EQ(o3.get_allocator().tag, 5);  // 5 is the value stored in TestAlloc.
 
-  // Copy construction copies the allocator.
+  // Copy construction copies the allocator; the copy is what this example
+  // demonstrates.
+  // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
   TestOwner o4{o3};
   EXPECT_EQ(o4.get(), 10);
   // If TestAlloc had a unique select_on_container_copy_construction function,
@@ -340,7 +348,7 @@ class Owner {
   // create, destroy, and copy are the same as before.
 
   static pointer create(auto&& source, Alloc& alloc) {
-    auto obj = traits::allocate(alloc, 1);
+    pointer obj = traits::allocate(alloc, 1);
     try {
       traits::construct(alloc, obj, std::forward<decltype(source)>(source));
     } catch (...) {
@@ -414,9 +422,15 @@ class Owner {
   // Allocator-aware move construction. We can only statically guarantee
   // noexcept if the allocators are always equal. Otherwise, we may have to
   // perform a potentially-throwing allocation.
+  //
+  // The resources of `other` are taken with std::exchange rather than
+  // std::move, which the rvalue-reference-param-not-moved check does not
+  // recognise.
+  // NOLINTBEGIN(cppcoreguidelines-rvalue-reference-param-not-moved)
   Owner(std::allocator_arg_t, const Alloc& a,
         Owner&& other) noexcept(always_equal)
       : alloc_(a) {
+    // NOLINTEND(cppcoreguidelines-rvalue-reference-param-not-moved)
     if (always_equal || alloc_ == other.alloc_) {
       // Fast path: alloc_ can deallocate other.obj_ since it is
       // equivalent to other.alloc_.
@@ -544,7 +558,10 @@ TEST(TutorialsAllocators, PropagatingAllocatorMoves) {
   TestOwner o1{std::allocator_arg, TestAlloc<int>{1}, 10};
   // An allocation is performed when o2 is constructed.
   TestOwner o2{std::allocator_arg, TestAlloc<int>{2}, std::move(o1)};
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // tutorial demonstrates the moved-from state on purpose.
   EXPECT_FALSE(o1.has_value());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_EQ(o2.get(), 10);
   EXPECT_EQ(o2.get_allocator().tag, 2);
 
@@ -611,7 +628,7 @@ class Owner {
   constexpr static bool always_equal = traits::is_always_equal::value;
 
   static pointer create(auto&& source, Alloc& alloc) {
-    auto obj = traits::allocate(alloc, 1);
+    pointer obj = traits::allocate(alloc, 1);
     try {
       traits::construct(alloc, obj, std::forward<decltype(source)>(source));
     } catch (...) {
@@ -678,9 +695,14 @@ class Owner {
       : alloc_(std::move(other.alloc_)),
         obj_(std::exchange(other.obj_, nullptr)) {}
 
+  // The resources of `other` are taken with std::exchange rather than
+  // std::move, which the rvalue-reference-param-not-moved check does not
+  // recognise.
+  // NOLINTBEGIN(cppcoreguidelines-rvalue-reference-param-not-moved)
   Owner(std::allocator_arg_t, const Alloc& a,
         Owner&& other) noexcept(always_equal)
       : alloc_(a) {
+    // NOLINTEND(cppcoreguidelines-rvalue-reference-param-not-moved)
     if (always_equal || alloc_ == other.alloc_) {
       obj_ = std::exchange(other.obj_, nullptr);
     } else {
@@ -818,10 +840,13 @@ TEST(TutorialsAllocators, StrongGuarantee) {
   EXPECT_EQ(o2.get_allocator().tag, 2);
 
   // The same applies to move assignment.
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // tutorial demonstrates the moved-from state on purpose.
   EXPECT_THROW(o1 = std::move(o2), std::bad_alloc);
 
   EXPECT_EQ(o1.get(), 10);
   EXPECT_EQ(o2.get(), 20);
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 }  // namespace xyz::tutorials::strong_guarantee
