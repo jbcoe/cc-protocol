@@ -409,6 +409,17 @@ TEST(ReflectionProtocolViewTest, ConstMemberFunction) {
   });
 }
 
+TEST(ReflectionProtocolViewTest, NonConstMemberFunctionNotInvocableFromConst) {
+  struct Interface {
+    void update(int value);
+  };
+
+  static_assert(
+      !std::is_invocable_v<
+          decltype((std::declval<const protocol_view<Interface>&>().update)),
+          int>);
+}
+
 TEST(ReflectionProtocolViewTest, SingleParameterMemberFunction) {
   struct Interface {
     void update(int value);
@@ -477,6 +488,16 @@ TEST(ReflectionProtocolTest, ConstMemberFunction) {
   static_assert(requires(const protocol<Interface>& p) {
     { p.get_value() } -> std::same_as<int>;
   });
+}
+
+TEST(ReflectionProtocolTest, NonConstMemberFunctionNotInvocableFromConst) {
+  struct Interface {
+    void update(int value);
+  };
+
+  static_assert(
+      !std::is_invocable_v<
+          decltype((std::declval<const protocol<Interface>&>().update)), int>);
 }
 
 TEST(ReflectionProtocolTest, SingleParameterMemberFunction) {
