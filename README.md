@@ -17,7 +17,7 @@ the features needed to generate code needed by these types at compile time.
 
 ## Standardization
 
-The paper [P4148R2](https://wg21.link/P4148R2.pdf) (derived from
+The paper [P4148R2](https://wg21.link/p4148r2) (derived from
 [DRAFT.md](DRAFT.md)) was presented to the C++ Standard Library Incubator
 working group in Brno on June 11th 2026. The authors have been encouraged to
 continue work.

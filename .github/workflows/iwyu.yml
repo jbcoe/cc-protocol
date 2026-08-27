@@ -27,7 +27,8 @@ on:
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Debug
-  COMPILER_VERSION: 21
+  # include-what-you-use is built from its clang_<COMPILER_VERSION> branch.
+  COMPILER_VERSION: 22
   UV_FROZEN: 1
 
 jobs:

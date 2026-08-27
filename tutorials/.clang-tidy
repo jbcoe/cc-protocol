@@ -1,0 +1,19 @@
+# The tutorials deliberately show the non-protocol baseline: classic
+# inheritance hierarchies, hand-written vtables with raw casts, and manual
+# allocation. Checks that object to those techniques are disabled here only;
+# everything else inherits from the repository configuration.
+InheritParentConfig: true
+Checks: '
+    -cppcoreguidelines-virtual-class-destructor,
+    -bugprone-derived-method-shadowing-base-method,
+    -cppcoreguidelines-pro-type-member-init,
+    -hicpp-member-init,
+    -cppcoreguidelines-non-private-member-variables-in-classes,
+    -misc-non-private-member-variables-in-classes,
+    -misc-multiple-inheritance,
+    -cppcoreguidelines-pro-type-reinterpret-cast,
+    -cppcoreguidelines-pro-type-static-cast-downcast,
+    -cppcoreguidelines-owning-memory,
+    -misc-unused-parameters,
+    -clang-analyzer-optin.cplusplus.UninitializedObject
+'

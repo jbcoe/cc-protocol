@@ -165,11 +165,10 @@ class AnimalPtr {
 
  public:
   template <typename T>
-  AnimalPtr(T* t) : data_(t) {
-    noise_func_ = +[](const void* data) -> std::string_view {
-      return static_cast<const T*>(data)->noise();
-    };
-  }
+  AnimalPtr(T* t)
+      : data_(t), noise_func_(+[](const void* data) -> std::string_view {
+          return static_cast<const T*>(data)->noise();
+        }) {}
 
   std::string_view noise() const { return noise_func_(data_); }
 };
@@ -372,8 +371,8 @@ TEST(TutorialsPolymorphism, ClosedSetPolymorphism) {
 
   std::vector<AnimalPtr<Cat, Dog>> animals;
   animals.reserve(2);
-  animals.push_back(&cat);
-  animals.push_back(&dog);
+  animals.emplace_back(&cat);
+  animals.emplace_back(&dog);
 
   EXPECT_EQ(make_noise(animals[0]), "Meow");
   EXPECT_EQ(make_noise(animals[1]), "Woof");
