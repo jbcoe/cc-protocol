@@ -2,6 +2,7 @@ FROM ubuntu:26.04
 
 # Install base tools and C++ development tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    clang-tidy \
     cmake \
     curl \
     g++ \

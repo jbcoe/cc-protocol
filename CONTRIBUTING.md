@@ -33,6 +33,22 @@ This script manages the entire build and test process.
 
 The script will configure, build, and execute tests.
 
+### Static Analysis
+
+CI runs clang-tidy on every translation unit and fails on any finding
+(`WarningsAsErrors: '*'` in `.clang-tidy`). To reproduce locally, with
+`clang-tidy` on your `PATH` (it is installed in the devcontainer):
+
+```bash
+./scripts/cmake.sh --debug --clang-tidy
+```
+
+Fix genuine findings. Suppress false positives at the site with a `NOLINT`
+comment that names the check and gives a reason, or, for a check that does not
+apply to a whole directory, in that directory's `.clang-tidy` (see
+`tutorials/.clang-tidy`). Checks disabled for the whole repository are listed
+with their rationale at the top of `.clang-tidy`.
+
 ## Core Concepts
 
 ### Structural Subtyping

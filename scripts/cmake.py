@@ -44,6 +44,12 @@ def main() -> None:
         help="Build and test tutorials/reflection.cc (requires a P2996 "
         "reflection compiler, e.g. CXX=g++-16 CC=gcc-16)",
     )
+    parser.add_argument(
+        "--clang-tidy",
+        action="store_true",
+        help="Run clang-tidy on every translation unit as it is compiled "
+        "(requires clang-tidy on PATH; findings fail the build)",
+    )
     parser.add_argument("-B", "--build-dir", help="Build directory")
     parser.add_argument(
         "--clean", action="store_true", help="Fresh configuration and clean-first build"
@@ -82,6 +88,7 @@ def main() -> None:
         f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",
         f"-DENABLE_MSAN={'ON' if args.msan else 'OFF'}",
         "-DXYZ_PROTOCOL_BUILD_REFLECTION=" + ("ON" if args.reflection else "OFF"),
+        f"-DCLANG_TIDY_ENABLE={'ON' if args.clang_tidy else 'OFF'}",
     ]
     if args.build_dir:
         configure_args.extend(["-B", args.build_dir])
@@ -110,6 +117,10 @@ def main() -> None:
         build_args.extend(["--preset", preset])
     if args.clean:
         build_args.append("--clean-first")
+    if args.clang_tidy:
+        # Keep going after a failing translation unit so that one run reports
+        # every clang-tidy finding rather than only the first file's.
+        build_args.extend(["--", "-k", "0"])
 
     log(f"Running: {' '.join(build_args)}")
     subprocess.check_call(build_args)
