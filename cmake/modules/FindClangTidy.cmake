@@ -146,7 +146,10 @@ function(enable_clang_tidy)
         _clang_tidy_args_append("--config-file=${CLANG_TIDY_ARGS_CONFIG_FILE}")
     endif()
 
-    set(XYZ_CLANG_TIDY "${ClangTidy_EXECUTABLE};-p=${CMAKE_BINARY_DIR};${_clang_tidy_args}" CACHE INTERNAL "clang-tidy command")
+    # Build the command as a list so that an empty _clang_tidy_args does not
+    # leave a trailing empty argument, which clang-tidy treats as a source file.
+    set(_clang_tidy_command "${ClangTidy_EXECUTABLE}" "-p=${CMAKE_BINARY_DIR}" ${_clang_tidy_args})
+    set(XYZ_CLANG_TIDY "${_clang_tidy_command}" CACHE INTERNAL "clang-tidy command")
 
     _clang_tidy_log("  Arguments: ${_clang_tidy_args}")
     _clang_tidy_log("Enabling clang-tidy - done")
@@ -154,7 +157,9 @@ function(enable_clang_tidy)
 endfunction()
 
 if (CLANG_TIDY_ENABLE)
-    enable_clang_tidy(
-        CONFIG_FILE ${PROJECT_SOURCE_DIR}/.clang-tidy
-    )
+    # No CONFIG_FILE: passing --config-file disables clang-tidy's
+    # per-directory lookup, which is needed for tutorials/.clang-tidy to
+    # override the repository configuration. The repository .clang-tidy is
+    # still found by walking up from each source file.
+    enable_clang_tidy()
 endif()

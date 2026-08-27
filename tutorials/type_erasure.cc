@@ -153,8 +153,8 @@ TEST(TutorialsTypeErasure, BasicUsage) {
   animals.reserve(2);
   // Unlike our previous examples, this vector now owns Cat and Dog.
   // It will deallocate them when the scope ends.
-  animals.push_back(Cat{});
-  animals.push_back(Dog{});
+  animals.emplace_back(Cat{});
+  animals.emplace_back(Dog{});
 
   EXPECT_EQ(animals[0].noise(), "Meow");
   EXPECT_EQ(animals[1].noise(), "Woof");
@@ -174,7 +174,10 @@ TEST(TutorialsTypeErasure, RuleOfFive) {
   // Move construction.
   Animal a4{std::move(a2)};
   EXPECT_EQ(a4.noise(), "Woof");
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // tutorial demonstrates the moved-from state on purpose.
   EXPECT_THROW(a2.noise(), std::bad_function_call);
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 
   // Copy assignment.
   a2 = a1;
@@ -183,7 +186,10 @@ TEST(TutorialsTypeErasure, RuleOfFive) {
   // Move assignment.
   a3 = std::move(a4);
   EXPECT_EQ(a3.noise(), "Woof");
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // tutorial demonstrates the moved-from state on purpose.
   EXPECT_THROW(a4.noise(), std::bad_function_call);
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 }  // namespace xyz::tutorials::owning_type_erasure
