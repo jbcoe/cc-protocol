@@ -199,24 +199,24 @@ struct protocol_member_stubs_generator {
 
 }  // namespace detail
 
-// Returns `true` if `U` is a structural subtype of the interface `T`;
+// Returns `true` if `Candidate` is a structural subtype of `Interface`;
 // otherwise returns `false`.
-template <typename T, typename U>
+template <typename Interface, typename Candidate>
 consteval bool is_protocol_conformant() {
-  static_assert(std::is_same_v<T, std::remove_cvref_t<T>>,
-                "the interface type must not be cv/ref-qualified: strip "
-                "qualifiers at the call site with std::remove_cvref_t.");
-  static_assert(std::is_same_v<U, std::remove_cvref_t<U>>,
-                "the candidate type must not be cv/ref-qualified: strip "
-                "qualifiers at the call site with std::remove_cvref_t.");
+  static_assert(std::is_same_v<Interface, std::remove_cvref_t<Interface>>,
+                "Interface must not be cv/ref-qualified: strip qualifiers at "
+                "the call site with std::remove_cvref_t.");
+  static_assert(std::is_same_v<Candidate, std::remove_cvref_t<Candidate>>,
+                "Candidate must not be cv/ref-qualified: strip qualifiers at "
+                "the call site with std::remove_cvref_t.");
 
   // Checking for protocol interface conformance is O(N*M) over member counts,
   // assumed to be negligible at compile time.
   // TODO(jbcoe): Use set/map once there is library support for `constexpr`.
   auto interface_member_functions =
-      detail::protocol_interface_functions_of<^^T>();
+      detail::protocol_interface_functions_of<^^Interface>();
   auto candidate_member_functions =
-      detail::protocol_interface_functions_of<^^U>();
+      detail::protocol_interface_functions_of<^^Candidate>();
 
   return std::ranges::all_of(
       interface_member_functions, [&](std::meta::info interface_member) {
@@ -229,8 +229,9 @@ consteval bool is_protocol_conformant() {
 }
 
 // Variable template for use in requires clauses.
-template <typename T, typename U>
-inline constexpr bool is_protocol_conformant_v = is_protocol_conformant<T, U>();
+template <typename Interface, typename Candidate>
+inline constexpr bool is_protocol_conformant_v =
+    is_protocol_conformant<Interface, Candidate>();
 
 template <typename T, typename Allocator = std::allocator<std::byte>>
 class protocol : public detail::protocol_member_stubs_generator<T>::stubs {
