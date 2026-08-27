@@ -75,24 +75,29 @@ const void* get_mapped_vtable(const void* source_vtable_pointer,
   // 2. Pointer stability: Returns raw pointers that must remain valid for the
   //    lifetime of the application; heap allocation in std::unique_ptr ensures
   //    rehashing or modifying the map does not invalidate returned pointers.
+  // std::unique_ptr<char[]> is the idiom for an owned, dynamically sized
+  // buffer; the avoid-c-arrays check misreads the element type.
+  // NOLINTBEGIN(*-avoid-c-arrays)
   static auto& cache =
       *new std::unordered_map<CacheKey, std::unique_ptr<char[]>,
                               CacheKeyHash>();
+  // NOLINTEND(*-avoid-c-arrays)
   static auto& mutex = *new std::mutex();
 
   CacheKey key{source_vtable_pointer, conversion_anchor};
   {
-    std::lock_guard<std::mutex> lock(mutex);
+    std::scoped_lock lock(mutex);
     auto cache_iterator = cache.find(key);
     if (cache_iterator != cache.end()) {
       return cache_iterator->second.get();
     }
   }
 
+  // NOLINTNEXTLINE(*-avoid-c-arrays): see the cache declaration above.
   auto vtable_data = std::make_unique<char[]>(target_vtable_size);
   mapping_function(source_vtable_pointer, vtable_data.get());
 
-  std::lock_guard<std::mutex> lock(mutex);
+  std::scoped_lock lock(mutex);
   // Under the split-lock pattern, another thread might have inserted the key
   // concurrently while we were mapping the vtable. std::unordered_map::emplace
   // does not overwrite an existing value, so if a collision occurs, the

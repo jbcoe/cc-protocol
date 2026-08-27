@@ -109,17 +109,19 @@ class CopyCounter {
   CopyCounter(int* copies) : copies_(copies) {}
 
   CopyCounter(const CopyCounter& other) : copies_(other.copies_) {
-    if (copies_) (*copies_)++;
+    if (copies_ != nullptr) (*copies_)++;
   }
 
   CopyCounter& operator=(const CopyCounter& other) {
+    if (this == &other) return *this;
     copies_ = other.copies_;
-    if (copies_) (*copies_)++;
+    if (copies_ != nullptr) (*copies_)++;
     return *this;
   }
 
   CopyCounter(CopyCounter&&) = default;
   CopyCounter& operator=(CopyCounter&&) = default;
+  ~CopyCounter() = default;
 
   std::string_view name() const noexcept { return "CopyCounter"; }
 
@@ -161,8 +163,10 @@ TEST(ProtocolTest, MoveCtor) {
   xyz::protocol<xyz::A> aa(std::move(a));
   EXPECT_EQ(aa.name(), "Original");
   EXPECT_EQ(aa.count(), 100);
-  EXPECT_TRUE(
-      a.valueless_after_move());  // NOLINT(clang-analyzer-cplusplus.Move)
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
+  EXPECT_TRUE(a.valueless_after_move());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 TEST(ProtocolTest, ProtocolBMemberFunctions) {
@@ -221,6 +225,8 @@ TEST(ProtocolTest, CountAllocationsForCopyConstruction) {
         std::in_place_type<ALike>, 42);
     EXPECT_EQ(alloc_counter, 1);
     EXPECT_EQ(dealloc_counter, 0);
+    // The copy is what this test measures.
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     xyz::protocol<xyz::A, xyz::TrackingAllocator<std::byte>> aa(a);
   }
   EXPECT_EQ(alloc_counter, 2);
@@ -342,7 +348,10 @@ TEST(ProtocolTest, CopiesOfDerivedObjectsAreDistinct) {
 TEST(ProtocolTest, MoveRendersSourceValueless) {
   xyz::protocol<xyz::A> p(std::in_place_type<ALike>, 42);
   auto pp = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   EXPECT_TRUE(p.valueless_after_move());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 TEST(ProtocolTest, ConstPropagation) {
@@ -368,7 +377,10 @@ TEST(ProtocolTest, MoveAssignment) {
   xyz::protocol<xyz::A> p(std::in_place_type<ALike>, 42);
   xyz::protocol<xyz::A> pp(std::in_place_type<ALike>, 101);
   p = std::move(pp);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   EXPECT_TRUE(pp.valueless_after_move());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_EQ(p.count(), 101);
 }
 
@@ -454,29 +466,41 @@ TEST(ProtocolTest, MemberSwapWhenAllocatorsDontCompareEqual) {
 TEST(ProtocolTest, CopyFromValueless) {
   xyz::protocol<xyz::A> p(std::in_place_type<ALike>, 42);
   xyz::protocol<xyz::A> pp(std::move(p));
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   xyz::protocol<xyz::A> ppp(p);
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_TRUE(ppp.valueless_after_move());
 }
 
 TEST(ProtocolTest, MoveFromValueless) {
   xyz::protocol<xyz::A> p(std::in_place_type<ALike>, 42);
   xyz::protocol<xyz::A> pp(std::move(p));
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   xyz::protocol<xyz::A> ppp(std::move(p));
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_TRUE(ppp.valueless_after_move());
 }
 
 TEST(ProtocolTest, AllocatorExtendedCopyFromValueless) {
   xyz::protocol<xyz::A> p(std::in_place_type<ALike>, 42);
   xyz::protocol<xyz::A> pp(std::move(p));
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   xyz::protocol<xyz::A> ppp(std::allocator_arg, std::allocator<std::byte>(), p);
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_TRUE(ppp.valueless_after_move());
 }
 
 TEST(ProtocolTest, AllocatorExtendedMoveFromValueless) {
   xyz::protocol<xyz::A> p(std::in_place_type<ALike>, 42);
   xyz::protocol<xyz::A> pp(std::move(p));
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   xyz::protocol<xyz::A> ppp(std::allocator_arg, std::allocator<std::byte>(),
                             std::move(p));
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_TRUE(ppp.valueless_after_move());
 }
 
@@ -484,7 +508,10 @@ TEST(ProtocolTest, AssignFromValueless) {
   xyz::protocol<xyz::A> p(std::in_place_type<ALike>, 42);
   xyz::protocol<xyz::A> pp(std::move(p));
   xyz::protocol<xyz::A> ppp(std::in_place_type<ALike>, 101);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   ppp = p;
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_TRUE(ppp.valueless_after_move());
 }
 
@@ -492,7 +519,10 @@ TEST(ProtocolTest, MoveAssignFromValueless) {
   xyz::protocol<xyz::A> p(std::in_place_type<ALike>, 42);
   xyz::protocol<xyz::A> pp(std::move(p));
   xyz::protocol<xyz::A> ppp(std::in_place_type<ALike>, 101);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   ppp = std::move(p);
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_TRUE(ppp.valueless_after_move());
 }
 
@@ -635,11 +665,17 @@ TEST(ProtocolViewTest, ViewCopiesAreShallow) {
 TEST(ProtocolViewTest, ViewMoveIsStandard) {
   ALike a(10, "move_test");
   xyz::protocol_view<xyz::A> view(a);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): the test
+  // checks the moved-from state on purpose.
   xyz::protocol_view<xyz::A> view2 = std::move(view);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
 
   // Moved-from view is still valid (it's just a pointer copy)
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   EXPECT_EQ(view.name(), "move_test");
   EXPECT_EQ(view2.name(), "move_test");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 TEST(ProtocolViewTest, PreventConstructionFromRValues) {
@@ -723,8 +759,10 @@ class DLike {
 
   int operator~() const { return ~10; }
 
-  bool operator!() const { return !value_; }
+  bool operator!() const { return value_ == 0; }
 
+  // Mirrors the signature declared in interface_D.h.
+  // NOLINTNEXTLINE(*-unconventional-assign-operator,*-c-copy-assignment-signature)
   void operator=(int x) { value_ = x; }
 
   bool operator<(int x) const { return value_ < x; }
@@ -765,9 +803,9 @@ class DLike {
 
   std::strong_ordering operator<=>(int x) const { return value_ <=> x; }
 
-  bool operator&&(bool x) const { return value_ && x; }
+  bool operator&&(bool x) const { return value_ != 0 && x; }
 
-  bool operator||(bool x) const { return value_ || x; }
+  bool operator||(bool x) const { return value_ != 0 || x; }
 
   void operator++() { ++value_; }
 
@@ -959,7 +997,10 @@ TEST(ProtocolTest, NarrowingMoveConversionEqualAllocators) {
   // Convert owning protocol using move constructor
   xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset =
       std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   EXPECT_TRUE(p.valueless_after_move());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_FALSE(p_subset.valueless_after_move());
   EXPECT_EQ(p_subset.name(), "ALike");
 }
@@ -1003,10 +1044,13 @@ TEST(ProtocolTest, NarrowingCopyConversionFromValueless) {
   xyz::protocol<xyz::A, std::allocator<std::byte>> p(std::in_place_type<ALike>,
                                                      42);
   xyz::protocol<xyz::A, std::allocator<std::byte>> p2 = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   EXPECT_TRUE(p.valueless_after_move());
 
   // Copying a valueless protocol should yield a valueless protocol
   xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset(p);
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_TRUE(p_subset.valueless_after_move());
 }
 
@@ -1087,7 +1131,10 @@ TEST(ProtocolTest, CountAllocationsForNarrowingMoveConversion) {
     xyz::protocol<xyz::A_Subset, xyz::TrackingAllocator<std::byte>> aa(
         std::move(a));
 
+    // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+    // checks the moved-from state on purpose.
     EXPECT_TRUE(a.valueless_after_move());
+    // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
     EXPECT_FALSE(aa.valueless_after_move());
     // Zero new allocations and zero deallocations during conversion
     EXPECT_EQ(alloc_counter, 1);
@@ -1116,7 +1163,10 @@ TEST(ProtocolTest, AllocatorExtendedNarrowingMoveConversionEqualAllocators) {
         xyz::TrackingAllocator<std::byte>(&alloc_counter, &dealloc_counter),
         std::move(a));
 
+    // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+    // checks the moved-from state on purpose.
     EXPECT_TRUE(a.valueless_after_move());
+    // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
     EXPECT_FALSE(aa.valueless_after_move());
     // Zero new allocations and zero deallocations during conversion
     EXPECT_EQ(alloc_counter, 1);
@@ -1145,7 +1195,10 @@ TEST(ProtocolTest, AllocatorExtendedNarrowingMoveConversionNonEqualAllocators) {
     xyz::protocol<xyz::A_Subset, NonEqualTrackingAllocator<std::byte>> p_subset(
         std::allocator_arg, target_alloc, std::move(p));
 
+    // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+    // checks the moved-from state on purpose.
     EXPECT_TRUE(p.valueless_after_move());
+    // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
     EXPECT_FALSE(p_subset.valueless_after_move());
     EXPECT_EQ(p_subset.name(), "ALike");
 
@@ -1164,11 +1217,14 @@ TEST(ProtocolTest, NarrowingMoveConversionFromValueless) {
   xyz::protocol<xyz::A, std::allocator<std::byte>> p(std::in_place_type<ALike>,
                                                      42);
   xyz::protocol<xyz::A, std::allocator<std::byte>> p2 = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
   EXPECT_TRUE(p.valueless_after_move());
 
   // Converting a valueless protocol should yield a valueless protocol
   xyz::protocol<xyz::A_Subset, std::allocator<std::byte>> p_subset =
       std::move(p);
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_TRUE(p_subset.valueless_after_move());
 }
 
@@ -1195,6 +1251,7 @@ TEST(ProtocolTest, NarrowingConversionConcurrentAccess) {
   std::vector<std::thread> threads;
   std::atomic<bool> start_signal{false};
 
+  threads.reserve(kNumThreads);
   for (int i = 0; i < kNumThreads; ++i) {
     threads.emplace_back([&start_signal]() {
       while (!start_signal.load()) {
@@ -1233,6 +1290,7 @@ TEST(ProtocolTest, NarrowingConversionConcurrentStressing) {
   std::vector<std::thread> threads;
   std::atomic<bool> start_signal{false};
 
+  threads.reserve(kNumThreads);
   for (int i = 0; i < kNumThreads; ++i) {
     threads.emplace_back([&start_signal]() {
       while (!start_signal.load()) {
