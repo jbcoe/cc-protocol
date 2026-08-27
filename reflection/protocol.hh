@@ -103,6 +103,8 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
 }
 
 // The named, non-static, non-special member functions of `Type`.
+// TODO(jbcoe): Handle static functions as they can be used to satisfy interface
+// conformance.
 template <std::meta::info Type>
 consteval auto protocol_interface_functions_of() {
   return std::define_static_array(
@@ -120,6 +122,7 @@ template <typename FnPtrType, typename EnclosingType, bool IsConst,
           bool IsNoexcept>
 struct method_thunk;
 
+// TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers.
 template <typename R, typename... Args, typename EnclosingType, bool IsConst,
           bool IsNoexcept>
 struct method_thunk<R (*)(Args...), EnclosingType, IsConst, IsNoexcept> {
@@ -168,16 +171,16 @@ consteval std::vector<std::meta::info> generate_method_thunk_specs(
     // return type and parameter types.
     std::vector<std::meta::info> fn_args{dealias(return_type_of(member))};
     std::vector<std::meta::info> member_parameters = parameters_of(member);
-    for (std::meta::info parameter : member_parameters) {
-      fn_args.push_back(dealias(type_of(parameter)));
-    }
+    fn_args.append_range(member_parameters |
+                         std::views::transform(std::meta::type_of));
     std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
 
+    // clang-format off
     std::meta::info thunk_type = substitute(
-        ^^method_thunk, {
-                            fn_ptr_type, enclosing_type,
-                            std::meta::reflect_constant(is_const(member)),
-                            std::meta::reflect_constant(is_noexcept(member))});
+        ^^method_thunk, {fn_ptr_type, enclosing_type,
+                       std::meta::reflect_constant(is_const(member)),
+                       std::meta::reflect_constant(is_noexcept(member))});
+    // clang-format on
 
     method_thunk_specs.push_back(data_member_spec(
         thunk_type, std::meta::data_member_options{.name = name,
@@ -211,6 +214,7 @@ consteval bool is_protocol_conformant() {
 
   // Checking for protocol interface conformance is O(N*M) over member counts,
   // assumed to be negligible at compile time.
+  // TODO(jbcoe): Use set/map once there is library support for `constexpr`.
   auto interface_member_functions =
       detail::protocol_interface_functions_of<^^T>();
   auto candidate_member_functions =
