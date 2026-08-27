@@ -414,6 +414,8 @@ TEST(ReflectionProtocolViewTest, NonConstMemberFunctionNotInvocableFromConst) {
     void update(int value);
   };
 
+  // TODO(jbcoe): reassess how `const protocol_view` works.
+  // A view-type should not propagate const.
   static_assert(
       !std::is_invocable_v<
           decltype((std::declval<const protocol_view<Interface>&>().update)),
