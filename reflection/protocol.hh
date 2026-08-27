@@ -104,14 +104,12 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
 // TODO(jbcoe): Handle static functions as they can be used to satisfy interface
 // conformance.
 template <std::meta::info Type>
-consteval auto protocol_interface_functions_of() {
-  return std::define_static_array(
-      std::define_static_array(
-          members_of(Type, std::meta::access_context::unprivileged())) |
-      std::views::filter(std::meta::is_function) |
-      std::views::filter(std::not_fn(std::meta::is_static_member)) |
-      std::views::filter(std::meta::has_identifier));
-}
+constexpr inline auto protocol_interface_functions_of =
+    std::define_static_array(
+        members_of(Type, std::meta::access_context::unprivileged()) |
+        std::views::filter(std::meta::is_function) |
+        std::views::filter(std::not_fn(std::meta::is_static_member)) |
+        std::views::filter(std::meta::has_identifier));
 
 // Vanishing-this-pointer thunk for a synthesised member stub. The thunk
 // carries a single operator() whose signature mirrors one method of the
@@ -164,16 +162,19 @@ struct member_base_generator {
         ^^method_thunk, {fn_ptr_type, ^^member_base,
                        std::meta::reflect_constant(is_const(Member)),
                        std::meta::reflect_constant(is_noexcept(Member))});
-    // clang-format on
 
     define_aggregate(
-        ^^member_base,
-        {
-            data_member_spec(thunk_type,
+      ^^member_base, {data_member_spec(thunk_type,
                              std::meta::data_member_options{
-                                 .name = name, .no_unique_address = true})});
+                              .name = name,
+                              .no_unique_address = true
+                            })});
+    // clang-format on
   }
 };
+
+template <std::meta::info Member>
+using member_base_generator_t = member_base_generator<Member>::member_base;
 
 // Combines the single-member base types produced by `member_base_generator`
 // into one type via multiple inheritance.
@@ -190,19 +191,13 @@ struct stub_bases : MemberBases... {};
 template <std::meta::info InterfaceType>
 consteval std::meta::info generate_stub_bases() {
   std::vector<std::meta::info> member_base_types;
-
-  template for (constexpr std::meta::info member : std::define_static_array(
-                    std::define_static_array(
-                        members_of(InterfaceType,
-                                   std::meta::access_context::unprivileged())) |
-                    std::views::filter(std::meta::is_function) |
-                    std::views::filter(
-                        std::not_fn(std::meta::is_special_member_function)) |
-                    std::views::filter(
-                        std::not_fn(std::meta::is_static_member)) |
-                    std::views::filter(std::meta::has_identifier))) {
-    member_base_types.push_back(
-        ^^typename member_base_generator<member>::member_base);
+  for (std::meta::info member :
+       protocol_interface_functions_of<InterfaceType>) {
+    // clang-format off
+    member_base_types.push_back(dealias(
+        substitute(^^member_base_generator_t, {reflect_constant(member)}))
+      );
+    // clang-format on
   }
   return substitute(^^stub_bases, member_base_types);
 }
@@ -230,9 +225,9 @@ consteval bool is_protocol_conformant() {
   // assumed to be negligible at compile time.
   // TODO(jbcoe): Use set/map once there is library support for `constexpr`.
   auto interface_member_functions =
-      detail::protocol_interface_functions_of<^^Interface>();
+      detail::protocol_interface_functions_of<^^Interface>;
   auto candidate_member_functions =
-      detail::protocol_interface_functions_of<^^Candidate>();
+      detail::protocol_interface_functions_of<^^Candidate>;
 
   return std::ranges::all_of(
       interface_member_functions, [&](std::meta::info interface_member) {
