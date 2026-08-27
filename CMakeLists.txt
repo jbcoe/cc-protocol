@@ -118,7 +118,9 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
     FetchContent_Declare(
       google_benchmark
       GIT_REPOSITORY https://github.com/google/benchmark.git
-      GIT_TAG v1.9.1
+      # v1.9.5 or later is required for Clang 22, which warns that __COUNTER__
+      # is a C2y extension; benchmark's own -Werror build failed on it before.
+      GIT_TAG v1.9.5
       SYSTEM)
     # For Windows: Prevent overriding the parent project's compiler/linker
     # settings
