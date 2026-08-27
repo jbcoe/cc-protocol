@@ -76,7 +76,7 @@ TEST(ProtocolTest, Construction) {
   unsigned deallocs = 0;
   {
     TestAlloc alloc{&allocs, &deallocs};
-    TestProtocol p{std::allocator_arg, alloc, Tester{15}};
+    TestProtocol p{std::allocator_arg, alloc, Tester(15)};
 
     EXPECT_EQ(allocs, 1);
     EXPECT_EQ(deallocs, 0);
@@ -122,7 +122,7 @@ TEST(ProtocolTest, CopyConstruction) {
   unsigned deallocs = 0;
   {
     TestAlloc alloc{&allocs, &deallocs};
-    TestProtocol p1{std::allocator_arg, alloc, Tester{25}};
+    TestProtocol p1{std::allocator_arg, alloc, Tester(25)};
     xyz::protocol p2{p1};
     EXPECT_EQ(allocs, 2);  // Once for p1, and once for p2.
     EXPECT_EQ(deallocs, 0);
@@ -142,7 +142,7 @@ TEST(ProtocolTest, CopyConstructionEqual) {
     TestAlloc alloc2{&allocs, &deallocs};
     ASSERT_EQ(alloc1, alloc2);
 
-    TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
+    TestProtocol p1{std::allocator_arg, alloc1, Tester(100)};
 
     TestProtocol p2{std::allocator_arg, alloc2, p1};
 
@@ -167,7 +167,7 @@ TEST(ProtocolTest, CopyConstructionUnequal) {
     TestAlloc alloc2{&allocs2, &deallocs2};
     ASSERT_NE(alloc1, alloc2);
 
-    TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
+    TestProtocol p1{std::allocator_arg, alloc1, Tester(100)};
     // p2 copies from p1, but allocates using alloc2.
     TestProtocol p2{std::allocator_arg, alloc2, p1};
 
@@ -186,8 +186,8 @@ TEST(ProtocolTest, CopyAssignmentEqual) {
   {
     TestAlloc alloc{&allocs, &deallocs};
 
-    TestProtocol p1{std::allocator_arg, alloc, Tester{30}};
-    TestProtocol p2{std::allocator_arg, alloc, Tester{40}};
+    TestProtocol p1{std::allocator_arg, alloc, Tester(30)};
+    TestProtocol p2{std::allocator_arg, alloc, Tester(40)};
     EXPECT_EQ(allocs, 2);
     EXPECT_EQ(deallocs, 0);
 
@@ -213,8 +213,8 @@ TEST(ProtocolTest, CopyAssignmentUnequal) {
     TestAlloc alloc2{&allocs2, &deallocs2};
     ASSERT_NE(alloc1, alloc2);
 
-    TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
-    TestProtocol p2{std::allocator_arg, alloc2, Tester{200}};
+    TestProtocol p1{std::allocator_arg, alloc1, Tester(100)};
+    TestProtocol p2{std::allocator_arg, alloc2, Tester(200)};
 
     EXPECT_EQ(allocs1, 1);
     EXPECT_EQ(allocs2, 1);
@@ -242,7 +242,7 @@ TEST(ProtocolTest, MoveConstruction) {
   {
     TestAlloc alloc{&allocs, &deallocs};
 
-    TestProtocol p1{std::allocator_arg, alloc, Tester{50}};
+    TestProtocol p1{std::allocator_arg, alloc, Tester(50)};
     EXPECT_EQ(allocs, 1);
 
     TestProtocol p2{std::move(p1)};
@@ -262,7 +262,7 @@ TEST(ProtocolTest, MoveConstructionEqual) {
   unsigned deallocs = 0;
   {
     TestAlloc alloc1{&allocs, &deallocs};
-    TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
+    TestProtocol p1{std::allocator_arg, alloc1, Tester(100)};
 
     TestAlloc alloc2{&allocs, &deallocs};
     TestProtocol p2{std::allocator_arg, alloc2, std::move(p1)};
@@ -284,7 +284,7 @@ TEST(ProtocolTest, MoveConstructionUnequal) {
   unsigned deallocs2 = 0;
   {
     TestAlloc alloc1{&allocs1, &deallocs1};
-    TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
+    TestProtocol p1{std::allocator_arg, alloc1, Tester(100)};
     EXPECT_EQ(allocs1, 1);
 
     // alloc2 != alloc1. We cannot perform a simple pointer-swap
@@ -312,8 +312,8 @@ TEST(ProtocolTest, MoveAssignmentEqual) {
   {
     TestAlloc alloc{&allocs, &deallocs};
 
-    TestProtocol p1{std::allocator_arg, alloc, Tester{30}};
-    TestProtocol p2{std::allocator_arg, alloc, Tester{40}};
+    TestProtocol p1{std::allocator_arg, alloc, Tester(30)};
+    TestProtocol p2{std::allocator_arg, alloc, Tester(40)};
     EXPECT_EQ(allocs, 2);
     EXPECT_EQ(deallocs, 0);
 
@@ -334,7 +334,7 @@ TEST(ProtocolTest, MoveAssignmentUnequal) {
   unsigned deallocs2 = 0;
   {
     TestAlloc alloc1{&allocs1, &deallocs1};
-    TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
+    TestProtocol p1{std::allocator_arg, alloc1, Tester(100)};
 
     TestAlloc alloc2{&allocs2, &deallocs2};
     TestProtocol p2{std::allocator_arg, alloc2, p1};
@@ -358,7 +358,7 @@ TEST(ProtocolTest, SwapEqual) {
   unsigned deallocs = 0;
   {
     TestAlloc alloc1{&allocs, &deallocs};
-    TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
+    TestProtocol p1{std::allocator_arg, alloc1, Tester(100)};
 
     TestAlloc alloc2{&allocs, &deallocs};
     TestProtocol p2{std::allocator_arg, alloc2, p1};
@@ -387,7 +387,7 @@ TEST(ProtocolTest, SwapUnequal) {
   unsigned allocs1 = 0;
   unsigned deallocs1 = 0;
   TestAlloc alloc1{&allocs1, &deallocs1};
-  TestProtocol p1{std::allocator_arg, alloc1, Tester{100}};
+  TestProtocol p1{std::allocator_arg, alloc1, Tester(100)};
 
   unsigned allocs2 = 0;
   unsigned deallocs2 = 0;
@@ -531,11 +531,11 @@ TEST(ProtocolTest, CopyAssignmentUnequalPocca) {
   {
     PoccaAllocator<std::byte> alloc1{&allocs1, &deallocs1};
     xyz::protocol<IntLike, PoccaAllocator<std::byte>> p1{std::allocator_arg,
-                                                         alloc1, Tester{0}};
+                                                         alloc1, Tester(0)};
 
     PoccaAllocator<std::byte> alloc2{&allocs2, &deallocs2};
     xyz::protocol<IntLike, PoccaAllocator<std::byte>> p2{std::allocator_arg,
-                                                         alloc2, Tester{0}};
+                                                         alloc2, Tester(0)};
 
     // p1 and p2 are both constructed with different allocators.
     EXPECT_EQ(allocs1, 1);
@@ -584,11 +584,11 @@ TEST(ProtocolTest, MoveAssignmentUnequalPocma) {
   {
     PocmaAllocator<std::byte> alloc1{&allocs1, &deallocs1};
     xyz::protocol<IntLike, PocmaAllocator<std::byte>> p1{std::allocator_arg,
-                                                         alloc1, Tester{0}};
+                                                         alloc1, Tester(0)};
 
     PocmaAllocator<std::byte> alloc2{&allocs2, &deallocs2};
     xyz::protocol<IntLike, PocmaAllocator<std::byte>> p2{std::allocator_arg,
-                                                         alloc2, Tester{10}};
+                                                         alloc2, Tester(10)};
 
     // p1 and p2 are both constructed with different allocators.
     EXPECT_EQ(allocs1, 1);
@@ -634,11 +634,11 @@ TEST(ProtocolTest, SwapUnequalPocs) {
   {
     PocsAllocator<std::byte> alloc1{&allocs1, &deallocs1};
     xyz::protocol<IntLike, PocsAllocator<std::byte>> p1{std::allocator_arg,
-                                                        alloc1, Tester{0}};
+                                                        alloc1, Tester(0)};
 
     PocsAllocator<std::byte> alloc2{&allocs2, &deallocs2};
     xyz::protocol<IntLike, PocsAllocator<std::byte>> p2{std::allocator_arg,
-                                                        alloc2, Tester{10}};
+                                                        alloc2, Tester(10)};
 
     // p1 and p2 were constructed with different allocators.
     EXPECT_EQ(allocs1, 1);
@@ -704,7 +704,7 @@ TEST(ProtocolTest, ConstructionException) {
   bool should_throw{true};
 
   ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
-  EXPECT_THROW((ThrowingProtocol{std::allocator_arg, alloc, Tester{0}}),
+  EXPECT_THROW((ThrowingProtocol{std::allocator_arg, alloc, Tester(0)}),
                TestException);
   // alloc threw before any allocations were performed.
   EXPECT_EQ(allocs, 0);
@@ -767,7 +767,7 @@ TEST(ProtocolTest, EqualMoveConstructionNoException) {
   bool should_throw{false};
 
   ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
-  ThrowingProtocol p1{std::allocator_arg, alloc, Tester{15}};
+  ThrowingProtocol p1{std::allocator_arg, alloc, Tester(15)};
   EXPECT_EQ(allocs, 1);
 
   should_throw = true;
@@ -821,8 +821,8 @@ TEST(ProtocolTest, EqualMoveAssignmentNoException) {
     bool should_throw{false};
 
     ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
-    ThrowingProtocol p1{std::allocator_arg, alloc, Tester{15}};
-    ThrowingProtocol p2{std::allocator_arg, alloc, Tester{35}};
+    ThrowingProtocol p1{std::allocator_arg, alloc, Tester(15)};
+    ThrowingProtocol p2{std::allocator_arg, alloc, Tester(35)};
     EXPECT_EQ(allocs, 2);
 
     // When p1 and p2 have equal allocators, move assignment should
