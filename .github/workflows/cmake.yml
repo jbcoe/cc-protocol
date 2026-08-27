@@ -146,7 +146,7 @@ jobs:
               compiler:
                 {
                   type: CLANG,
-                  version: 19,
+                  version: 20,
                   cc: "clang-20",
                   cxx: "clang++-20",
                   std: 20,
@@ -178,6 +178,32 @@ jobs:
                   std: 23,
                 },
               lib: "libc++21",
+            }
+          - {
+              name: "Ubuntu Clang-22 + libc++",
+              os: ubuntu-24.04,
+              compiler:
+                {
+                  type: CLANG,
+                  version: 22,
+                  cc: "clang-22",
+                  cxx: "clang++-22",
+                  std: 20,
+                },
+              lib: "libc++22",
+            }
+          - {
+              name: "Ubuntu Clang-22 (C++23) + libc++",
+              os: ubuntu-24.04,
+              compiler:
+                {
+                  type: CLANG,
+                  version: 22,
+                  cc: "clang-22",
+                  cxx: "clang++-22",
+                  std: 23,
+                },
+              lib: "libc++22",
             }
           - {
               name: "Visual Studio 2019",
