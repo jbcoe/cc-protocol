@@ -146,7 +146,7 @@ jobs:
               compiler:
                 {
                   type: CLANG,
-                  version: 19,
+                  version: 20,
                   cc: "clang-20",
                   cxx: "clang++-20",
                   std: 20,
