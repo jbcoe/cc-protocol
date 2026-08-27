@@ -143,59 +143,75 @@ struct method_thunk<R (*)(Args...), EnclosingType, IsConst, IsNoexcept> {
 template <typename R, typename... Args>
 using fn_ptr_t = R (*)(Args...);
 
-// Returns a list of data_member_spec values, one for each member function
-// implemented by `protocol`. Each data_member_spec names the data member
-// after the interface method (giving the `p.method_name(args)` call syntax)
-// and sets its type to the matching thunk template specialisation.
-//
-// C++ disallows two data members with the same name inside the same class,
-// so overloaded methods will cause compile-time errors; unsupported for now.
-consteval std::vector<std::meta::info> generate_method_thunk_specs(
-    std::meta::info interface_type, std::meta::info enclosing_type) {
-  std::vector<std::meta::info> method_thunk_specs;
-
-  std::ranges::range auto members =
-      std::define_static_array(members_of(
-          interface_type, std::meta::access_context::unprivileged())) |
-      std::views::filter(std::meta::is_function) |
-      std::views::filter(std::not_fn(std::meta::is_special_member_function)) |
-      std::views::filter(std::not_fn(std::meta::is_static_member)) |
-      std::views::filter(std::meta::has_identifier);
-
-  for (std::meta::info member : members) {
-    std::string_view name = identifier_of(member);
+// A single-member base wrapping the thunk for one interface member function,
+// named after that method (giving the `p.method_name(args)` call syntax).
+template <std::meta::info Member>
+struct member_base_generator {
+  struct member_base;
+  consteval {
+    std::string_view name = identifier_of(Member);
 
     // Build the function-pointer type R(*)(Args...) from the method's
     // return type and parameter types.
-    std::vector<std::meta::info> fn_args{dealias(return_type_of(member))};
-    std::vector<std::meta::info> member_parameters = parameters_of(member);
+    std::vector<std::meta::info> fn_args{dealias(return_type_of(Member))};
+    std::vector<std::meta::info> member_parameters = parameters_of(Member);
     fn_args.append_range(member_parameters |
                          std::views::transform(std::meta::type_of));
     std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
 
     // clang-format off
     std::meta::info thunk_type = substitute(
-        ^^method_thunk, {fn_ptr_type, enclosing_type,
-                       std::meta::reflect_constant(is_const(member)),
-                       std::meta::reflect_constant(is_noexcept(member))});
+        ^^method_thunk, {fn_ptr_type, ^^member_base,
+                       std::meta::reflect_constant(is_const(Member)),
+                       std::meta::reflect_constant(is_noexcept(Member))});
     // clang-format on
 
-    method_thunk_specs.push_back(data_member_spec(
-        thunk_type, std::meta::data_member_options{.name = name,
-                                                   .no_unique_address = true}));
-  }
-  return method_thunk_specs;
-}
-
-// Generates a struct that has named members with `operator()` for each public,
-// non-special, member function from `T`.
-template <typename T>
-struct protocol_member_stubs_generator {
-  struct stubs;
-  consteval {
-    define_aggregate(^^stubs, generate_method_thunk_specs(^^T, ^^stubs));
+    define_aggregate(
+        ^^member_base,
+        {
+            data_member_spec(thunk_type,
+                             std::meta::data_member_options{
+                                 .name = name, .no_unique_address = true})});
   }
 };
+
+// Combines the single-member base types produced by `member_base_generator`
+// into one type via multiple inheritance.
+template <typename... MemberBases>
+struct stub_bases : MemberBases... {};
+
+// Returns a `stub_bases` specialisation with one base per public, non-special,
+// member function of `interface_type`, giving named members with `operator()`
+// for each.
+//
+// Two bases defining a member of the same name make that name ambiguous to
+// look up through the derived class, so overloaded methods are unsupported
+// for now.
+template <std::meta::info InterfaceType>
+consteval std::meta::info generate_stub_bases() {
+  std::vector<std::meta::info> member_base_types;
+
+  template for (constexpr std::meta::info member : std::define_static_array(
+                    std::define_static_array(
+                        members_of(InterfaceType,
+                                   std::meta::access_context::unprivileged())) |
+                    std::views::filter(std::meta::is_function) |
+                    std::views::filter(
+                        std::not_fn(std::meta::is_special_member_function)) |
+                    std::views::filter(
+                        std::not_fn(std::meta::is_static_member)) |
+                    std::views::filter(std::meta::has_identifier))) {
+    member_base_types.push_back(
+        ^^typename member_base_generator<member>::member_base);
+  }
+  return substitute(^^stub_bases, member_base_types);
+}
+
+// The generated stub type for `T`: a `stub_bases` specialisation with named
+// members with `operator()` for each public, non-special, member function
+// from `T`.
+template <typename T>
+using protocol_stubs_t = typename[:generate_stub_bases<^^T>():];
 
 }  // namespace detail
 
@@ -234,7 +250,7 @@ inline constexpr bool is_protocol_conformant_v =
     is_protocol_conformant<Interface, Candidate>();
 
 template <typename T, typename Allocator = std::allocator<std::byte>>
-class protocol : public detail::protocol_member_stubs_generator<T>::stubs {
+class protocol : public detail::protocol_stubs_t<T> {
  public:
   protocol() = delete;  // Deleted as `T` is used as an interface type.
 
@@ -265,7 +281,7 @@ class protocol : public detail::protocol_member_stubs_generator<T>::stubs {
 };
 
 template <typename T>
-class protocol_view : public detail::protocol_member_stubs_generator<T>::stubs {
+class protocol_view : public detail::protocol_stubs_t<T> {
  public:
   // The default constructor is deleted as a default constructed
   // `protocol_view` would be empty.
