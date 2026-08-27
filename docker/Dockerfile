@@ -1,8 +1,13 @@
 FROM ubuntu:26.04
 
 # Install base tools and C++ development tools.
+#
+# clang-tidy is pinned to the same major version as the "Clang Tidy" CI
+# workflow (COMPILER_VERSION in .github/workflows/clang-tidy.yml) so that a
+# local `./scripts/cmake.sh --clang-tidy` run reports the same findings as CI.
+# The unversioned `clang-tidy` package on this Ubuntu release is LLVM 21.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    clang-tidy \
+    clang-tidy-22 \
     cmake \
     curl \
     g++ \
@@ -20,7 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ssh \
     unzip \
     wget \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/clang-tidy-22 /usr/local/bin/clang-tidy
 
 # Install bazelisk.
 RUN ARCH=$(dpkg --print-architecture) && \

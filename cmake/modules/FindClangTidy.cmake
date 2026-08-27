@@ -24,8 +24,15 @@ option(CLANG_TIDY_ENABLE "Build with support for clang-tidy" OFF)
 
 set(ClangTidy_VERBOSITY_LEVEL 3 CACHE STRING "Clang Tidy verbosity level (the higher the level, the more output)")
 
+# The major version that CI runs (COMPILER_VERSION in
+# .github/workflows/clang-tidy.yml) and that docker/Dockerfile installs. The
+# check set differs between clang-tidy releases, so a different local version
+# may report findings that CI does not, or miss findings that CI reports.
+set(ClangTidy_EXPECTED_MAJOR_VERSION 22 CACHE STRING "clang-tidy major version used by CI")
+
+# Prefer the versioned binary matching CI when several are installed.
 find_program(ClangTidy_EXECUTABLE
-    NAMES clang-tidy
+    NAMES clang-tidy-${ClangTidy_EXPECTED_MAJOR_VERSION} clang-tidy
 )
 
 macro(_clang_tidy_log)
@@ -90,6 +97,14 @@ if(ClangTidy_EXECUTABLE)
     mark_as_advanced(ClangTidy_EXECUTABLE)
     get_clang_tidy_version(EXECUTABLE ${ClangTidy_EXECUTABLE} RESULT ClangTidy_VERSION)
     _clang_tidy_log("clang-tidy version ${ClangTidy_VERSION}")
+    string(REGEX REPLACE "\\..*" "" ClangTidy_MAJOR_VERSION "${ClangTidy_VERSION}")
+    if(CLANG_TIDY_ENABLE AND NOT ClangTidy_MAJOR_VERSION STREQUAL ClangTidy_EXPECTED_MAJOR_VERSION)
+        message(WARNING
+            "clang-tidy ${ClangTidy_VERSION} found at ${ClangTidy_EXECUTABLE}, but CI "
+            "runs clang-tidy ${ClangTidy_EXPECTED_MAJOR_VERSION}; findings may differ. "
+            "Install clang-tidy-${ClangTidy_EXPECTED_MAJOR_VERSION} or set "
+            "-DClangTidy_EXECUTABLE=<path>.")
+    endif()
 endif()
 
 include(FindPackageHandleStandardArgs)
