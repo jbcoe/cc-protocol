@@ -27,7 +27,10 @@ on:
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Debug
-  COMPILER_VERSION: 21
+  # Keep in sync with the clang-tidy package in docker/Dockerfile and the
+  # expected version in cmake/modules/FindClangTidy.cmake, so that local runs
+  # and CI use the same check set.
+  COMPILER_VERSION: 22
   UV_FROZEN: 1
 
 jobs:

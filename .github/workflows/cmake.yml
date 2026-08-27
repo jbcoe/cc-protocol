@@ -180,6 +180,32 @@ jobs:
               lib: "libc++21",
             }
           - {
+              name: "Ubuntu Clang-22 + libc++",
+              os: ubuntu-24.04,
+              compiler:
+                {
+                  type: CLANG,
+                  version: 22,
+                  cc: "clang-22",
+                  cxx: "clang++-22",
+                  std: 20,
+                },
+              lib: "libc++22",
+            }
+          - {
+              name: "Ubuntu Clang-22 (C++23) + libc++",
+              os: ubuntu-24.04,
+              compiler:
+                {
+                  type: CLANG,
+                  version: 22,
+                  cc: "clang-22",
+                  cxx: "clang++-22",
+                  std: 23,
+                },
+              lib: "libc++22",
+            }
+          - {
               name: "Visual Studio 2019",
               os: windows-latest,
               compiler: { type: VISUAL, version: 16, cc: "cl", cxx: "cl" },
