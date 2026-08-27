@@ -32,11 +32,14 @@ env:
 
 jobs:
   clang-tidy:
-    # The CMake configure and build commands are platform agnostic and should work equally
-    # well on Windows or Mac.  You can convert this to a matrix build if you need
-    # cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
     runs-on: ubuntu-latest
+
+    # reviewdog posts review comments on pull requests and check annotations
+    # on pushes and scheduled runs.
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v5
@@ -65,11 +68,23 @@ jobs:
       - uses: reviewdog/action-setup@v1.5.0
         with:
           reviewdog_version: latest # Optional. [latest,nightly,v.X.Y.Z]
-      - name: Run CMake
+      - name: Build with clang-tidy
+        # `shell: bash` enables pipefail, so a clang-tidy failure is not masked
+        # by `tee`. WarningsAsErrors in .clang-tidy makes any finding fail
+        # the build.
+        shell: bash
         run: |
-          ./scripts/cmake.sh --debug -DCLANG_TIDY_ENABLE=1 2>&1 | tee build.log
-      - name: Run reviewdog
+          ./scripts/cmake.sh --debug --clang-tidy 2>&1 | tee build.log
+      - name: Report findings with reviewdog
+        # Runs even when the build failed so that the findings are annotated.
+        if: always()
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cat build.log | reviewdog -reporter=github-pr-review -efm="%W%f:%l:%c: warning: %m" -efm="%E%f:%l:%c: error: %m"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            reporter=github-pr-review
+          else
+            reporter=github-check
+          fi
+          reviewdog -reporter="$reporter" -name=clang-tidy \
+            -efm="%W%f:%l:%c: warning: %m" -efm="%E%f:%l:%c: error: %m" < build.log

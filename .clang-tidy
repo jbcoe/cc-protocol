@@ -76,7 +76,10 @@ CheckOptions:
       value: true
     - key: misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
       value: true
-WarningsAsErrors: ''
+# The run is kept at zero findings; anything new fails the build so that it is
+# either fixed or explicitly suppressed with a reason. Run locally with
+# `./scripts/cmake.sh --debug --clang-tidy`.
+WarningsAsErrors: '*'
 # Exclude third-party dependencies fetched by CMake and headers generated from
 # scripts/protocol.j2; findings in generated code should be fixed in the template.
 HeaderFilterRegex: '^(?!.*(_deps|/generated/)).*'
