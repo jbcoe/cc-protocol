@@ -7,6 +7,12 @@ xyz_add_test(
 
 xyz_add_test(
     NAME
+    narrowing_conversions_tutorial
+    FILES
+    narrowing_conversions.cc)
+
+xyz_add_test(
+    NAME
     vanishing_this_tutorial
     FILES
     vanishing_this.cc)
