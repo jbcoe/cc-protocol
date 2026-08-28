@@ -194,8 +194,14 @@ class protocol {
         rebound_traits<TNorm>::deallocate(new_alloc, typed, 1);
       },
 
+      // Copy construction and assignment should only reach this
+      // if the interface is copy constructible.
       .copy = +[](const Alloc& alloc, const void* data) -> void* {
-        return create<TNorm>(alloc, *static_cast<const TNorm*>(data));
+        if constexpr (std::is_copy_constructible_v<I>) {
+          return create<TNorm>(alloc, *static_cast<const TNorm*>(data));
+        } else {
+          std::unreachable();
+        }
       },
 
       .move = +[](const Alloc& alloc, void* data) -> void* {
