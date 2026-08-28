@@ -6,6 +6,11 @@ import os
 import subprocess
 from typing import Any
 
+# Directory of the GCC trunk snapshot published at
+# https://jwakely.github.io/pkg-gcc-latest/, used as the default C++26
+# reflection compiler when present (see --reflection below).
+GCC_LATEST_BIN_DIRECTORY = "/opt/gcc-latest/bin"
+
 
 def main() -> None:
     """Execute the CMake build and test process based on command-line arguments."""
@@ -42,7 +47,9 @@ def main() -> None:
         "--reflection",
         action="store_true",
         help="Build and test tutorials/reflection.cc (requires a P2996 "
-        "reflection compiler, e.g. CXX=g++-16 CC=gcc-16)",
+        "reflection compiler; defaults to the GCC trunk snapshot in "
+        "/opt/gcc-latest if present, else g++-16/gcc-16; set CXX/CC in the "
+        "environment to override)",
     )
     parser.add_argument(
         "--clang-tidy",
@@ -100,11 +107,20 @@ def main() -> None:
     # A P2996 reflection compiler is required to configure with
     # XYZ_PROTOCOL_BUILD_REFLECTION=ON. CMake only reads CXX/CC
     # from the environment, not from -D cache variables, so set them here
-    # rather than as configure_args.
+    # rather than as configure_args. An existing CXX in the environment is
+    # left untouched so callers can override the compiler; otherwise prefer
+    # the GCC trunk snapshot in /opt/gcc-latest (see docker/Dockerfile) and
+    # fall back to Ubuntu's gcc-16 package if that snapshot isn't installed.
     configure_env = os.environ.copy()
-    if args.reflection:
-        configure_env["CXX"] = "g++-16"
-        configure_env["CC"] = "gcc-16"
+    if args.reflection and "CXX" not in configure_env:
+        gcc_latest_cxx = os.path.join(GCC_LATEST_BIN_DIRECTORY, "g++")
+        gcc_latest_cc = os.path.join(GCC_LATEST_BIN_DIRECTORY, "gcc")
+        if os.path.exists(gcc_latest_cxx):
+            configure_env["CXX"] = gcc_latest_cxx
+            configure_env["CC"] = gcc_latest_cc
+        else:
+            configure_env["CXX"] = "g++-16"
+            configure_env["CC"] = "gcc-16"
 
     log(f"Running: {' '.join(configure_args)}")
     subprocess.check_call(configure_args, env=configure_env)
