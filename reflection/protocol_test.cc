@@ -460,6 +460,7 @@ TEST(ReflectionProtocolViewTest, SingleParameterMemberFunction) {
   protocol_view<Interface> p(c);
   p.update(42);
   EXPECT_EQ(c.last_value, 42);
+  static_assert(!noexcept(c.update(1.0)));
 }
 
 TEST(ReflectionProtocolViewTest, NoexceptMemberFunction) {
@@ -474,6 +475,7 @@ TEST(ReflectionProtocolViewTest, NoexceptMemberFunction) {
   Conforming c;
   protocol_view<Interface> p(c);
   EXPECT_EQ(p.compute(21.0), 42.0);
+  static_assert(noexcept(p.compute(1.0)));
 }
 
 TEST(ReflectionProtocolViewTest, MultiParameterMemberFunction) {

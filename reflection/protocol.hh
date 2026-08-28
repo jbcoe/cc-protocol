@@ -148,9 +148,11 @@ template <typename R, typename... Args, typename EnclosingType,
           bool IsConst, bool IsNoexcept>
 struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
                     IsConst, IsNoexcept> {
-  static consteval std::meta::info vtable_entry() {
-    return find_vtable_member<^^Vtable, Member>();
-  }
+  // static consteval std::meta::info vtable_entry() {
+  //   return find_vtable_member<^^Vtable, Member>();
+  // }
+  static constexpr std::meta::info vtable_entry =
+      find_vtable_member<^^Vtable, Member>();
 
   // Provides member-function call syntax. Recovers the EnclosingType pointer
   // through the vanishing-this-pointer cast, widens it to the enclosing
@@ -162,8 +164,9 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
     auto* enclosing = reinterpret_cast<EnclosingType*>(this);
     auto* protocol_object = static_cast<ProtocolType*>(enclosing);
     const Vtable* vtable = protocol_object->vtable_;
-    constexpr std::meta::info entry = vtable_entry();
-    return (*vtable).[:entry:](protocol_object->object_, args...);
+    constexpr std::meta::info entry = vtable_entry;
+    return vtable->[:entry:](protocol_object->object_,
+                             std::forward<Args>(args)...);
   }
 
   R operator()(Args... args) const noexcept(IsNoexcept)
@@ -172,8 +175,9 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
     const auto* enclosing = reinterpret_cast<const EnclosingType*>(this);
     const auto* protocol_object = static_cast<const ProtocolType*>(enclosing);
     const Vtable* vtable = protocol_object->vtable_;
-    constexpr std::meta::info entry = vtable_entry();
-    return (*vtable).[:entry:](protocol_object->object_, args...);
+    constexpr std::meta::info entry = vtable_entry;
+    return vtable->[:entry:](protocol_object->object_,
+                             std::forward<Args>(args)...);
   }
 };
 
@@ -260,18 +264,12 @@ using protocol_wrappers_t =
 // Because C++ disallows two data members with the same name inside the same
 // class, overloaded methods will cause compile-time errors.
 // We will address this limitation in a follow-up PR.
-consteval std::vector<std::meta::info> generate_vtable_specs(
-    std::meta::info interface_type) {
+template <std::meta::info interface_type>
+consteval std::vector<std::meta::info> generate_vtable_specs() {
   std::vector<std::meta::info> function_pointer_specs;
 
-  std::ranges::range auto members =
-      std::define_static_array(members_of(
-          interface_type, std::meta::access_context::unprivileged())) |
-      std::views::filter(std::meta::is_function) |
-      std::views::filter(std::not_fn(std::meta::is_static_member)) |
-      std::views::filter(std::meta::has_identifier);
-
-  for (std::meta::info member : members) {
+  for (std::meta::info member :
+       protocol_interface_functions_of<interface_type>) {
     std::string_view name = identifier_of(member);
 
     // Build the function-pointer type R(*)(void*, Args...) noexcept(...)
@@ -299,7 +297,7 @@ consteval std::vector<std::meta::info> generate_vtable_specs(
 template <typename T>
 struct vtable_generator {
   struct vtable;
-  consteval { define_aggregate(^^vtable, generate_vtable_specs(^^T)); }
+  consteval { define_aggregate(^^vtable, generate_vtable_specs<^^T>()); }
 };
 
 // Finds the member of `CandidateType` that structurally conforms to
@@ -323,7 +321,8 @@ template <typename R, typename... Args, bool Noexcept, typename U,
 struct mutable_view_trampoline<R (*)(void*, Args...) noexcept(Noexcept), U,
                                CandidateMember> {
   static R call(void* ptr, Args... args) noexcept(Noexcept) {
-    return static_cast<U*>(ptr)->[:CandidateMember:](args...);
+    return static_cast<U*>(ptr)->[:CandidateMember:](
+        std::forward<Args>(args)...);
   }
 };
 
@@ -335,7 +334,8 @@ template <typename R, typename... Args, bool Noexcept, typename U,
 struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
                              CandidateMember> {
   static R call(const void* ptr, Args... args) noexcept(Noexcept) {
-    return static_cast<const U*>(ptr)->[:CandidateMember:](args...);
+    return static_cast<const U*>(ptr)->[:CandidateMember:](
+        std::forward<Args>(args)...);
   }
 };
 
@@ -411,11 +411,9 @@ inline constexpr bool is_protocol_conformant_v =
 // ---------------------------------------------------------------------------
 // protocol<I, Allocator>
 //
-// WARNING: Vtable layouts in `protocol` and
-// `detail::vtable_generator<I>::vtable` are currently inconsistent. Calling
-// member functions of interface `I` passes signature checks at compile time,
-// but triggers invalid `reinterpret_cast` operations, undefined behavior, and
-// potential segmentation faults at runtime.
+// Vtable layouts in `protocol` and `detail::vtable_generator<I>::vtable` are
+// currently inconsistent. Tests for `protocol` in `reflection/protocol_test.cc`
+// only check the thunk's signature.
 // ---------------------------------------------------------------------------
 template <typename I, typename Alloc = std::allocator<std::byte>>
 class protocol
