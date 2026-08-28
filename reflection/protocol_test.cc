@@ -5,8 +5,10 @@
 
 #include <gtest/gtest.h>
 
+#include <concepts>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -394,4 +396,166 @@ TEST(ReflectionProtocolTest, IsConstructibleInPlaceWithArguments) {
                                         std::string_view>);
 }
 
+// Member function signature tests for protocol_view.
+
+TEST(ReflectionProtocolViewTest, ConstMemberFunction) {
+  struct Interface {
+    int get_value() const;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(const protocol_view<Interface>& p) {
+    { p.get_value() } -> std::same_as<int>;
+  });
+}
+
+TEST(ReflectionProtocolViewTest, NonConstMemberFunctionNotInvocableFromConst) {
+  struct Interface {
+    void update(int value);
+  };
+
+  // TODO(jbcoe): reassess how `const protocol_view` works.
+  // A view-type should not propagate const.
+  static_assert(
+      !std::is_invocable_v<
+          decltype((std::declval<const protocol_view<Interface>&>().update)),
+          int>);
+}
+
+TEST(ReflectionProtocolViewTest, SingleParameterMemberFunction) {
+  struct Interface {
+    void update(int value);
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(protocol_view<Interface>& p) {
+    { p.update(0) } -> std::same_as<void>;
+  });
+}
+
+TEST(ReflectionProtocolViewTest, NoexceptMemberFunction) {
+  struct Interface {
+    double compute(double input) noexcept;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(protocol_view<Interface>& p) {
+    { p.compute(0.0) } noexcept -> std::same_as<double>;
+  });
+}
+
+TEST(ReflectionProtocolViewTest, MultiParameterMemberFunction) {
+  struct Interface {
+    int add(int a, int b) const;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(const protocol_view<Interface>& p) {
+    { p.add(1, 2) } -> std::same_as<int>;
+  });
+}
+
+TEST(ReflectionProtocolViewTest, VoidMemberFunction) {
+  struct Interface {
+    void reset();
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(protocol_view<Interface>& p) {
+    { p.reset() } -> std::same_as<void>;
+  });
+}
+
+TEST(ReflectionProtocolViewTest, MultipleMemberFunctions) {
+  struct Interface {
+    double add(double x, double y) const noexcept;
+    double multiply(double x, double y) const noexcept;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(const protocol_view<Interface>& p) {
+    { p.add(1.0, 2.0) } noexcept -> std::same_as<double>;
+    { p.multiply(3.0, 4.0) } noexcept -> std::same_as<double>;
+  });
+}
+
+// Member function signature tests for protocol.
+
+TEST(ReflectionProtocolTest, ConstMemberFunction) {
+  struct Interface {
+    int get_value() const;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(const protocol<Interface>& p) {
+    { p.get_value() } -> std::same_as<int>;
+  });
+}
+
+TEST(ReflectionProtocolTest, NonConstMemberFunctionNotInvocableFromConst) {
+  struct Interface {
+    void update(int value);
+  };
+
+  static_assert(
+      !std::is_invocable_v<
+          decltype((std::declval<const protocol<Interface>&>().update)), int>);
+}
+
+TEST(ReflectionProtocolTest, SingleParameterMemberFunction) {
+  struct Interface {
+    void update(int value);
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(protocol<Interface>& p) {
+    { p.update(0) } -> std::same_as<void>;
+  });
+}
+
+TEST(ReflectionProtocolTest, NoexceptMemberFunction) {
+  struct Interface {
+    double compute(double input) noexcept;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(protocol<Interface>& p) {
+    { p.compute(0.0) } noexcept -> std::same_as<double>;
+  });
+}
+
+TEST(ReflectionProtocolTest, MultiParameterMemberFunction) {
+  struct Interface {
+    int add(int a, int b) const;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(const protocol<Interface>& p) {
+    { p.add(1, 2) } -> std::same_as<int>;
+  });
+}
+
+TEST(ReflectionProtocolTest, VoidMemberFunction) {
+  struct Interface {
+    void reset();
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(protocol<Interface>& p) {
+    { p.reset() } -> std::same_as<void>;
+  });
+}
+
+TEST(ReflectionProtocolTest, MultipleMemberFunctions) {
+  struct Interface {
+    double add(double x, double y) const noexcept;
+    double multiply(double x, double y) const noexcept;
+  };
+
+  // TODO(jbcoe): replace static assertion with runtime test.
+  static_assert(requires(const protocol<Interface>& p) {
+    { p.add(1.0, 2.0) } noexcept -> std::same_as<double>;
+    { p.multiply(3.0, 4.0) } noexcept -> std::same_as<double>;
+  });
+}
 }  // namespace

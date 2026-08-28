@@ -21,11 +21,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define XYZ_REFLECTION_PROTOCOL_HH_
 
 // A C++26-reflection-based implementation of protocol and protocol_view.
+//
+// Member function stubs are synthesised at compile time for every public
+// non-special member function declared in the Interface type.
+//
+// The stubs are currently unimplemented beyond providing member function
+// signatures.
 
 #include <algorithm>
 #include <cassert>
 #include <concepts>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <meta>
 #include <ranges>
@@ -84,7 +91,7 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
     return false;
   std::vector<std::meta::info> interface_params = parameters_of(interface);
   std::vector<std::meta::info> candidate_params = parameters_of(candidate);
-  // parameter counts must match.
+  // Parameter counts must match.
   if (interface_params.size() != candidate_params.size()) return false;
   for (std::size_t i = 0; i < interface_params.size(); ++i) {
     // De-aliased parameter types must match.
@@ -94,6 +101,114 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
   }
   return true;
 }
+
+// The named, non-static, non-special member functions of `Type`.
+// TODO(jbcoe): Handle static functions as they can be used to satisfy interface
+// conformance.
+template <std::meta::info Type>
+constexpr inline auto protocol_interface_functions_of =
+    std::define_static_array(
+        members_of(Type, std::meta::access_context::unprivileged()) |
+        std::views::filter(std::meta::is_function) |
+        std::views::filter(std::not_fn(std::meta::is_static_member)) |
+        std::views::filter(std::meta::has_identifier));
+
+// Vanishing-this-pointer thunk for a synthesised member stub. The thunk
+// carries a single operator() whose signature mirrors one method of the
+// Interface type.
+template <typename FnPtrType, typename EnclosingType, bool IsConst,
+          bool IsNoexcept>
+struct method_thunk;
+
+// TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers.
+template <typename R, typename... Args, typename EnclosingType, bool IsConst,
+          bool IsNoexcept>
+struct method_thunk<R (*)(Args...), EnclosingType, IsConst, IsNoexcept> {
+  R operator()(Args... /*args*/) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    [[maybe_unused]] auto* base = reinterpret_cast<EnclosingType*>(this);
+    std::unreachable();  // vtable dispatch not yet implemented
+  }
+
+  R operator()(Args... /*args*/) const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    [[maybe_unused]] const auto* base =
+        reinterpret_cast<const EnclosingType*>(this);
+    std::unreachable();  // vtable dispatch not yet implemented
+  }
+};
+
+template <typename R, typename... Args>
+using fn_ptr_t = R (*)(Args...);
+
+// A single-member base wrapping the thunk for one interface member function,
+// named after that method (giving the `p.method_name(args)` call syntax).
+template <std::meta::info Member>
+struct member_base_generator {
+  struct member_base;
+  consteval {
+    std::string_view name = identifier_of(Member);
+
+    // Build the function-pointer type R(*)(Args...) from the method's
+    // return type and parameter types.
+    std::vector<std::meta::info> fn_args{dealias(return_type_of(Member))};
+    std::vector<std::meta::info> member_parameters = parameters_of(Member);
+    fn_args.append_range(member_parameters |
+                         std::views::transform(std::meta::type_of));
+    std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
+
+    // clang-format off
+    std::meta::info thunk_type = substitute(
+        ^^method_thunk, {fn_ptr_type, ^^member_base,
+                       std::meta::reflect_constant(is_const(Member)),
+                       std::meta::reflect_constant(is_noexcept(Member))});
+
+    define_aggregate(
+      ^^member_base, {data_member_spec(thunk_type,
+                             std::meta::data_member_options{
+                              .name = name,
+                              .no_unique_address = true
+                            })});
+    // clang-format on
+  }
+};
+
+template <std::meta::info Member>
+using member_base_generator_t = member_base_generator<Member>::member_base;
+
+// Combines the single-member base types produced by `member_base_generator`
+// into one type via multiple inheritance.
+template <typename... MemberBases>
+struct stub_bases : MemberBases... {};
+
+// Returns a `stub_bases` specialisation with one base per public, non-special,
+// member function of `interface_type`, giving named members with `operator()`
+// for each.
+//
+// Two bases defining a member of the same name make that name ambiguous to
+// look up through the derived class, so overloaded methods are unsupported
+// for now.
+template <std::meta::info InterfaceType>
+consteval std::meta::info generate_stub_bases() {
+  std::vector<std::meta::info> member_base_types;
+  for (std::meta::info member :
+       protocol_interface_functions_of<InterfaceType>) {
+    // clang-format off
+    member_base_types.push_back(dealias(
+        substitute(^^member_base_generator_t, {reflect_constant(member)}))
+      );
+    // clang-format on
+  }
+  return substitute(^^stub_bases, member_base_types);
+}
+
+// The generated stub type for `T`: a `stub_bases` specialisation with named
+// members with `operator()` for each public, non-special, member function
+// from `T`.
+template <typename T>
+using protocol_stubs_t = typename[:generate_stub_bases<^^T>():];
 
 }  // namespace detail
 
@@ -108,18 +223,13 @@ consteval bool is_protocol_conformant() {
                 "Candidate must not be cv/ref-qualified: strip qualifiers at "
                 "the call site with std::remove_cvref_t.");
 
-  // O(N*M) over member counts, assumed to be negligible at compile time.
-  std::ranges::range auto interface_member_functions =
-      std::define_static_array(
-          members_of(^^Interface, std::meta::access_context::unprivileged())) |
-      std::views::filter(std::meta::is_function) |
-      std::views::filter(std::meta::has_identifier);
-
-  std::ranges::range auto candidate_member_functions =
-      std::define_static_array(
-          members_of(^^Candidate, std::meta::access_context::unprivileged())) |
-      std::views::filter(std::meta::is_function) |
-      std::views::filter(std::meta::has_identifier);
+  // Checking for protocol interface conformance is O(N*M) over member counts,
+  // assumed to be negligible at compile time.
+  // TODO(jbcoe): Use set/map once there is library support for `constexpr`.
+  auto interface_member_functions =
+      detail::protocol_interface_functions_of<^^Interface>;
+  auto candidate_member_functions =
+      detail::protocol_interface_functions_of<^^Candidate>;
 
   return std::ranges::all_of(
       interface_member_functions, [&](std::meta::info interface_member) {
@@ -136,8 +246,11 @@ template <typename Interface, typename Candidate>
 inline constexpr bool is_protocol_conformant_v =
     is_protocol_conformant<Interface, Candidate>();
 
+// ---------------------------------------------------------------------------
+// protocol<I, Allocator>
+// ---------------------------------------------------------------------------
 template <typename I, typename Alloc = std::allocator<std::byte>>
-class protocol {
+class protocol : public detail::protocol_stubs_t<I> {
   using traits = std::allocator_traits<Alloc>;
 
   // When using allocators in a type-erased context, we must rebind
@@ -402,10 +515,10 @@ class protocol {
 };
 
 template <typename T>
-class protocol_view {
+class protocol_view : public detail::protocol_stubs_t<T> {
  public:
-  // The default construtor is deleted as a default constructed protocol_view
-  // would be empty.
+  // The default constructor is deleted as a default constructed
+  // `protocol_view` would be empty.
   protocol_view() = delete;
 
   // Remaining special member functions are defaulted.
