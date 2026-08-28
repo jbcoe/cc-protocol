@@ -32,7 +32,7 @@ option(ENABLE_MSAN "Enable Memory Sanitizer" OFF)
 option(
   XYZ_PROTOCOL_BUILD_REFLECTION
   "Also build and test tutorials/reflection.cc, which requires a compiler \
-with C++26 P2996 reflection support (eg. GCC 16+ with -freflection)."
+with C++26 P2996 reflection support (eg. a GCC trunk snapshot with -freflection)."
   OFF)
 
 if(XYZ_PROTOCOL_BUILD_REFLECTION)
@@ -55,6 +55,23 @@ if(XYZ_PROTOCOL_BUILD_REFLECTION)
         "XYZ_PROTOCOL_BUILD_REFLECTION is ON but the compiler "
         "(${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}) does not "
         "support C++26 reflection.")
+  endif()
+
+  # A non-distro GCC (e.g. the gcc-latest trunk snapshot installed to
+  # /opt/gcc-latest, see docker/Dockerfile) keeps its libstdc++ in a
+  # directory ld.so does not search by default. Embed that directory as a
+  # build rpath so test executables linked against it run without needing
+  # LD_LIBRARY_PATH set.
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    execute_process(
+      COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libstdc++.so
+      OUTPUT_VARIABLE XYZ_PROTOCOL_LIBSTDCXX_PATH
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    get_filename_component(XYZ_PROTOCOL_LIBSTDCXX_PATH
+                            "${XYZ_PROTOCOL_LIBSTDCXX_PATH}" REALPATH)
+    get_filename_component(XYZ_PROTOCOL_LIBSTDCXX_DIRECTORY
+                            "${XYZ_PROTOCOL_LIBSTDCXX_PATH}" DIRECTORY)
+    list(APPEND CMAKE_BUILD_RPATH "${XYZ_PROTOCOL_LIBSTDCXX_DIRECTORY}")
   endif()
 endif()
 
