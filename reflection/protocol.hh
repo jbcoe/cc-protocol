@@ -411,10 +411,11 @@ inline constexpr bool is_protocol_conformant_v =
 // ---------------------------------------------------------------------------
 // protocol<I, Allocator>
 //
-// WARNING: Vtable layouts in `protocol` and `detail::vtable_generator<I>::vtable`
-// are currently inconsistent. Calling member functions of interface `I` passes
-// signature checks at compile time, but triggers invalid `reinterpret_cast`
-// operations, undefined behavior, and potential segmentation faults at runtime.
+// WARNING: Vtable layouts in `protocol` and
+// `detail::vtable_generator<I>::vtable` are currently inconsistent. Calling
+// member functions of interface `I` passes signature checks at compile time,
+// but triggers invalid `reinterpret_cast` operations, undefined behavior, and
+// potential segmentation faults at runtime.
 // ---------------------------------------------------------------------------
 template <typename I, typename Alloc = std::allocator<std::byte>>
 class protocol
