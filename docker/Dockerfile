@@ -28,6 +28,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/bin/clang-tidy-22 /usr/local/bin/clang-tidy
 
+# Install a GCC trunk snapshot for the C++26 reflection backend, from
+# https://jwakely.github.io/pkg-gcc-latest/. Ubuntu's gcc-16 package (installed
+# above) is a frozen experimental snapshot whose reflection support no longer
+# receives fixes (issue #122), so we prefer this continuously-updated trunk
+# build when available. It is x86_64 only, so other architectures fall back to
+# gcc-16. It installs to /opt/gcc-latest; scripts/cmake.py locates it there
+# explicitly, and CMakeLists.txt adds a build rpath so linked executables can
+# find its libstdc++ at runtime without any PATH or LD_LIBRARY_PATH changes.
+RUN ARCH=$(dpkg --print-architecture) && \
+    case "$ARCH" in \
+        amd64) \
+            wget -nv https://kayari.org/gcc-latest/gcc-latest.deb -O /tmp/gcc-latest.deb \
+            && apt-get update && apt-get install -y --no-install-recommends /tmp/gcc-latest.deb \
+            && rm -f /tmp/gcc-latest.deb \
+            && rm -rf /var/lib/apt/lists/* \
+            ;; \
+        *) echo "gcc-latest is x86_64-only; the reflection build will fall back to gcc-16 on $ARCH" ;; \
+    esac
+
 # Install bazelisk.
 RUN ARCH=$(dpkg --print-architecture) && \
     wget https://github.com/bazelbuild/bazelisk/releases/download/v1.25.0/bazelisk-linux-${ARCH} -O /usr/local/bin/bazelisk \
