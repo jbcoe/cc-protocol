@@ -142,11 +142,11 @@ struct value_capturer {
 };
 
 constexpr void report(check_result result, std::string_view expression_text,
-                       std::source_location location) {
+                      std::source_location location) {
   if (result.passed) return;
   std::string message = std::string(location.file_name()) + ":" +
-                         to_display_string(location.line()) +
-                         ": check failed: " + std::string(expression_text);
+                        to_display_string(location.line()) +
+                        ": check failed: " + std::string(expression_text);
   if (!result.expansion.empty()) {
     message += " [" + result.expansion + "]";
   }
@@ -157,23 +157,30 @@ constexpr void report(check_result result, std::string_view expression_text,
 // applied to the captured value.
 template <typename Lhs>
 constexpr void report(captured_value<Lhs> value,
-                       std::string_view expression_text,
-                       std::source_location location) {
+                      std::string_view expression_text,
+                      std::source_location location) {
   report(value.evaluate(), expression_text, location);
 }
 
 }  // namespace detail::consteval_check
 }  // namespace xyz
 
-#define XYZ_CONSTEVAL_CHECK(...)                                          \
-  do {                                                                    \
-    _Pragma("GCC diagnostic push")                                        \
-        _Pragma("GCC diagnostic ignored \"-Wparentheses\"")               \
-            ::xyz::detail::consteval_check::report(                       \
-                (::xyz::detail::consteval_check::value_capturer{} <=      \
-                 __VA_ARGS__),                                            \
-                #__VA_ARGS__, std::source_location::current());           \
-    _Pragma("GCC diagnostic pop")                                         \
+// GCC's -Wparentheses fires on `capturer <= lhs == rhs`, so the capture is
+// bracketed by push/pop pragmas. Kept as separate macros so that the main
+// macro below stays readable after clang-format.
+#define XYZ_CONSTEVAL_CHECK_INTERNAL_SUPPRESS_PARENTHESES_WARNINGS \
+  _Pragma("GCC diagnostic push")                                   \
+      _Pragma("GCC diagnostic ignored \"-Wparentheses\"")
+#define XYZ_CONSTEVAL_CHECK_INTERNAL_RESTORE_WARNINGS \
+  _Pragma("GCC diagnostic pop")
+
+#define XYZ_CONSTEVAL_CHECK(...)                                           \
+  do {                                                                     \
+    XYZ_CONSTEVAL_CHECK_INTERNAL_SUPPRESS_PARENTHESES_WARNINGS             \
+    ::xyz::detail::consteval_check::report(                                \
+        (::xyz::detail::consteval_check::value_capturer{} <= __VA_ARGS__), \
+        #__VA_ARGS__, std::source_location::current());                    \
+    XYZ_CONSTEVAL_CHECK_INTERNAL_RESTORE_WARNINGS                          \
   } while (false)
 
 #endif  // XYZ_REFLECTION_CONSTEVAL_CHECK_H_
