@@ -25,10 +25,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <meta>
 #include <optional>
 #include <ranges>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
+
+#include "consteval_check.h"
 
 // A very brief (and intentionally incomplete) tour of C++26 reflection.
 
@@ -80,21 +81,25 @@ TEST(TutorialsReflection, MetaInfoQueries) {
 TEST(TutorialsReflection, MembersOfWithConstevalBlock) {
   // `nonstatic_data_members_of` inspects a class's members.
 
-  // We use `throw` inside a `consteval` block rather than `static_assert`
+  // We use a check inside a `consteval` block rather than `static_assert`
   // or `EXPECT_*`: `static_assert` needs `members` to independently be a
   // constant expression, and `EXPECT_*`'s comparison helpers aren't
   // `constexpr` functions.
   // The body of a `consteval` block runs at compile time.
 
+  // A bare `throw std::runtime_error("...")` would work too, but the
+  // resulting diagnostic only shows the hand-written string, not what was
+  // actually compared. `XYZ_CONSTEVAL_CHECK` decomposes the expression and
+  // throws `xyz::consteval_check_failure`, whose `what()` carries the
+  // `file:line`, the expression text, and the operand values, e.g.
+  // "reflection.cc:NN: check failed: identifier_of(members[1]) == \"y\"
+  // [\"x\" == \"y\"]". GCC prints `what()` of an uncaught exception thrown
+  // during constant evaluation as part of the compile error.
   consteval {
     auto members = nonstatic_data_members_of(
         ^^Point, std::meta::access_context::current());
-    if (identifier_of(members[0]) != "x") {
-      throw std::runtime_error("members[0] is not \"x\"");
-    }
-    if (identifier_of(members[1]) != "y") {
-      throw std::runtime_error("members[1] is not \"y\"");
-    }
+    XYZ_CONSTEVAL_CHECK(identifier_of(members[0]) == "x");
+    XYZ_CONSTEVAL_CHECK(identifier_of(members[1]) == "y");
   }
 }
 
