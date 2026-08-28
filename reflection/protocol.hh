@@ -529,7 +529,8 @@ class protocol
              is_protocol_conformant_v<I, T> &&
              std::default_initializable<Alloc>)
   constexpr explicit protocol(std::in_place_type_t<T>, Args&&... args)
-      : protocol(std::allocator_arg, Alloc{}, std::forward<Args>(args)...) {}
+      : protocol(std::allocator_arg, Alloc{}, std::in_place_type<T>,
+                 std::forward<Args>(args)...) {}
 
   // Allocator-aware in-place construction from conforming T.
   template <typename T, typename... Args>
@@ -549,8 +550,8 @@ class protocol
              std::default_initializable<Alloc>)
   constexpr explicit protocol(std::in_place_type_t<T>,
                               std::initializer_list<U> il, Args&&... args)
-      : protocol(std::allocator_arg, Alloc{}, il, std::forward<Args>(args)...) {
-  }
+      : protocol(std::allocator_arg, Alloc{}, std::in_place_type<T>, il,
+                 std::forward<Args>(args)...) {}
 
   // Allocator-aware in-place init-list construction from conforming T.
   template <typename T, typename U, typename... Args>
