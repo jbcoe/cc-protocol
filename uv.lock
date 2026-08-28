@@ -21,15 +21,15 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "clang", specifier = "<19.0.0" },
-    { name = "clang-format", specifier = ">=22.1.4" },
+    { name = "clang", specifier = ">=18.1.8" },
+    { name = "clang-format", specifier = ">=23.1.0" },
     { name = "cmake-format", specifier = ">=0.6.13" },
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "pre-commit", specifier = ">=4.2.0" },
-    { name = "pyrefly", specifier = ">=0.62.0" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "ruff", specifier = ">=0.15.7" },
+    { name = "pre-commit", specifier = ">=4.6.2" },
+    { name = "pyrefly", specifier = ">=1.2.0" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "ruff", specifier = ">=0.16.5" },
     { name = "xyz-cppmodel", git = "https://github.com/jbcoe/py_cppmodel.git?rev=eeb0921173dcde828eeb3940d1fdd4f64eaf7e6d" },
 ]
 
