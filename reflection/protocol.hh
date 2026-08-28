@@ -133,12 +133,10 @@ consteval std::meta::info find_vtable_member() {
   std::unreachable();
 }
 
-// ---------------------------------------------------------------------------
 // Vanishing-this-pointer thunk for a synthesised member function.
 //
 // The thunk carries a single operator() whose signature mirrors one method
 // of the Interface type.
-// ---------------------------------------------------------------------------
 template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
           typename Vtable, std::meta::info Member, bool IsConst,
           bool IsNoexcept>
@@ -157,8 +155,7 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   // Provides member-function call syntax. Recovers the EnclosingType pointer
   // through the vanishing-this-pointer cast, widens it to the enclosing
   // protocol/protocol_view object, then calls through its stored vtable
-  // pointer's matching function pointer, passing the viewed/owned object
-  // (not the protocol/protocol_view wrapper itself).
+  // pointer's matching function pointer, passing the viewed/owned object.
   R operator()(Args... args) noexcept(IsNoexcept)
     requires(!IsConst)
   {
@@ -176,9 +173,6 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
     const auto* protocol_object = static_cast<const ProtocolType*>(enclosing);
     const Vtable* vtable = protocol_object->vtable_;
     constexpr std::meta::info entry = vtable_entry();
-    // IsConst is true on this overload, so vtable_generator generated this
-    // entry with a leading `const void*` parameter; object_ (a plain
-    // void*) converts to that implicitly.
     return (*vtable).[:entry:](protocol_object->object_, args...);
   }
 };
@@ -188,8 +182,6 @@ using fn_ptr_t = R (*)(Args...) noexcept(Noexcept);
 
 // A single-member base wrapping the thunk for one interface member function,
 // named after that method (giving the `p.method_name(args)` call syntax).
-// `ProtocolType` and `Vtable` are threaded through to `method_thunk`; see its
-// comment for why they can't be recovered from `member_base` itself.
 template <std::meta::info Member, typename ProtocolType, typename Vtable>
 struct member_base_generator {
   struct member_base;
@@ -233,8 +225,7 @@ struct wrapper_bases : MemberBases... {};
 
 // Returns a `wrapper_bases` specialisation with one base per public,
 // non-special, member function of `interface_type`, giving named members
-// with `operator()` for each. `ProtocolType`/`Vtable` are forwarded to
-// `member_base_generator`.
+// with `operator()` for each.
 //
 // Two bases defining a member of the same name make that name ambiguous to
 // look up through the derived class, so overloaded methods are unsupported
@@ -256,15 +247,11 @@ consteval std::meta::info generate_wrapper_bases() {
 
 // The generated wrapper type for `T`: a `wrapper_bases` specialisation with
 // named members with `operator()` for each public, non-special, member
-// function from `T`. `ProtocolType` is the enclosing protocol/protocol_view
-// specialisation (protocol<T, Allocator> or protocol_view<T>) and `Vtable`
-// is its vtable_generator<T>::vtable: each thunk needs both to reach
-// ProtocolType's `vtable_` pointer and call through it.
+// function from `T`.
 template <typename T, typename ProtocolType, typename Vtable>
 using protocol_wrappers_t =
     typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable>():];
 
-// ---------------------------------------------------------------------------
 // Returns a list of data_member_spec values, one for each member function
 // implemented by `protocol`, each describing a vtable function pointer with
 // signature R(*)(void*, Args...) for a mutable interface method, or
@@ -273,7 +260,6 @@ using protocol_wrappers_t =
 // Because C++ disallows two data members with the same name inside the same
 // class, overloaded methods will cause compile-time errors.
 // We will address this limitation in a follow-up PR.
-// ---------------------------------------------------------------------------
 consteval std::vector<std::meta::info> generate_vtable_specs(
     std::meta::info interface_type) {
   std::vector<std::meta::info> function_pointer_specs;
@@ -424,6 +410,11 @@ inline constexpr bool is_protocol_conformant_v =
 
 // ---------------------------------------------------------------------------
 // protocol<I, Allocator>
+//
+// WARNING: Vtable layouts in `protocol` and `detail::vtable_generator<I>::vtable`
+// are currently inconsistent. Calling member functions of interface `I` passes
+// signature checks at compile time, but triggers invalid `reinterpret_cast`
+// operations, undefined behavior, and potential segmentation faults at runtime.
 // ---------------------------------------------------------------------------
 template <typename I, typename Alloc = std::allocator<std::byte>>
 class protocol
@@ -692,6 +683,9 @@ class protocol
   constexpr bool valueless_after_move() const { return obj_ == nullptr; }
 };
 
+// ---------------------------------------------------------------------------
+// protocol_view<T>
+// ---------------------------------------------------------------------------
 template <typename T>
 class protocol_view
     : public detail::protocol_wrappers_t<
@@ -709,10 +703,6 @@ class protocol_view
   ~protocol_view() = default;
 
   // Construct from any non-const type U that conforms to the Interface T.
-  // U being const is rejected unconditionally, regardless of whether T
-  // actually declares any non-const methods: a simple, T-independent rule
-  // is easier to reason about than one that only rejects const U when it
-  // would actually be unsound.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
                  (!is_protocol_view_v<std::remove_cvref_t<U>>) &&
