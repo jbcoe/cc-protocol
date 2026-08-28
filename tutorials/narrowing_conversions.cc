@@ -20,6 +20,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <mutex>
 #include <shared_mutex>
 #include <string_view>
@@ -183,10 +184,10 @@ TEST(TutorialsNarrowingConversions, NarrowingAWidePointerConcurrently) {
 
   // Enough threads per bird to make first-use races over the same cache
   // entry likely, without turning this into a long-running stress test.
-  constexpr int kThreadsPerBird = 8;
-  std::vector<std::jthread> threads;
+  constexpr std::size_t kThreadsPerBird = 8;
+  std::vector<std::thread> threads;
   threads.reserve(2 * kThreadsPerBird);
-  for (int i = 0; i < kThreadsPerBird; ++i) {
+  for (std::size_t i = 0; i < kThreadsPerBird; ++i) {
     threads.emplace_back([&duck_view] {
       BirdPtr bird(&duck_view);
       EXPECT_EQ(bird.noise(), "Quack");
@@ -196,7 +197,9 @@ TEST(TutorialsNarrowingConversions, NarrowingAWidePointerConcurrently) {
       EXPECT_EQ(bird.noise(), "Screech");
     });
   }
-  // jthreads join automatically when destroyed, so no explicit join loop.
+  for (auto& thread : threads) {
+    thread.join();
+  }
 }
 
 }  // namespace xyz::tutorials::narrowing_a_wide_pointer
