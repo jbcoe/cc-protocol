@@ -13,16 +13,14 @@ on:
       - "CMakePresets.json"
       - "cmake/**"
       - "**/*.j2"
+  # No `paths:` filter here. The `clang-tidy` job is a required status check
+  # for merging to main, and a workflow that is filtered out by `paths:` never
+  # reports a check, which leaves unrelated pull requests blocked as
+  # "Expected - Waiting for status to be reported". Instead, the
+  # `detect-changes` job below decides whether the build needs to run, and a
+  # job skipped by an `if:` condition counts as a passing check.
   pull_request:
     branches: [main]
-    paths:
-      - ".github/workflows/clang-tidy.yml" # This file
-      - "**/*.cc"
-      - "**/*.h"
-      - "**/CMakeLists.txt"
-      - "CMakePresets.json"
-      - "cmake/**"
-      - "**/*.j2"
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -34,7 +32,38 @@ env:
   UV_FROZEN: 1
 
 jobs:
+  detect-changes:
+    # Only pull requests need change detection; pushes to main and scheduled
+    # runs always run clang-tidy.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # Keep in sync with the `push.paths` list above.
+          filters: |
+            relevant:
+              - ".github/workflows/clang-tidy.yml" # This file
+              - "**/*.cc"
+              - "**/*.h"
+              - "**/CMakeLists.txt"
+              - "CMakePresets.json"
+              - "cmake/**"
+              - "**/*.j2"
+
   clang-tidy:
+    needs: detect-changes
+    # Run unless change detection positively reported that nothing relevant
+    # changed. `!cancelled()` lets this job run when `detect-changes` was
+    # skipped (push and schedule events), and an empty output (because
+    # `detect-changes` failed) falls through to running the build rather than
+    # silently passing the required check.
+    if: ${{ !cancelled() && needs.detect-changes.outputs.relevant != 'false' }}
     runs-on: ubuntu-latest
 
     # reviewdog posts review comments on pull requests and check annotations

@@ -36,7 +36,10 @@ The script will configure, build, and execute tests.
 ### Static Analysis
 
 CI runs clang-tidy on every translation unit and fails on any finding
-(`WarningsAsErrors: '*'` in `.clang-tidy`). To reproduce locally, with
+(`WarningsAsErrors: '*'` in `.clang-tidy`). The `clang-tidy` job is a required
+status check for merging to `main`; on pull requests that touch no C++, CMake,
+or template sources the job is skipped, which counts as passing. To reproduce
+locally, with
 `clang-tidy` on your `PATH` (the devcontainer installs `clang-tidy-22`):
 
 ```bash
