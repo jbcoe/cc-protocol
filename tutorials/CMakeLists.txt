@@ -29,6 +29,8 @@ if(XYZ_PROTOCOL_BUILD_REFLECTION)
         reflection_tutorial
         VERSION
         26
+        LINK_LIBRARIES
+        xyz_protocol::reflection_protocol
         FILES
         reflection.cc)
     target_compile_options(reflection_tutorial PRIVATE -freflection)
