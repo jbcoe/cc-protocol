@@ -20,6 +20,14 @@ using xyz::reflection::protocol_view;
 
 namespace {
 
+// Concepts for negative member function tests: a requires-expression naming a
+// member that does not exist is only a substitution failure in a template.
+template <typename P>
+concept has_update = requires(P& p) { p.update(0); };
+
+template <typename P>
+concept has_get_value = requires(P& p) { p.get_value(); };
+
 // ---------------------------------------------------------------------------
 // Type trait tests.
 // ---------------------------------------------------------------------------
@@ -36,6 +44,7 @@ TEST(ReflectionProtocolViewTest, IsProtocolViewV) {
   struct Interface {};
 
   static_assert(is_protocol_view_v<protocol_view<Interface>>);
+  static_assert(is_protocol_view_v<protocol_view<const Interface>>);
   static_assert(!is_protocol_view_v<protocol<Interface>>);
   static_assert(!is_protocol_view_v<Interface>);
 }
@@ -55,6 +64,13 @@ TEST(ReflectionProtocolViewTest, CheckSpecialMembers) {
   static_assert(std::is_copy_assignable_v<protocol_view<A>>);
   static_assert(std::is_move_assignable_v<protocol_view<A>>);
   static_assert(std::is_destructible_v<protocol_view<A>>);
+
+  static_assert(!std::is_default_constructible_v<protocol_view<const A>>);
+  static_assert(std::is_copy_constructible_v<protocol_view<const A>>);
+  static_assert(std::is_move_constructible_v<protocol_view<const A>>);
+  static_assert(std::is_copy_assignable_v<protocol_view<const A>>);
+  static_assert(std::is_move_assignable_v<protocol_view<const A>>);
+  static_assert(std::is_destructible_v<protocol_view<const A>>);
 }
 
 TEST(ReflectionProtocolViewTest,
@@ -364,6 +380,25 @@ TEST(ReflectionProtocolViewTest, IsConstructibleFromConformingType) {
       !std::is_constructible_v<protocol_view<Interface>, NonConforming>);
 }
 
+TEST(ReflectionProtocolViewTest, ConstViewIsConstructibleFromConstObject) {
+  struct Interface {
+    std::string_view name() const noexcept;
+  };
+
+  struct Conforming {
+    std::string_view name() const noexcept;
+  };
+
+  struct NonConforming {};
+
+  static_assert(std::is_constructible_v<protocol_view<const Interface>,
+                                        const Conforming&>);
+  static_assert(
+      std::is_constructible_v<protocol_view<const Interface>, Conforming&>);
+  static_assert(!std::is_constructible_v<protocol_view<const Interface>,
+                                         const NonConforming&>);
+}
+
 TEST(ReflectionProtocolTest, IsConstructibleInPlaceFromConformingType) {
   struct Interface {
     std::string_view name() const noexcept;
@@ -409,17 +444,44 @@ TEST(ReflectionProtocolViewTest, ConstMemberFunction) {
   });
 }
 
-TEST(ReflectionProtocolViewTest, NonConstMemberFunctionNotInvocableFromConst) {
+TEST(ReflectionProtocolViewTest, NonConstMemberFunctionInvocableFromConstView) {
   struct Interface {
     void update(int value);
   };
 
-  // TODO(jbcoe): reassess how `const protocol_view` works.
-  // A view-type should not propagate const.
-  static_assert(
-      !std::is_invocable_v<
-          decltype((std::declval<const protocol_view<Interface>&>().update)),
-          int>);
+  // `protocol_view` has shallow const: a const view still exposes the
+  // non-const member functions of the interface.
+  static_assert(requires(const protocol_view<Interface>& p) {
+    { p.update(0) } -> std::same_as<void>;
+  });
+  static_assert(has_update<const protocol_view<Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewExposesOnlyConstMemberFunctions) {
+  struct Interface {
+    int get_value() const;
+    void update(int value);
+  };
+
+  static_assert(has_get_value<protocol_view<const Interface>>);
+  static_assert(has_get_value<const protocol_view<const Interface>>);
+  static_assert(!has_update<protocol_view<const Interface>>);
+  static_assert(!has_update<const protocol_view<const Interface>>);
+
+  static_assert(requires(const protocol_view<const Interface>& p) {
+    { p.get_value() } -> std::same_as<int>;
+  });
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewOfInterfaceWithNoConstMembers) {
+  struct Interface {
+    void update(int value);
+  };
+
+  // A const view of an interface with no const member functions is
+  // well-formed but exposes nothing.
+  static_assert(!has_update<protocol_view<const Interface>>);
+  static_assert(std::is_copy_constructible_v<protocol_view<const Interface>>);
 }
 
 TEST(ReflectionProtocolViewTest, SingleParameterMemberFunction) {
@@ -497,9 +559,13 @@ TEST(ReflectionProtocolTest, NonConstMemberFunctionNotInvocableFromConst) {
     void update(int value);
   };
 
+  // `protocol` propagates const: a const protocol exposes only the const
+  // member functions of the interface.
   static_assert(
       !std::is_invocable_v<
           decltype((std::declval<const protocol<Interface>&>().update)), int>);
+  static_assert(has_update<protocol<Interface>>);
+  static_assert(!has_update<const protocol<Interface>>);
 }
 
 TEST(ReflectionProtocolTest, SingleParameterMemberFunction) {

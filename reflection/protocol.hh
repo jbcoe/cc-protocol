@@ -143,9 +143,23 @@ struct method_thunk<R (*)(Args...), EnclosingType, IsConst, IsNoexcept> {
 template <typename R, typename... Args>
 using fn_ptr_t = R (*)(Args...);
 
+// How generated stubs treat the const-qualification of interface members.
+enum class const_policy {
+  // `protocol<I>`: as declared in `I`, so `const protocol<I>` exposes only the
+  // const member functions of `I` (const propagates).
+  preserve,
+  // `protocol_view<I>`: every stub is const-qualified regardless of `I`
+  // (shallow const, as for `std::span`).
+  all_const,
+  // `protocol_view<const I>`: only the const member functions of `I`.
+  const_only,
+};
+
 // A single-member base wrapping the thunk for one interface member function,
 // named after that method (giving the `p.method_name(args)` call syntax).
-template <std::meta::info Member>
+// `IsConst` selects the const-qualification of the generated stub, which may
+// differ from that of `Member` (see `const_policy`).
+template <std::meta::info Member, bool IsConst>
 struct member_base_generator {
   struct member_base;
   consteval {
@@ -162,7 +176,7 @@ struct member_base_generator {
     // clang-format off
     std::meta::info thunk_type = substitute(
         ^^method_thunk, {fn_ptr_type, ^^member_base,
-                       std::meta::reflect_constant(is_const(Member)),
+                       std::meta::reflect_constant(IsConst),
                        std::meta::reflect_constant(is_noexcept(Member))});
 
     define_aggregate(
@@ -175,8 +189,9 @@ struct member_base_generator {
   }
 };
 
-template <std::meta::info Member>
-using member_base_generator_t = member_base_generator<Member>::member_base;
+template <std::meta::info Member, bool IsConst>
+using member_base_generator_t =
+    member_base_generator<Member, IsConst>::member_base;
 
 // Combines the single-member base types produced by `member_base_generator`
 // into one type via multiple inheritance.
@@ -184,20 +199,27 @@ template <typename... MemberBases>
 struct stub_bases : MemberBases... {};
 
 // Returns a `stub_bases` specialisation with one base per public, non-special,
-// member function of `interface_type`, giving named members with `operator()`
-// for each.
+// member function of `interface_type` selected by `Policy`, giving named
+// members with `operator()` for each.
 //
 // Two bases defining a member of the same name make that name ambiguous to
 // look up through the derived class, so overloaded methods are unsupported
 // for now.
-template <std::meta::info InterfaceType>
+template <std::meta::info InterfaceType, const_policy Policy>
 consteval std::meta::info generate_stub_bases() {
   std::vector<std::meta::info> member_base_types;
   for (std::meta::info member :
        protocol_interface_functions_of<InterfaceType>) {
+    if (Policy == const_policy::const_only && !is_const(member)) {
+      continue;
+    }
+    const bool stub_is_const =
+        Policy == const_policy::preserve ? is_const(member) : true;
     // clang-format off
-    member_base_types.push_back(dealias(
-        substitute(^^member_base_generator_t, {reflect_constant(member)}))
+    member_base_types.push_back(std::meta::dealias(
+        substitute(^^member_base_generator_t,
+                   {std::meta::reflect_constant(member),
+                    std::meta::reflect_constant(stub_is_const)}))
       );
     // clang-format on
   }
@@ -206,9 +228,9 @@ consteval std::meta::info generate_stub_bases() {
 
 // The generated stub type for `T`: a `stub_bases` specialisation with named
 // members with `operator()` for each public, non-special, member function
-// from `T`.
-template <typename T>
-using protocol_stubs_t = typename[:generate_stub_bases<^^T>():];
+// from `T` selected by `Policy`.
+template <typename T, const_policy Policy = const_policy::preserve>
+using protocol_stubs_t = typename[:generate_stub_bases<^^T, Policy>():];
 
 }  // namespace detail
 
@@ -514,8 +536,13 @@ class protocol : public detail::protocol_stubs_t<I> {
   constexpr bool valueless_after_move() const { return obj_ == nullptr; }
 };
 
+// `protocol_view<T>` is a non-owning reference with shallow const: every
+// member function of `T` is exposed as a const member function of the view,
+// so `const protocol_view<T>` does not restrict the interface. Use
+// `protocol_view<const T>` to view a const object.
 template <typename T>
-class protocol_view : public detail::protocol_stubs_t<T> {
+class protocol_view
+    : public detail::protocol_stubs_t<T, detail::const_policy::all_const> {
  public:
   // The default constructor is deleted as a default constructed
   // `protocol_view` would be empty.
@@ -529,6 +556,31 @@ class protocol_view : public detail::protocol_stubs_t<T> {
   ~protocol_view() = default;
 
   // Construct from any type U that conforms to the Interface T.
+  template <typename U>
+    requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
+             (!is_protocol_view_v<std::remove_cvref_t<U>>)
+  explicit protocol_view(const U& object);
+};
+
+// `protocol_view<const T>` views a const object and exposes only the const
+// member functions of `T`.
+template <typename T>
+class protocol_view<const T>
+    : public detail::protocol_stubs_t<T, detail::const_policy::const_only> {
+ public:
+  // The default constructor is deleted as a default constructed
+  // `protocol_view` would be empty.
+  protocol_view() = delete;
+
+  // Remaining special member functions are defaulted.
+  protocol_view(const protocol_view&) = default;
+  protocol_view(protocol_view&&) noexcept = default;
+  protocol_view& operator=(const protocol_view&) = default;
+  protocol_view& operator=(protocol_view&&) noexcept = default;
+  ~protocol_view() = default;
+
+  // Construct from any (possibly const) type U that conforms to the
+  // Interface T.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
              (!is_protocol_view_v<std::remove_cvref_t<U>>)
