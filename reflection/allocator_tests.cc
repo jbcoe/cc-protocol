@@ -406,7 +406,7 @@ TEST(ProtocolTest, SwapUnequal) {
 //   {
 //     TestAlloc alloc1{&allocs, &deallocs};
 //     xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
-//                                          Tester{25}};
+//                                          Tester(25)};
 //     // Blank is a subset of IntLike.
 //     xyz::protocol<Blank, TestAlloc> p2{p1};
 //     // This is a deep copy still, so space must be allocated once for
@@ -429,7 +429,7 @@ TEST(ProtocolTest, SwapUnequal) {
 //     TestAlloc alloc2{&allocs2, &deallocs2};
 
 //     xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
-//                                          Tester{25}};
+//                                          Tester(25)};
 //     xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2, p1};
 //     EXPECT_EQ(allocs1, 1);  // Allocated p1.
 //     EXPECT_EQ(allocs2, 1);  // Allocated p2.
@@ -449,7 +449,7 @@ TEST(ProtocolTest, SwapUnequal) {
 //   {
 //     TestAlloc alloc1{&allocs, &deallocs};
 //     xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
-//                                          Tester{25}};
+//                                          Tester(25)};
 //     xyz::protocol<Blank, TestAlloc> p2{std::move(p1)};
 //     // Even though the interfaces are different, the allocators are the
 //     // same. Move construction is a pointer swap.
@@ -475,7 +475,7 @@ TEST(ProtocolTest, SwapUnequal) {
 //     TestAlloc alloc2{&allocs, &deallocs};
 
 //     xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
-//                                          Tester{25}};
+//                                          Tester(25)};
 //     xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2,
 //                                        std::move(p1)};
 //     // Even though we explicitly provide an allocator, they both
@@ -497,7 +497,7 @@ TEST(ProtocolTest, SwapUnequal) {
 //     TestAlloc alloc2{&allocs2, &deallocs2};
 
 //     xyz::protocol<IntLike, TestAlloc> p1{std::allocator_arg, alloc1,
-//                                          Tester{25}};
+//                                          Tester(25)};
 //     xyz::protocol<Blank, TestAlloc> p2{std::allocator_arg, alloc2,
 //                                        std::move(p1)};
 //     // alloc1 != alloc2, so we must perform a new allocation for p2
@@ -719,7 +719,7 @@ TEST(ProtocolTest, ConstructionException) {
 //     bool should_throw{false};
 
 //     ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
-//     ThrowingProtocol p1{std::allocator_arg, alloc, Tester{10}};
+//     ThrowingProtocol p1{std::allocator_arg, alloc, Tester(10)};
 //     // p1 was allocated safely.
 //     EXPECT_EQ(allocs, 1);
 
@@ -742,8 +742,8 @@ TEST(ProtocolTest, ConstructionException) {
 
 //     // p1 and p2 are both constructed without issue.
 //     ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
-//     ThrowingProtocol p1{std::allocator_arg, alloc, Tester{10}};
-//     ThrowingProtocol p2{std::allocator_arg, alloc, Tester{20}};
+//     ThrowingProtocol p1{std::allocator_arg, alloc, Tester(10)};
+//     ThrowingProtocol p2{std::allocator_arg, alloc, Tester(20)};
 
 //     EXPECT_EQ(allocs, 2);
 //     EXPECT_EQ(deallocs, 0);
@@ -789,7 +789,7 @@ TEST(ProtocolTest, EqualMoveConstructionNoException) {
 //     bool should_throw{false};
 
 //     ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw};
-//     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester{25}};
+//     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
 
 //     should_throw = true;
 //     ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw};
@@ -848,10 +848,10 @@ TEST(ProtocolTest, EqualMoveAssignmentNoException) {
 //     bool should_throw2{false};
 
 //     ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw1};
-//     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester{25}};
+//     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
 
 //     ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw2};
-//     ThrowingProtocol p2{std::allocator_arg, alloc2, Tester{55}};
+//     ThrowingProtocol p2{std::allocator_arg, alloc2, Tester(55)};
 
 //     EXPECT_EQ(allocs1, 1);
 //     EXPECT_EQ(allocs2, 1);
