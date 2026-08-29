@@ -6,11 +6,14 @@
 #include <gtest/gtest.h>
 
 #include <concepts>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include "tracking_allocator.h"
 
 using xyz::reflection::is_protocol_conformant;
 using xyz::reflection::is_protocol_v;
@@ -652,17 +655,19 @@ TEST(ReflectionProtocolViewTest, MixedConstAndMutatingMemberFunctions) {
   EXPECT_EQ(c.value, 7);
 }
 
-// Member function signature tests for protocol.
+// Member function forwarding tests for protocol.
 
 TEST(ReflectionProtocolTest, ConstMemberFunction) {
   struct Interface {
     int get_value() const;
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(const protocol<Interface>& p) {
-    { p.get_value() } -> std::same_as<int>;
-  });
+  struct Conforming {
+    int get_value() const { return 42; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.get_value(), 42);
 }
 
 TEST(ReflectionProtocolTest, NonConstMemberFunctionNotInvocableFromConst) {
@@ -682,12 +687,21 @@ TEST(ReflectionProtocolTest, NonConstMemberFunctionNotInvocableFromConst) {
 TEST(ReflectionProtocolTest, SingleParameterMemberFunction) {
   struct Interface {
     void update(int value);
+    int get() const;
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(protocol<Interface>& p) {
-    { p.update(0) } -> std::same_as<void>;
-  });
+  struct Conforming {
+    int last_value = 0;
+
+    void update(int value) { last_value = value; }
+
+    int get() const { return last_value; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  p.update(42);
+  EXPECT_EQ(p.get(), 42);
+  static_assert(!noexcept(p.update(1)));
 }
 
 TEST(ReflectionProtocolTest, NoexceptMemberFunction) {
@@ -695,10 +709,13 @@ TEST(ReflectionProtocolTest, NoexceptMemberFunction) {
     double compute(double input) noexcept;
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(protocol<Interface>& p) {
-    { p.compute(0.0) } noexcept -> std::same_as<double>;
-  });
+  struct Conforming {
+    double compute(double input) noexcept { return input * 2.0; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.compute(21.0), 42.0);
+  static_assert(noexcept(p.compute(1.0)));
 }
 
 TEST(ReflectionProtocolTest, MultiParameterMemberFunction) {
@@ -706,21 +723,31 @@ TEST(ReflectionProtocolTest, MultiParameterMemberFunction) {
     int add(int a, int b) const;
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(const protocol<Interface>& p) {
-    { p.add(1, 2) } -> std::same_as<int>;
-  });
+  struct Conforming {
+    int add(int a, int b) const { return a + b; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.add(1, 2), 3);
 }
 
 TEST(ReflectionProtocolTest, VoidMemberFunction) {
   struct Interface {
     void reset();
+    bool was_reset() const;
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(protocol<Interface>& p) {
-    { p.reset() } -> std::same_as<void>;
-  });
+  struct Conforming {
+    bool reset_flag = false;
+
+    void reset() { reset_flag = true; }
+
+    bool was_reset() const { return reset_flag; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  p.reset();
+  EXPECT_TRUE(p.was_reset());
 }
 
 TEST(ReflectionProtocolTest, MultipleMemberFunctions) {
@@ -729,10 +756,238 @@ TEST(ReflectionProtocolTest, MultipleMemberFunctions) {
     double multiply(double x, double y) const noexcept;
   };
 
-  // TODO(jbcoe): replace static assertion with runtime test.
-  static_assert(requires(const protocol<Interface>& p) {
-    { p.add(1.0, 2.0) } noexcept -> std::same_as<double>;
-    { p.multiply(3.0, 4.0) } noexcept -> std::same_as<double>;
-  });
+  struct Conforming {
+    double add(double x, double y) const noexcept { return x + y; }
+
+    double multiply(double x, double y) const noexcept { return x * y; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.add(1.0, 2.0), 3.0);
+  EXPECT_EQ(p.multiply(3.0, 4.0), 12.0);
+}
+
+TEST(ReflectionProtocolTest, MixedConstAndMutatingMemberFunctions) {
+  struct Interface {
+    int get() const;
+    void set(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.get(), 0);
+  p.set(7);
+  EXPECT_EQ(p.get(), 7);
+}
+
+TEST(ReflectionProtocolTest, ForwardingAfterCopyConstruction) {
+  struct Interface {
+    int get() const;
+    void set(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  protocol<Interface> a(Conforming{});
+  a.set(1);
+  protocol<Interface> b(a);
+  b.set(2);
+
+  // protocol owns a copy of the underlying object, so copies are
+  // independent of one another.
+  EXPECT_EQ(a.get(), 1);
+  EXPECT_EQ(b.get(), 2);
+}
+
+TEST(ReflectionProtocolTest, ForwardingAfterMoveConstruction) {
+  struct Interface {
+    int get() const;
+    void set(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  protocol<Interface> a(Conforming{});
+  a.set(5);
+  protocol<Interface> b(std::move(a));
+
+  EXPECT_EQ(b.get(), 5);
+  EXPECT_TRUE(a.valueless_after_move());
+}
+
+TEST(ReflectionProtocolTest, ForwardingAfterCopyAssignment) {
+  struct Interface {
+    int get() const;
+    void set(int value);
+  };
+
+  // Counter and Doubler both conform to Interface but have different
+  // semantics for set(), so we can tell whether copy assignment updated
+  // the vtable pointer.
+  struct Counter {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  struct Doubler {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value * 2; }
+  };
+
+  protocol<Interface> a(Counter{});
+  protocol<Interface> b(Doubler{});
+
+  a = b;
+  a.set(10);
+  EXPECT_EQ(a.get(), 20);  // a now has Doubler's semantics.
+}
+
+TEST(ReflectionProtocolTest, ForwardingAfterMoveAssignment) {
+  struct Interface {
+    int get() const;
+    void set(int value);
+  };
+
+  struct Counter {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  struct Doubler {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value * 2; }
+  };
+
+  protocol<Interface> a(Counter{});
+  protocol<Interface> b(Doubler{});
+
+  a = std::move(b);
+  a.set(10);
+  EXPECT_EQ(a.get(), 20);  // a now has Doubler's semantics.
+  EXPECT_TRUE(b.valueless_after_move());
+}
+
+TEST(ReflectionProtocolTest, ForwardingAfterSwap) {
+  struct Interface {
+    int get() const;
+    void set(int value);
+  };
+
+  struct Counter {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  struct Doubler {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value * 2; }
+  };
+
+  protocol<Interface> a(Counter{});
+  protocol<Interface> b(Doubler{});
+
+  using std::swap;
+  swap(a, b);
+
+  a.set(10);
+  EXPECT_EQ(a.get(), 20);  // a now behaves like Doubler.
+
+  b.set(10);
+  EXPECT_EQ(b.get(), 10);  // b now behaves like Counter.
+}
+
+TEST(ReflectionProtocolTest, ForwardingWithInPlaceConstruction) {
+  struct Interface {
+    int get() const;
+  };
+
+  struct Conforming {
+    int value;
+
+    explicit Conforming(int initial_value) : value(initial_value) {}
+
+    int get() const { return value; }
+  };
+
+  protocol<Interface> p(std::in_place_type<Conforming>, 42);
+  EXPECT_EQ(p.get(), 42);
+}
+
+TEST(ReflectionProtocolTest, ForwardingWithCustomAllocator) {
+  struct Interface {
+    int get() const;
+  };
+
+  struct Conforming {
+    int value;
+
+    explicit Conforming(int initial_value) : value(initial_value) {}
+
+    int get() const { return value; }
+  };
+
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+  xyz::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
+
+  protocol<Interface, xyz::TrackingAllocator<std::byte>> p(
+      std::allocator_arg, alloc, Conforming(42));
+
+  EXPECT_EQ(p.get(), 42);
+  EXPECT_EQ(allocs, 1);
+}
+
+TEST(ReflectionProtocolTest, ConstMemberFunctionOnConstProtocol) {
+  struct Interface {
+    int get_value() const;
+  };
+
+  struct Conforming {
+    int get_value() const { return 42; }
+  };
+
+  const protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.get_value(), 42);
+
+  // A non-const member function is still not invocable on a const protocol;
+  // that assertion is already covered above by
+  // NonConstMemberFunctionNotInvocableFromConst.
 }
 }  // namespace

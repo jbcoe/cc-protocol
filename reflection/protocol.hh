@@ -22,12 +22,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // A C++26-reflection-based implementation of protocol and protocol_view.
 //
-// protocol_view has a minimal but working implementation: functions are
-// dispatched at runtime using a vtable.
-//
-// protocol currently supports only compile-time signature checks for member
-// functions; ownership (construction, copy, move, destruction) is
-// allocator-aware and implemented.
+// Both `protocol` and `protocol_view` dispatch member function calls at
+// runtime through a generated vtable; `protocol`'s vtable extends
+// `protocol_view`'s with destroy/copy/move entries used for allocator-aware
+// ownership.
 //
 // Neither implementation currently supports overloaded member functions or
 // operators.
@@ -373,10 +371,11 @@ struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
 // Builds a vtable for `T` whose entries call through to the corresponding
 // member of `U`.
 //
-// For `const_policy::all_const` (`protocol_view<T>`) every entry is
-// populated: the view's constructor only accepts a non-const U (see its
-// `!std::is_const_v<U>` constraint), so a sound pointer to call any member,
-// const or mutating, through is always available.
+// For `const_policy::propagate` (`protocol<I>`) and `const_policy::all_const`
+// (`protocol_view<T>`) every entry is populated: `protocol` stores a decayed,
+// non-const `TNorm`, and the view's constructor only accepts a non-const U
+// (see its `!std::is_const_v<U>` constraint), so a sound pointer to call any
+// member, const or mutating, through is always available.
 //
 // For `const_policy::const_only` (`protocol_view<const T>`) only the entries
 // for const members of `T` are populated; the view generates no wrapper for
@@ -451,9 +450,9 @@ inline constexpr bool is_protocol_conformant_v =
 // ---------------------------------------------------------------------------
 // protocol<I, Allocator>
 //
-// Vtable layouts in `protocol` and `detail::vtable_generator<I>::vtable` are
-// currently inconsistent. Tests for `protocol` in `reflection/protocol_test.cc`
-// only check the thunk's signature.
+// Owning, allocator-aware, value-semantic. Member functions are forwarded
+// through the owning vtable (see `vtable` below). Calling a member function
+// on a valueless (moved-from) `protocol` is a precondition violation.
 // ---------------------------------------------------------------------------
 template <typename I, typename Alloc = std::allocator<std::byte>>
 class protocol
@@ -495,50 +494,80 @@ class protocol
     return obj;
   }
 
-  // Stores necessary functions for rule-of-five implementation.
-  // NOTE: This should be extended/unified with the view vtable.
-  // Maybe the owning vtable can inherit from the view one?
-  struct vtable {
+  using view_vtable = typename detail::vtable_generator<I>::vtable;
+
+  // Extends the generated per-member-function vtable with the entries needed
+  // for ownership. Because it derives from `view_vtable`, the synthesised
+  // member function thunks (which take a `const view_vtable*`) can call
+  // through a `const vtable*` unchanged.
+  struct vtable : view_vtable {
     void (*destroy)(const Alloc& alloc, void* data);
     void* (*copy)(const Alloc& alloc, const void* data);
     void* (*move)(const Alloc& alloc, void* data);
   };
 
+  // Builds the vtable for the stored type `TNorm`: the member function
+  // entries call through to `TNorm`'s conforming member functions and the
+  // ownership entries use the (rebound) allocator.
+  template <typename T, typename TNorm = std::decay_t<T>>
+  static consteval vtable make_vtable_for() {
+    vtable result{};
+    static_cast<view_vtable&>(result) =
+        detail::make_view_vtable<I, TNorm, detail::const_policy::propagate>();
+
+    result.destroy = +[](const Alloc& alloc, void* data) -> void {
+      rebound<TNorm> new_alloc{alloc};
+      auto* typed = static_cast<TNorm*>(data);
+      rebound_traits<TNorm>::destroy(new_alloc, typed);
+      rebound_traits<TNorm>::deallocate(new_alloc, typed, 1);
+    };
+
+    // Copy construction and assignment should only reach this
+    // if the interface is copy constructible.
+    result.copy = +[](const Alloc& alloc, const void* data) -> void* {
+      if constexpr (std::is_copy_constructible_v<I>) {
+        return create<TNorm>(alloc, *static_cast<const TNorm*>(data));
+      } else {
+        std::unreachable();
+      }
+    };
+
+    result.move = +[](const Alloc& alloc, void* data) -> void* {
+      return create<TNorm>(alloc, std::move(*static_cast<TNorm*>(data)));
+    };
+
+    return result;
+  }
+
   // Creates a vtable for the type T. TNorm is used throughout
   // this file to create a convenient alias for a decayed type.
-  template <typename T, typename TNorm = std::decay_t<T>>
-  static constexpr vtable vtable_for = {
-      .destroy = +[](const Alloc& alloc, void* data) -> void {
-        rebound<TNorm> new_alloc{alloc};
-        auto* typed = static_cast<TNorm*>(data);
-        rebound_traits<TNorm>::destroy(new_alloc, typed);
-        rebound_traits<TNorm>::deallocate(new_alloc, typed, 1);
-      },
-
-      // Copy construction and assignment should only reach this
-      // if the interface is copy constructible.
-      .copy = +[](const Alloc& alloc, const void* data) -> void* {
-        if constexpr (std::is_copy_constructible_v<I>) {
-          return create<TNorm>(alloc, *static_cast<const TNorm*>(data));
-        } else {
-          std::unreachable();
-        }
-      },
-
-      .move = +[](const Alloc& alloc, void* data) -> void* {
-        return create<TNorm>(alloc, std::move(*static_cast<TNorm*>(data)));
-      }};
+  template <typename T>
+  static constexpr vtable vtable_for = make_vtable_for<T>();
 
   // A no-op vtable that is the stand-in for a nullptr vtable. Prevents
-  // redundant null checks throughout the code.
-  static constexpr vtable null_vtable = {
-      .destroy = +[](const Alloc&, void*) -> void {},
-      .copy = +[](const Alloc&, const void*) -> void* { return nullptr; },
-      .move = +[](const Alloc&, void*) -> void* { return nullptr; }};
+  // redundant null checks in the special member functions. The member
+  // function entries are left null: calling a member function on a
+  // valueless protocol is a precondition violation.
+  static consteval vtable make_null_vtable() {
+    vtable result{};
+    result.destroy = +[](const Alloc&, void*) -> void {};
+    result.copy = +[](const Alloc&, const void*) -> void* { return nullptr; };
+    result.move = +[](const Alloc&, void*) -> void* { return nullptr; };
+    return result;
+  }
+
+  static constexpr vtable null_vtable = make_null_vtable();
+
+  // Grants the synthesised member thunks access to `object_`/`vtable_` so
+  // they can locate and call through the matching vtable entry.
+  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
+            typename Vtable, std::meta::info Member, bool IsConst,
+            bool IsNoexcept>
+  friend struct detail::method_thunk;
 
   [[no_unique_address]] Alloc alloc_;
 
-  void* obj_ = nullptr;
+  void* object_ = nullptr;
   const vtable* vtable_ = &null_vtable;
 
  public:
@@ -560,7 +589,7 @@ class protocol
              is_protocol_conformant_v<I, TNorm>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, T&& obj)
       : alloc_(a),
-        obj_(create<T>(alloc_, std::forward<T>(obj))),
+        object_(create<T>(alloc_, std::forward<T>(obj))),
         vtable_(&vtable_for<T>) {}
 
   // In-place construction from conforming T.
@@ -579,7 +608,7 @@ class protocol
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
                               std::in_place_type_t<T>, Args&&... args)
       : alloc_(a),
-        obj_(create<T>(alloc_, std::forward<Args>(args)...)),
+        object_(create<T>(alloc_, std::forward<Args>(args)...)),
         vtable_(&vtable_for<T>) {}
 
   // In-place construction needs this overload because templates cannot
@@ -601,10 +630,10 @@ class protocol
                               std::in_place_type_t<T>,
                               std::initializer_list<U> il, Args&&... args)
       : alloc_(a),
-        obj_(create<T>(alloc_, il, std::forward<Args>(args)...)),
+        object_(create<T>(alloc_, il, std::forward<Args>(args)...)),
         vtable_(&vtable_for<T>) {}
 
-  constexpr ~protocol() { vtable_->destroy(alloc_, obj_); }
+  constexpr ~protocol() { vtable_->destroy(alloc_, object_); }
 
   // Copy construction.
   constexpr protocol(const protocol& other)
@@ -618,7 +647,7 @@ class protocol
                      const protocol& other)
     requires std::is_copy_constructible_v<I>
       : alloc_(a),
-        obj_(other.vtable_->copy(alloc_, other.obj_)),
+        object_(other.vtable_->copy(alloc_, other.object_)),
         vtable_(other.vtable_) {}
 
   // Move construction.
@@ -631,14 +660,14 @@ class protocol
       : alloc_(a), vtable_(other.vtable_) {
     if (always_equal || alloc_ == other.alloc_) {
       // Fast path, we can just do a pointer swap.
-      obj_ = other.obj_;
+      object_ = other.object_;
     } else {
       // Slow path, we have to heap allocate and move construct.
-      obj_ = other.vtable_->move(alloc_, other.obj_);
-      other.vtable_->destroy(other.alloc_, other.obj_);
+      object_ = other.vtable_->move(alloc_, other.object_);
+      other.vtable_->destroy(other.alloc_, other.object_);
     }
 
-    other.obj_ = nullptr;
+    other.object_ = nullptr;
     other.vtable_ = &null_vtable;
   }
 
@@ -652,15 +681,15 @@ class protocol
 
     if constexpr (pocca) {
       // Allocate before destruction for strong exception safety.
-      void* new_obj = other.vtable_->copy(other.alloc_, other.obj_);
+      void* new_object = other.vtable_->copy(other.alloc_, other.object_);
 
-      vtable_->destroy(alloc_, obj_);
-      obj_ = new_obj;
+      vtable_->destroy(alloc_, object_);
+      object_ = new_object;
       alloc_ = other.alloc_;
     } else {
-      void* new_obj = other.vtable_->copy(alloc_, other.obj_);
-      vtable_->destroy(alloc_, obj_);
-      obj_ = new_obj;
+      void* new_object = other.vtable_->copy(alloc_, other.object_);
+      vtable_->destroy(alloc_, object_);
+      object_ = new_object;
     }
     vtable_ = other.vtable_;
 
@@ -676,22 +705,22 @@ class protocol
 
     if (always_equal || pocma || alloc_ == other.alloc_) {
       // Fast path: just swap the pointers and (conditionally) the allocators.
-      vtable_->destroy(alloc_, obj_);
-      obj_ = other.obj_;
+      vtable_->destroy(alloc_, object_);
+      object_ = other.object_;
       if constexpr (pocma) {
         alloc_ = other.alloc_;
       }
     } else {
       // Slow path: heap construct and move the object directly. Allocate first
       // for strong exception safety.
-      void* new_obj = other.vtable_->move(alloc_, other.obj_);
-      vtable_->destroy(alloc_, obj_);
-      other.vtable_->destroy(other.alloc_, other.obj_);
+      void* new_object = other.vtable_->move(alloc_, other.object_);
+      vtable_->destroy(alloc_, object_);
+      other.vtable_->destroy(other.alloc_, other.object_);
 
-      obj_ = new_obj;
+      object_ = new_object;
     }
 
-    other.obj_ = nullptr;
+    other.object_ = nullptr;
     vtable_ = std::exchange(other.vtable_, &null_vtable);
 
     return *this;
@@ -708,7 +737,7 @@ class protocol
     if constexpr (pocs) {
       swap(alloc_, other.alloc_);
     }
-    swap(obj_, other.obj_);
+    swap(object_, other.object_);
     swap(vtable_, other.vtable_);
   }
 
@@ -720,7 +749,7 @@ class protocol
 
   constexpr const Alloc& get_allocator() const { return alloc_; }
 
-  constexpr bool valueless_after_move() const { return obj_ == nullptr; }
+  constexpr bool valueless_after_move() const { return object_ == nullptr; }
 };
 
 // ---------------------------------------------------------------------------
