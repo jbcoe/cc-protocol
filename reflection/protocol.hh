@@ -188,7 +188,7 @@ using fn_ptr_t = R (*)(Args...) noexcept(Noexcept);
 enum class const_policy {
   // `protocol<I>`: as declared in `I`, so `const protocol<I>` exposes only the
   // const member functions of `I` (const propagates).
-  preserve,
+  propagate,
   // `protocol_view<I>`: every wrapper is const-qualified regardless of `I`
   // (shallow const, as for `std::span`).
   all_const,
@@ -250,23 +250,23 @@ template <typename... MemberBases>
 struct wrapper_bases : MemberBases... {};
 
 // Returns a `wrapper_bases` specialisation with one base per public,
-// non-special, member function of `interface_type` selected by `Policy`,
+// non-special, member function of `interface_type` selected by `ConstPolicy`,
 // giving named members with `operator()` for each.
 //
 // Two bases defining a member of the same name make that name ambiguous to
 // look up through the derived class, so overloaded methods are unsupported
 // for now.
 template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable,
-          const_policy Policy>
+          const_policy ConstPolicy>
 consteval std::meta::info generate_wrapper_bases() {
   std::vector<std::meta::info> member_base_types;
   for (std::meta::info member :
        protocol_interface_functions_of<InterfaceType>) {
-    if (Policy == const_policy::const_only && !is_const(member)) {
+    if (ConstPolicy == const_policy::const_only && !is_const(member)) {
       continue;
     }
     const bool wrapper_is_const =
-        Policy == const_policy::preserve ? is_const(member) : true;
+        ConstPolicy == const_policy::propagate ? is_const(member) : true;
     // clang-format off
     member_base_types.push_back(dealias(
         substitute(^^member_base_generator_t,
@@ -280,11 +280,12 @@ consteval std::meta::info generate_wrapper_bases() {
 
 // The generated wrapper type for `T`: a `wrapper_bases` specialisation with
 // named members with `operator()` for each public, non-special, member
-// function from `T` selected by `Policy`.
+// function from `T` selected by `ConstPolicy`.
 template <typename T, typename ProtocolType, typename Vtable,
-          const_policy Policy = const_policy::preserve>
+          const_policy ConstPolicy = const_policy::propagate>
 using protocol_wrappers_t =
-    typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable, Policy>():];
+    typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable,
+                                     ConstPolicy>():];
 
 // Returns a list of data_member_spec values, one for each member function
 // implemented by `protocol`, each describing a vtable function pointer with
@@ -380,7 +381,7 @@ struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
 // For `const_policy::const_only` (`protocol_view<const T>`) only the entries
 // for const members of `T` are populated; the view generates no wrapper for
 // the others, so they are never called.
-template <typename T, typename U, const_policy Policy>
+template <typename T, typename U, const_policy ConstPolicy>
 consteval typename vtable_generator<T>::vtable make_view_vtable() {
   using Vtable = typename vtable_generator<T>::vtable;
   Vtable result{};
@@ -395,7 +396,7 @@ consteval typename vtable_generator<T>::vtable make_view_vtable() {
           find_conforming_member<member, ^^U>();
       result.[:vtable_member:] = &const_view_trampoline<FnPtrType, U,
                                                         candidate>::call;
-    } else if constexpr (Policy != const_policy::const_only) {
+    } else if constexpr (ConstPolicy != const_policy::const_only) {
       constexpr std::meta::info candidate =
           find_conforming_member<member, ^^U>();
       result.[:vtable_member:] = &mutable_view_trampoline<FnPtrType, U,
@@ -406,10 +407,10 @@ consteval typename vtable_generator<T>::vtable make_view_vtable() {
 }
 
 // The shared, compile-time vtable every protocol_view<T> (or
-// protocol_view<const T>, per `Policy`) that views a `U` points to.
-template <typename T, typename U, const_policy Policy>
+// protocol_view<const T>, per `ConstPolicy`) that views a `U` points to.
+template <typename T, typename U, const_policy ConstPolicy>
 inline constexpr typename vtable_generator<T>::vtable view_vtable_for =
-    make_view_vtable<T, U, Policy>();
+    make_view_vtable<T, U, ConstPolicy>();
 
 }  // namespace detail
 
