@@ -27,7 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // `protocol_view`'s with destroy/copy/move entries used for allocator-aware
 // ownership.
 //
-// Neither implementation currently supports operators.
+// Neither implementation currently supports operators other than operator().
 
 #include <algorithm>
 #include <cassert>
@@ -74,13 +74,31 @@ inline constexpr bool is_protocol_view_v = is_protocol_view<T>::value;
 
 namespace detail {
 
+consteval bool is_call_operator(std::meta::info function) {
+  return is_operator_function(function) &&
+         operator_of(function) == std::meta::operators::op_parentheses;
+}
+
+// Returns `true` if `a` and `b` are both call operators or share an
+// identifier.
+consteval bool same_name(std::meta::info a, std::meta::info b) {
+  if (is_call_operator(a) || is_call_operator(b))
+    return is_call_operator(a) && is_call_operator(b);
+  return has_identifier(a) && has_identifier(b) &&
+         identifier_of(a) == identifier_of(b);
+}
+
+// A valid identifier for `member`, for naming generated vtable entries.
+consteval std::string_view member_name(std::meta::info member) {
+  return is_call_operator(member) ? "call_operator" : identifier_of(member);
+}
+
 // Returns `true` if the member functions `candidate` and `interface` have
 // the same name, reference qualifiers, de-aliased return type and de-aliased
 // parameter types; const and noexcept are not compared.
 consteval bool same_signature_ignoring_const(std::meta::info candidate,
                                              std::meta::info interface) {
-  if (!has_identifier(interface) || !has_identifier(candidate)) return false;
-  if (identifier_of(interface) != identifier_of(candidate)) return false;
+  if (!same_name(candidate, interface)) return false;
   if (is_lvalue_reference_qualified(interface) !=
       is_lvalue_reference_qualified(candidate))
     return false;
@@ -108,9 +126,9 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
   return !is_noexcept(interface) || is_noexcept(candidate);
 }
 
-// The named, non-static, non-special member functions of `Type`, in
-// declaration order. Overloads appear as separate entries; an entry's index
-// identifies its vtable slot.
+// The named, non-static, non-special member functions and call operators of
+// `Type`, in declaration order. Overloads appear as separate entries; an
+// entry's index identifies its vtable slot.
 //
 // TODO(jbcoe): Handle static functions as they can be used to satisfy
 // interface conformance.
@@ -120,7 +138,9 @@ constexpr inline auto protocol_interface_functions_of =
         members_of(Type, std::meta::access_context::unprivileged()) |
         std::views::filter(std::meta::is_function) |
         std::views::filter(std::not_fn(std::meta::is_static_member)) |
-        std::views::filter(std::meta::has_identifier));
+        std::views::filter([](std::meta::info member) consteval {
+          return has_identifier(member) || is_call_operator(member);
+        }));
 
 // The vtable entry for the interface member function at `Index`;
 // `generate_vtable_specs` declares one entry per interface member function in
@@ -150,15 +170,28 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Index,
   static constexpr std::meta::info vtable_entry =
       vtable_entry_at<^^Vtable, Index>();
 
-  // Provides member-function call syntax. Recovers the EnclosingType pointer
-  // through the vanishing-this-pointer cast, widens it to the enclosing
-  // protocol/protocol_view object, then calls through its stored vtable
-  // pointer's matching function pointer, passing the viewed/owned object.
+  // Recovers the EnclosingType pointer: `call_operator_base` derives from
+  // this thunk, while a generated `member_base` holds it as its sole data
+  // member (the vanishing-this-pointer cast).
+  template <typename Self>
+  static auto* enclosing(Self* self) {
+    using Enclosing = std::conditional_t<std::is_const_v<Self>,
+                                         const EnclosingType, EnclosingType>;
+    if constexpr (std::derived_from<EnclosingType, method_thunk>) {
+      return static_cast<Enclosing*>(self);
+    } else {
+      return reinterpret_cast<Enclosing*>(self);
+    }
+  }
+
+  // Provides member-function call syntax. Widens the EnclosingType pointer
+  // to the enclosing protocol/protocol_view object, then calls through its
+  // stored vtable pointer's matching function pointer, passing the
+  // viewed/owned object.
   R operator()(Args... args) noexcept(IsNoexcept)
     requires(!IsConst)
   {
-    auto* enclosing = reinterpret_cast<EnclosingType*>(this);
-    auto* protocol_object = static_cast<ProtocolType*>(enclosing);
+    auto* protocol_object = static_cast<ProtocolType*>(enclosing(this));
     const Vtable* vtable = protocol_object->vtable_;
     constexpr std::meta::info entry = vtable_entry;
     return vtable->[:entry:](protocol_object->object_,
@@ -168,8 +201,8 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Index,
   R operator()(Args... args) const noexcept(IsNoexcept)
     requires(IsConst)
   {
-    const auto* enclosing = reinterpret_cast<const EnclosingType*>(this);
-    const auto* protocol_object = static_cast<const ProtocolType*>(enclosing);
+    const auto* protocol_object =
+        static_cast<const ProtocolType*>(enclosing(this));
     const Vtable* vtable = protocol_object->vtable_;
     constexpr std::meta::info entry = vtable_entry;
     return vtable->[:entry:](protocol_object->object_,
@@ -247,6 +280,22 @@ struct member_thunk
   member_thunk& operator=(member_thunk&&) = default;
 };
 
+// The wrapper base for an interface's call operators. Deriving from the
+// overload set gives `p(args)` call syntax; protected special members let a
+// protocol/protocol_view copy the base but stop it being sliced off.
+template <typename ProtocolType, typename Vtable, typename... Specs>
+struct call_operator_base
+    : member_thunk<call_operator_base<ProtocolType, Vtable, Specs...>,
+                   ProtocolType, Vtable, Specs...> {
+ protected:
+  call_operator_base() = default;
+  ~call_operator_base() = default;
+  call_operator_base(const call_operator_base&) = default;
+  call_operator_base(call_operator_base&&) = default;
+  call_operator_base& operator=(const call_operator_base&) = default;
+  call_operator_base& operator=(call_operator_base&&) = default;
+};
+
 // How generated wrappers treat the const-qualification of interface members.
 enum class const_policy {
   // `protocol<I>`: as declared in `I`, so `const protocol<I>` exposes only the
@@ -317,23 +366,26 @@ struct wrapper_bases : MemberBases... {};
 
 // Returns a `wrapper_bases` specialisation with one base per public,
 // non-special, member function name of `interface_type`, giving named members
-// with an `operator()` for each overload selected by `ConstPolicy`.
+// with an `operator()` for each overload selected by `ConstPolicy`, plus a
+// `call_operator_base` if `interface_type` has call operators.
 template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable,
           const_policy ConstPolicy>
 consteval std::meta::info generate_wrapper_bases() {
   std::span<const std::meta::info> members =
       protocol_interface_functions_of<InterfaceType>;
   std::vector<std::meta::info> member_base_types;
-  std::vector<std::string_view> names_generated;
+  std::vector<std::meta::info> names_generated;
   for (std::meta::info first : members) {
-    std::string_view name = identifier_of(first);
-    if (std::ranges::contains(names_generated, name)) continue;
-    names_generated.push_back(name);
+    if (std::ranges::any_of(names_generated, [&](std::meta::info generated) {
+          return same_name(first, generated);
+        }))
+      continue;
+    names_generated.push_back(first);
 
     std::vector<std::meta::info> specs;
     for (std::size_t index = 0; index < members.size(); ++index) {
       std::meta::info member = members[index];
-      if (identifier_of(member) != name ||
+      if (!same_name(member, first) ||
           !generates_wrapper_for<ConstPolicy>(member, members))
         continue;
       const bool wrapper_is_const =
@@ -347,11 +399,17 @@ consteval std::meta::info generate_wrapper_bases() {
     }
     if (specs.empty()) continue;
 
-    std::vector<std::meta::info> generator_args{reflect_constant(first),
-                                                ^^ProtocolType, ^^Vtable};
+    std::vector<std::meta::info> generator_args;
+    if (!is_call_operator(first)) {
+      generator_args.push_back(reflect_constant(first));
+    }
+    generator_args.push_back(^^ProtocolType);
+    generator_args.push_back(^^Vtable);
     generator_args.append_range(specs);
     member_base_types.push_back(
-        dealias(substitute(^^member_base_generator_t, generator_args)));
+        is_call_operator(first)
+            ? substitute(^^call_operator_base, generator_args)
+            : dealias(substitute(^^member_base_generator_t, generator_args)));
   }
   return substitute(^^wrapper_bases, member_base_types);
 }
@@ -371,7 +429,7 @@ consteval std::string vtable_entry_name(std::meta::info member,
                                         std::size_t index) {
   char digits[std::numeric_limits<std::size_t>::digits10 + 1];
   auto [end, error] = std::to_chars(digits, digits + sizeof(digits), index);
-  std::string name(identifier_of(member));
+  std::string name(member_name(member));
   name += '_';
   name.append(digits, end);
   return name;
