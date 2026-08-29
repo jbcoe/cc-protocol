@@ -13,7 +13,9 @@ xyz_add_test(
   LINK_LIBRARIES
   xyz_protocol::reflection_protocol
   FILES
-  protocol_test.cc)
+  protocol_test.cc
+  allocator_tests.cc
+  consteval_check_test.cc)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   target_compile_options(reflection_protocol_test PRIVATE -freflection)
