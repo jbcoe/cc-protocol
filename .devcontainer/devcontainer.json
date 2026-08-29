@@ -7,5 +7,16 @@
 	"remoteUser": "vscode",
 	"mounts": [
 		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,readonly"
-	]
+	],
+	"customizations": {
+		"codespaces": {
+			"repositories": {
+				"jbcoe/cc-protocol": {
+					"permissions": {
+						"actions": "write"
+					}
+				}
+			}
+		}
+	}
 }
