@@ -177,6 +177,15 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
     return vtable->[:entry:](protocol_object->object_,
                              std::forward<Args>(args)...);
   }
+
+ private:
+  friend EnclosingType;
+  method_thunk() = default;
+  ~method_thunk() = default;
+  method_thunk(const method_thunk&) = default;
+  method_thunk(method_thunk&&) = default;
+  method_thunk& operator=(const method_thunk&) = default;
+  method_thunk& operator=(method_thunk&&) = default;
 };
 
 template <bool Noexcept, typename R, typename... Args>
