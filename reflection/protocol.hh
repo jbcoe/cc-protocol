@@ -154,6 +154,16 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   static constexpr std::meta::info vtable_entry =
       find_vtable_member<^^Vtable, Member>();
 
+  // Copies detach the thunk from its enclosing object, so calling one is
+  // undefined behaviour; deleting the copy and move operations turns that
+  // misuse into a compile-time error.
+  method_thunk() = default;
+  method_thunk(const method_thunk&) = delete;
+  method_thunk(method_thunk&&) = delete;
+  method_thunk& operator=(const method_thunk&) = delete;
+  method_thunk& operator=(method_thunk&&) = delete;
+  ~method_thunk() = default;
+
   // Provides member-function call syntax. Recovers the EnclosingType pointer
   // through the vanishing-this-pointer cast, widens it to the enclosing
   // protocol/protocol_view object, then calls through its stored vtable
@@ -566,7 +576,9 @@ class protocol
 
   constexpr ~protocol() { vtable_->destroy(alloc_, obj_); }
 
-  // Copy construction.
+  // Copy construction. The wrapper bases are intentionally left
+  // default-initialised because the member thunks are non-copyable (see
+  // `method_thunk`).
   constexpr protocol(const protocol& other)
     requires std::is_copy_constructible_v<I>
       : protocol(std::allocator_arg,
@@ -695,11 +707,29 @@ class protocol_view
   // `protocol_view` would be empty.
   protocol_view() = delete;
 
-  // Remaining special member functions are defaulted.
-  protocol_view(const protocol_view&) = default;
-  protocol_view(protocol_view&&) noexcept = default;
-  protocol_view& operator=(const protocol_view&) = default;
-  protocol_view& operator=(protocol_view&&) noexcept = default;
+  // Remaining special member functions are user-provided because the
+  // synthesised member thunks are non-copyable (see `method_thunk`): a
+  // copy/move of a `protocol_view` copies the viewed pointer and vtable
+  // pointer only, and the thunk bases are re-created by
+  // default-initialisation. Moving is the same as copying (non-owning view).
+  protocol_view(const protocol_view& other) noexcept
+      : object_(other.object_), vtable_(other.vtable_) {}
+
+  protocol_view(protocol_view&& other) noexcept
+      : object_(other.object_), vtable_(other.vtable_) {}
+
+  protocol_view& operator=(const protocol_view& other) noexcept {
+    object_ = other.object_;
+    vtable_ = other.vtable_;
+    return *this;
+  }
+
+  protocol_view& operator=(protocol_view&& other) noexcept {
+    object_ = other.object_;
+    vtable_ = other.vtable_;
+    return *this;
+  }
+
   ~protocol_view() = default;
 
   // Construct from any non-const type U that conforms to the Interface T.

@@ -110,6 +110,166 @@ TEST(ReflectionProtocolTest,
   static_assert(std::is_move_assignable_v<protocol<D>>);
 }
 
+TEST(ReflectionProtocolViewTest, MemberThunksAreNotCopyableOrMovable) {
+  // A copied thunk would be detached from its enclosing protocol_view, so
+  // calling it would be undefined behaviour (the vanishing-this-pointer
+  // trick relies on the thunk living inside its wrapper). Deleting the
+  // thunk's copy and move operations turns that misuse into a compile-time
+  // error instead.
+  struct A {
+    int get() const;
+    void set(int);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  Conforming c;
+  protocol_view<A> view(c);
+
+  static_assert(!std::is_copy_constructible_v<decltype(view.get)>);
+  static_assert(!std::is_move_constructible_v<decltype(view.get)>);
+  static_assert(!std::is_copy_assignable_v<decltype(view.get)>);
+  static_assert(!std::is_move_assignable_v<decltype(view.get)>);
+
+  static_assert(!std::is_copy_constructible_v<decltype(view.set)>);
+  static_assert(!std::is_move_constructible_v<decltype(view.set)>);
+  static_assert(!std::is_copy_assignable_v<decltype(view.set)>);
+  static_assert(!std::is_move_assignable_v<decltype(view.set)>);
+
+  // Needed so wrappers can be default-initialised.
+  static_assert(std::is_default_constructible_v<decltype(view.get)>);
+  static_assert(std::is_default_constructible_v<decltype(view.set)>);
+}
+
+TEST(ReflectionProtocolTest, MemberThunksAreNotCopyableOrMovable) {
+  // A copied thunk would be detached from its enclosing protocol, so calling
+  // it would be undefined behaviour (the vanishing-this-pointer trick relies
+  // on the thunk living inside its wrapper). Deleting the thunk's copy and
+  // move operations turns that misuse into a compile-time error instead.
+  struct A {
+    int get() const;
+    void set(int);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  protocol<A> p(Conforming{});
+
+  static_assert(!std::is_copy_constructible_v<decltype(p.get)>);
+  static_assert(!std::is_move_constructible_v<decltype(p.get)>);
+  static_assert(!std::is_copy_assignable_v<decltype(p.get)>);
+  static_assert(!std::is_move_assignable_v<decltype(p.get)>);
+
+  static_assert(!std::is_copy_constructible_v<decltype(p.set)>);
+  static_assert(!std::is_move_constructible_v<decltype(p.set)>);
+  static_assert(!std::is_copy_assignable_v<decltype(p.set)>);
+  static_assert(!std::is_move_assignable_v<decltype(p.set)>);
+
+  // Needed so wrappers can be default-initialised.
+  static_assert(std::is_default_constructible_v<decltype(p.get)>);
+  static_assert(std::is_default_constructible_v<decltype(p.set)>);
+}
+
+TEST(ReflectionProtocolViewTest, CopyAndMoveRemainNothrow) {
+  // protocol_view's user-provided special member functions must remain
+  // nothrow even though the (non-copyable) thunk bases are
+  // default-initialised rather than copied.
+  struct A {
+    int get() const;
+    void set(int);
+  };
+
+  static_assert(std::is_nothrow_copy_constructible_v<protocol_view<A>>);
+  static_assert(std::is_nothrow_move_constructible_v<protocol_view<A>>);
+  static_assert(std::is_nothrow_copy_assignable_v<protocol_view<A>>);
+  static_assert(std::is_nothrow_move_assignable_v<protocol_view<A>>);
+}
+
+TEST(ReflectionProtocolViewTest, CopiedViewCallsThroughToViewedObject) {
+  // protocol_view is non-owning: every copy/move should still dispatch to
+  // the same underlying object.
+  struct A {
+    int get() const;
+    void set(int);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  Conforming c;
+  protocol_view<A> view(c);
+
+  protocol_view<A> copy_constructed(view);
+  copy_constructed.set(1);
+  EXPECT_EQ(view.get(), 1);
+  EXPECT_EQ(c.value, 1);
+
+  protocol_view<A> move_constructed(std::move(copy_constructed));
+  move_constructed.set(2);
+  EXPECT_EQ(view.get(), 2);
+  EXPECT_EQ(c.value, 2);
+
+  Conforming other;
+  protocol_view<A> other_view(other);
+  other_view = view;
+  other_view.set(3);
+  EXPECT_EQ(view.get(), 3);
+  EXPECT_EQ(c.value, 3);
+
+  Conforming yet_another;
+  protocol_view<A> yet_another_view(yet_another);
+  yet_another_view = std::move(other_view);
+  yet_another_view.set(4);
+  EXPECT_EQ(view.get(), 4);
+  EXPECT_EQ(c.value, 4);
+}
+
+TEST(ReflectionProtocolTest, CopyAndMoveConstructibleWithNonCopyableThunks) {
+  // `protocol`'s special member functions never copy the wrapper bases, so
+  // it remains copyable and movable even though its member thunks are not.
+  // `protocol`'s member thunks cannot yet be invoked at runtime (see the
+  // "Vtable layouts ... are currently inconsistent" note above the
+  // `protocol` class), so this only exercises construction.
+  // TODO(jbcoe): check that copies are independent once protocol's member
+  // thunks are wired up to its own storage.
+  struct A {
+    int get() const;
+    void set(int);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  protocol<A> original(Conforming{});
+  protocol<A> copy_constructed(original);
+  protocol<A> move_constructed(std::move(copy_constructed));
+  EXPECT_TRUE(copy_constructed.valueless_after_move());
+  EXPECT_FALSE(move_constructed.valueless_after_move());
+  EXPECT_FALSE(original.valueless_after_move());
+}
+
 // ---------------------------------------------------------------------------
 // Conformance check tests.
 // ---------------------------------------------------------------------------
