@@ -9,6 +9,7 @@ on:
       - ".github/workflows/clang-tidy.yml" # This file
       - "**/*.cc"
       - "**/*.h"
+      - "**/*.hh"
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "cmake/**"
@@ -51,6 +52,7 @@ jobs:
               - ".github/workflows/clang-tidy.yml" # This file
               - "**/*.cc"
               - "**/*.h"
+              - "**/*.hh"
               - "**/CMakeLists.txt"
               - "CMakePresets.json"
               - "cmake/**"
