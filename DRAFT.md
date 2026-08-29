@@ -132,7 +132,22 @@ reference semantics to structural sub-types.
 
 For a given struct, the corresponding `protocol` and `protocol_view` will
 implement all the public non-virtual, non-template member functions with
-identical constexpr, noexcept and const-qualification.
+identical constexpr and noexcept qualification.
+
+`protocol` owns its object and propagates const: a member function of
+`protocol<I>` is const-qualified exactly when the corresponding member function
+of `I` is, so only the const member functions of `I` can be called through a
+`const protocol<I>`.
+
+`protocol_view` is a non-owning reference and, like `span` and `string_view`,
+has shallow const. Every member function of `protocol_view<I>` is
+const-qualified, whether or not the corresponding member function of `I` is;
+const-qualifying the view itself does not restrict the interface it exposes,
+as a `const protocol_view<I>` can be trivially copied to a non-const one.
+Const-ness of the viewed object is instead expressed in the type:
+`protocol_view<const I>` exposes only the const member functions of `I` and can
+be constructed from a const object, a `const protocol<I>` or a
+`protocol_view<I>`.
 
 Unlike `polymorphic`, `protocol` and `protocol_view` do not provide `operator*`
 or `operator->` (or const-overloads) as there is no common base type to form a
@@ -283,11 +298,12 @@ class protocol_view<I> {
     template <typename Other, typename Alloc>
     protocol_view(protocol<Other, Alloc>&&) = delete;
 
-    // structural-subtype (const and non-const) member functions.
+    // structural-subtype member functions: all const-qualified as
+    // protocol_view has shallow const.
     std::string func0(std::string_view) const noexcept;
     double func1(double) const;
-    int func2(int);
-    int func2(int, int); // Another overload, same name.
+    int func2(int) const;
+    int func2(int, int) const; // Another overload, same name.
 };
 ```
 
@@ -353,9 +369,9 @@ class protocol_view<const I> {
     template <typename Other, typename Alloc>
     protocol_view(protocol<Other, Alloc>&&) = delete;
 
-    // structural-subtype const member functions.
+    // structural-subtype member functions: only those that are
+    // const-qualified in I.
     std::string func0(std::string_view) const noexcept;
-    double func1(double) const;
 };
 ```
 
