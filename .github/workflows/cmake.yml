@@ -9,6 +9,7 @@ on:
       - ".github/workflows/cmake.yml" # This file
       - "**/*.cc"
       - "**/*.h"
+      - "**/*.hh"
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "**/*.cmake"
@@ -19,6 +20,7 @@ on:
       - ".github/workflows/cmake.yml" # This file
       - "**/*.cc"
       - "**/*.h"
+      - "**/*.hh"
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "**/*.cmake"
