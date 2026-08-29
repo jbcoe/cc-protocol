@@ -31,6 +31,13 @@ concept has_update = requires(P& p) { p.update(0); };
 template <typename P>
 concept has_get_value = requires(P& p) { p.get_value(); };
 
+// Concepts for overloaded `get`/`get(int)` negative tests.
+template <typename P>
+concept has_get_int = requires(P& p) { p.get(0); };
+
+template <typename P>
+concept has_get = requires(P& p) { p.get(); };
+
 // ---------------------------------------------------------------------------
 // Type trait tests.
 // ---------------------------------------------------------------------------
@@ -534,6 +541,93 @@ TEST(ConformsToTest, UnqualifiedInterfaceDoesNotMatchRefQualifiedCandidate) {
   static_assert(!is_protocol_conformant<Interface, RvalueRefCandidate>());
 }
 
+TEST(ConformsToTest, OverloadedMemberFunctionsConform) {
+  struct Interface {
+    int compute(int value);
+    double compute(double value);
+    std::string compute(const std::string& value) const;
+  };
+
+  struct Conforming {
+    int compute(int value) { return value; }
+
+    double compute(double value) { return value; }
+
+    std::string compute(const std::string& value) const { return value; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+}
+
+TEST(ConformsToTest, CandidateMissingOverloadDoesNotConform) {
+  struct Interface {
+    int compute(int value);
+    double compute(double value);
+    std::string compute(const std::string& value) const;
+  };
+
+  struct MissingOverloads {
+    int compute(int value) { return value; }
+  };
+
+  static_assert(!is_protocol_conformant<Interface, MissingOverloads>());
+}
+
+TEST(ConformsToTest, CandidateWithExtraOverloadsConforms) {
+  struct Interface {
+    int compute(int value);
+  };
+
+  struct CandidateWithExtraOverload {
+    int compute(int value) { return value; }
+
+    double compute(double value) { return value; }
+  };
+
+  static_assert(
+      is_protocol_conformant<Interface, CandidateWithExtraOverload>());
+}
+
+TEST(ConformsToTest, OverloadsByArityConform) {
+  struct Interface {
+    int f(int a);
+    int f(int a, int b);
+  };
+
+  struct Conforming {
+    int f(int a) { return a; }
+
+    int f(int a, int b) { return a + b; }
+  };
+
+  struct MissingUnaryOverload {
+    int f(int a, int b) { return a + b; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+  static_assert(!is_protocol_conformant<Interface, MissingUnaryOverload>());
+}
+
+TEST(ConformsToTest, ConstAndNonConstOverloadPairConforms) {
+  struct Interface {
+    int f() const;
+    int f();
+  };
+
+  struct Conforming {
+    int f() const { return 1; }
+
+    int f() { return 2; }
+  };
+
+  struct ConstOnly {
+    int f() const { return 1; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+  static_assert(!is_protocol_conformant<Interface, ConstOnly>());
+}
+
 // ---------------------------------------------------------------------------
 // Constructability tests.
 // ---------------------------------------------------------------------------
@@ -839,6 +933,130 @@ TEST(ReflectionProtocolViewTest, MixedConstAndMutatingMemberFunctions) {
   p.set(7);
   EXPECT_EQ(p.get(), 7);
   EXPECT_EQ(c.value, 7);
+}
+
+TEST(ReflectionProtocolViewTest, OverloadsByParameterType) {
+  struct Interface {
+    int compute(int x);
+    double compute(double x);
+    std::string compute(const std::string& x) const;
+  };
+
+  struct Conforming {
+    int compute(int x) { return x * 2; }
+
+    double compute(double x) { return x * 3.0; }
+
+    std::string compute(const std::string& x) const { return x + x; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> p(c);
+  EXPECT_EQ(p.compute(5), 10);
+  EXPECT_EQ(p.compute(5.0), 15.0);
+  EXPECT_EQ(p.compute(std::string("A")), "AA");
+}
+
+TEST(ReflectionProtocolViewTest,
+     ConstAndNonConstOverloadPairDispatchesToNonConst) {
+  struct Interface {
+    int value() const;
+    int value();
+  };
+
+  struct Conforming {
+    int value() const { return 1; }
+
+    int value() { return 2; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+  EXPECT_EQ(view.value(), 2);
+
+  // Shallow const: a const protocol_view still dispatches to the non-const
+  // overload.
+  const protocol_view<Interface>& const_view = view;
+  EXPECT_EQ(const_view.value(), 2);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewDispatchesToConstOverload) {
+  struct Interface {
+    int value() const;
+    int value();
+  };
+
+  struct Conforming {
+    int value() const { return 1; }
+
+    int value() { return 2; }
+  };
+
+  Conforming c;
+  protocol_view<const Interface> view(c);
+  EXPECT_EQ(view.value(), 1);
+
+  const Conforming const_c;
+  protocol_view<const Interface> const_view(const_c);
+  EXPECT_EQ(const_view.value(), 1);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewExposesOnlyConstOverloads) {
+  struct Interface {
+    int get() const;
+    void get(int value);
+  };
+
+  static_assert(!has_get_int<protocol_view<const Interface>>);
+  static_assert(has_get_int<protocol_view<Interface>>);
+  static_assert(has_get_int<const protocol_view<Interface>>);
+
+  static_assert(has_get<protocol_view<const Interface>>);
+  static_assert(has_get<protocol_view<Interface>>);
+  static_assert(has_get<const protocol_view<Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, IsTriviallyCopyableWithOverloads) {
+  struct Interface {
+    int compute(int x);
+    double compute(double x);
+    std::string compute(const std::string& x) const;
+  };
+
+  static_assert(std::is_trivially_copyable_v<protocol_view<Interface>>);
+  static_assert(std::is_trivially_copyable_v<protocol_view<const Interface>>);
+  static_assert(sizeof(protocol_view<Interface>) == 2 * sizeof(void*));
+}
+
+TEST(ReflectionProtocolViewTest, MemberThunksCannotBeDetachedForOverloads) {
+  struct Interface {
+    int compute(int x);
+    double compute(double x);
+    std::string compute(const std::string& x) const;
+  };
+
+  struct Conforming {
+    int compute(int x) { return x * 2; }
+
+    double compute(double x) { return x * 3.0; }
+
+    std::string compute(const std::string& x) const { return x + x; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> p(c);
+
+  static_assert(!std::is_copy_constructible_v<decltype(p.compute)>);
+  static_assert(!std::is_move_constructible_v<decltype(p.compute)>);
+  static_assert(!std::is_copy_assignable_v<decltype(p.compute)>);
+  static_assert(!std::is_move_assignable_v<decltype(p.compute)>);
+  static_assert(!std::is_default_constructible_v<decltype(p.compute)>);
+  static_assert(!std::is_destructible_v<decltype(p.compute)>);
+  static_assert(std::is_trivially_copyable_v<decltype(p.compute)>);
+
+  const auto& compute = p.compute;
+  EXPECT_EQ(compute(5), 10);
+  EXPECT_EQ(compute(5.0), 15.0);
 }
 
 // Member function forwarding tests for protocol.
@@ -1175,5 +1393,130 @@ TEST(ReflectionProtocolTest, ConstMemberFunctionOnConstProtocol) {
   // A non-const member function is still not invocable on a const protocol;
   // that assertion is already covered above by
   // NonConstMemberFunctionNotInvocableFromConst.
+}
+
+TEST(ReflectionProtocolTest, OverloadsByParameterType) {
+  struct Interface {
+    int compute(int x);
+    double compute(double x);
+    std::string compute(const std::string& x) const;
+  };
+
+  struct Conforming {
+    int compute(int x) { return x * 2; }
+
+    double compute(double x) { return x * 3.0; }
+
+    std::string compute(const std::string& x) const { return x + x; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.compute(5), 10);
+  EXPECT_EQ(p.compute(5.0), 15.0);
+
+  const auto& const_p = p;
+  EXPECT_EQ(const_p.compute(std::string("A")), "AA");
+}
+
+TEST(ReflectionProtocolTest, OverloadsByArity) {
+  struct Interface {
+    int add(int a);
+    int add(int a, int b);
+  };
+
+  struct Conforming {
+    int add(int a) { return a; }
+
+    int add(int a, int b) { return a + b; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.add(1), 1);
+  EXPECT_EQ(p.add(1, 2), 3);
+}
+
+TEST(ReflectionProtocolTest, ConstAndNonConstOverloadPair) {
+  struct Interface {
+    int value() const;
+    int value();
+  };
+
+  struct Conforming {
+    int value() const { return 1; }
+
+    int value() { return 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.value(), 2);
+
+  const protocol<Interface>& const_p = p;
+  EXPECT_EQ(const_p.value(), 1);
+}
+
+TEST(ReflectionProtocolTest, ConstProtocolExposesOnlyConstOverloads) {
+  struct Interface {
+    int get() const;
+    void get(int value);
+  };
+
+  static_assert(!has_get_int<const protocol<Interface>>);
+  static_assert(has_get_int<protocol<Interface>>);
+
+  static_assert(has_get<protocol<Interface>>);
+  static_assert(has_get<const protocol<Interface>>);
+}
+
+TEST(ReflectionProtocolTest, MemberThunksCannotBeDetachedForOverloads) {
+  struct Interface {
+    int compute(int x);
+    double compute(double x);
+    std::string compute(const std::string& x) const;
+  };
+
+  struct Conforming {
+    int compute(int x) { return x * 2; }
+
+    double compute(double x) { return x * 3.0; }
+
+    std::string compute(const std::string& x) const { return x + x; }
+  };
+
+  protocol<Interface> p(Conforming{});
+
+  static_assert(!std::is_copy_constructible_v<decltype(p.compute)>);
+  static_assert(!std::is_move_constructible_v<decltype(p.compute)>);
+  static_assert(!std::is_copy_assignable_v<decltype(p.compute)>);
+  static_assert(!std::is_move_assignable_v<decltype(p.compute)>);
+  static_assert(!std::is_default_constructible_v<decltype(p.compute)>);
+  static_assert(!std::is_destructible_v<decltype(p.compute)>);
+  static_assert(std::is_trivially_copyable_v<decltype(p.compute)>);
+
+  // Const propagates through `protocol`: the non-const overloads need a
+  // non-const reference to the thunk.
+  auto& compute = p.compute;
+  EXPECT_EQ(compute(5), 10);
+  EXPECT_EQ(compute(5.0), 15.0);
+  const auto& const_compute = p.compute;
+  EXPECT_EQ(const_compute(std::string("A")), "AA");
+}
+
+TEST(ReflectionProtocolTest, NoexceptOverload) {
+  struct Interface {
+    int f(int x) noexcept;
+    int f(double x);
+  };
+
+  struct Conforming {
+    int f(int x) noexcept { return x * 2; }
+
+    int f(double x) { return static_cast<int>(x * 3.0); }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.f(5), 10);
+  EXPECT_EQ(p.f(5.0), 15);
+  static_assert(noexcept(p.f(1)));
+  static_assert(!noexcept(p.f(1.0)));
 }
 }  // namespace
