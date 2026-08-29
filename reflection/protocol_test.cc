@@ -702,6 +702,119 @@ TEST(ConformsToTest, OverloadedCallOperatorsConform) {
   static_assert(!is_protocol_conformant<Interface, MissingOverloads>());
 }
 
+TEST(ConformsToTest, StaticCandidateConformsToConstMember) {
+  struct Interface {
+    int value() const;
+  };
+
+  struct Conforming {
+    static int value();
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+}
+
+TEST(ConformsToTest, StaticCandidateConformsToNonConstMember) {
+  struct Interface {
+    int next();
+  };
+
+  struct Conforming {
+    static int next();
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+}
+
+TEST(ConformsToTest, StaticCandidateConformsToRefQualifiedMember) {
+  struct Interface {
+    int get() &;
+    int take() &&;
+  };
+
+  struct Conforming {
+    static int get();
+
+    static int take();
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+}
+
+TEST(ConformsToTest, StaticCandidateWithWrongSignatureDoesNotConform) {
+  struct Interface {
+    int value(int x) const;
+  };
+
+  struct WrongParam {
+    static int value(double x);
+  };
+
+  struct WrongReturn {
+    static double value(int x);
+  };
+
+  static_assert(!is_protocol_conformant<Interface, WrongParam>());
+  static_assert(!is_protocol_conformant<Interface, WrongReturn>());
+}
+
+TEST(ConformsToTest, NoexceptInterfaceRequiresNoexceptStaticCandidate) {
+  struct Interface {
+    int value() const noexcept;
+  };
+
+  struct Conforming {
+    static int value() noexcept;
+  };
+
+  struct NonNoexcept {
+    static int value();
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+  static_assert(!is_protocol_conformant<Interface, NonNoexcept>());
+}
+
+TEST(ConformsToTest, InterfaceStaticMembersAreIgnored) {
+  struct Interface {
+    static int helper();
+    int value() const;
+  };
+
+  struct Conforming {
+    int value() const { return 1; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+}
+
+TEST(ConformsToTest, StaticCallOperatorConforms) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  struct Conforming {
+    static int operator()(int x) { return x + 1; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+}
+
+TEST(ConformsToTest, StaticOverloadConformsAlongsideNonStatic) {
+  struct Interface {
+    int f(int x) const;
+    int f(double x) const;
+  };
+
+  struct Conforming {
+    int f(int x) const { return x; }
+
+    static int f(double x) { return static_cast<int>(x); }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+}
+
 // ---------------------------------------------------------------------------
 // Constructability tests.
 // ---------------------------------------------------------------------------
@@ -1294,6 +1407,91 @@ TEST(ReflectionProtocolViewTest, IsTriviallyCopyableWithCallOperator) {
   static_assert(sizeof(protocol_view<Interface>) == 2 * sizeof(void*));
 }
 
+TEST(ReflectionProtocolViewTest, StaticMemberFunction) {
+  struct Interface {
+    int value() const;
+  };
+
+  struct Conforming {
+    static int value() { return 42; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+  EXPECT_EQ(view.value(), 42);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewCallsStaticMemberFunction) {
+  struct Interface {
+    int value() const;
+  };
+
+  struct Conforming {
+    static int value() { return 42; }
+  };
+
+  const Conforming c;
+  protocol_view<const Interface> view(c);
+  EXPECT_EQ(view.value(), 42);
+}
+
+TEST(ReflectionProtocolViewTest, StaticMemberFunctionSatisfiesNonConstMember) {
+  struct Interface {
+    int next();
+  };
+
+  struct Conforming {
+    static int next() {
+      static int counter = 0;
+      return ++counter;
+    }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+  EXPECT_EQ(view.next(), 1);
+  EXPECT_EQ(view.next(), 2);
+}
+
+TEST(ReflectionProtocolViewTest,
+     StaticMemberFunctionAlongsideNonStaticMembers) {
+  struct Interface {
+    int value() const;
+    int add(int x);
+  };
+
+  struct Conforming {
+    int total = 0;
+
+    static int value() { return 3; }
+
+    int add(int x) {
+      total += x;
+      return total;
+    }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+  EXPECT_EQ(view.value(), 3);
+  EXPECT_EQ(view.add(4), 4);
+  EXPECT_EQ(view.add(5), 9);
+}
+
+TEST(ReflectionProtocolViewTest, StaticCallOperator) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  struct Conforming {
+    static int operator()(int x) { return x * 3; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+  EXPECT_EQ(view(5), 15);
+}
+
 // Member function forwarding tests for protocol.
 
 TEST(ReflectionProtocolTest, ConstMemberFunction) {
@@ -1424,6 +1622,36 @@ TEST(ReflectionProtocolTest, MixedConstAndMutatingMemberFunctions) {
   EXPECT_EQ(p.get(), 0);
   p.set(7);
   EXPECT_EQ(p.get(), 7);
+}
+
+TEST(ReflectionProtocolTest, StaticMemberFunction) {
+  struct Interface {
+    int value() const;
+  };
+
+  struct Conforming {
+    static int value() { return 42; }
+  };
+
+  protocol<Interface> p(std::in_place_type<Conforming>);
+  EXPECT_EQ(p.value(), 42);
+}
+
+TEST(ReflectionProtocolTest, StaticMemberFunctionSatisfiesNonConstMember) {
+  struct Interface {
+    int next();
+  };
+
+  struct Conforming {
+    static int next() {
+      static int counter = 0;
+      return ++counter;
+    }
+  };
+
+  protocol<Interface> p(std::in_place_type<Conforming>);
+  EXPECT_EQ(p.next(), 1);
+  EXPECT_EQ(p.next(), 2);
 }
 
 TEST(ReflectionProtocolTest, ForwardingAfterCopyConstruction) {
