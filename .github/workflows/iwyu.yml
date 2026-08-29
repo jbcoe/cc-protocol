@@ -15,7 +15,6 @@ on:
       - "cmake/**"
       - "**/*.j2"
   pull_request:
-    branches: [main]
     paths:
       - ".github/workflows/iwyu.yml" # This file
       - "**/*.cc"
