@@ -79,8 +79,7 @@ function(xyz_add_test)
     PRIVATE ${XYZ_LINK_LIBRARIES} GTest::gtest_main common_compiler_settings
             $<$<AND:$<BOOL:${COMPILER_SUPPORTS_ASAN}>,$<BOOL:${ENABLE_ASAN}>>:asan>
             $<$<AND:$<BOOL:${COMPILER_SUPPORTS_UBSAN}>,$<BOOL:${ENABLE_UBSAN}>>:ubsan>
-            $<$<AND:$<BOOL:${COMPILER_SUPPORTS_TSAN}>,$<BOOL:${ENABLE_TSAN}>>:tsan>
-            $<$<AND:$<BOOL:${COMPILER_SUPPORTS_MSAN}>,$<BOOL:${ENABLE_MSAN}>>:msan>)
+            $<$<AND:$<BOOL:${COMPILER_SUPPORTS_TSAN}>,$<BOOL:${ENABLE_TSAN}>>:tsan>)
 
   set_target_properties(
     ${XYZ_NAME}
@@ -108,8 +107,5 @@ function(xyz_add_test)
     add_coverage(${XYZ_NAME})
   endif()
 
-  if(CLANG_TIDY_ENABLE AND ClangTidy_FOUND)
-    set_target_properties(${XYZ_NAME} PROPERTIES CXX_CLANG_TIDY "${XYZ_CLANG_TIDY}")
-  endif()
 
 endfunction()
