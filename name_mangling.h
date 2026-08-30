@@ -1,0 +1,274 @@
+/* Copyright (c) 2025 The XYZ Protocol Authors. All Rights Reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+==============================================================================*/
+#ifndef XYZ_REFLECTION_NAME_MANGLING_H_
+#define XYZ_REFLECTION_NAME_MANGLING_H_
+
+// Names a member function by mangling its signature, following the Itanium
+// C++ ABI where it has an encoding: the function name (or `cl` for the call
+// operator), wrapped in `N...E` with its cv- and ref-qualifiers when it has
+// any, followed by the parameter types. The name depends only on the
+// signature, so a member function of one class names the same entry as a
+// member function of the same signature on another class; this lets a
+// vtable's entries be found by the signature of the interface member function
+// they implement, rather than by declaration order.
+//
+// Parameter types may be fundamental, pointers, references, arrays,
+// functions, and (possibly cv-qualified) named class, union and enumeration
+// types, including class-template specialisations with type, integral or
+// enumeration template arguments. Naming an entry for any other parameter
+// type is ill-formed.
+
+#include <array>
+#include <charconv>
+#include <limits>
+#include <meta>
+#include <optional>
+#include <ranges>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <vector>
+
+namespace xyz::name_mangling {
+
+namespace detail {
+
+consteval std::string decimal(std::size_t value) {
+  std::array<char, std::numeric_limits<std::size_t>::digits10 + 1> buffer;
+  auto result =
+      std::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
+  return std::string(buffer.data(), result.ptr);
+}
+
+// Length-prefixed with no separator, as for an Itanium <source-name>.
+consteval std::string mangle_atom(std::string_view text) {
+  return decimal(text.size()) + std::string(text);
+}
+
+// Forward-declared: mutually recursive with `mangle_scope_component` via a
+// template argument that is itself a class-template specialisation.
+consteval std::string mangle_type(std::meta::info type);
+
+template <typename T>
+consteval std::string signed_decimal(std::meta::info argument) {
+  T value = extract<T>(argument);
+  if constexpr (std::is_signed_v<T>) {
+    if (value < 0) {
+      return "n" + decimal(std::size_t{0} - static_cast<std::size_t>(value));
+    }
+  }
+  return decimal(static_cast<std::size_t>(value));
+}
+
+// The decimal value of `argument` if its type is one of `Integral...`.
+template <typename... Integral>
+consteval std::optional<std::string> integral_decimal(
+    std::meta::info argument) {
+  std::meta::info type = dealias(type_of(argument));
+  std::optional<std::string> result;
+  ((type == ^^Integral ? (result = signed_decimal<Integral>(argument), true)
+                       : false) ||
+   ...);
+  return result;
+}
+
+// A non-type template argument as an Itanium <expr-primary>, `L<type><value>E`.
+// Enumeration values are written by enumerator name rather than numeric
+// value, which needs no knowledge of the underlying type.
+consteval std::string mangle_template_argument_value(std::meta::info argument) {
+  std::meta::info type = dealias(type_of(argument));
+  std::string out = "L" + mangle_type(type);
+  if (type == ^^bool) {
+    return out + (extract<bool>(argument) ? "1" : "0") + "E";
+  }
+  if (std::optional<std::string> value =
+          integral_decimal<char, signed char, unsigned char, wchar_t, char8_t,
+                           char16_t, char32_t, short, unsigned short, int,
+                           unsigned int, long, unsigned long, long long,
+                           unsigned long long>(argument)) {
+    return out + *value + "E";
+  }
+  if (is_enum_type(type)) {
+    std::vector<std::meta::info> enumerators = enumerators_of(type);
+    for (std::meta::info enumerator : enumerators) {
+      if (constant_of(enumerator) == argument) {
+        return out + mangle_atom(identifier_of(enumerator)) + "E";
+      }
+    }
+  }
+  throw std::runtime_error(
+      "name mangling: unsupported non-type template argument");
+}
+
+// Mangles one scope level (a namespace, class, enumeration or function),
+// folding in template arguments when `scope` is a class-template
+// specialisation.
+consteval std::string mangle_scope_component(std::meta::info scope) {
+  if (is_namespace(scope) && !has_identifier(scope)) return "12_GLOBAL__N_1";
+  std::meta::info named =
+      has_template_arguments(scope) ? template_of(scope) : scope;
+  if (!has_identifier(named)) {
+    throw std::runtime_error("name mangling: unnamed types are not supported");
+  }
+  std::string out = mangle_atom(identifier_of(named));
+  if (has_template_arguments(scope)) {
+    out += "I";
+    std::vector<std::meta::info> arguments = template_arguments_of(scope);
+    for (std::meta::info argument : arguments) {
+      if (is_type(argument)) {
+        out += mangle_type(argument);
+      } else if (is_value(argument)) {
+        out += mangle_template_argument_value(argument);
+      } else {
+        throw std::runtime_error(
+            "name mangling: unsupported template argument");
+      }
+    }
+    out += "E";
+  }
+  return out;
+}
+
+// Walks `parent_of` up to (not including) the global namespace, then wraps
+// 2+ levels in Itanium's N...E delimiters so a qualified name can't be
+// confused with a sequence of unqualified ones.
+consteval std::string mangle_qualified_name(std::meta::info type) {
+  std::vector<std::string> components;
+  for (std::meta::info scope = type; scope != ^^::;
+       scope = dealias(parent_of(scope))) {
+    components.push_back(mangle_scope_component(scope));
+  }
+  std::string joined;
+  for (const std::string& component : components | std::views::reverse) {
+    joined += component;
+  }
+  return components.size() > 1 ? "N" + joined + "E" : joined;
+}
+
+// Itanium ABI <builtin-type> codes for fundamental types.
+consteval std::optional<std::string_view> builtin_type_code(
+    std::meta::info type) {
+  constexpr std::array<std::pair<std::meta::info, std::string_view>, 21> codes{
+      {{^^void, "v"},
+       {^^bool, "b"},
+       {^^char, "c"},
+       {^^signed char, "a"},
+       {^^unsigned char, "h"},
+       {^^short, "s"},
+       {^^unsigned short, "t"},
+       {^^int, "i"},
+       {^^unsigned int, "j"},
+       {^^long, "l"},
+       {^^unsigned long, "m"},
+       {^^long long, "x"},
+       {^^unsigned long long, "y"},
+       {^^float, "f"},
+       {^^double, "d"},
+       {^^long double, "e"},
+       {^^wchar_t, "w"},
+       {^^char8_t, "Du"},
+       {^^char16_t, "Ds"},
+       {^^char32_t, "Di"},
+       {^^std::nullptr_t, "Dn"}}};
+  for (auto [builtin, code] : codes) {
+    if (dealias(builtin) == type) return code;
+  }
+  if (is_fundamental_type(type)) {
+    throw std::runtime_error(
+        "name mangling: no mnemonic for this fundamental type");
+  }
+  return std::nullopt;
+}
+
+// Recurses through cv/pointer/reference/array/function layers, tagging each
+// with its Itanium prefix, then descends to the pointee/referee/element.
+consteval std::string mangle_type(std::meta::info type) {
+  type = dealias(type);
+  if (is_const_type(type) || is_volatile_type(type)) {
+    std::string qualifiers = is_volatile_type(type) ? "V" : "";
+    if (is_const_type(type)) qualifiers += "K";
+    return qualifiers + mangle_type(remove_cv(type));
+  }
+  if (is_pointer_type(type)) return "P" + mangle_type(remove_pointer(type));
+  if (is_lvalue_reference_type(type)) {
+    return "R" + mangle_type(remove_reference(type));
+  }
+  if (is_rvalue_reference_type(type)) {
+    return "O" + mangle_type(remove_reference(type));
+  }
+  if (is_array_type(type)) {
+    std::string out = "A";
+    if (is_bounded_array_type(type)) out += decimal(extent(type));
+    return out + "_" + mangle_type(remove_extent(type));
+  }
+  if (is_function_type(type)) {
+    std::string out = is_noexcept(type) ? "DoF" : "F";
+    out += mangle_type(return_type_of(type));
+    std::vector<std::meta::info> parameters = parameters_of(type);
+    if (parameters.empty()) out += "v";
+    for (std::meta::info parameter : parameters) {
+      out += mangle_type(is_type(parameter) ? parameter : type_of(parameter));
+    }
+    return out + "E";
+  }
+  if (auto code = builtin_type_code(type)) return std::string(*code);
+  if (is_class_type(type) || is_union_type(type) || is_enum_type(type)) {
+    return mangle_qualified_name(type);
+  }
+  throw std::runtime_error("name mangling: unsupported parameter type");
+}
+
+// `identifier_of` throws for `operator()`, which has no identifier; use its
+// Itanium <operator-name> instead.
+consteval std::string base_name_of(std::meta::info function) {
+  if (is_operator_function(function) &&
+      operator_of(function) == std::meta::operators::op_parentheses) {
+    return "cl";
+  }
+  return std::string(identifier_of(function));
+}
+
+}  // namespace detail
+
+// Names a vtable entry for the member function `function`. Distinguishes
+// overloads by folding the function's cv- and ref-qualification, then each
+// parameter's type, into the name. Matches the Itanium ABI's own placement:
+// cv-/ref-qualifiers sit inside `N...E`, wrapping the function name, ahead of
+// the parameter list.
+consteval std::string mangle(std::meta::info function) {
+  std::string qualifiers;
+  if (is_volatile(function)) qualifiers += "V";
+  if (is_const(function)) qualifiers += "K";
+  if (is_lvalue_reference_qualified(function)) qualifiers += "R";
+  if (is_rvalue_reference_qualified(function)) qualifiers += "O";
+  std::string atom = detail::mangle_atom(detail::base_name_of(function));
+  std::string name =
+      "fn_" + (qualifiers.empty() ? atom : "N" + qualifiers + atom + "E");
+  std::vector<std::meta::info> parameters = parameters_of(function);
+  for (std::meta::info parameter : parameters) {
+    name += detail::mangle_type(type_of(parameter));
+  }
+  return name;
+}
+
+}  // namespace xyz::name_mangling
+
+#endif  // XYZ_REFLECTION_NAME_MANGLING_H_

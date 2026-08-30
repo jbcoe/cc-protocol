@@ -25,19 +25,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // Both `protocol` and `protocol_view` dispatch member function calls at
 // runtime through a generated vtable; `protocol`'s vtable extends
 // `protocol_view`'s with destroy/copy/move entries used for allocator-aware
-// ownership.
+// ownership. Vtable entries are named by mangling the interface member
+// function's signature (see "name_mangling.h"), so an entry can be found by
+// the signature it implements rather than by declaration order.
 //
 // Neither implementation currently supports operators other than operator().
 
 #include <algorithm>
 #include <cassert>
-#include <charconv>
 #include <concepts>
 #include <cstddef>
 #include <functional>
-#include <limits>
 #include <memory>
 #include <meta>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <string>
@@ -45,6 +46,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include "name_mangling.h"
 
 namespace xyz::reflection {
 
@@ -96,11 +99,6 @@ consteval bool same_name(std::meta::info a, std::meta::info b) {
     return is_call_operator(a) && is_call_operator(b);
   return has_identifier(a) && has_identifier(b) &&
          identifier_of(a) == identifier_of(b);
-}
-
-// A valid identifier for `member`, for naming generated vtable entries.
-consteval std::string_view member_name(std::meta::info member) {
-  return is_call_operator(member) ? "call_operator" : identifier_of(member);
 }
 
 // Returns `true` if the member functions `candidate` and `interface` have
@@ -178,20 +176,26 @@ constexpr inline auto conformance_candidates_of =
 
 // The non-static members of `conformance_candidates_of<Type>`: the member
 // functions an interface `Type` requires. Overloads appear as separate
-// entries; an entry's index identifies its vtable slot.
+// entries, each naming its own vtable entry (see
+// `xyz::name_mangling::mangle`).
 template <std::meta::info Type>
 constexpr inline auto protocol_interface_functions_of =
     std::define_static_array(
         conformance_candidates_of<Type> |
         std::views::filter(std::not_fn(std::meta::is_static_member)));
 
-// The vtable entry for the interface member function at `Index`;
-// `generate_vtable_specs` declares one entry per interface member function in
-// the same order as `protocol_interface_functions_of`.
-template <std::meta::info VtableType, std::size_t Index>
-consteval std::meta::info vtable_entry_at() {
-  return nonstatic_data_members_of(
-      VtableType, std::meta::access_context::unprivileged())[Index];
+// The entry of `VtableType` named by the mangled signature of the interface
+// member function `member`, if it declares one.
+template <std::meta::info VtableType>
+consteval std::optional<std::meta::info> find_vtable_entry(
+    std::meta::info member) {
+  std::string name = xyz::name_mangling::mangle(member);
+  std::vector<std::meta::info> entries = nonstatic_data_members_of(
+      VtableType, std::meta::access_context::unprivileged());
+  for (std::meta::info entry : entries) {
+    if (identifier_of(entry) == name) return entry;
+  }
+  return std::nullopt;
 }
 
 // Vanishing-this-pointer thunk for one overload of a synthesised member
@@ -201,17 +205,18 @@ consteval std::meta::info vtable_entry_at() {
 // of the Interface type. `member_thunk` combines the thunks for all
 // overloads of a name into one overload set.
 template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-          typename Vtable, std::size_t Index, bool IsConst, bool IsNoexcept>
+          typename Vtable, std::meta::info Member, bool IsConst,
+          bool IsNoexcept>
 struct method_thunk;
 
 // TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers.
 template <typename R, typename... Args, typename EnclosingType,
-          typename ProtocolType, typename Vtable, std::size_t Index,
+          typename ProtocolType, typename Vtable, std::meta::info Member,
           bool IsConst, bool IsNoexcept>
-struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Index,
+struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
                     IsConst, IsNoexcept> {
   static constexpr std::meta::info vtable_entry =
-      vtable_entry_at<^^Vtable, Index>();
+      *find_vtable_entry<^^Vtable>(Member);
 
   // Recovers the EnclosingType pointer: `call_operator_base` derives from
   // this thunk, while a generated `member_base` holds it as its sole data
@@ -265,9 +270,10 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Index,
 template <bool Noexcept, typename R, typename... Args>
 using fn_ptr_t = R (*)(Args...) noexcept(Noexcept);
 
-// One overload of a synthesised member function: the interface member, its
-// vtable slot and the const-qualification of the generated wrapper.
-template <std::meta::info Member, std::size_t Index, bool IsConst>
+// One overload of a synthesised member function: the interface member (which
+// names its vtable entry) and the const-qualification of the generated
+// wrapper.
+template <std::meta::info Member, bool IsConst>
 struct overload_spec {};
 
 // The `method_thunk` specialisation for an `overload_spec`.
@@ -275,9 +281,9 @@ template <typename Spec, typename EnclosingType, typename ProtocolType,
           typename Vtable>
 struct method_thunk_for;
 
-template <std::meta::info Member, std::size_t Index, bool IsConst,
-          typename EnclosingType, typename ProtocolType, typename Vtable>
-struct method_thunk_for<overload_spec<Member, Index, IsConst>, EnclosingType,
+template <std::meta::info Member, bool IsConst, typename EnclosingType,
+          typename ProtocolType, typename Vtable>
+struct method_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
                         ProtocolType, Vtable> {
   // Build the function-pointer type R(*)(Args...) from the method's return
   // type and parameter types.
@@ -292,7 +298,7 @@ struct method_thunk_for<overload_spec<Member, Index, IsConst>, EnclosingType,
   // clang-format off
   using type = typename[:substitute(
       ^^method_thunk, {fn_ptr_type(), ^^EnclosingType, ^^ProtocolType, ^^Vtable,
-                       std::meta::reflect_constant(Index),
+                       std::meta::reflect_constant(Member),
                        std::meta::reflect_constant(IsConst),
                        std::meta::reflect_constant(is_noexcept(Member))}):];
   // clang-format on
@@ -426,8 +432,7 @@ consteval std::meta::info generate_wrapper_bases() {
     names_generated.push_back(first);
 
     std::vector<std::meta::info> specs;
-    for (std::size_t index = 0; index < members.size(); ++index) {
-      std::meta::info member = members[index];
+    for (std::meta::info member : members) {
       if (!same_name(member, first) ||
           !generates_wrapper_for<ConstPolicy>(member, members))
         continue;
@@ -436,7 +441,6 @@ consteval std::meta::info generate_wrapper_bases() {
       // clang-format off
       specs.push_back(substitute(
           ^^overload_spec, {reflect_constant(member),
-                            std::meta::reflect_constant(index),
                             std::meta::reflect_constant(wrapper_is_const)}));
       // clang-format on
     }
@@ -466,31 +470,17 @@ using protocol_wrappers_t =
     typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable,
                                      ConstPolicy>():];
 
-// Names the vtable entry for the interface member function at `index`.
-// Overloads share an identifier, so the index keeps entry names unique.
-consteval std::string vtable_entry_name(std::meta::info member,
-                                        std::size_t index) {
-  char digits[std::numeric_limits<std::size_t>::digits10 + 1];
-  auto [end, error] = std::to_chars(digits, digits + sizeof(digits), index);
-  std::string name(member_name(member));
-  name += '_';
-  name.append(digits, end);
-  return name;
-}
-
 // Returns a list of data_member_spec values, one for each member function
 // implemented by `protocol`, each describing a vtable function pointer with
 // signature R(*)(void*, Args...) for a mutable interface method, or
-// R(*)(const void*, Args...) for a const one.
+// R(*)(const void*, Args...) for a const one, named by the member function's
+// mangled signature (see `xyz::name_mangling::mangle`).
 template <std::meta::info interface_type>
 consteval std::vector<std::meta::info> generate_vtable_specs() {
   std::vector<std::meta::info> function_pointer_specs;
 
-  std::span<const std::meta::info> members =
-      protocol_interface_functions_of<interface_type>;
-  for (std::size_t index = 0; index < members.size(); ++index) {
-    std::meta::info member = members[index];
-
+  for (std::meta::info member :
+       protocol_interface_functions_of<interface_type>) {
     // Build the function-pointer type R(*)(void*, Args...) noexcept(...)
     // from the method's return type, parameter types and noexcept-ness; a
     // const method takes `const void*` instead, matching the constness of
@@ -507,7 +497,7 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
 
     function_pointer_specs.push_back(data_member_spec(
         fn_ptr_type, std::meta::data_member_options{
-                         .name = vtable_entry_name(member, index)}));
+                         .name = xyz::name_mangling::mangle(member)}));
   }
   return function_pointer_specs;
 }
@@ -575,13 +565,10 @@ consteval typename vtable_generator<T>::vtable make_view_vtable() {
   using Vtable = typename vtable_generator<T>::vtable;
   Vtable result{};
 
-  constexpr std::span<const std::meta::info> members =
-      protocol_interface_functions_of<^^T>;
-  template for (constexpr std::size_t index :
-                std::views::iota(std::size_t{0}, members.size())) {
-    constexpr std::meta::info member = members[index];
+  template for (constexpr std::meta::info member :
+                protocol_interface_functions_of<^^T>) {
     constexpr std::meta::info vtable_member =
-        vtable_entry_at<^^Vtable, index>();
+        *find_vtable_entry<^^Vtable>(member);
     using FnPtrType = typename[:type_of(vtable_member):];
     if constexpr (is_const(member)) {
       constexpr std::meta::info candidate =
@@ -754,7 +741,8 @@ class protocol
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::size_t Index, bool IsConst, bool IsNoexcept>
+            typename Vtable, std::meta::info Member, bool IsConst,
+            bool IsNoexcept>
   friend struct detail::method_thunk;
 
   [[no_unique_address]] Alloc alloc_;
@@ -983,7 +971,8 @@ class protocol_view
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::size_t Index, bool IsConst, bool IsNoexcept>
+            typename Vtable, std::meta::info Member, bool IsConst,
+            bool IsNoexcept>
   friend struct detail::method_thunk;
 
   // Non-owning pointer to the viewed object.
@@ -1029,7 +1018,8 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::size_t Index, bool IsConst, bool IsNoexcept>
+            typename Vtable, std::meta::info Member, bool IsConst,
+            bool IsNoexcept>
   friend struct detail::method_thunk;
 
   // Non-owning pointer to the viewed object.
