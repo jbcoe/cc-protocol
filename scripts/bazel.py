@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 from typing import Any
+from typing import Optional
 from typing import Tuple
 
 # Directory of the GCC trunk snapshot published at
@@ -16,6 +17,30 @@ GCC_LATEST_BIN_DIRECTORY = "/opt/gcc-latest/bin"
 # Resolved from this script's own location rather than the current working
 # directory, so build operations run from the source root.
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def find_libstdcxx_directory(cxx_compiler_path: str) -> Optional[str]:
+    """Find the directory containing libstdc++.so for GCC trunk or custom toolchains."""
+    try:
+        compiler_output = subprocess.check_output(
+            [cxx_compiler_path, "-print-file-name=libstdc++.so"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        if compiler_output and os.path.exists(compiler_output):
+            canonical_path = os.path.realpath(compiler_output)
+            return os.path.dirname(canonical_path)
+    except Exception:
+        pass
+
+    gcc_latest_root = os.path.dirname(GCC_LATEST_BIN_DIRECTORY)
+    if cxx_compiler_path.startswith(gcc_latest_root):
+        for candidate_subpath in ("lib64", "lib"):
+            candidate_directory = os.path.join(gcc_latest_root, candidate_subpath)
+            if os.path.isdir(candidate_directory):
+                return candidate_directory
+
+    return None
 
 
 def find_system_compilers() -> Tuple[str, str]:
@@ -142,6 +167,18 @@ def main() -> None:
     bazel_command.append("--repo_env=BAZEL_LINKLIBS")
     bazel_command.append("--action_env=PATH")
     bazel_command.append("--repo_env=PATH")
+
+    libstdcxx_directory = find_libstdcxx_directory(cxx_target_path)
+    if libstdcxx_directory:
+        bazel_command.append(f"--linkopt=-Wl,-rpath,{libstdcxx_directory}")
+        existing_ld_path = bazel_environment.get("LD_LIBRARY_PATH", "")
+        full_ld_path = (
+            f"{libstdcxx_directory}:{existing_ld_path}"
+            if existing_ld_path
+            else libstdcxx_directory
+        )
+        bazel_command.append(f"--test_env=LD_LIBRARY_PATH={full_ld_path}")
+        bazel_environment["LD_LIBRARY_PATH"] = full_ld_path
 
     bazel_command.append("//...")
     bazel_command.extend(extra_arguments)

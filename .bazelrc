@@ -17,3 +17,6 @@ build --action_env=PATH
 build --repo_env=CC
 build --repo_env=CXX
 build --repo_env=PATH
+
+# Show test output on failure
+test --test_output=errors
