@@ -1053,10 +1053,32 @@ TEST(ReflectionProtocolViewTest, MemberThunksCannotBeDetachedForOverloads) {
   static_assert(!std::is_default_constructible_v<decltype(p.compute)>);
   static_assert(!std::is_destructible_v<decltype(p.compute)>);
   static_assert(std::is_trivially_copyable_v<decltype(p.compute)>);
+}
 
+TEST(ReflectionProtocolViewTest, OverloadsThroughThunkReference) {
+  struct Interface {
+    int compute(int x);
+    double compute(double x);
+    std::string compute(const std::string& x) const;
+  };
+
+  struct Conforming {
+    int compute(int x) { return x * 2; }
+
+    double compute(double x) { return x * 3.0; }
+
+    std::string compute(const std::string& x) const { return x + x; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> p(c);
+
+  // `protocol_view` is shallow const: the non-const overloads are callable
+  // through a const reference to the thunk.
   const auto& compute = p.compute;
   EXPECT_EQ(compute(5), 10);
   EXPECT_EQ(compute(5.0), 15.0);
+  EXPECT_EQ(compute(std::string("A")), "AA");
 }
 
 // Member function forwarding tests for protocol.
@@ -1491,6 +1513,24 @@ TEST(ReflectionProtocolTest, MemberThunksCannotBeDetachedForOverloads) {
   static_assert(!std::is_default_constructible_v<decltype(p.compute)>);
   static_assert(!std::is_destructible_v<decltype(p.compute)>);
   static_assert(std::is_trivially_copyable_v<decltype(p.compute)>);
+}
+
+TEST(ReflectionProtocolTest, OverloadsThroughThunkReference) {
+  struct Interface {
+    int compute(int x);
+    double compute(double x);
+    std::string compute(const std::string& x) const;
+  };
+
+  struct Conforming {
+    int compute(int x) { return x * 2; }
+
+    double compute(double x) { return x * 3.0; }
+
+    std::string compute(const std::string& x) const { return x + x; }
+  };
+
+  protocol<Interface> p(Conforming{});
 
   // Const propagates through `protocol`: the non-const overloads need a
   // non-const reference to the thunk.
