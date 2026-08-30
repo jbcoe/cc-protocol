@@ -38,6 +38,13 @@ concept has_get_int = requires(P& p) { p.get(0); };
 template <typename P>
 concept has_get = requires(P& p) { p.get(); };
 
+// Concepts for call operator tests.
+template <typename P>
+concept is_callable = requires(P& p) { p(); };
+
+template <typename P>
+concept is_callable_with_int = requires(P& p) { p(0); };
+
 // ---------------------------------------------------------------------------
 // Type trait tests.
 // ---------------------------------------------------------------------------
@@ -628,6 +635,73 @@ TEST(ConformsToTest, ConstAndNonConstOverloadPairConforms) {
   static_assert(!is_protocol_conformant<Interface, ConstOnly>());
 }
 
+TEST(ConformsToTest, CallOperatorConforms) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  struct Conforming {
+    int operator()(int x) const { return x + 1; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+
+  auto lambda = [](int x) { return x + 1; };
+  static_assert(is_protocol_conformant<Interface, decltype(lambda)>());
+}
+
+TEST(ConformsToTest, CallOperatorWithWrongSignatureDoesNotConform) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  struct WrongParam {
+    int operator()(double x) const { return static_cast<int>(x); }
+  };
+
+  struct NonConst {
+    int operator()(int x) { return x; }
+  };
+
+  static_assert(!is_protocol_conformant<Interface, WrongParam>());
+  static_assert(!is_protocol_conformant<Interface, NonConst>());
+}
+
+TEST(ConformsToTest, MutableLambdaConformsToNonConstCallOperator) {
+  struct Interface {
+    int operator()(int x);
+  };
+
+  auto mutable_lambda = [](int x) mutable { return x + 1; };
+  auto const_lambda = [](int x) { return x + 1; };
+
+  static_assert(is_protocol_conformant<Interface, decltype(mutable_lambda)>());
+  static_assert(!is_protocol_conformant<Interface, decltype(const_lambda)>());
+}
+
+TEST(ConformsToTest, OverloadedCallOperatorsConform) {
+  struct Interface {
+    int operator()(int x);
+    double operator()(double x);
+    std::string operator()(const std::string& x) const;
+  };
+
+  struct Conforming {
+    int operator()(int x) { return x * 2; }
+
+    double operator()(double x) { return x * 3.0; }
+
+    std::string operator()(const std::string& x) const { return x + x; }
+  };
+
+  struct MissingOverloads {
+    int operator()(int x) { return x * 2; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+  static_assert(!is_protocol_conformant<Interface, MissingOverloads>());
+}
+
 // ---------------------------------------------------------------------------
 // Constructability tests.
 // ---------------------------------------------------------------------------
@@ -1079,6 +1153,145 @@ TEST(ReflectionProtocolViewTest, OverloadsThroughThunkReference) {
   EXPECT_EQ(compute(5), 10);
   EXPECT_EQ(compute(5.0), 15.0);
   EXPECT_EQ(compute(std::string("A")), "AA");
+}
+
+// Call operator tests for protocol_view.
+
+TEST(ReflectionProtocolViewTest, CallOperator) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  struct Conforming {
+    int operator()(int x) const { return x * 2; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+  EXPECT_EQ(view(21), 42);
+}
+
+TEST(ReflectionProtocolViewTest, CallOperatorFromLambda) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  // protocol_view can be constructed from a lambda directly, like
+  // function_ref.
+  auto lambda = [](int x) { return x * 2; };
+  protocol_view<Interface> view(lambda);
+  EXPECT_EQ(view(21), 42);
+}
+
+TEST(ReflectionProtocolViewTest, OverloadedCallOperators) {
+  struct Interface {
+    int operator()(int x);
+    double operator()(double x);
+    std::string operator()(const std::string& x) const;
+  };
+
+  struct Conforming {
+    int operator()(int x) { return x * 2; }
+
+    double operator()(double x) { return x * 3.0; }
+
+    std::string operator()(const std::string& x) const { return x + x; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+  EXPECT_EQ(view(5), 10);
+  EXPECT_EQ(view(5.0), 15.0);
+  EXPECT_EQ(view(std::string("A")), "AA");
+}
+
+TEST(ReflectionProtocolViewTest,
+     ConstAndNonConstCallOperatorPairDispatchesToNonConst) {
+  struct Interface {
+    int operator()() const;
+    int operator()();
+  };
+
+  struct Conforming {
+    int operator()() const { return 1; }
+
+    int operator()() { return 2; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+  EXPECT_EQ(view(), 2);
+
+  // Shallow const: a const protocol_view still dispatches to the non-const
+  // overload.
+  const protocol_view<Interface>& const_view = view;
+  EXPECT_EQ(const_view(), 2);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewDispatchesToConstCallOperator) {
+  struct Interface {
+    int operator()() const;
+    int operator()();
+  };
+
+  struct Conforming {
+    int operator()() const { return 1; }
+
+    int operator()() { return 2; }
+  };
+
+  Conforming c;
+  protocol_view<const Interface> view(c);
+  EXPECT_EQ(view(), 1);
+
+  const Conforming const_c;
+  protocol_view<const Interface> const_view(const_c);
+  EXPECT_EQ(const_view(), 1);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewExposesOnlyConstCallOperators) {
+  struct Interface {
+    int operator()() const;
+    void operator()(int value);
+  };
+
+  static_assert(!is_callable_with_int<protocol_view<const Interface>>);
+  static_assert(is_callable_with_int<protocol_view<Interface>>);
+  static_assert(is_callable_with_int<const protocol_view<Interface>>);
+
+  static_assert(is_callable<protocol_view<const Interface>>);
+  static_assert(is_callable<protocol_view<Interface>>);
+  static_assert(is_callable<const protocol_view<Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, CallOperatorAlongsideNamedMembers) {
+  struct Interface {
+    int operator()(int x) const;
+    int get() const;
+  };
+
+  struct Conforming {
+    int operator()(int x) const { return x * 2; }
+
+    int get() const { return 7; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+  EXPECT_EQ(view(2), 4);
+  EXPECT_EQ(view.get(), 7);
+}
+
+TEST(ReflectionProtocolViewTest, IsTriviallyCopyableWithCallOperator) {
+  struct Interface {
+    int operator()(int x);
+    double operator()(double x);
+    std::string operator()(const std::string& x) const;
+  };
+
+  static_assert(std::is_trivially_copyable_v<protocol_view<Interface>>);
+  static_assert(std::is_trivially_copyable_v<protocol_view<const Interface>>);
+  static_assert(sizeof(protocol_view<Interface>) == 2 * sizeof(void*));
 }
 
 // Member function forwarding tests for protocol.
@@ -1558,5 +1771,129 @@ TEST(ReflectionProtocolTest, NoexceptOverload) {
   EXPECT_EQ(p.f(5.0), 15);
   static_assert(noexcept(p.f(1)));
   static_assert(!noexcept(p.f(1.0)));
+}
+
+// Call operator tests for protocol.
+
+TEST(ReflectionProtocolTest, CallOperator) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  struct Conforming {
+    int operator()(int x) const { return x * 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p(21), 42);
+}
+
+TEST(ReflectionProtocolTest, CallOperatorFromLambda) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  protocol<Interface> p([](int x) { return x * 2; });
+  EXPECT_EQ(p(21), 42);
+}
+
+TEST(ReflectionProtocolTest, OverloadedCallOperators) {
+  struct Interface {
+    int operator()(int x);
+    double operator()(double x);
+    std::string operator()(const std::string& x) const;
+  };
+
+  struct Conforming {
+    int operator()(int x) { return x * 2; }
+
+    double operator()(double x) { return x * 3.0; }
+
+    std::string operator()(const std::string& x) const { return x + x; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p(5), 10);
+  EXPECT_EQ(p(5.0), 15.0);
+
+  const auto& const_p = p;
+  EXPECT_EQ(const_p(std::string("A")), "AA");
+}
+
+TEST(ReflectionProtocolTest, ConstAndNonConstCallOperatorPair) {
+  struct Interface {
+    int operator()() const;
+    int operator()();
+  };
+
+  struct Conforming {
+    int operator()() const { return 1; }
+
+    int operator()() { return 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p(), 2);
+
+  const protocol<Interface>& const_p = p;
+  EXPECT_EQ(const_p(), 1);
+}
+
+TEST(ReflectionProtocolTest, ConstProtocolExposesOnlyConstCallOperators) {
+  struct Interface {
+    int operator()() const;
+    void operator()(int value);
+  };
+
+  static_assert(!is_callable_with_int<const protocol<Interface>>);
+  static_assert(is_callable_with_int<protocol<Interface>>);
+
+  static_assert(is_callable<protocol<Interface>>);
+  static_assert(is_callable<const protocol<Interface>>);
+}
+
+TEST(ReflectionProtocolTest, CallOperatorAlongsideNamedMembers) {
+  struct Interface {
+    int operator()(int x) const;
+    int get() const;
+  };
+
+  struct Conforming {
+    int operator()(int x) const { return x * 2; }
+
+    int get() const { return 7; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p(2), 4);
+  EXPECT_EQ(p.get(), 7);
+}
+
+TEST(ReflectionProtocolTest, NoexceptCallOperator) {
+  struct Interface {
+    int operator()(int x) noexcept;
+  };
+
+  struct Conforming {
+    int operator()(int x) noexcept { return x * 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p(21), 42);
+  static_assert(noexcept(p(1)));
+}
+
+TEST(ReflectionProtocolTest, CallOperatorForwardingAfterCopy) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  struct Conforming {
+    int operator()(int x) const { return x * 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  protocol<Interface> copy(p);
+  EXPECT_EQ(copy(21), 42);
 }
 }  // namespace
