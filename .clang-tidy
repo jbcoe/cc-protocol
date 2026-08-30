@@ -80,7 +80,6 @@ CheckOptions:
 # either fixed or explicitly suppressed with a reason. Run locally with
 # `./scripts/cmake.sh --debug --clang-tidy`.
 WarningsAsErrors: '*'
-# Exclude third-party dependencies fetched by CMake and headers generated from
-# scripts/protocol.j2; findings in generated code should be fixed in the template.
-HeaderFilterRegex: '^(?!.*(_deps|/generated/)).*'
+# Exclude third-party dependencies fetched by CMake.
+HeaderFilterRegex: '^(?!.*_deps).*'
 FormatStyle: file

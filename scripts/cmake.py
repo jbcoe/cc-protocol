@@ -26,8 +26,8 @@ def main() -> None:
         "mode",
         nargs="?",
         default="test",
-        choices=["build", "test", "benchmark", "b", "t", "bm"],
-        help="Target mode: build (b), test (t), benchmark (bm) (default: test)",
+        choices=["build", "test", "b", "t"],
+        help="Target mode: build (b), test (t) (default: test)",
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -53,7 +53,7 @@ def main() -> None:
     parser.add_argument(
         "--reflection",
         action="store_true",
-        help="Build and test tutorials/reflection.cc (requires a P2996 "
+        help="Build and test the reflection implementation (requires a P2996 "
         "reflection compiler; defaults to the GCC trunk snapshot in "
         "/opt/gcc-latest if present, else g++-16/gcc-16; set CXX/CC in the "
         "environment to override)",
@@ -90,10 +90,8 @@ def main() -> None:
     mode_map = {
         "b": "build",
         "t": "test",
-        "bm": "benchmark",
         "build": "build",
         "test": "test",
-        "benchmark": "benchmark",
     }
     mode = mode_map[args.mode]
 
@@ -141,7 +139,7 @@ def main() -> None:
     log(f"Running: {' '.join(configure_args)}")
     subprocess.check_call(configure_args, env=configure_env)
 
-    # Build step (required for build, test, benchmark)
+    # Build step (required for build and test)
     build_args = ["cmake", "--build", args.build_dir, "--config", preset]
     if args.clean:
         build_args.append("--clean-first")
@@ -166,21 +164,6 @@ def main() -> None:
 
         log(f"Running: {' '.join(test_args)}")
         subprocess.check_call(test_args)
-
-    # Benchmark step
-    if mode == "benchmark":
-        benchmark_cmd = [
-            "cmake",
-            "--build",
-            args.build_dir,
-            "--config",
-            preset,
-            "--target",
-            "run_benchmark",
-        ]
-
-        log(f"Running: {' '.join(benchmark_cmd)}")
-        subprocess.check_call(benchmark_cmd)
 
 
 if __name__ == "__main__":

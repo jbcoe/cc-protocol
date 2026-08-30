@@ -13,7 +13,6 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "**/*.cmake"
-      - "**/*.j2"
   pull_request:
     paths:
       - ".github/workflows/cmake.yml" # This file
@@ -23,7 +22,6 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "**/*.cmake"
-      - "**/*.j2"
 
 env:
   UV_FROZEN: 1

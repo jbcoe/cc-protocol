@@ -6,10 +6,13 @@ This document explains how to set up, build, and understand the internals of the
 
 ### Prerequisites
 
-Before building, ensure you have [CMake](https://cmake.org/download/), a modern
-C++ compiler (supporting C++20), and
+Before building, ensure you have [CMake](https://cmake.org/download/) 3.25 or
+later, a GCC with C++26 reflection (P2996) support, and
 [uv](https://docs.astral.sh/uv/getting-started/installation/) installed. The
-project relies on `uv` to manage Python dependencies and execute build scripts.
+reflection compiler is either the GCC trunk snapshot from
+[jwakely.github.io/pkg-gcc-latest](https://jwakely.github.io/pkg-gcc-latest/)
+or Ubuntu 26.04's `gcc-16` package. The project relies on `uv` to manage
+Python dependencies and execute build scripts.
 
 ### Building and Testing
 
@@ -19,7 +22,7 @@ The project uses CMake for its build system.
    project root directory and execute the provided build script:
 
 ```bash
-./scripts/cmake.sh
+./scripts/cmake.sh --reflection
 ```
 
 This script manages the entire build and test process.
@@ -37,8 +40,8 @@ The script will configure, build, and execute tests.
 
 CI runs clang-tidy on every translation unit and fails on any finding
 (`WarningsAsErrors: '*'` in `.clang-tidy`). The `clang-tidy` job is a required
-status check for merging to `main`; on pull requests that touch no C++, CMake,
-or template sources the job is skipped, which counts as passing. To reproduce
+status check for merging to `main`; on pull requests that touch no C++ or
+CMake sources the job is skipped, which counts as passing. To reproduce
 locally, with
 `clang-tidy` on your `PATH` (the devcontainer installs `clang-tidy-22`):
 
@@ -87,73 +90,32 @@ constraints.
 
 ## Interface Definition
 
-Interfaces for the `protocol` wrapper are defined in standard C++ header files.
-The code generation process reads these headers to identify the required
-methods.
+Interfaces for `protocol` and `protocol_view` are plain structs or classes.
+Their public, non-virtual, non-template member functions define the protocol;
+`protocol.hh` inspects them with C++26 reflection at compile time.
 
 ### Supported Features
 
-- Member Functions: The system is designed to support non-template member
+- Member Functions: overloaded member functions (distinguished by parameter
+  types or arity), `operator()` including overloaded call operators, const
+  and non-const overloads of the same member, `noexcept` member functions,
+  and static member functions on the conforming type (a static candidate has
+  no object parameter, so it can satisfy any const or reference qualification
+  of the interface member). Static member functions declared on the interface
+  itself are ignored.
+
+- Limitations: No operators other than `operator()` are supported. Member
+  function templates are not matched, since only non-template functions are
+  considered as candidates. Conformance checking accounts for an interface
+  member's lvalue/rvalue reference qualifier, but the generated call wrapper
+  does not itself apply the qualifier. There is no conversion between a
+  `protocol`/`protocol_view` of one interface and another. Conformance
+  checking is O(N\*M) in the number of interface and candidate member
   functions.
 
-- Limitations: The exact capabilities of `py_cppmodel` and `libclang` for
-  parsing C++ features in interface definitions are not fully documented. A
-  definitive list of supported and unsupported features is not available.
-
-- Guidance: Developers should refer to the test files, especially
-  `protocol_test.cc` and its associated headers, for examples of supported
-  interface patterns.
-
-## Code Generation
-
-The library uses a code generation strategy to create the `protocol` wrappers.
-
-### Process
-
-1. Parsing: The `scripts/generate_protocol.py` script uses `libclang` (with
-   the `py_cppmodel` Python wrapper) to parse the Abstract Syntax Tree (AST) of
-   user-defined C++ interface headers.
-
-2. Template Rendering: The parsed interface information is then used with
-   Jinja2 templates (like `scripts/protocol.j2`) to generate the C++ code for
-   the `protocol` wrapper.
-
-3. Build Integration: This code generation is integrated into the CMake
-   build process using the `xyz_generate_protocol` macro found in
-   `cmake/xyz_generate_protocol.cmake`.
-
-### Using the `xyz_generate_protocol` Macro
-
-The `xyz_generate_protocol` CMake macro automates code generation and supports emitting two different implementation strategies: virtual dispatch and explicit manual vtables.
-
-- Location: The macro is defined in `cmake/xyz_generate_protocol.cmake`.
-- Documentation: This file contains inline documentation that details the
-  macro's parameters and usage.
-
-- Invocation Example: A typical invocation within a `CMakeLists.txt` file
-  might look like this:
-
-  ```cmake
-  # Generate standard virtual-dispatch based protocol
-  xyz_generate_protocol(
-      CLASS_NAME MyInterface
-      INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/MyInterface.h"
-      HEADER "MyInterface.h"
-      OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_MyInterface.h"
-  )
-
-  ```
-
-  This macro ensures that the Python script runs during the CMake configuration
-  or build phase to generate the necessary C++ source files for the protocol.
-
-## Performance and Benchmarks
-
-You can measure the performance of member function dispatch, copying, and moving by running the `protocol_benchmark` target via the wrapper script:
-
-```bash
-./scripts/cmake.sh benchmark
-```
+- Guidance: Developers should refer to `protocol_test.cc`,
+  `forwarding_test.cc`, `allocator_tests.cc` and `tutorials/reflection.cc` for
+  examples of supported interface patterns.
 
 ## Usage Examples
 
@@ -161,9 +123,9 @@ Examples of how to use the `protocol` library can be found within the test
 suite.
 
 - `protocol_test.cc`: This file contains tests that demonstrate the library's
-  intended usage. It shows how to define an interface, generate the protocol,
-  and then instantiate and use the wrapper with concrete types. Developers can
-  examine this file for practical examples.
+  intended usage. It shows how to define an interface and then instantiate
+  and use the wrapper with concrete types. Developers can examine this file
+  for practical examples.
 
 ## Current Status and Limitations
 
@@ -221,4 +183,4 @@ uv run pre-commit run --all-files
 
 ---
 
-_Last updated: April 1, 2026_
+_Last updated: August 30, 2026_

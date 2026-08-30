@@ -31,8 +31,9 @@ option(ENABLE_MSAN "Enable Memory Sanitizer" OFF)
 
 option(
   XYZ_PROTOCOL_BUILD_REFLECTION
-  "Also build and test tutorials/reflection.cc, which requires a compiler \
-with C++26 P2996 reflection support (eg. a GCC trunk snapshot with -freflection)."
+  "Build and test the reflection implementation (protocol.hh, its tests and \
+tutorials/reflection.cc), which requires a compiler with C++26 P2996 \
+reflection support (eg. a GCC trunk snapshot with -freflection)."
   OFF)
 
 if(XYZ_PROTOCOL_BUILD_REFLECTION)
@@ -79,31 +80,6 @@ if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN OR ENABLE_MSAN)
   set(ENABLE_SANITIZERS ON)
 endif()
 
-# Set up Python discovery
-set(Python3_FIND_VIRTUALENV FIRST)
-if(DEFINED ENV{UV_PROJECT_ENVIRONMENT})
-  set(Python3_ROOT_DIR "$ENV{UV_PROJECT_ENVIRONMENT}")
-elseif(DEFINED ENV{VIRTUAL_ENV})
-  set(Python3_ROOT_DIR "$ENV{VIRTUAL_ENV}")
-elseif(EXISTS "${PROJECT_SOURCE_DIR}/.venv")
-  set(Python3_ROOT_DIR "${PROJECT_SOURCE_DIR}/.venv")
-endif()
-
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-
-# Verify required modules
-execute_process(
-  COMMAND ${Python3_EXECUTABLE} -c
-          "import jinja2; import clang; import xyz.cppmodel"
-  RESULT_VARIABLE PYTHON_MODULES_FOUND
-  ERROR_QUIET)
-if(NOT PYTHON_MODULES_FOUND EQUAL 0)
-  message(
-    FATAL_ERROR
-      "Python interpreter missing required modules (jinja2, clang, xyz.cppmodel). "
-      "Please run 'uv sync' or install them manually.")
-endif()
-
 # Include necessary submodules
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${PROJECT_SOURCE_DIR}/cmake/modules)
 
@@ -111,16 +87,14 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${PROJECT_SOURCE_DIR}/
 include(xyz_add_library)
 include(xyz_add_test)
 include(xyz_add_object_library)
-include(xyz_generate_protocol)
 
 find_package(ClangTidy)
 find_package(IWYU)
 xyz_add_library(
   NAME protocol
-  ALIAS xyz_protocol::protocol
-  FILES protocol.cc)
+  ALIAS xyz_protocol::protocol)
 target_sources(
-  protocol PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.h>)
+  protocol INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.hh>)
 
 if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
@@ -132,103 +106,34 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       GIT_REPOSITORY https://github.com/google/googletest.git
       GIT_TAG v1.15.2
       SYSTEM)
-    FetchContent_Declare(
-      google_benchmark
-      GIT_REPOSITORY https://github.com/google/benchmark.git
-      # v1.9.5 or later is required for Clang 22, which warns that __COUNTER__
-      # is a C2y extension; benchmark's own -Werror build failed on it before.
-      GIT_TAG v1.9.5
-      SYSTEM)
     # For Windows: Prevent overriding the parent project's compiler/linker
     # settings
     set(gtest_force_shared_crt
         ON
         CACHE BOOL "" FORCE)
-    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-    set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest google_benchmark)
+    FetchContent_MakeAvailable(googletest)
 
     enable_testing()
 
     if(XYZ_PROTOCOL_BUILD_REFLECTION)
-      add_subdirectory(reflection)
+      xyz_add_test(
+        NAME
+        protocol_test
+        VERSION
+        26
+        LINK_LIBRARIES
+        xyz_protocol::protocol
+        FILES
+        protocol_test.cc
+        allocator_tests.cc
+        consteval_check_test.cc
+        forwarding_test.cc)
+      if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(protocol_test PRIVATE -freflection)
+      endif()
     endif()
-
-    xyz_generate_protocol(
-      CLASS_NAME A INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A.h
-      HEADER interface_A.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h)
-    xyz_generate_protocol(
-      CLASS_NAME A_Subset INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_A_Subset.h
-      HEADER interface_A_Subset.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_Subset.h)
-    xyz_generate_protocol(
-      CLASS_NAME B INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_B.h
-      HEADER interface_B.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h)
-    xyz_generate_protocol(
-      CLASS_NAME C INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_C.h
-      HEADER interface_C.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h)
-    xyz_generate_protocol(
-      CLASS_NAME D INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interface_D.h
-      HEADER interface_D.h
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
-
-    add_custom_target(
-      generate_protocols
-      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_Subset.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h
-              ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
-
-    xyz_add_test(
-      NAME
-      protocol_test
-      LINK_LIBRARIES
-      protocol
-      FILES
-      protocol_test.cc
-      interface_A.h
-      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A.h
-      interface_A_Subset.h
-      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_A_Subset.h
-      interface_B.h
-      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_B.h
-      interface_C.h
-      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_C.h
-      interface_D.h
-      ${CMAKE_CURRENT_BINARY_DIR}/generated/protocol_D.h)
-    add_dependencies(protocol_test generate_protocols)
-    target_include_directories(protocol_test
-                               PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
     add_subdirectory(tutorials)
-
-    add_executable(protocol_benchmark protocol_benchmark.cc)
-    target_link_libraries(protocol_benchmark PRIVATE protocol benchmark::benchmark)
-    add_dependencies(protocol_benchmark generate_protocols)
-    target_include_directories(protocol_benchmark PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-
-    add_custom_target(run_benchmark
-      COMMAND protocol_benchmark
-      DEPENDS protocol_benchmark
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      USES_TERMINAL
-    )
-
-    if(NOT MSVC)
-      add_test(
-        NAME concept_errors_test
-        COMMAND
-          ${Python3_EXECUTABLE} -m pytest
-          ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_concept_errors.py
-          --compiler=${CMAKE_CXX_COMPILER} --flags=-std=c++20
-          --flags=-I${CMAKE_CURRENT_BINARY_DIR}
-          --flags=-I${CMAKE_CURRENT_SOURCE_DIR}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    endif()
   endif(${BUILD_TESTING})
 
 endif()

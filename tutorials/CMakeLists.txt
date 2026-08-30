@@ -30,7 +30,7 @@ if(XYZ_PROTOCOL_BUILD_REFLECTION)
         VERSION
         26
         LINK_LIBRARIES
-        xyz_protocol::reflection_protocol
+        xyz_protocol::protocol
         FILES
         reflection.cc)
     target_compile_options(reflection_tutorial PRIVATE -freflection)

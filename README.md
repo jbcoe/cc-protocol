@@ -11,9 +11,9 @@ structural-subtyping, `protocol` is owning, `protocol_view` is non-owning.
 See [DRAFT.md](DRAFT.md) for more details on design.
 
 This repository contains both the ISO C++ proposal to add these new library
-types and a reference implementation. The reference implementation is currently
-reliant on a Python code-generation step as C++26 reflection is missing some of
-the features needed to generate code needed by these types at compile time.
+types and a reference implementation, `protocol.hh`, built on C++26 reflection
+(P2996). It requires a compiler with reflection support, such as a GCC trunk
+snapshot with `-freflection`.
 
 ## Standardization
 
@@ -24,8 +24,8 @@ continue work.
 
 ## Contributing and Development
 
-For build instructions, testing, contributing guidelines, and a deeper look into
-the code generation architecture, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For build instructions, testing and contributing guidelines, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## GitHub codespaces
 
