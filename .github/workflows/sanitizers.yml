@@ -14,23 +14,55 @@ on:
       - "CMakePresets.json"
       - "**/*.cmake"
       - "scripts/cmake.py"
+      - "scripts/cmake.sh"
+  # No `paths:` filter here. The `asan` and `tsan` jobs are required status
+  # checks for merging to main, and a workflow that is filtered out by
+  # `paths:` never reports a check, which leaves unrelated pull requests
+  # blocked as "Expected - Waiting for status to be reported". Instead, the
+  # `detect-changes` job below decides whether the build needs to run, and a
+  # job skipped by an `if:` condition counts as a passing check.
   pull_request:
-    paths:
-      - ".github/workflows/sanitizers.yml"
-      - "**/*.cc"
-      - "**/*.h"
-      - "**/*.hh"
-      - "**/CMakeLists.txt"
-      - "CMakePresets.json"
-      - "**/*.cmake"
-      - "scripts/cmake.py"
 
 env:
   UV_FROZEN: 1
 
 jobs:
+  detect-changes:
+    name: detect-changes (sanitizers)
+    # Only pull requests need change detection; pushes to main and scheduled
+    # runs always run the build.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # Keep in sync with the `push.paths` list above.
+          filters: |
+            relevant:
+              - ".github/workflows/sanitizers.yml"
+              - "**/*.cc"
+              - "**/*.h"
+              - "**/*.hh"
+              - "**/CMakeLists.txt"
+              - "CMakePresets.json"
+              - "**/*.cmake"
+              - "scripts/cmake.py"
+              - "scripts/cmake.sh"
+
   sanitized-tests:
-    name: ${{ matrix.sanitizer }} (GCC trunk)
+    needs: detect-changes
+    # Run unless change detection positively reported that nothing relevant
+    # changed. `!cancelled()` lets this job run when `detect-changes` was
+    # skipped (push and schedule events), and an empty output (because
+    # `detect-changes` failed) falls through to running the build rather than
+    # silently passing the required check.
+    if: ${{ !cancelled() && needs.detect-changes.outputs.relevant != 'false' }}
+    name: ${{ matrix.sanitizer }}
     runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
