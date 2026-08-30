@@ -181,6 +181,10 @@ TEST(TutorialsVtables, VtableWithCallOperator) {
 }
 }  // namespace xyz::tutorials::vtable_with_operators
 
+// An illustration of a name mangling regime that can be used to disambiguate
+// names for function overloads and represent operators whose names are not
+// valid identifiers.
+
 namespace xyz::tutorials::name_mangling_for_vtable {
 
 using std::meta::dealias;
@@ -241,11 +245,7 @@ consteval std::string decimal(std::size_t value) {
   return std::string(buffer.data(), result.ptr);
 }
 
-// Length-prefixed with no separator, matching the Itanium ABI's own
-// <source-name> production (`Foo` mangles as `3Foo`, not `3_Foo`). Stays
-// unambiguous because every atom is either a genuine C++ identifier, which
-// never starts with a digit, or one of this file's own non-digit tags, so
-// a decoder always knows where the length ends and the payload begins.
+// Length-prefixed with no separator, modelled on the Itanium ABI.
 consteval std::string mangle_atom(std::string_view text) {
   return decimal(text.size()) + std::string(text);
 }
