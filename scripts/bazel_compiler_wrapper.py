@@ -16,6 +16,7 @@ Filters unsupported Clang-specific flags (e.g. -ffile-compilation-dir=*,
 """
 
 import os
+import shutil
 import subprocess
 import sys
 from typing import List
@@ -93,6 +94,12 @@ def main() -> None:
 
     real_compiler_path = sys.argv[1]
     raw_arguments = sys.argv[2:]
+
+    # Resolve bare compiler command names to absolute paths via PATH
+    if not os.path.isabs(real_compiler_path):
+        resolved_compiler_path = shutil.which(real_compiler_path)
+        if resolved_compiler_path is not None:
+            real_compiler_path = resolved_compiler_path
 
     # Resolve symlinks so GCC can reliably find sibling passes (like cc1plus in libexec)
     canonical_compiler_path = os.path.realpath(real_compiler_path)
