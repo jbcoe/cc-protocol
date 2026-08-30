@@ -9,6 +9,7 @@ on:
       - ".github/workflows/clang-tidy.yml" # This file
       - "**/*.cc"
       - "**/*.h"
+      - "**/*.hh"
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "cmake/**"
@@ -20,7 +21,6 @@ on:
   # `detect-changes` job below decides whether the build needs to run, and a
   # job skipped by an `if:` condition counts as a passing check.
   pull_request:
-    branches: [main]
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -51,6 +51,7 @@ jobs:
               - ".github/workflows/clang-tidy.yml" # This file
               - "**/*.cc"
               - "**/*.h"
+              - "**/*.hh"
               - "**/CMakeLists.txt"
               - "CMakePresets.json"
               - "cmake/**"
