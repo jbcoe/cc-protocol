@@ -235,6 +235,11 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Index,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(enclosing(this));
+    if constexpr (is_protocol_v<ProtocolType>) {
+      assert(!protocol_object->valueless_after_move() &&
+             "cannot call member function of valueless protocol");
+    }
+
     const Vtable* vtable = protocol_object->vtable_;
     constexpr std::meta::info entry = vtable_entry;
     return vtable->[:entry:](protocol_object->object_,
@@ -246,6 +251,11 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Index,
   {
     const auto* protocol_object =
         static_cast<const ProtocolType*>(enclosing(this));
+    if constexpr (is_protocol_v<ProtocolType>) {
+      assert(!protocol_object->valueless_after_move() &&
+             "cannot call member function of valueless protocol");
+    }
+
     const Vtable* vtable = protocol_object->vtable_;
     constexpr std::meta::info entry = vtable_entry;
     return vtable->[:entry:](protocol_object->object_,

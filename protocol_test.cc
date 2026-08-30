@@ -2124,4 +2124,46 @@ TEST(ReflectionProtocolTest, CallOperatorForwardingAfterCopy) {
   protocol<Interface> copy(p);
   EXPECT_EQ(copy(21), 42);
 }
+
+// Tests that dispatching fails gracefully for a moved-from protocol.
+#if (defined(_MSC_VER) && defined(_DEBUG)) || (!defined(NDEBUG))
+
+TEST(ReflectionProtocolTest, MutableValuelessCall) {
+  struct Interface {
+    int foo();
+  };
+
+  struct TypeA {
+    int foo() { return 5; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  EXPECT_EQ(p.foo(), 5);
+
+  auto _ = std::move(p);
+  EXPECT_TRUE(p.valueless_after_move());
+
+  EXPECT_DEATH(p.foo(), "cannot call member function of valueless protocol");
+}
+
+TEST(ReflectionProtocolTest, ConstValuelessCall) {
+  struct Interface {
+    int foo() const;
+  };
+
+  struct TypeA {
+    int foo() const { return 5; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  EXPECT_EQ(p.foo(), 5);
+
+  auto _ = std::move(p);
+  EXPECT_TRUE(p.valueless_after_move());
+
+  EXPECT_DEATH(p.foo(), "cannot call member function of valueless protocol");
+}
+
+#endif
+
 }  // namespace
