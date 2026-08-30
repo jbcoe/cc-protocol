@@ -236,7 +236,8 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Index,
   {
     auto* protocol_object = static_cast<ProtocolType*>(enclosing(this));
     if constexpr (is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() && "cannot call member function of valueless protocol");
+      assert(!protocol_object->valueless_after_move() &&
+             "cannot call member function of valueless protocol");
     }
 
     const Vtable* vtable = protocol_object->vtable_;
@@ -251,9 +252,10 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Index,
     const auto* protocol_object =
         static_cast<const ProtocolType*>(enclosing(this));
     if constexpr (is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() && "cannot call member function of valueless protocol");
+      assert(!protocol_object->valueless_after_move() &&
+             "cannot call member function of valueless protocol");
     }
-    
+
     const Vtable* vtable = protocol_object->vtable_;
     constexpr std::meta::info entry = vtable_entry;
     return vtable->[:entry:](protocol_object->object_,
@@ -471,8 +473,8 @@ consteval std::meta::info generate_wrapper_bases() {
 template <typename T, typename ProtocolType, typename Vtable,
           const_policy ConstPolicy = const_policy::propagate>
 using protocol_wrappers_t =
-    typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable,
-                                     ConstPolicy>():];
+    typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable, ConstPolicy>(
+                  ):];
 
 // Names the vtable entry for the interface member function at `index`.
 // Overloads share an identifier, so the index keeps entry names unique.
