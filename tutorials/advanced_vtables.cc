@@ -453,9 +453,13 @@ class AnimalPtr {
               return static_cast<const T*>(data)->noise(x);
             },
         .fn_2clK =
-            +[](const void* data) { return (*static_cast<const T*>(data))(); },
+            +[](const void* data) {  //
+              return (*static_cast<const T*>(data))();
+            },
         .fn_2cliK = +[](const void* data,
-                        int x) { return (*static_cast<const T*>(data))(x); }};
+                        int x) {  //
+          return (*static_cast<const T*>(data))(x);
+        }};
     vtable_ = &vtable_for_type;
   }
 
