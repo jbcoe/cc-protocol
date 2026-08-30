@@ -1,0 +1,142 @@
+name: Bazel test
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bazel.yml" # This file
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/*.hh"
+      - "**/*.bazel"
+      - "BUILD.bazel"
+      - "MODULE.bazel"
+      - "MODULE.bazel.lock"
+      - ".bazelrc"
+      - ".bazelignore"
+      - "scripts/bazel.py"
+      - "scripts/bazel.sh"
+      - "scripts/bazel_compiler_wrapper.py"
+      - "tutorials/BUILD.bazel"
+  # No `paths:` filter here. The `GCC trunk` build jobs are required status
+  # checks for merging to main, and a workflow that is filtered out by
+  # `paths:` never reports a check, which leaves unrelated pull requests
+  # blocked as "Expected - Waiting for status to be reported". Instead, the
+  # `detect-changes` job below decides whether the build needs to run, and a
+  # job skipped by an `if:` condition counts as a passing check.
+  pull_request:
+
+env:
+  UV_FROZEN: 1
+
+jobs:
+  detect-changes:
+    name: detect-changes (bazel)
+    # Only pull requests need change detection; pushes to main and scheduled
+    # runs always run the build.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # Keep in sync with the `push.paths` list above.
+          filters: |
+            relevant:
+              - ".github/workflows/bazel.yml" # This file
+              - "**/*.cc"
+              - "**/*.h"
+              - "**/*.hh"
+              - "**/*.bazel"
+              - "BUILD.bazel"
+              - "MODULE.bazel"
+              - "MODULE.bazel.lock"
+              - ".bazelrc"
+              - ".bazelignore"
+              - "scripts/bazel.py"
+              - "scripts/bazel.sh"
+              - "scripts/bazel_compiler_wrapper.py"
+              - "tutorials/BUILD.bazel"
+
+  build:
+    needs: detect-changes
+    # Run unless change detection positively reported that nothing relevant
+    # changed. `!cancelled()` lets this job run when `detect-changes` was
+    # skipped (push and schedule events), and an empty output (because
+    # `detect-changes` failed) falls through to running the build rather than
+    # silently passing the required check.
+    if: ${{ !cancelled() && needs.detect-changes.outputs.relevant != 'false' }}
+    name: ${{ matrix.settings.name }}
+    runs-on: ${{ matrix.settings.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - {
+              name: "GCC trunk",
+              os: ubuntu-26.04,
+              compiler:
+                {
+                  type: GCC_TRUNK,
+                  version: trunk,
+                  cc: "/opt/gcc-latest/bin/gcc",
+                  cxx: "/opt/gcc-latest/bin/g++",
+                  std: 26,
+                },
+            }
+          # Ubuntu 26.04's gcc-16 is a frozen experimental snapshot whose
+          # reflection support no longer receives fixes (issue #122). It is kept
+          # because it is what a stock Ubuntu 26.04 user gets from
+          # `apt install gcc-16`. Drop this entry once the reflection backend
+          # needs fixes that only exist on trunk.
+          - {
+              name: "GCC-16",
+              os: ubuntu-26.04,
+              compiler:
+                {
+                  type: GCC16,
+                  version: 16,
+                  cc: "gcc-16",
+                  cxx: "g++-16",
+                  std: 26,
+                },
+            }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install GCC trunk
+        if: matrix.settings.compiler.type == 'GCC_TRUNK'
+        # Prebuilt GCC trunk snapshot from https://jwakely.github.io/pkg-gcc-latest/;
+        # scripts/bazel.py finds /opt/gcc-latest itself, so no PATH changes are needed.
+        # The unversioned URL tracks upstream weekly. If a snapshot regression breaks
+        # this job, temporarily pin the versioned file linked from that page, e.g.
+        # https://kayari.org/gcc-latest/gcc-latest_17.0.0-20260816git8df013222dff.deb
+        run: |
+          wget --quiet https://kayari.org/gcc-latest/gcc-latest.deb
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ./gcc-latest.deb
+      - name: Install GCC 16
+        if: matrix.settings.compiler.type == 'GCC16'
+        # Set CXX/CC explicitly so scripts/bazel.py does not pick a stray
+        # /opt/gcc-latest on the runner.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-16 g++-16
+          echo "CXX=${{ matrix.settings.compiler.cxx }}" >> "$GITHUB_ENV"
+          echo "CC=${{ matrix.settings.compiler.cc }}" >> "$GITHUB_ENV"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+      - name: Set up Python
+        run: uv sync
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+      - name: Run Bazel
+        run: ./scripts/bazel.sh
