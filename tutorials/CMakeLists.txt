@@ -30,3 +30,11 @@ xyz_add_test(
     xyz_protocol::protocol
     FILES
     reflection.cc)
+
+xyz_add_test(
+    NAME
+    advanced_vtables_tutorial
+    LINK_LIBRARIES
+    xyz_protocol::protocol
+    FILES
+    advanced_vtables.cc)
