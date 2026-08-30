@@ -15,7 +15,8 @@ xyz_add_test(
   FILES
   protocol_test.cc
   allocator_tests.cc
-  consteval_check_test.cc)
+  consteval_check_test.cc
+  forwarding_test.cc)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   target_compile_options(reflection_protocol_test PRIVATE -freflection)
