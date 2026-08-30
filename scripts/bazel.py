@@ -39,6 +39,9 @@ def find_system_compilers() -> Tuple[str, str]:
 
 def create_compiler_wrappers(real_cc_path: str, real_cxx_path: str) -> Tuple[str, str]:
     """Create wrapper scripts to filter Clang-only flags for GCC."""
+    resolved_cc_path = shutil.which(real_cc_path) or os.path.abspath(real_cc_path)
+    resolved_cxx_path = shutil.which(real_cxx_path) or os.path.abspath(real_cxx_path)
+
     wrappers_directory_path = os.path.join(SOURCE_ROOT, ".bazel-wrappers")
     os.makedirs(wrappers_directory_path, exist_ok=True)
 
@@ -57,7 +60,7 @@ exec python3 "{compiler_wrapper_script_path}" "{real_binary_path}" "$@"
         gcc_file.write(
             wrapper_template.format(
                 compiler_wrapper_script_path=compiler_wrapper_script_path,
-                real_binary_path=real_cc_path,
+                real_binary_path=resolved_cc_path,
             )
         )
     os.chmod(gcc_wrapper_path, 0o755)
@@ -66,7 +69,7 @@ exec python3 "{compiler_wrapper_script_path}" "{real_binary_path}" "$@"
         gxx_file.write(
             wrapper_template.format(
                 compiler_wrapper_script_path=compiler_wrapper_script_path,
-                real_binary_path=real_cxx_path,
+                real_binary_path=resolved_cxx_path,
             )
         )
     os.chmod(gxx_wrapper_path, 0o755)
@@ -110,8 +113,10 @@ def main() -> None:
     bazel_environment = os.environ.copy()
 
     if "CC" in bazel_environment and "CXX" in bazel_environment:
-        cc_target_path = bazel_environment["CC"]
-        cxx_target_path = bazel_environment["CXX"]
+        cc_environment_path = bazel_environment["CC"]
+        cxx_environment_path = bazel_environment["CXX"]
+        cc_target_path = shutil.which(cc_environment_path) or cc_environment_path
+        cxx_target_path = shutil.which(cxx_environment_path) or cxx_environment_path
     else:
         cc_target_path, cxx_target_path = find_system_compilers()
 
