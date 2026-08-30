@@ -104,17 +104,10 @@ consteval std::string_view member_name(std::meta::info member) {
 }
 
 // Returns `true` if the member functions `candidate` and `interface` have
-// the same name, reference qualifiers, de-aliased return type and de-aliased
-// parameter types; const and noexcept are not compared.
-consteval bool same_signature_ignoring_const(std::meta::info candidate,
-                                             std::meta::info interface) {
+// the same name, de-aliased return type and de-aliased parameter types.
+consteval bool same_name_and_parameters(std::meta::info candidate,
+                                        std::meta::info interface) {
   if (!same_name(candidate, interface)) return false;
-  if (is_lvalue_reference_qualified(interface) !=
-      is_lvalue_reference_qualified(candidate))
-    return false;
-  if (is_rvalue_reference_qualified(interface) !=
-      is_rvalue_reference_qualified(candidate))
-    return false;
   if (dealias(return_type_of(interface)) != dealias(return_type_of(candidate)))
     return false;
   auto dealiased_type_of = [](std::meta::info parameter) {
@@ -124,29 +117,45 @@ consteval bool same_signature_ignoring_const(std::meta::info candidate,
                             {}, dealiased_type_of, dealiased_type_of);
 }
 
+// Returns `true` if the member functions `candidate` and `interface` have
+// the same name, reference qualifiers, de-aliased return type and de-aliased
+// parameter types; const and noexcept are not compared.
+consteval bool same_signature_ignoring_const(std::meta::info candidate,
+                                             std::meta::info interface) {
+  if (is_lvalue_reference_qualified(interface) !=
+      is_lvalue_reference_qualified(candidate))
+    return false;
+  if (is_rvalue_reference_qualified(interface) !=
+      is_rvalue_reference_qualified(candidate))
+    return false;
+  return same_name_and_parameters(candidate, interface);
+}
+
 // Returns `true` if the `candidate` member function is consistent with the
 // `interface` member function for the purposes of structural subtyping;
 // otherwise returns `false`.
 consteval bool member_function_conforms_to(std::meta::info candidate,
                                            std::meta::info interface) {
-  if (!same_signature_ignoring_const(candidate, interface)) return false;
-  // If interface is `const`, `candidate` must be const.
-  if (is_const(interface) != is_const(candidate)) return false;
+  if (is_static_member(candidate)) {
+    // A static candidate has no object parameter, so it satisfies any const
+    // or reference qualification of `interface`.
+    if (!same_name_and_parameters(candidate, interface)) return false;
+  } else {
+    if (!same_signature_ignoring_const(candidate, interface)) return false;
+    // If interface is `const`, `candidate` must be const.
+    if (is_const(interface) != is_const(candidate)) return false;
+  }
   // If interface is `noexcept`, `candidate` must be noexcept.
   return !is_noexcept(interface) || is_noexcept(candidate);
 }
 
-// The named, non-static, non-special member functions and call operators of
-// `Type`, in declaration order. Overloads appear as separate entries; an
-// entry's index identifies its vtable slot.
-//
-// TODO(jbcoe): Handle static functions as they can be used to satisfy
-// interface conformance.
+// The named, non-special member functions and call operators of `Type`,
+// static or not, in declaration order: the members that can satisfy an
+// interface member function.
 template <std::meta::info Type>
-consteval auto protocol_interface_function_infos() {
+consteval auto conformance_candidate_infos() {
   auto named = members_of(Type, std::meta::access_context::unprivileged()) |
                std::views::filter(std::meta::is_function) |
-               std::views::filter(std::not_fn(std::meta::is_static_member)) |
                std::views::filter([](std::meta::info member) consteval {
                  return has_identifier(member) || is_call_operator(member);
                });
@@ -164,8 +173,17 @@ consteval auto protocol_interface_function_infos() {
 }
 
 template <std::meta::info Type>
+constexpr inline auto conformance_candidates_of =
+    std::define_static_array(conformance_candidate_infos<Type>());
+
+// The non-static members of `conformance_candidates_of<Type>`: the member
+// functions an interface `Type` requires. Overloads appear as separate
+// entries; an entry's index identifies its vtable slot.
+template <std::meta::info Type>
 constexpr inline auto protocol_interface_functions_of =
-    std::define_static_array(protocol_interface_function_infos<Type>());
+    std::define_static_array(
+        conformance_candidates_of<Type> |
+        std::views::filter(std::not_fn(std::meta::is_static_member)));
 
 // The vtable entry for the interface member function at `Index`;
 // `generate_vtable_specs` declares one entry per interface member function in
@@ -506,8 +524,7 @@ struct vtable_generator {
 // `Member`, using the same matching rule as is_protocol_conformant.
 template <std::meta::info Member, std::meta::info CandidateType>
 consteval std::meta::info find_conforming_member() {
-  for (std::meta::info candidate :
-       protocol_interface_functions_of<CandidateType>) {
+  for (std::meta::info candidate : conformance_candidates_of<CandidateType>) {
     if (member_function_conforms_to(candidate, Member)) return candidate;
   }
   std::unreachable();
@@ -606,7 +623,7 @@ consteval bool is_protocol_conformant() {
   auto interface_member_functions =
       detail::protocol_interface_functions_of<^^Interface>;
   auto candidate_member_functions =
-      detail::protocol_interface_functions_of<^^Candidate>;
+      detail::conformance_candidates_of<^^Candidate>;
 
   return std::ranges::all_of(
       interface_member_functions, [&](std::meta::info interface_member) {
