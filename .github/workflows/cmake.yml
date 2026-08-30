@@ -13,31 +13,64 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "**/*.cmake"
+      - "scripts/cmake.py"
+      - "scripts/cmake.sh"
+  # No `paths:` filter here. The `GCC trunk` build jobs are required status
+  # checks for merging to main, and a workflow that is filtered out by
+  # `paths:` never reports a check, which leaves unrelated pull requests
+  # blocked as "Expected - Waiting for status to be reported". Instead, the
+  # `detect-changes` job below decides whether the build needs to run, and a
+  # job skipped by an `if:` condition counts as a passing check.
   pull_request:
-    paths:
-      - ".github/workflows/cmake.yml" # This file
-      - "**/*.cc"
-      - "**/*.h"
-      - "**/*.hh"
-      - "**/CMakeLists.txt"
-      - "CMakePresets.json"
-      - "**/*.cmake"
 
 env:
   UV_FROZEN: 1
 
 jobs:
+  detect-changes:
+    name: detect-changes (cmake)
+    # Only pull requests need change detection; pushes to main and scheduled
+    # runs always run the build.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # Keep in sync with the `push.paths` list above.
+          filters: |
+            relevant:
+              - ".github/workflows/cmake.yml" # This file
+              - "**/*.cc"
+              - "**/*.h"
+              - "**/*.hh"
+              - "**/CMakeLists.txt"
+              - "CMakePresets.json"
+              - "**/*.cmake"
+              - "scripts/cmake.py"
+              - "scripts/cmake.sh"
+
   build:
+    needs: detect-changes
+    # Run unless change detection positively reported that nothing relevant
+    # changed. `!cancelled()` lets this job run when `detect-changes` was
+    # skipped (push and schedule events), and an empty output (because
+    # `detect-changes` failed) falls through to running the build rather than
+    # silently passing the required check.
+    if: ${{ !cancelled() && needs.detect-changes.outputs.relevant != 'false' }}
     name: ${{ matrix.settings.name }} ${{ matrix.configuration }}
     runs-on: ${{ matrix.settings.os }}
-    continue-on-error: ${{ matrix.settings.informational || false }}
     strategy:
       fail-fast: false
       matrix:
         configuration: ["Release", "Debug"]
         settings:
           - {
-              name: "Ubuntu GCC trunk (C++26 Reflection)",
+              name: "GCC trunk",
               os: ubuntu-26.04,
               compiler:
                 {
@@ -50,12 +83,11 @@ jobs:
             }
           # Ubuntu 26.04's gcc-16 is a frozen experimental snapshot whose
           # reflection support no longer receives fixes (issue #122). It is kept
-          # here as a non-blocking, informational job because it is what a stock
-          # Ubuntu 26.04 user gets from `apt install gcc-16`; the GCC trunk job
-          # above is the gating one. Drop this entry once the reflection backend
+          # because it is what a stock Ubuntu 26.04 user gets from
+          # `apt install gcc-16`. Drop this entry once the reflection backend
           # needs fixes that only exist on trunk.
           - {
-              name: "Ubuntu GCC-16 (C++26 Reflection, informational)",
+              name: "GCC-16",
               os: ubuntu-26.04,
               compiler:
                 {
@@ -65,7 +97,6 @@ jobs:
                   cxx: "g++-16",
                   std: 26,
                 },
-              informational: true,
             }
     steps:
       - uses: actions/checkout@v5

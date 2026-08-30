@@ -6,17 +6,18 @@ on:
     paths:
       - pyproject.toml
       - uv.lock
+  # No `paths:` filter here. This is a required status check for merging to
+  # main, but the job is cheap (checkout + `uv lock --check`), so it always
+  # runs rather than needing a `detect-changes` job.
   pull_request:
     branches: [main]
-    paths:
-      - pyproject.toml
-      - uv.lock
 
 env:
   UV_FROZEN: 1
 
 jobs:
   check-lockfile:
+    name: uv-lock
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
