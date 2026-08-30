@@ -284,7 +284,7 @@ consteval std::optional<std::string_view> builtin_type_code(
     std::meta::info type) {
   type = dealias(type);
   if (type == ^^int) return "i";
-  if (type == ^^unsigned long) return "m";
+  if (type == dealias(^^std::size_t)) return "m";
   if (is_fundamental_type(type)) {
     // Limited type handling for brevity.
     throw std::runtime_error(
@@ -346,11 +346,15 @@ consteval std::string_view mangle(std::meta::info fn) {
   return std::define_static_string(name);
 }
 
+// `Type`'s public, non-special member functions, in declaration order.
+template <std::meta::info Type>
+constexpr auto member_functions_of = std::define_static_array(
+    members_of(Type, std::meta::access_context::unprivileged()) |
+    filter(is_function) | filter(std::not_fn(is_static_member)) |
+    filter(std::not_fn(is_special_member_function)));
+
 TEST(TutorialsVtables, NameMangling) {
-  constexpr auto m_fns = std::define_static_array(
-      members_of(^^Cat, std::meta::access_context::unprivileged()) |
-      filter(is_function) | filter(std::not_fn(is_static_member)) |
-      filter(std::not_fn(is_special_member_function)));
+  constexpr auto m_fns = member_functions_of<^^Cat>;
 
   // operator()() const
   XYZ_CONSTEVAL_CHECK(mangle(m_fns[0]) == "fn_2clK");
@@ -389,13 +393,10 @@ TEST(TutorialsVtables, NameMangling) {
 namespace xyz::tutorials::name_mangled_vtable {
 
 using std::meta::dealias;
-using std::meta::is_function;
-using std::meta::is_special_member_function;
-using std::meta::is_static_member;
 using std::meta::parameters_of;
 using std::meta::type_of;
-using std::views::filter;
 using xyz::tutorials::name_mangling_for_vtable::mangle;
+using xyz::tutorials::name_mangling_for_vtable::member_functions_of;
 
 struct Cat {
   std::string_view noise() const { return "Meow"; }
@@ -412,13 +413,8 @@ using const_fn_ptr_t = R (*)(const void*, Args...);
 
 template <std::meta::info Interface>
 consteval std::vector<std::meta::info> mangled_vtable_specs() {
-  constexpr static auto member_functions = std::define_static_array(
-      members_of(Interface, std::meta::access_context::unprivileged()) |
-      filter(is_function) | filter(std::not_fn(is_static_member)) |
-      filter(std::not_fn(is_special_member_function)));
-
   std::vector<std::meta::info> specs;
-  template for (constexpr std::meta::info fn : member_functions) {
+  template for (constexpr std::meta::info fn : member_functions_of<Interface>) {
     std::vector<std::meta::info> fn_args{dealias(return_type_of(fn))};
     for (std::meta::info param : parameters_of(fn)) {
       fn_args.push_back(dealias(type_of(param)));
