@@ -74,6 +74,16 @@ inline constexpr bool is_protocol_view_v = is_protocol_view<T>::value;
 
 namespace detail {
 
+// Per ISO C++ ([expr.prim.lambda.closure]), closure types are unique, unnamed,
+// non-union class types.
+// This concept will also match an unnamed class type with a single
+// `operator()`.
+// TODO(jbcoe): Refine this concept to match only lambdas.
+template <typename T>
+concept is_maybe_lambda =
+    is_class_type(dealias(^^T)) && !has_identifier(dealias(^^T)) &&
+    requires { &T::operator(); };
+
 consteval bool is_call_operator(std::meta::info function) {
   return is_operator_function(function) &&
          operator_of(function) == std::meta::operators::op_parentheses;
@@ -143,12 +153,28 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
 // static or not, in declaration order: the members that can satisfy an
 // interface member function.
 template <std::meta::info Type>
-constexpr inline auto conformance_candidates_of = std::define_static_array(
-    members_of(Type, std::meta::access_context::unprivileged()) |
-    std::views::filter(std::meta::is_function) |
-    std::views::filter([](std::meta::info member) consteval {
-      return has_identifier(member) || is_call_operator(member);
-    }));
+consteval auto conformance_candidate_infos() {
+  auto named = members_of(Type, std::meta::access_context::unprivileged()) |
+               std::views::filter(std::meta::is_function) |
+               std::views::filter([](std::meta::info member) consteval {
+                 return has_identifier(member) || is_call_operator(member);
+               });
+  std::vector<std::meta::info> result(std::ranges::begin(named),
+                                      std::ranges::end(named));
+  // Per [meta.reflection.member.queries], a closure type's function call
+  // operator is members-of-eligible, but GCC's `members_of` does not yet
+  // enumerate it, leaving `result` empty for lambdas; name the operator
+  // directly as a fallback.
+  using T = typename[:Type:];
+  if constexpr (is_maybe_lambda<T>) {
+    if (result.empty()) result.push_back(^^T::operator());
+  }
+  return result;
+}
+
+template <std::meta::info Type>
+constexpr inline auto conformance_candidates_of =
+    std::define_static_array(conformance_candidate_infos<Type>());
 
 // The non-static members of `conformance_candidates_of<Type>`: the member
 // functions an interface `Type` requires. Overloads appear as separate
