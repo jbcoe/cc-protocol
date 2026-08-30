@@ -27,7 +27,7 @@ AGENT_CLIS: dict[str, AgentCli] = {
         "npm_package": "@anthropic-ai/claude-code",
         "cmd": "claude --dangerously-skip-permissions",
     },
-    "antigravity": {"npm_package": None, "cmd": "agy"},
+    "agy": {"npm_package": None, "cmd": "agy"},
 }
 
 
@@ -45,7 +45,7 @@ def _seed_config_file(path: str, content: bytes) -> None:
 
 def _update_command(agent: str, agent_cmd: str, npm_package: str | None) -> str:
     """Build the shell command that updates an agent CLI before running it."""
-    if agent == "antigravity":
+    if agent == "agy":
         return (
             "curl -fsSL https://antigravity.google/cli/install.sh | bash && "
             f"{agent_cmd}"
@@ -61,7 +61,7 @@ def _agent_mount_args(agent: str | None) -> list[str]:
     """Seed and mount host config so an agent CLI keeps its auth state."""
     # Use os.open with restrictive permissions in _seed_config_file to avoid
     # exposing credentials to other local users on multi-user systems.
-    if agent in ("gemini", "antigravity"):
+    if agent in ("gemini", "agy"):
         gemini_config_dir = os.path.expanduser("~/.gemini")
         os.makedirs(gemini_config_dir, mode=0o700, exist_ok=True)
         _seed_config_file(
@@ -101,7 +101,7 @@ def _agent_mount_args(agent: str | None) -> list[str]:
 def main() -> None:
     """Provide the main entry point for the agentic sandbox script."""
     parser = argparse.ArgumentParser(
-        description="Run an AI agent (gemini, claude, or antigravity) in a Docker "
+        description="Run an AI agent (gemini, claude, or agy) in a Docker "
         "sandbox, or a plain shell if no agent is given."
     )
     parser.add_argument(
