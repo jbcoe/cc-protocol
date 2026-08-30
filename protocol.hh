@@ -473,7 +473,7 @@ consteval std::meta::info generate_wrapper_bases() {
 template <typename T, typename ProtocolType, typename Vtable,
           const_policy ConstPolicy = const_policy::propagate>
 using protocol_wrappers_t =
-    typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable, 
+    typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable,
                                      ConstPolicy>():];
 
 // Names the vtable entry for the interface member function at `index`.
