@@ -20,16 +20,16 @@ general defaults for this repository.
 - **Tooling:** Always use `uv` for Python dependency management (`uv run ...`).
 - **Build & Test:** Use `scripts/cmake.sh --reflection` for all build and test
   operations. The `scripts/cmake.sh` entrypoint supports `--debug`,
-  `--release`, `--asan`, `--ubsan`, `--tsan`, `--msan`, and `--clang-tidy`.
-- **Compiler Preferences:** Prefer Clang 19+ for sanitizer-based verification
-  and CI, as it provides superior support for MSAN and TSAN compared to
-  older GCC versions.
+  `--release`, `--asan`, `--ubsan`, and `--tsan`.
+- **Compiler:** The implementation requires GCC with C++26 reflection (the GCC
+  trunk snapshot in `/opt/gcc-latest`, or `gcc-16`); CI, including the
+  sanitizer jobs, runs on GCC trunk.
 - **Verification:** All changes must be verified using the `scripts/cmake.sh`
   script to build and test the implementation.
 - **Sanitizer Verification:** When modifying memory-sensitive or concurrent
   code, verify changes locally using at least one sanitizer (e.g.,
-  `./scripts/cmake.sh --asan` or `--tsan`). Note that ASAN, TSAN, and MSAN
-  are mutually exclusive.
+  `./scripts/cmake.sh --asan` or `--tsan`). Note that ASAN and TSAN are
+  mutually exclusive.
 - **Post-Change Checks:** Tests and pre-commit checks MUST be run after any
   modifications to the codebase.
 

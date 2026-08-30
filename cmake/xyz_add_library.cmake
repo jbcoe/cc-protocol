@@ -70,9 +70,6 @@ function(xyz_add_library)
       target_compile_definitions(${XYZ_NAME} PUBLIC ${XYZ_DEFINITIONS})
     endif()
 
-    if(CLANG_TIDY_ENABLE AND ClangTidy_FOUND)
-      set_target_properties(${XYZ_NAME} PROPERTIES CXX_CLANG_TIDY "${XYZ_CLANG_TIDY}")
-    endif()
   else()
     add_library(${XYZ_NAME} INTERFACE)
     target_include_directories(

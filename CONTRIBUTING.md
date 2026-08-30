@@ -36,39 +36,6 @@ This script manages the entire build and test process.
 
 The script will configure, build, and execute tests.
 
-### Static Analysis
-
-CI runs clang-tidy on every translation unit and fails on any finding
-(`WarningsAsErrors: '*'` in `.clang-tidy`). The `clang-tidy` job is a required
-status check for merging to `main`; on pull requests that touch no C++ or
-CMake sources the job is skipped, which counts as passing. To reproduce
-locally, with
-`clang-tidy` on your `PATH` (the devcontainer installs `clang-tidy-22`):
-
-```bash
-./scripts/cmake.sh --debug --clang-tidy
-```
-
-The same run is available as an opt-in pre-commit hook. It is a full build, so
-it is not part of the default commit-time hooks:
-
-```bash
-uv run pre-commit run --hook-stage manual clang-tidy
-```
-
-CI pins clang-tidy 22 (`COMPILER_VERSION` in `.github/workflows/clang-tidy.yml`);
-the check set differs between releases, so a different local version may
-report different findings. CMake warns at configure time when the version it
-found does not match. The pinned version is recorded in three places that must
-be updated together: the workflow, `docker/Dockerfile`, and
-`ClangTidy_EXPECTED_MAJOR_VERSION` in `cmake/modules/FindClangTidy.cmake`.
-
-Fix genuine findings. Suppress false positives at the site with a `NOLINT`
-comment that names the check and gives a reason, or, for a check that does not
-apply to a whole directory, in that directory's `.clang-tidy` (see
-`tutorials/.clang-tidy`). Checks disabled for the whole repository are listed
-with their rationale at the top of `.clang-tidy`.
-
 ## Core Concepts
 
 ### Structural Subtyping

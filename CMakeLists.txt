@@ -27,7 +27,6 @@ option(ENABLE_SANITIZERS
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
 option(ENABLE_UBSAN "Enable Undefined Behaviour Sanitizer" OFF)
 option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
-option(ENABLE_MSAN "Enable Memory Sanitizer" OFF)
 
 option(
   XYZ_PROTOCOL_BUILD_REFLECTION
@@ -76,20 +75,18 @@ if(XYZ_PROTOCOL_BUILD_REFLECTION)
   endif()
 endif()
 
-if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN OR ENABLE_MSAN)
+if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN)
   set(ENABLE_SANITIZERS ON)
 endif()
 
 # Include necessary submodules
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${PROJECT_SOURCE_DIR}/cmake/modules)
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 # Custom CMake Includes
 include(xyz_add_library)
 include(xyz_add_test)
 include(xyz_add_object_library)
 
-find_package(ClangTidy)
-find_package(IWYU)
 xyz_add_library(
   NAME protocol
   ALIAS xyz_protocol::protocol)
@@ -100,7 +97,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
   if(${BUILD_TESTING})
     # SYSTEM marks the dependencies' include directories as system headers so
-    # that clang-tidy and compiler warnings do not report on third-party code.
+    # that compiler warnings do not report on third-party code.
     FetchContent_Declare(
       googletest
       GIT_REPOSITORY https://github.com/google/googletest.git

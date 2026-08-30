@@ -30,21 +30,24 @@ env:
 
 jobs:
   sanitized-tests:
-    name: ${{ matrix.sanitizer }} (Clang-${{ matrix.clang_version }})
-    runs-on: ubuntu-24.04
+    name: ${{ matrix.sanitizer }} (GCC trunk)
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
-        sanitizer: ["asan", "tsan", "msan"]
-        clang_version: ["22"]
+        # GCC has no MemorySanitizer, so there is no msan job.
+        sanitizer: ["asan", "tsan"]
     steps:
       - uses: actions/checkout@v5
       - uses: lukka/get-cmake@v4.4.2
-      - name: Install Clang
-        uses: egor-tensin/setup-clang@v1
-        with:
-          version: ${{ matrix.clang_version }}
-          platform: x64
+      - name: Install GCC trunk
+        # Prebuilt GCC trunk snapshot from https://jwakely.github.io/pkg-gcc-latest/;
+        # scripts/cmake.py finds /opt/gcc-latest itself, so no PATH changes are needed.
+        # Keep in sync with the same step in cmake.yml.
+        run: |
+          wget --quiet https://kayari.org/gcc-latest/gcc-latest.deb
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ./gcc-latest.deb
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
       - name: Set up Python
@@ -55,7 +58,4 @@ jobs:
           if [ "${{ matrix.sanitizer }}" = "asan" ]; then
             UBSAN_FLAG="--ubsan"
           fi
-          ./scripts/cmake.sh --debug --${{ matrix.sanitizer }} ${UBSAN_FLAG}
-        env:
-          CC: clang-${{ matrix.clang_version }}
-          CXX: clang++-${{ matrix.clang_version }}
+          ./scripts/cmake.sh --debug --reflection --${{ matrix.sanitizer }} ${UBSAN_FLAG}
