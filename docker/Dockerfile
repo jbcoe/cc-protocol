@@ -77,7 +77,15 @@ RUN ARCH=$(dpkg --print-architecture) && \
     && rm /tmp/jj.tar.gz
 
 # Create non-root user.
-RUN useradd -m -s /bin/bash vscode \
+#
+# Ubuntu 24.04+ base images ship a default `ubuntu` user at UID/GID 1000, so
+# a plain `useradd vscode` would land on 1001. Host config directories that
+# are bind-mounted at runtime (~/.claude, ~/.gemini, ~/.ssh, ...) are almost
+# always owned by UID 1000, and VS Code's `updateRemoteUserUID` cannot remap
+# `vscode` onto an ID that is already taken. Remove the stock user first so
+# `vscode` gets 1000:1000 and the mounted files are readable and writable.
+RUN userdel -r ubuntu \
+    && useradd -m -s /bin/bash --uid 1000 vscode \
     && mkdir -p /workspace \
     && chown vscode:vscode /workspace
 

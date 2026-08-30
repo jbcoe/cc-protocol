@@ -9,6 +9,11 @@
 		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,readonly"
 	],
 	"customizations": {
+		"vscode": {
+			"extensions": [
+				"anthropic.claude-code"
+			]
+		},
 		"codespaces": {
 			"repositories": {
 				"jbcoe/cc-protocol": {
