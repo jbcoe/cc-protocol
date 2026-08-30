@@ -219,8 +219,9 @@ consteval std::optional<std::meta::info> find_vtable_entry(
       is_noexcept(member)
           ? name
           : xyz::name_mangling::mangle(member, /*as_noexcept=*/true);
-  for (std::meta::info entry : nonstatic_data_members_of(
-           VtableType, std::meta::access_context::unprivileged())) {
+  std::vector<std::meta::info> entries = nonstatic_data_members_of(
+      VtableType, std::meta::access_context::unprivileged());
+  for (std::meta::info entry : entries) {
     std::string_view entry_name = identifier_of(entry);
     if (entry_name == name || entry_name == noexcept_name) return entry;
   }
