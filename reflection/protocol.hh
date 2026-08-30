@@ -74,6 +74,16 @@ inline constexpr bool is_protocol_view_v = is_protocol_view<T>::value;
 
 namespace detail {
 
+// Per ISO C++ ([expr.prim.lambda.closure]), closure types are unique, unnamed,
+// non-union class types.
+// This concept will also match an unnamed class type with a single
+// `operator()`.
+// TODO(jbcoe): Refine this concept to match only lambdas.
+template <typename T>
+concept is_maybe_lambda =
+    is_class_type(dealias(^^T)) && !has_identifier(dealias(^^T)) &&
+    requires { &T::operator(); };
+
 consteval bool is_call_operator(std::meta::info function) {
   return is_operator_function(function) &&
          operator_of(function) == std::meta::operators::op_parentheses;
@@ -133,14 +143,29 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
 // TODO(jbcoe): Handle static functions as they can be used to satisfy
 // interface conformance.
 template <std::meta::info Type>
+consteval auto protocol_interface_function_infos() {
+  auto named = members_of(Type, std::meta::access_context::unprivileged()) |
+               std::views::filter(std::meta::is_function) |
+               std::views::filter(std::not_fn(std::meta::is_static_member)) |
+               std::views::filter([](std::meta::info member) consteval {
+                 return has_identifier(member) || is_call_operator(member);
+               });
+  std::vector<std::meta::info> result(std::ranges::begin(named),
+                                      std::ranges::end(named));
+  // Per [meta.reflection.member.queries], a closure type's function call
+  // operator is members-of-eligible, but GCC's `members_of` does not yet
+  // enumerate it, leaving `result` empty for lambdas; name the operator
+  // directly as a fallback.
+  using T = typename[:Type:];
+  if constexpr (is_maybe_lambda<T>) {
+    if (result.empty()) result.push_back(^^T::operator());
+  }
+  return result;
+}
+
+template <std::meta::info Type>
 constexpr inline auto protocol_interface_functions_of =
-    std::define_static_array(
-        members_of(Type, std::meta::access_context::unprivileged()) |
-        std::views::filter(std::meta::is_function) |
-        std::views::filter(std::not_fn(std::meta::is_static_member)) |
-        std::views::filter([](std::meta::info member) consteval {
-          return has_identifier(member) || is_call_operator(member);
-        }));
+    std::define_static_array(protocol_interface_function_infos<Type>());
 
 // The vtable entry for the interface member function at `Index`;
 // `generate_vtable_specs` declares one entry per interface member function in
