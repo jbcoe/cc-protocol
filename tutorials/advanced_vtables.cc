@@ -202,31 +202,21 @@ using std::meta::type_of;
 using std::views::filter;
 
 struct Cat {
-  std::string_view operator()() const { return "Meow"; }
-
-  // Everything below is declared only, never called: it exists purely for
-  // reflection to walk, distinguished by const-qualification and parameter
-  // type.
+  std::string_view operator()() const;
   std::string_view operator()();
   std::string_view operator()(int) const;
   std::string_view operator()(int);
 
-  // Exercises `operator_code` for more than one operator.
   std::string_view operator[](int) const;
+
   std::string_view operator->() const;
 
-  std::string_view noise() const { return "Meow"; }
-
-  std::string_view noise(int) const { return "Purr"; }
-
-  // Exercises `mangle_type`'s pointer/reference/const/alias handling.
+  std::string_view noise() const;
+  std::string_view noise(int) const;
   std::string_view noise(int*) const;
   std::string_view noise(int&) const;
   std::string_view noise(const int&) const;
   std::string_view noise(std::size_t) const;
-
-  // A class type, exercising `mangle_qualified_name`/`sanitize`, the
-  // fallback for types `builtin_type_code` doesn't cover.
   std::string_view noise(std::string_view) const;
 };
 
