@@ -153,7 +153,7 @@ consteval auto protocol_interface_function_infos() {
   std::vector<std::meta::info> result(std::ranges::begin(named),
                                       std::ranges::end(named));
   // Per [meta.reflection.member.queries], a closure type's function call
-  // operator is members-of-eligible, but GCC's `members_of` does not yet
+  // operator is members-of-eligible, but GCC16's `members_of` does not yet
   // enumerate it, leaving `result` empty for lambdas; name the operator
   // directly as a fallback.
   using T = typename[:Type:];
