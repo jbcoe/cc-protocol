@@ -30,11 +30,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "consteval_check.h"
 
 // A study of using vtables for overloaded member functions and `operator()`.
-// This tutorial follows on from the work in `tutorials/polymorphism.cc`.
+// This tutorial follows on from the work in `tutorials/polymorphism.cc` and
+// `tutorials/reflection.cc`
 
 namespace xyz::tutorials::simple_vtable {
 
@@ -379,3 +382,102 @@ TEST(TutorialsVtables, NameMangling) {
 }
 
 }  // namespace xyz::tutorials::name_mangling_for_vtable
+
+// We can use the mangled names when writing the vtable to allow functions to be
+// disambiguated.
+
+namespace xyz::tutorials::name_mangled_vtable {
+
+using std::meta::dealias;
+using std::meta::is_function;
+using std::meta::is_special_member_function;
+using std::meta::is_static_member;
+using std::meta::parameters_of;
+using std::meta::type_of;
+using std::views::filter;
+using xyz::tutorials::name_mangling_for_vtable::mangle;
+
+struct Cat {
+  std::string_view noise() const { return "Meow"; }
+
+  std::string_view noise(int) const { return "Purr"; }
+
+  std::string_view operator()() const { return "Meow"; }
+
+  std::string_view operator()(int) const { return "Purr"; }
+};
+
+template <typename R, typename... Args>
+using const_fn_ptr_t = R (*)(const void*, Args...);
+
+template <std::meta::info Interface>
+consteval std::vector<std::meta::info> mangled_vtable_specs() {
+  constexpr static auto member_functions = std::define_static_array(
+      members_of(Interface, std::meta::access_context::unprivileged()) |
+      filter(is_function) | filter(std::not_fn(is_static_member)) |
+      filter(std::not_fn(is_special_member_function)));
+
+  std::vector<std::meta::info> specs;
+  template for (constexpr std::meta::info fn : member_functions) {
+    std::vector<std::meta::info> fn_args{dealias(return_type_of(fn))};
+    for (std::meta::info param : parameters_of(fn)) {
+      fn_args.push_back(dealias(type_of(param)));
+    }
+    std::meta::info fn_ptr_type = substitute(^^const_fn_ptr_t, fn_args);
+    specs.push_back(data_member_spec(fn_ptr_type, {.name = mangle(fn)}));
+  }
+  return specs;
+}
+
+template <typename T>
+struct vtable_generator {
+  struct vtable;
+  consteval { define_aggregate(^^vtable, mangled_vtable_specs<^^T>()); }
+};
+
+class AnimalPtr {
+  using vtable_t = vtable_generator<Cat>::vtable;
+  const void* data_;
+  const vtable_t* vtable_;
+
+ public:
+  template <typename T>
+  explicit AnimalPtr(const T* animal) : data_(animal) {
+    constexpr static vtable_t vtable_for_type{
+        .fn_5noiseK =
+            +[](const void* data) {
+              return static_cast<const T*>(data)->noise();
+            },
+        .fn_5noiseiK =
+            +[](const void* data, int x) {
+              return static_cast<const T*>(data)->noise(x);
+            },
+        .fn_2clK =
+            +[](const void* data) { return (*static_cast<const T*>(data))(); },
+        .fn_2cliK = +[](const void* data,
+                        int x) { return (*static_cast<const T*>(data))(x); }};
+    vtable_ = &vtable_for_type;
+  }
+
+  std::string_view noise() const { return vtable_->fn_5noiseK(data_); }
+
+  std::string_view noise(int x) const { return vtable_->fn_5noiseiK(data_, x); }
+
+  std::string_view operator()() const { return vtable_->fn_2clK(data_); }
+
+  std::string_view operator()(int x) const {
+    return vtable_->fn_2cliK(data_, x);
+  }
+};
+
+TEST(TutorialsVtables, NameMangledVtable) {
+  Cat cat;
+  AnimalPtr p(&cat);
+
+  EXPECT_EQ(p.noise(), "Meow");
+  EXPECT_EQ(p.noise(3), "Purr");
+  EXPECT_EQ(p(), "Meow");
+  EXPECT_EQ(p(3), "Purr");
+}
+
+}  // namespace xyz::tutorials::name_mangled_vtable
