@@ -30,6 +30,7 @@ struct Interface {
   void set_two(int value, int other);
   void set_array(std::array<int, 3> value);
   void set_tagged(Tagged<3> value);
+  void set_negative_tagged(Tagged<-3> value);
   void ref_lvalue() &;
   void ref_rvalue() &&;
 };
@@ -74,6 +75,11 @@ TEST(NameManglingTest, NamesAClassTemplateSpecialisationParameter) {
 TEST(NameManglingTest, NamesAnIntegralNonTypeTemplateArgument) {
   static_assert(mangle(^^Interface::set_tagged) ==
                 "fn_10set_taggedN12_GLOBAL__N_16TaggedILi3EEE");
+}
+
+TEST(NameManglingTest, NamesANegativeIntegralNonTypeTemplateArgument) {
+  static_assert(mangle(^^Interface::set_negative_tagged) ==
+                "fn_19set_negative_taggedN12_GLOBAL__N_16TaggedILin3EEE");
 }
 
 TEST(NameManglingTest, DistinguishesOverloadsByParameterCount) {

@@ -20,20 +20,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef XYZ_REFLECTION_NAME_MANGLING_H_
 #define XYZ_REFLECTION_NAME_MANGLING_H_
 
-// Names a member function by mangling its signature, following the Itanium
-// C++ ABI where it has an encoding: the function name (or `cl` for the call
-// operator), wrapped in `N...E` with its cv- and ref-qualifiers when it has
-// any, followed by the parameter types. The name depends only on the
-// signature, so a member function of one class names the same entry as a
-// member function of the same signature on another class; this lets a
-// vtable's entries be found by the signature of the interface member function
-// they implement, rather than by declaration order.
-//
-// Parameter types may be fundamental, pointers, references, arrays,
-// functions, and (possibly cv-qualified) named class, union and enumeration
-// types, including class-template specialisations with type, integral or
-// enumeration template arguments. Naming an entry for any other parameter
-// type is ill-formed.
+// Names a member function with a string that's a valid C++ identifier: only
+// letters, digits and underscore, none of the characters (`:`, `(`, `)`,
+// `<`, `>`) that a plain rendering of a signature would contain. The
+// encoding reuses the Itanium C++ ABI's member-mangling scheme, which
+// already solves this problem for linker symbol names, rather than
+// inventing a new one.
 
 #include <array>
 #include <charconv>
@@ -248,11 +240,10 @@ consteval std::string base_name_of(std::meta::info function) {
 
 }  // namespace detail
 
-// Names a vtable entry for the member function `function`. Distinguishes
-// overloads by folding the function's cv- and ref-qualification, then each
-// parameter's type, into the name. Matches the Itanium ABI's own placement:
-// cv-/ref-qualifiers sit inside `N...E`, wrapping the function name, ahead of
-// the parameter list.
+// Names the member function `function`, distinguishing overloads by folding
+// its cv- and ref-qualification, then each parameter's type, into the name.
+// Matches the Itanium ABI's own placement: cv-/ref-qualifiers sit inside
+// `N...E`, wrapping the function name, ahead of the parameter list.
 consteval std::string mangle(std::meta::info function) {
   std::string qualifiers;
   if (is_volatile(function)) qualifiers += "V";
