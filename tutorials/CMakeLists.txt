@@ -23,15 +23,10 @@ xyz_add_test(
     FILES
     allocators.cc)
 
-if(XYZ_PROTOCOL_BUILD_REFLECTION)
-    xyz_add_test(
-        NAME
-        reflection_tutorial
-        VERSION
-        26
-        LINK_LIBRARIES
-        xyz_protocol::protocol
-        FILES
-        reflection.cc)
-    target_compile_options(reflection_tutorial PRIVATE -freflection)
-endif()
+xyz_add_test(
+    NAME
+    reflection_tutorial
+    LINK_LIBRARIES
+    xyz_protocol::protocol
+    FILES
+    reflection.cc)

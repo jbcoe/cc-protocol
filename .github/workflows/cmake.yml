@@ -47,7 +47,6 @@ jobs:
                   cxx: "/opt/gcc-latest/bin/g++",
                   std: 26,
                 },
-              reflection: true,
             }
           # Ubuntu 26.04's gcc-16 is a frozen experimental snapshot whose
           # reflection support no longer receives fixes (issue #122). It is kept
@@ -66,7 +65,6 @@ jobs:
                   cxx: "g++-16",
                   std: 26,
                 },
-              reflection: true,
               informational: true,
             }
     steps:
@@ -97,4 +95,4 @@ jobs:
       - name: Set up Python
         run: uv sync
       - name: Run CMake
-        run: ./scripts/cmake.sh --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }} ${{ matrix.settings.reflection && '--reflection' || '' }}
+        run: ./scripts/cmake.sh --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }}

@@ -160,8 +160,8 @@ def main() -> None:
     log(f"Note: Your current directory {project_root} is mounted to /workspace")
 
     if args.agent is None:
-        print("To build and test with the C++26 reflection backend (GCC trunk):")
-        print("  ./scripts/cmake.sh --release --reflection -B build-reflection")
+        print("To build and test (GCC trunk with C++26 reflection):")
+        print("  ./scripts/cmake.sh --release")
         container_cmd = None
     else:
         cli = AGENT_CLIS[args.agent]

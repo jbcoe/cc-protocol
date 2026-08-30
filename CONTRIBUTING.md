@@ -22,7 +22,7 @@ The project uses CMake for its build system.
    project root directory and execute the provided build script:
 
 ```bash
-./scripts/cmake.sh --reflection
+./scripts/cmake.sh
 ```
 
 This script manages the entire build and test process.

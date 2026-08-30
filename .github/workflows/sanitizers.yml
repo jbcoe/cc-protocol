@@ -58,4 +58,4 @@ jobs:
           if [ "${{ matrix.sanitizer }}" = "asan" ]; then
             UBSAN_FLAG="--ubsan"
           fi
-          ./scripts/cmake.sh --debug --reflection --${{ matrix.sanitizer }} ${UBSAN_FLAG}
+          ./scripts/cmake.sh --debug --${{ matrix.sanitizer }} ${UBSAN_FLAG}
