@@ -16,25 +16,28 @@ Python dependencies and execute build scripts.
 
 ### Building and Testing
 
-The project uses CMake for its build system.
+The project supports both CMake and Bazel build systems.
 
-1. Build Script: To build the project and run tests, navigate to the
-   project root directory and execute the provided build script:
+1. **CMake**: To build the project and run tests with CMake, execute:
 
 ```bash
 ./scripts/cmake.sh
 ```
 
-This script manages the entire build and test process.
+For more detailed CMake options, run `./scripts/cmake.sh --help`.
 
-2.Build Options: For more detailed options, such as build types or
-   cleaning targets, run:
+2. **Bazel**: To build the project and run tests with Bazel, execute:
 
 ```bash
-./scripts/cmake.sh --help
+./scripts/bazel.sh
 ```
 
-The script will configure, build, and execute tests.
+or directly using Bazel:
+
+```bash
+bazel test //...
+```
+
 
 ### Continuous Integration
 
