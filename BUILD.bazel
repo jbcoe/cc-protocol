@@ -1,0 +1,31 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "protocol",
+    hdrs = ["protocol.hh"],
+)
+
+cc_library(
+    name = "consteval_check",
+    hdrs = ["consteval_check.h"],
+)
+
+cc_test(
+    name = "protocol_test",
+    srcs = [
+        "allocator_tests.cc",
+        "consteval_check_test.cc",
+        "forwarding_test.cc",
+        "protocol_test.cc",
+        "tagged_allocator.h",
+        "test_helpers.h",
+        "tracking_allocator.h",
+    ],
+    deps = [
+        ":consteval_check",
+        ":protocol",
+        "@googletest//:gtest_main",
+    ],
+)

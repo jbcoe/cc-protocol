@@ -1,0 +1,15 @@
+build
+build-asan-reflection
+build-cleanup-check
+build-reflection
+build-ubsan-reflection
+build.clang-tidy
+_deps
+bin
+lib
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-protocol
+bazel-cc-protocol
+.bazel-wrappers

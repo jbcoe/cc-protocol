@@ -1,0 +1,19 @@
+# Enable C++26 standard and GCC reflection
+build --cxxopt=-std=c++26
+build --cxxopt=-freflection
+
+# Disable Clang-specific features on macOS (existing Bazel practices)
+build --features=-debug_prefix_map_pwd_is_dot
+build --features=-macos_default_link_flags
+
+# Configure GCC C++ standard library linking on macOS (rules_cc built-in)
+build --repo_env=BAZEL_LINKLIBS=-lstdc++:-lm
+build --action_env=BAZEL_LINKLIBS=-lstdc++:-lm
+
+# Ensure CC, CXX, and PATH environment overrides propagate to Bazel actions and repository rules
+build --action_env=CC
+build --action_env=CXX
+build --action_env=PATH
+build --repo_env=CC
+build --repo_env=CXX
+build --repo_env=PATH

@@ -4,6 +4,7 @@
 _build
 _deps
 bazel-*
+.bazel-wrappers/
 build*/
 out/
 .cache
