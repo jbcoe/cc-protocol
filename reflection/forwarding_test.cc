@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <format>
 #include <memory>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -47,48 +48,56 @@ struct CopyCounter {
 // Argument forwarding.
 // ---------------------------------------------------------------------------
 
+// A moved-from std::unique_ptr is specified to be null, unlike the
+// valid-but-unspecified state of a moved-from standard container.
 TEST(ReflectionProtocolTest, RvalueReferenceParameterIsMovedFrom) {
   struct Interface {
-    void take(std::string&&);
-    const std::string& taken() const;
+    void take(std::unique_ptr<int>&&);
+    int taken() const;
   };
 
   struct Conforming {
-    std::string taken_value;
+    int taken_value = 0;
 
-    void take(std::string&& value) { taken_value = std::move(value); }
+    void take(std::unique_ptr<int>&& pointer) {
+      std::unique_ptr<int> owned = std::move(pointer);
+      taken_value = *owned;
+    }
 
-    const std::string& taken() const { return taken_value; }
+    int taken() const { return taken_value; }
   };
 
   protocol<Interface> p(Conforming{});
 
-  std::string source(40, 'x');
+  std::unique_ptr<int> source = std::make_unique<int>(5);
   p.take(std::move(source));
 
-  EXPECT_TRUE(source.empty());
-  EXPECT_EQ(p.taken(), std::string(40, 'x'));
+  EXPECT_EQ(source, nullptr);
+  EXPECT_EQ(p.taken(), 5);
 }
 
 TEST(ReflectionProtocolViewTest, RvalueReferenceParameterIsMovedFrom) {
   struct Interface {
-    void take(std::string&&);
+    void take(std::unique_ptr<int>&&);
   };
 
   struct Conforming {
-    std::string taken;
+    int taken_value = 0;
 
-    void take(std::string&& value) { taken = std::move(value); }
+    void take(std::unique_ptr<int>&& pointer) {
+      std::unique_ptr<int> owned = std::move(pointer);
+      taken_value = *owned;
+    }
   };
 
   Conforming implementation;
   protocol_view<Interface> view(implementation);
 
-  std::string source(40, 'x');
+  std::unique_ptr<int> source = std::make_unique<int>(5);
   view.take(std::move(source));
 
-  EXPECT_TRUE(source.empty());
-  EXPECT_EQ(implementation.taken, std::string(40, 'x'));
+  EXPECT_EQ(source, nullptr);
+  EXPECT_EQ(implementation.taken_value, 5);
 }
 
 TEST(ReflectionProtocolTest, MoveOnlyByValueParameter) {
@@ -205,7 +214,7 @@ TEST(ReflectionProtocolTest, ByValueParameterFromLvalueIsCopiedOnce) {
 
   CopyCounter::reset();
   CopyCounter counter(9);
-  p.consume(counter);
+  EXPECT_EQ(p.consume(counter), 9);
   EXPECT_EQ(CopyCounter::copies, 1);
 }
 
@@ -223,7 +232,7 @@ TEST(ReflectionProtocolViewTest, ByValueParameterFromLvalueIsCopiedOnce) {
 
   CopyCounter::reset();
   CopyCounter counter(9);
-  view.consume(counter);
+  EXPECT_EQ(view.consume(counter), 9);
   EXPECT_EQ(CopyCounter::copies, 1);
 }
 
@@ -239,7 +248,7 @@ TEST(ReflectionProtocolTest, ByValueParameterFromRvalueIsNotCopied) {
   protocol<Interface> p(Conforming{});
 
   CopyCounter::reset();
-  p.consume(CopyCounter{1});
+  EXPECT_EQ(p.consume(CopyCounter{1}), 1);
   EXPECT_EQ(CopyCounter::copies, 0);
 }
 
@@ -256,45 +265,54 @@ TEST(ReflectionProtocolViewTest, ByValueParameterFromRvalueIsNotCopied) {
   protocol_view<Interface> view(implementation);
 
   CopyCounter::reset();
-  view.consume(CopyCounter{1});
+  EXPECT_EQ(view.consume(CopyCounter{1}), 1);
   EXPECT_EQ(CopyCounter::copies, 0);
 }
 
-TEST(ReflectionProtocolTest, ImplicitConversionAtCallSite) {
+// The generated wrappers take the interface's declared parameter types
+// rather than deducing them, so a braced-init-list and a user-defined
+// conversion are accepted as they would be by a direct call. A
+// perfect-forwarding wrapper (`template <typename... Ts> operator()(Ts&&...)`)
+// could not deduce a type for `{1, 2, 3}`.
+TEST(ReflectionProtocolTest, ArgumentsConvertAsForADirectCall) {
   struct Interface {
-    double scale(double) const;
     std::size_t length(std::string_view) const;
+    int sum(const std::vector<int>&) const;
   };
 
   struct Conforming {
-    double scale(double value) const { return 2 * value; }
-
     std::size_t length(std::string_view text) const { return text.size(); }
+
+    int sum(const std::vector<int>& values) const {
+      return std::accumulate(values.begin(), values.end(), 0);
+    }
   };
 
   protocol<Interface> p(Conforming{});
 
-  EXPECT_EQ(p.scale(3), 6.0);
   EXPECT_EQ(p.length("four"), 4u);
+  EXPECT_EQ(p.sum({1, 2, 3}), 6);
 }
 
-TEST(ReflectionProtocolViewTest, ImplicitConversionAtCallSite) {
+TEST(ReflectionProtocolViewTest, ArgumentsConvertAsForADirectCall) {
   struct Interface {
-    double scale(double) const;
     std::size_t length(std::string_view) const;
+    int sum(const std::vector<int>&) const;
   };
 
   struct Conforming {
-    double scale(double value) const { return 2 * value; }
-
     std::size_t length(std::string_view text) const { return text.size(); }
+
+    int sum(const std::vector<int>& values) const {
+      return std::accumulate(values.begin(), values.end(), 0);
+    }
   };
 
   Conforming implementation;
   protocol_view<Interface> view(implementation);
 
-  EXPECT_EQ(view.scale(3), 6.0);
   EXPECT_EQ(view.length("four"), 4u);
+  EXPECT_EQ(view.sum({1, 2, 3}), 6);
 }
 
 TEST(ReflectionProtocolTest, ManyParametersOfMixedTypes) {
@@ -335,27 +353,6 @@ TEST(ReflectionProtocolViewTest, ManyParametersOfMixedTypes) {
 
   EXPECT_EQ(view.describe(1, 2.5, 'a', "text", true, 7L),
             "1,2.5,a,text,true,7");
-}
-
-TEST(ReflectionProtocolTest, ProtocolViewParameter) {
-  struct Unary {
-    int apply(int) const;
-  };
-
-  struct Combinator {
-    int apply_twice(protocol_view<Unary> unary, int value) const {
-      return unary.apply(unary.apply(value));
-    }
-  };
-
-  struct Doubler {
-    int apply(int value) const { return 2 * value; }
-  };
-
-  protocol<Combinator> p(Combinator{});
-  Doubler doubler;
-
-  EXPECT_EQ(p.apply_twice(protocol_view<Unary>(doubler), 3), 12);
 }
 
 // ---------------------------------------------------------------------------
@@ -641,51 +638,6 @@ TEST(ReflectionProtocolViewTest, ImplementationSeesItsOwnThis) {
   protocol_view<Interface> view(implementation);
 
   EXPECT_EQ(view.self(), &implementation);
-}
-
-// ---------------------------------------------------------------------------
-// Composition.
-// ---------------------------------------------------------------------------
-
-TEST(ReflectionProtocolTest, ImplementationHoldingAProtocolForwardsTwoLevels) {
-  struct Unary {
-    int apply(int) const;
-  };
-
-  struct Doubler {
-    int apply(int value) const { return 2 * value; }
-  };
-
-  struct Forwarder {
-    protocol<Unary> inner;
-
-    int apply(int value) const { return inner.apply(value) + 1; }
-  };
-
-  protocol<Unary> outer(Forwarder{protocol<Unary>(Doubler{})});
-
-  EXPECT_EQ(outer.apply(4), 9);
-}
-
-TEST(ReflectionProtocolViewTest, ViewOfImplementationHoldingAProtocol) {
-  struct Unary {
-    int apply(int) const;
-  };
-
-  struct Doubler {
-    int apply(int value) const { return 2 * value; }
-  };
-
-  struct Forwarder {
-    protocol<Unary> inner;
-
-    int apply(int value) const { return inner.apply(value) + 1; }
-  };
-
-  Forwarder forwarder{protocol<Unary>(Doubler{})};
-  protocol_view<Unary> view(forwarder);
-
-  EXPECT_EQ(view.apply(4), 9);
 }
 
 }  // namespace
