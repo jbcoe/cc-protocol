@@ -40,11 +40,11 @@ The script will configure, build, and execute tests.
 
 Pull requests run the workflows in `.github/workflows`. The following checks
 are required for merging to `main`: `GCC trunk Release`, `GCC trunk Debug`,
-`asan`, `tsan`, `uv-lock`, `pre-commit`.
+`GCC-16 Release`, `GCC-16 Debug`, `asan`, `tsan`, `uv-lock`, `pre-commit`.
 
 On pull requests that touch no C++, CMake, or build-script sources, the build
 and sanitizer jobs are skipped by a change-detection job, which counts as
-passing. The `GCC-16 (informational)` builds never block a merge.
+passing.
 
 ## Core Concepts
 
