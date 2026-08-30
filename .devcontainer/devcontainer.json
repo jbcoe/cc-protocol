@@ -5,10 +5,27 @@
 		"context": ".."
 	},
 	"remoteUser": "vscode",
+	// Host credentials are shared with the container by bind-mounting them into
+	// the `vscode` home directory. Only `~/.ssh` is mounted by default. To reuse
+	// your GitHub CLI login (`gh auth login` on the host) and your Claude Code
+	// login, add these entries locally; every source path must exist on the host
+	// or Docker refuses to start the container:
+	//
+	//   "type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.config/gh,target=/home/vscode/.config/gh",
+	//   "type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/home/vscode/.claude",
+	//   "type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude.json,target=/home/vscode/.claude.json"
+	//
+	// The `vscode` user is created with UID 1000 (see docker/Dockerfile) so that
+	// these mounted files stay readable and writable on Linux and WSL hosts.
 	"mounts": [
 		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,readonly"
 	],
 	"customizations": {
+		"vscode": {
+			"extensions": [
+				"anthropic.claude-code"
+			]
+		},
 		"codespaces": {
 			"repositories": {
 				"jbcoe/cc-protocol": {
