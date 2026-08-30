@@ -18,7 +18,6 @@ on:
       - ".bazelignore"
       - "scripts/bazel.py"
       - "scripts/bazel.sh"
-      - "scripts/bazel_compiler_wrapper.py"
       - "tutorials/BUILD.bazel"
   # No `paths:` filter here. The `GCC trunk` build jobs are required status
   # checks for merging to main, and a workflow that is filtered out by
@@ -61,7 +60,6 @@ jobs:
               - ".bazelignore"
               - "scripts/bazel.py"
               - "scripts/bazel.sh"
-              - "scripts/bazel_compiler_wrapper.py"
               - "tutorials/BUILD.bazel"
 
   build:

@@ -62,46 +62,6 @@ def find_system_compilers() -> Tuple[str, str]:
     return default_gcc_path, default_gxx_path
 
 
-def create_compiler_wrappers(real_cc_path: str, real_cxx_path: str) -> Tuple[str, str]:
-    """Create wrapper scripts to filter Clang-only flags for GCC."""
-    resolved_cc_path = shutil.which(real_cc_path) or os.path.abspath(real_cc_path)
-    resolved_cxx_path = shutil.which(real_cxx_path) or os.path.abspath(real_cxx_path)
-
-    wrappers_directory_path = os.path.join(SOURCE_ROOT, ".bazel-wrappers")
-    os.makedirs(wrappers_directory_path, exist_ok=True)
-
-    compiler_wrapper_script_path = os.path.join(
-        SOURCE_ROOT, "scripts", "bazel_compiler_wrapper.py"
-    )
-
-    gcc_wrapper_path = os.path.join(wrappers_directory_path, "gcc")
-    gxx_wrapper_path = os.path.join(wrappers_directory_path, "g++")
-
-    wrapper_template = """#!/bin/bash
-exec python3 "{compiler_wrapper_script_path}" "{real_binary_path}" "$@"
-"""
-
-    with open(gcc_wrapper_path, "w", encoding="utf-8") as gcc_file:
-        gcc_file.write(
-            wrapper_template.format(
-                compiler_wrapper_script_path=compiler_wrapper_script_path,
-                real_binary_path=resolved_cc_path,
-            )
-        )
-    os.chmod(gcc_wrapper_path, 0o755)
-
-    with open(gxx_wrapper_path, "w", encoding="utf-8") as gxx_file:
-        gxx_file.write(
-            wrapper_template.format(
-                compiler_wrapper_script_path=compiler_wrapper_script_path,
-                real_binary_path=resolved_cxx_path,
-            )
-        )
-    os.chmod(gxx_wrapper_path, 0o755)
-
-    return gcc_wrapper_path, gxx_wrapper_path
-
-
 def main() -> None:
     """Execute the Bazel build and test process based on command-line arguments."""
     argument_parser = argparse.ArgumentParser(description="Bazel helper script")
@@ -145,13 +105,8 @@ def main() -> None:
     else:
         cc_target_path, cxx_target_path = find_system_compilers()
 
-    gcc_wrapper_path, gxx_wrapper_path = create_compiler_wrappers(
-        cc_target_path, cxx_target_path
-    )
-
-    bazel_environment["CC"] = gcc_wrapper_path
-    bazel_environment["CXX"] = gxx_wrapper_path
-    bazel_environment["BAZEL_LINKLIBS"] = "-lstdc++:-lm"
+    bazel_environment["CC"] = cc_target_path
+    bazel_environment["CXX"] = cxx_target_path
 
     if parsed_arguments.clean:
         clean_command = ["bazel", "clean", "--expunge"]
@@ -159,12 +114,10 @@ def main() -> None:
         subprocess.check_call(clean_command, cwd=SOURCE_ROOT, env=bazel_environment)
 
     bazel_command = ["bazel", target_mode]
-    bazel_command.append(f"--action_env=CC={gcc_wrapper_path}")
-    bazel_command.append(f"--repo_env=CC={gcc_wrapper_path}")
-    bazel_command.append(f"--action_env=CXX={gxx_wrapper_path}")
-    bazel_command.append(f"--repo_env=CXX={gxx_wrapper_path}")
-    bazel_command.append("--action_env=BAZEL_LINKLIBS")
-    bazel_command.append("--repo_env=BAZEL_LINKLIBS")
+    bazel_command.append(f"--action_env=CC={cc_target_path}")
+    bazel_command.append(f"--repo_env=CC={cc_target_path}")
+    bazel_command.append(f"--action_env=CXX={cxx_target_path}")
+    bazel_command.append(f"--repo_env=CXX={cxx_target_path}")
     bazel_command.append("--action_env=PATH")
     bazel_command.append("--repo_env=PATH")
 

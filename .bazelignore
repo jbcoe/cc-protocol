@@ -12,4 +12,3 @@ bazel-out
 bazel-testlogs
 bazel-protocol
 bazel-cc-protocol
-.bazel-wrappers
