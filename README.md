@@ -25,8 +25,7 @@ continue work.
 ## Contributing and Development
 
 For build instructions, testing and contributing guidelines, see
-[CONTRIBUTING.md](CONTRIBUTING.md); for how the implementation works, see
-[implementation-notes.md](implementation-notes.md).
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## GitHub codespaces
 
