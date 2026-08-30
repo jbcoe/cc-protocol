@@ -259,7 +259,10 @@ consteval std::string base_name_of(std::meta::info function) {
 // across two different interfaces: two unrelated interfaces can each
 // declare `get() const` with a different return type or noexcept-ness, and
 // without this, both would mangle to the same entry name.
-consteval std::string mangle(std::meta::info function) {
+// The `as_noexcept` overload names the entry `function` would have if it
+// were noexcept; conformance checking uses it to let a noexcept entry
+// satisfy an interface member that is allowed to throw.
+consteval std::string mangle(std::meta::info function, bool as_noexcept) {
   std::string qualifiers;
   if (is_volatile(function)) qualifiers += "V";
   if (is_const(function)) qualifiers += "K";
@@ -268,13 +271,17 @@ consteval std::string mangle(std::meta::info function) {
   std::string atom = detail::base_name_of(function);
   std::string name =
       "fn_" + (qualifiers.empty() ? atom : "N" + qualifiers + atom + "E");
-  name += is_noexcept(function) ? "Do" : "";
+  name += as_noexcept ? "Do" : "";
   name += detail::mangle_type(return_type_of(function));
   std::vector<std::meta::info> parameters = parameters_of(function);
   for (std::meta::info parameter : parameters) {
     name += detail::mangle_type(type_of(parameter));
   }
   return name;
+}
+
+consteval std::string mangle(std::meta::info function) {
+  return mangle(function, is_noexcept(function));
 }
 
 }  // namespace xyz::name_mangling

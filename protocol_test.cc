@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <concepts>
 #include <cstddef>
 #include <string>
@@ -2166,4 +2167,368 @@ TEST(ReflectionProtocolTest, ConstValuelessCall) {
 
 #endif
 
+// ---------------------------------------------------------------------------
+// Protocols as conforming types: a `protocol<J>` conforms to `I` when its
+// vtable has an entry for every member function of `I`.
+// ---------------------------------------------------------------------------
+
+TEST(ConformsToTest, ProtocolConformsToItsOwnInterface) {
+  struct Interface {
+    int get() const;
+    void update(int value);
+  };
+
+  static_assert(is_protocol_conformant<Interface, protocol<Interface>>());
+  static_assert(
+      is_protocol_conformant<
+          Interface, protocol<Interface, xyz::TrackingAllocator<std::byte>>>());
+}
+
+TEST(ConformsToTest, ProtocolConformsToNarrowerInterface) {
+  struct Narrow {
+    int get() const;
+  };
+
+  struct Wide {
+    int get() const;
+    void update(int value);
+  };
+
+  static_assert(is_protocol_conformant<Narrow, protocol<Wide>>());
+  static_assert(!is_protocol_conformant<Wide, protocol<Narrow>>());
+}
+
+TEST(ConformsToTest, ProtocolWithWrongConstnessDoesNotConform) {
+  struct ConstInterface {
+    int get() const;
+  };
+
+  struct MutableInterface {
+    int get();
+  };
+
+  static_assert(
+      !is_protocol_conformant<ConstInterface, protocol<MutableInterface>>());
+  static_assert(
+      !is_protocol_conformant<MutableInterface, protocol<ConstInterface>>());
+}
+
+TEST(ConformsToTest, ProtocolWithWrongReturnTypeDoesNotConform) {
+  struct Interface {
+    int get() const;
+  };
+
+  struct Other {
+    long get() const;
+  };
+
+  static_assert(!is_protocol_conformant<Interface, protocol<Other>>());
+}
+
+TEST(ConformsToTest, NoexceptInterfaceRequiresNoexceptProtocol) {
+  struct NoexceptInterface {
+    int get() const noexcept;
+  };
+
+  struct ThrowingInterface {
+    int get() const;
+  };
+
+  static_assert(!is_protocol_conformant<NoexceptInterface,
+                                        protocol<ThrowingInterface>>());
+  static_assert(
+      is_protocol_conformant<ThrowingInterface, protocol<NoexceptInterface>>());
+}
+
+TEST(ConformsToTest, ProtocolOverloadsConformByParameterType) {
+  enum class Kind { one, two };
+
+  struct Interface {
+    void set(int value);
+    void set(double value);
+    void set(const std::string& value);
+    void set(std::string_view value);
+    void set(int* value);
+    void set(std::vector<int> value);
+    void set(std::array<int, 3> value);
+    void set(int (*value)(int));
+    void set(Kind value);
+    void set(int value, int other);
+  };
+
+  struct MissingOverload {
+    void set(int value);
+    void set(double value);
+    void set(const std::string& value);
+    void set(std::string_view value);
+    void set(int* value);
+    void set(std::vector<int> value);
+    void set(std::array<int, 3> value);
+    void set(int (*value)(int));
+    void set(Kind value);
+  };
+
+  static_assert(is_protocol_conformant<Interface, protocol<Interface>>());
+  static_assert(is_protocol_conformant<MissingOverload, protocol<Interface>>());
+  static_assert(
+      !is_protocol_conformant<Interface, protocol<MissingOverload>>());
+}
+
+TEST(ConformsToTest, ProtocolCallOperatorConforms) {
+  struct Interface {
+    int operator()(int value) const;
+    int get() const;
+  };
+
+  struct CallOnly {
+    int operator()(int value) const;
+  };
+
+  static_assert(is_protocol_conformant<CallOnly, protocol<Interface>>());
+  static_assert(!is_protocol_conformant<Interface, protocol<CallOnly>>());
+}
+
+TEST(ReflectionProtocolViewTest, IsConstructibleFromProtocol) {
+  struct Interface {
+    int get() const;
+  };
+
+  static_assert(
+      std::is_constructible_v<protocol_view<Interface>, protocol<Interface>&>);
+  static_assert(!std::is_constructible_v<protocol_view<Interface>,
+                                         const protocol<Interface>&>);
+  static_assert(
+      !std::is_constructible_v<protocol_view<Interface>, protocol<Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewIsConstructibleFromProtocol) {
+  struct Interface {
+    int get() const;
+  };
+
+  static_assert(std::is_constructible_v<protocol_view<const Interface>,
+                                        const protocol<Interface>&>);
+  static_assert(std::is_constructible_v<protocol_view<const Interface>,
+                                        protocol<Interface>&>);
+  static_assert(!std::is_constructible_v<protocol_view<const Interface>,
+                                         protocol<Interface>>);
+  static_assert(!std::is_constructible_v<protocol_view<const Interface>,
+                                         const protocol<Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, ViewOfProtocolCallsOwnedObject) {
+  struct Interface {
+    int get() const;
+    void update(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void update(int new_value) { value = new_value; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  protocol_view<Interface> view(p);
+
+  view.update(7);
+  EXPECT_EQ(p.get(), 7);
+
+  p.update(11);
+  EXPECT_EQ(view.get(), 11);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewOfProtocolExposesOnlyConstMembers) {
+  struct Interface {
+    int get() const;
+    void update(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void update(int new_value) { value = new_value; }
+  };
+
+  const protocol<Interface> p(Conforming{3});
+  protocol_view<const Interface> view(p);
+
+  EXPECT_EQ(view.get(), 3);
+  static_assert(!has_update<protocol_view<const Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, ViewOfProtocolWithOverloadsAndCallOperator) {
+  struct Interface {
+    int get() const;
+    int get(int value) const;
+    int operator()(int value) const;
+  };
+
+  struct Conforming {
+    int get() const { return 1; }
+
+    int get(int value) const { return value + 1; }
+
+    int operator()(int value) const { return value * 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  protocol_view<Interface> view(p);
+
+  EXPECT_EQ(view.get(), 1);
+  EXPECT_EQ(view.get(4), 5);
+  EXPECT_EQ(view(21), 42);
+}
+
+TEST(ReflectionProtocolViewTest, ViewOfProtocolRemainsValidAfterMove) {
+  struct Interface {
+    int get() const;
+  };
+
+  struct Conforming {
+    int get() const { return 5; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  protocol_view<Interface> view(p);
+
+  protocol<Interface> moved_to(std::move(p));
+
+  EXPECT_EQ(view.get(), 5);
+}
+
+TEST(ReflectionProtocolViewTest, ViewOfProtocolWithCustomAllocator) {
+  struct Interface {
+    int get() const;
+  };
+
+  struct Conforming {
+    int get() const { return 9; }
+  };
+
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+  xyz::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
+
+  protocol<Interface, xyz::TrackingAllocator<std::byte>> p(std::allocator_arg,
+                                                           alloc, Conforming{});
+  protocol_view<Interface> view(p);
+
+  EXPECT_EQ(view.get(), 9);
+}
+
+TEST(ReflectionProtocolViewTest, NarrowingViewOfProtocol) {
+  struct Narrow {
+    int get() const;
+  };
+
+  struct Wide {
+    int get() const;
+    void update(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void update(int new_value) { value = new_value; }
+  };
+
+  protocol<Wide> p(Conforming{});
+  protocol_view<Narrow> view(p);
+  protocol_view<const Narrow> const_view(p);
+
+  p.update(4);
+  EXPECT_EQ(view.get(), 4);
+  EXPECT_EQ(const_view.get(), 4);
+}
+
+TEST(ReflectionProtocolViewTest, ViewOfProtocolPassedToInterfaceMember) {
+  struct Source {
+    int get() const;
+  };
+
+  struct Sink {
+    void accept(protocol_view<const Source> source);
+  };
+
+  struct Constant {
+    int value;
+
+    int get() const { return value; }
+  };
+
+  struct Summer {
+    int* total;
+
+    void accept(protocol_view<const Source> source) { *total += source.get(); }
+  };
+
+  protocol<Source> source(Constant{5});
+  int total = 0;
+  protocol<Sink> sink(Summer{&total});
+
+  sink.accept(protocol_view<const Source>(source));
+  sink.accept(protocol_view<const Source>(source));
+
+  EXPECT_EQ(total, 10);
+}
+
+TEST(ReflectionProtocolTest, StoresProtocolWithDifferentAllocator) {
+  struct Interface {
+    int get() const;
+  };
+
+  struct Conforming {
+    int get() const { return 8; }
+  };
+
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+  xyz::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
+
+  protocol<Interface, xyz::TrackingAllocator<std::byte>> inner(
+      std::allocator_arg, alloc, Conforming{});
+  protocol<Interface> outer(std::move(inner));
+
+  EXPECT_EQ(outer.get(), 8);
+  EXPECT_EQ(allocs, 1);
+
+  protocol<Interface> copy(outer);
+  EXPECT_EQ(copy.get(), 8);
+  EXPECT_EQ(allocs, 2);
+}
+
+TEST(ReflectionProtocolTest, StoresProtocolOfWiderInterface) {
+  struct Narrow {
+    int get() const;
+  };
+
+  struct Wide {
+    int get() const;
+    void update(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void update(int new_value) { value = new_value; }
+  };
+
+  static_assert(std::is_constructible_v<protocol<Narrow>, protocol<Wide>>);
+  static_assert(!std::is_constructible_v<protocol<Wide>, protocol<Narrow>>);
+
+  protocol<Wide> wide(Conforming{});
+  wide.update(6);
+  protocol<Narrow> narrow(std::move(wide));
+
+  EXPECT_EQ(narrow.get(), 6);
+}
 }  // namespace

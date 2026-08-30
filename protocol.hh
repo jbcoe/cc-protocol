@@ -27,7 +27,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // `protocol_view`'s with destroy/copy/move entries used for allocator-aware
 // ownership. Vtable entries are named by mangling the interface member
 // function's signature (see "name_mangling.h"), so an entry can be found by
-// the signature it implements rather than by declaration order.
+// the signature it implements rather than by declaration order; this lets a
+// `protocol<I>` conform to `I` (and be viewed through `protocol_view<I>`)
+// by matching entries by name.
 //
 // Neither implementation currently supports operators other than operator().
 
@@ -38,6 +40,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <functional>
 #include <memory>
 #include <meta>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <stdexcept>
@@ -202,6 +205,26 @@ consteval std::meta::info find_vtable_entry() {
   }
   throw std::runtime_error("find_vtable_entry: no entry named '" +
                            std::string(name) + "'");
+}
+
+// The entry of `VtableType` named by the mangled signature of the interface
+// member function `member`, if it declares one. A `member` that may throw
+// also matches an entry mangled as noexcept: a noexcept entry can stand in
+// for one that is allowed to throw, mirroring `member_function_conforms_to`.
+template <std::meta::info VtableType>
+consteval std::optional<std::meta::info> find_vtable_entry(
+    std::meta::info member) {
+  std::string name = xyz::name_mangling::mangle(member);
+  std::string noexcept_name =
+      is_noexcept(member)
+          ? name
+          : xyz::name_mangling::mangle(member, /*as_noexcept=*/true);
+  for (std::meta::info entry : nonstatic_data_members_of(
+           VtableType, std::meta::access_context::unprivileged())) {
+    std::string_view entry_name = identifier_of(entry);
+    if (entry_name == name || entry_name == noexcept_name) return entry;
+  }
+  return std::nullopt;
 }
 
 // Vanishing-this-pointer thunk for one overload of a synthesised member
@@ -532,6 +555,32 @@ struct vtable_generator {
   consteval { define_aggregate(^^vtable, generate_vtable_specs<^^T>()); }
 };
 
+// The interface of a `protocol` specialisation.
+template <typename Protocol>
+struct protocol_interface;
+
+template <typename I, typename Alloc>
+struct protocol_interface<protocol<I, Alloc>> {
+  using type = I;
+};
+
+template <typename Protocol>
+using protocol_interface_t = protocol_interface<Protocol>::type;
+
+// Returns `true` if `Vtable`, generated for some interface `J`, has an entry
+// for every member function of `Interface`. The mangled entry name pins down
+// the name, parameter types, cv- and ref-qualification, return type and
+// noexcept-ness of the member it was generated from, so a name match is a
+// signature match (with a noexcept entry also satisfying a member that is
+// allowed to throw; see `find_vtable_entry`).
+template <std::meta::info Interface, std::meta::info Vtable>
+consteval bool vtable_conforms_to() {
+  for (std::meta::info member : protocol_interface_functions_of<Interface>) {
+    if (!find_vtable_entry<Vtable>(member)) return false;
+  }
+  return true;
+}
+
 // Finds the member of `CandidateType` that structurally conforms to
 // `Member`, using the same matching rule as is_protocol_conformant.
 template <std::meta::info Member, std::meta::info CandidateType>
@@ -570,8 +619,39 @@ struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
   }
 };
 
+// Recovers the `Protocol` a vtable entry is called with and forwards to the
+// entry of the same name in that protocol's own vtable.
+//
+// Precondition: the protocol is not valueless.
+template <typename FnPtrType, typename Protocol, std::meta::info Entry>
+struct protocol_trampoline;
+
+template <typename R, typename... Args, bool Noexcept, typename Protocol,
+          std::meta::info Entry>
+struct protocol_trampoline<R (*)(void*, Args...) noexcept(Noexcept), Protocol,
+                           Entry> {
+  static R call(void* ptr, Args... args) noexcept(Noexcept) {
+    auto* stored = static_cast<Protocol*>(ptr);
+    return stored->vtable_->[:Entry:](stored->object_,
+                                      std::forward<Args>(args)...);
+  }
+};
+
+template <typename R, typename... Args, bool Noexcept, typename Protocol,
+          std::meta::info Entry>
+struct protocol_trampoline<R (*)(const void*, Args...) noexcept(Noexcept),
+                           Protocol, Entry> {
+  static R call(const void* ptr, Args... args) noexcept(Noexcept) {
+    const auto* stored = static_cast<const Protocol*>(ptr);
+    return stored->vtable_->[:Entry:](stored->object_,
+                                      std::forward<Args>(args)...);
+  }
+};
+
 // Builds a vtable for `T` whose entries call through to the corresponding
-// member of `U`.
+// member of `U`: the conforming member function found by
+// `find_conforming_member`, or, when `U` is itself a `protocol`, the entry of
+// the same name in `U`'s own vtable.
 //
 // For `const_policy::propagate` (`protocol<I>`) and `const_policy::all_const`
 // (`protocol_view<T>`) every entry is populated: `protocol` stores a decayed,
@@ -589,19 +669,28 @@ consteval typename vtable_generator<T>::vtable make_view_vtable() {
 
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<^^T>) {
-    constexpr std::meta::info vtable_member =
-        find_vtable_entry<^^Vtable, member>();
-    using FnPtrType = typename[:type_of(vtable_member):];
-    if constexpr (is_const(member)) {
-      constexpr std::meta::info candidate =
-          find_conforming_member<member, ^^U>();
-      result.[:vtable_member:] = &const_view_trampoline<FnPtrType, U,
-                                                        candidate>::call;
-    } else if constexpr (ConstPolicy != const_policy::const_only) {
-      constexpr std::meta::info candidate =
-          find_conforming_member<member, ^^U>();
-      result.[:vtable_member:] = &mutable_view_trampoline<FnPtrType, U,
+    if constexpr (is_const(member) || ConstPolicy != const_policy::const_only) {
+      constexpr std::meta::info vtable_member =
+          find_vtable_entry<^^Vtable, member>();
+      using FnPtrType = typename[:type_of(vtable_member):];
+      if constexpr (is_protocol_v<U>) {
+        using StoredVtable =
+            typename vtable_generator<protocol_interface_t<U>>::vtable;
+        constexpr std::meta::info entry =
+            *find_vtable_entry<^^StoredVtable>(member);
+        result.[:vtable_member:] = &protocol_trampoline<FnPtrType, U,
+                                                        entry>::call;
+      } else if constexpr (is_const(member)) {
+        constexpr std::meta::info candidate =
+            find_conforming_member<member, ^^U>();
+        result.[:vtable_member:] = &const_view_trampoline<FnPtrType, U,
                                                           candidate>::call;
+      } else {
+        constexpr std::meta::info candidate =
+            find_conforming_member<member, ^^U>();
+        result.[:vtable_member:] = &mutable_view_trampoline<FnPtrType, U,
+                                                            candidate>::call;
+      }
     }
   }
   return result;
@@ -626,22 +715,32 @@ consteval bool is_protocol_conformant() {
                 "Candidate must not be cv/ref-qualified: strip qualifiers at "
                 "the call site with std::remove_cvref_t.");
 
-  // Checking for protocol interface conformance is O(N*M) over member counts,
-  // assumed to be negligible at compile time.
-  // TODO(jbcoe): Use set/map once there is library support for `constexpr`.
-  auto interface_member_functions =
-      detail::protocol_interface_functions_of<^^Interface>;
-  auto candidate_member_functions =
-      detail::conformance_candidates_of<^^Candidate>;
+  if constexpr (is_protocol_v<Candidate>) {
+    // A `protocol<J>`'s member functions are thunks through its vtable, one
+    // per member function of `J`, so it conforms when that vtable has an
+    // entry for each member function of `Interface`.
+    using Vtable = typename detail::vtable_generator<
+        detail::protocol_interface_t<Candidate>>::vtable;
+    return detail::vtable_conforms_to<^^Interface, ^^Vtable>();
+  } else {
+    // Checking for protocol interface conformance is O(N*M) over member
+    // counts, assumed to be negligible at compile time.
+    // TODO(jbcoe): Use set/map once there is library support for `constexpr`.
+    auto interface_member_functions =
+        detail::protocol_interface_functions_of<^^Interface>;
+    auto candidate_member_functions =
+        detail::conformance_candidates_of<^^Candidate>;
 
-  return std::ranges::all_of(
-      interface_member_functions, [&](std::meta::info interface_member) {
-        return std::ranges::any_of(candidate_member_functions,
-                                   [&](std::meta::info candidate_member) {
-                                     return detail::member_function_conforms_to(
-                                         candidate_member, interface_member);
-                                   });
-      });
+    return std::ranges::all_of(
+        interface_member_functions, [&](std::meta::info interface_member) {
+          return std::ranges::any_of(
+              candidate_member_functions,
+              [&](std::meta::info candidate_member) {
+                return detail::member_function_conforms_to(candidate_member,
+                                                           interface_member);
+              });
+        });
+  }
 }
 
 // Variable template for use in requires clauses.
@@ -766,6 +865,15 @@ class protocol
             typename Vtable, std::meta::info Member, bool IsConst,
             bool IsNoexcept>
   friend struct detail::method_thunk;
+
+  // Grants `protocol_view` access so that a view of a protocol can share its
+  // vtable, and the forwarding trampolines so that a protocol stored in
+  // another protocol can be called through its own vtable.
+  template <typename>
+  friend class protocol_view;
+
+  template <typename FnPtrType, typename Protocol, std::meta::info Entry>
+  friend struct detail::protocol_trampoline;
 
   [[no_unique_address]] Alloc alloc_;
 
@@ -989,6 +1097,19 @@ class protocol_view
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::all_const>) {}
 
+  // Views the object a `protocol<T>` owns, sharing its vtable. The view is
+  // invalidated when `p` is destroyed or assigned to, but not when it is
+  // moved from, as the owned object moves with it.
+  //
+  // Precondition: `p` is not valueless.
+  template <typename Alloc>
+  explicit protocol_view(protocol<T, Alloc>& p) noexcept
+      : object_(p.object_), vtable_(p.vtable_) {}
+
+  // A view of a temporary would dangle.
+  template <typename Alloc>
+  protocol_view(protocol<T, Alloc>&&) = delete;
+
  private:
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
@@ -1035,6 +1156,19 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
       : object_(static_cast<const void*>(std::addressof(object))),
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::const_only>) {}
+
+  // Views the object a `protocol<T>` owns, sharing its vtable. The view is
+  // invalidated when `p` is destroyed or assigned to, but not when it is
+  // moved from, as the owned object moves with it.
+  //
+  // Precondition: `p` is not valueless.
+  template <typename Alloc>
+  explicit protocol_view(const protocol<T, Alloc>& p) noexcept
+      : object_(p.object_), vtable_(p.vtable_) {}
+
+  // A view of a temporary would dangle.
+  template <typename Alloc>
+  protocol_view(const protocol<T, Alloc>&&) = delete;
 
  private:
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
