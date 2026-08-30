@@ -491,13 +491,17 @@ class AnimalPtr {
     vtable_ = &vtable_for_type;
   }
 
-  std::string_view noise() const { return vtable_->fn_NK5noiseE(data_); }
+  std::string_view noise() const {  //
+    return vtable_->fn_NK5noiseE(data_);
+  }
 
   std::string_view noise(int x) const {
     return vtable_->fn_NK5noiseEi(data_, x);
   }
 
-  std::string_view operator()() const { return vtable_->fn_NK2clE(data_); }
+  std::string_view operator()() const {  //
+    return vtable_->fn_NK2clE(data_);
+  }
 
   std::string_view operator()(int x) const {
     return vtable_->fn_NK2clEi(data_, x);
