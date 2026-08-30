@@ -38,9 +38,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <functional>
 #include <memory>
 #include <meta>
-#include <optional>
 #include <ranges>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -184,18 +184,24 @@ constexpr inline auto protocol_interface_functions_of =
         conformance_candidates_of<Type> |
         std::views::filter(std::not_fn(std::meta::is_static_member)));
 
+// The mangled name of `Member`, computed once per distinct `Member` and
+// reused by every vtable this member is looked up against.
+template <std::meta::info Member>
+constexpr inline const char* mangled_name_of =
+    std::define_static_string(xyz::name_mangling::mangle(Member));
+
 // The entry of `VtableType` named by the mangled signature of the interface
-// member function `member`, if it declares one.
-template <std::meta::info VtableType>
-consteval std::optional<std::meta::info> find_vtable_entry(
-    std::meta::info member) {
-  std::string name = xyz::name_mangling::mangle(member);
+// member function `Member`.
+template <std::meta::info VtableType, std::meta::info Member>
+consteval std::meta::info find_vtable_entry() {
+  std::string_view name = mangled_name_of<Member>;
   std::vector<std::meta::info> entries = nonstatic_data_members_of(
       VtableType, std::meta::access_context::unprivileged());
   for (std::meta::info entry : entries) {
     if (identifier_of(entry) == name) return entry;
   }
-  return std::nullopt;
+  throw std::runtime_error("find_vtable_entry: no entry named '" +
+                           std::string(name) + "'");
 }
 
 // Vanishing-this-pointer thunk for one overload of a synthesised member
@@ -216,7 +222,7 @@ template <typename R, typename... Args, typename EnclosingType,
 struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
                     IsConst, IsNoexcept> {
   static constexpr std::meta::info vtable_entry =
-      *find_vtable_entry<^^Vtable>(Member);
+      find_vtable_entry<^^Vtable, Member>();
 
   // Recovers the EnclosingType pointer: `call_operator_base` derives from
   // this thunk, while a generated `member_base` holds it as its sole data
@@ -489,8 +495,8 @@ template <std::meta::info interface_type>
 consteval std::vector<std::meta::info> generate_vtable_specs() {
   std::vector<std::meta::info> function_pointer_specs;
 
-  for (std::meta::info member :
-       protocol_interface_functions_of<interface_type>) {
+  template for (constexpr std::meta::info member :
+                protocol_interface_functions_of<interface_type>) {
     // Build the function-pointer type R(*)(void*, Args...) noexcept(...)
     // from the method's return type, parameter types and noexcept-ness; a
     // const method takes `const void*` instead, matching the constness of
@@ -506,8 +512,8 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
     std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
 
     function_pointer_specs.push_back(data_member_spec(
-        fn_ptr_type, std::meta::data_member_options{
-                         .name = xyz::name_mangling::mangle(member)}));
+        fn_ptr_type,
+        std::meta::data_member_options{.name = mangled_name_of<member>}));
   }
   return function_pointer_specs;
 }
@@ -578,7 +584,7 @@ consteval typename vtable_generator<T>::vtable make_view_vtable() {
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<^^T>) {
     constexpr std::meta::info vtable_member =
-        *find_vtable_entry<^^Vtable>(member);
+        find_vtable_entry<^^Vtable, member>();
     using FnPtrType = typename[:type_of(vtable_member):];
     if constexpr (is_const(member)) {
       constexpr std::meta::info candidate =

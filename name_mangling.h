@@ -43,8 +43,9 @@ namespace xyz::name_mangling {
 
 namespace detail {
 
-consteval std::string decimal(std::size_t value) {
-  std::array<char, std::numeric_limits<std::size_t>::digits10 + 1> buffer;
+template <typename T>
+consteval std::string decimal(T value) {
+  std::array<char, std::numeric_limits<T>::digits10 + 1> buffer;
   auto result =
       std::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
   return std::string(buffer.data(), result.ptr);
@@ -62,12 +63,14 @@ consteval std::string mangle_type(std::meta::info type);
 template <typename T>
 consteval std::string signed_decimal(std::meta::info argument) {
   T value = extract<T>(argument);
+  using Unsigned = std::make_unsigned_t<T>;
   if constexpr (std::is_signed_v<T>) {
     if (value < 0) {
-      return "n" + decimal(std::size_t{0} - static_cast<std::size_t>(value));
+      return "n" +
+             decimal(static_cast<Unsigned>(0) - static_cast<Unsigned>(value));
     }
   }
-  return decimal(static_cast<std::size_t>(value));
+  return decimal(static_cast<Unsigned>(value));
 }
 
 // The decimal value of `argument` if its type is one of `Integral...`.
@@ -158,7 +161,7 @@ consteval std::string mangle_qualified_name(std::meta::info type) {
 // Itanium ABI <builtin-type> codes for fundamental types.
 consteval std::optional<std::string_view> builtin_type_code(
     std::meta::info type) {
-  constexpr std::array<std::pair<std::meta::info, std::string_view>, 21> codes{
+  constexpr std::array<std::pair<std::meta::info, std::string_view>, 23> codes{
       {{^^void, "v"},
        {^^bool, "b"},
        {^^char, "c"},
@@ -172,6 +175,8 @@ consteval std::optional<std::string_view> builtin_type_code(
        {^^unsigned long, "m"},
        {^^long long, "x"},
        {^^unsigned long long, "y"},
+       {^^__int128, "n"},
+       {^^unsigned __int128, "o"},
        {^^float, "f"},
        {^^double, "d"},
        {^^long double, "e"},
@@ -228,31 +233,43 @@ consteval std::string mangle_type(std::meta::info type) {
   throw std::runtime_error("name mangling: unsupported parameter type");
 }
 
-// `identifier_of` throws for `operator()`, which has no identifier; use its
-// Itanium <operator-name> instead.
+// Returns the mangled function-name atom for `function`: the Itanium
+// <operator-name> `cl` for the call operator, or a length-prefixed
+// <source-name> for its identifier otherwise. `identifier_of` throws for
+// `operator()`, which has no identifier.
 consteval std::string base_name_of(std::meta::info function) {
   if (is_operator_function(function) &&
       operator_of(function) == std::meta::operators::op_parentheses) {
     return "cl";
   }
-  return std::string(identifier_of(function));
+  return mangle_atom(identifier_of(function));
 }
 
 }  // namespace detail
 
 // Names the member function `function`, distinguishing overloads by folding
-// its cv- and ref-qualification, then each parameter's type, into the name.
-// Matches the Itanium ABI's own placement: cv-/ref-qualifiers sit inside
-// `N...E`, wrapping the function name, ahead of the parameter list.
+// its cv- and ref-qualification, noexcept-ness, return type and each
+// parameter's type into the name. Matches the Itanium ABI's own placement
+// for the qualifiers: they sit inside `N...E`, wrapping the function name,
+// ahead of the return type and parameter list.
+//
+// C++ overload resolution never needs the return type or noexcept-ness to
+// disambiguate the member functions of one interface, so folding them in is
+// redundant there. It matters once a vtable entry is found by this name
+// across two different interfaces: two unrelated interfaces can each
+// declare `get() const` with a different return type or noexcept-ness, and
+// without this, both would mangle to the same entry name.
 consteval std::string mangle(std::meta::info function) {
   std::string qualifiers;
   if (is_volatile(function)) qualifiers += "V";
   if (is_const(function)) qualifiers += "K";
   if (is_lvalue_reference_qualified(function)) qualifiers += "R";
   if (is_rvalue_reference_qualified(function)) qualifiers += "O";
-  std::string atom = detail::mangle_atom(detail::base_name_of(function));
+  std::string atom = detail::base_name_of(function);
   std::string name =
       "fn_" + (qualifiers.empty() ? atom : "N" + qualifiers + atom + "E");
+  name += is_noexcept(function) ? "Do" : "";
+  name += detail::mangle_type(return_type_of(function));
   std::vector<std::meta::info> parameters = parameters_of(function);
   for (std::meta::info parameter : parameters) {
     name += detail::mangle_type(type_of(parameter));
