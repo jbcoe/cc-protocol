@@ -9,11 +9,8 @@ general defaults for this repository.
   erasure, and allocator-aware designs consistent with P3019
   (`std::polymorphic`).
 - **Naming Conventions:** NEVER use abbreviations in public or internal variable
-  names. Use descriptive names like `XYZ_GENERATE_MANUAL_VTABLE` instead of
-  `XYZ_GEN_MAN_VT`.
-- **Stability:** Ensure that generated symbols (e.g., vtable entry names) remain
-  deterministic and stable between runs by using MD5 hashing of function
-  signatures.
+  names. Use descriptive names like `XYZ_PROTOCOL_BUILD_REFLECTION` instead of
+  `XYZ_PROTO_BLD_REFL`.
 - **WG21 Style:** `DRAFT.md` must adhere to ISO C++ standardization proposal
   norms <https://www.open-std.org/jtc1/sc22/wg21/docs/papers>
 - **Paper Format:** We use pure Markdown, no YAML frontmatter, and no HTML blocks.
@@ -21,9 +18,9 @@ general defaults for this repository.
 ## Workflow Mandates
 
 - **Tooling:** Always use `uv` for Python dependency management (`uv run ...`).
-- **Build & Test:** Use `scripts/cmake.sh` for all build and test operations.
-  The `scripts/cmake.sh` entrypoint supports `--debug`, `--release`,
-  `--asan`, `--ubsan`, `--tsan`, `--msan`, and `--clang-tidy`.
+- **Build & Test:** Use `scripts/cmake.sh --reflection` for all build and test
+  operations. The `scripts/cmake.sh` entrypoint supports `--debug`,
+  `--release`, `--asan`, `--ubsan`, `--tsan`, `--msan`, and `--clang-tidy`.
 - **Compiler Preferences:** Prefer Clang 19+ for sanitizer-based verification
   and CI, as it provides superior support for MSAN and TSAN compared to
   older GCC versions.
@@ -46,6 +43,6 @@ general defaults for this repository.
 
 ## Critical Paths
 
-- Generation Script: `scripts/generate_protocol.py`
+- Implementation: `protocol.hh`
 - Proposal Draft: `DRAFT.md`
 - Build Entrypoint: `scripts/cmake.sh`

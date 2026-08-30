@@ -70,5 +70,5 @@ repos:
     entry: ./scripts/cmake.sh --debug --clang-tidy
     language: system
     pass_filenames: false
-    files: '(\.(cc|h|j2)|CMakeLists\.txt|\.clang-tidy)$|^cmake/'
+    files: '(\.(cc|h|hh)|CMakeLists\.txt|\.clang-tidy)$|^cmake/'
     stages: [manual]

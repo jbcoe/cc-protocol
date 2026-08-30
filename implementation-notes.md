@@ -1,113 +1,144 @@
 # C++ Protocol Reference Implementation Notes
 
-This document details the design and implementation of the `protocol` and `protocol_view` types, focusing on code generation, virtual dispatch, narrowing conversions, and concurrent safety.
+This document describes the C++26-reflection-based implementation of
+`protocol` and `protocol_view` in `protocol.hh` (namespace
+`xyz::reflection`).
 
 ---
 
-## 1. Code Generation via Clang AST
+## 1. Interface Conformance
 
-Specializations of `protocol` and `protocol_view` are generated from user-defined interface structures by [scripts/generate_protocol.py](file:///workspace/scripts/generate_protocol.py) using the Jinja2 template [scripts/protocol.j2](file:///workspace/scripts/protocol.j2).
+An interface is a plain struct or class. `conformance_candidate_infos`
+collects a type's named, non-special member functions and call operators,
+static or not, via `members_of` filtered by `std::meta::is_function`. (GCC16's
+`members_of` does not yet enumerate a closure type's call operator, so for a
+lambda the operator is named directly as a fallback.)
+`protocol_interface_functions_of` keeps only the non-static entries of that
+list — the member functions an interface requires. An entry's index in this
+array is also its vtable slot.
 
-### AST Parsing
-The generator uses `libclang` Python bindings (`clang.cindex`) to parse the target header file. It traverses the AST to construct a model of the C++ class, identifying all public non-virtual, non-template member functions. It extracts function attributes including the name, constness, exception specifications (`noexcept`), return types, and parameter types.
+`is_protocol_conformant<Interface, Candidate>` checks that every interface
+member function has a matching candidate member, via
+`member_function_conforms_to`:
 
-Interfaces must consist only of public, non-virtual, non-template member functions. Template member functions are not supported because they cannot be mapped to a fixed-size vtable struct at compile-time. During generation, the script automatically parses dependent system headers by querying the host compiler's include paths; however, custom flags must be passed to the clang parser if interfaces rely on external project headers.
+- the same name, or, for `operator()`, being a call operator on both sides
+- the same de-aliased return type and parameter types
+- the same reference qualifiers (for a non-static candidate)
+- const: the candidate must be const if the interface member is
+- `noexcept`: the candidate must be noexcept if the interface member is
 
-### Name Mangling and Symbol Stability
-To prevent symbol name collisions in the generated structs, member function pointers in the vtable must be uniquely identified. The generator produces a stable suffix by computing the MD5 hash of the function signature (e.g. `func2(int,int)`) and taking the first 8 characters:
-$$\text{Suffix} = \text{MD5}(\text{signature})[0..7]$$
-For overloaded functions, the signature string hashed to generate the suffix includes the full parameter list and constness qualifiers (for example, `write(int)const` versus `write(double)const`). This guarantees that overloaded functions produce distinct stable suffixes and separate vtable slots.
+A static candidate has no object parameter, so it satisfies any const or
+reference qualification the interface member declares. Static member
+functions declared on the interface itself are not required of a candidate.
 
-For example, `int func2(int)` generates the member `func2_0087aeab`. Pointers to these members remain stable and deterministic across compiler versions and independent generation runs.
+The check is O(N\*M) over interface and candidate member counts, assumed
+negligible at compile time.
 
----
+## 2. Vtable Generation
 
-## 2. Manual Vtables and Member Function Invocation
+`vtable_generator<T>` builds, via `define_aggregate`, a struct of function
+pointers — one per entry of `protocol_interface_functions_of<T>`
+(`generate_vtable_specs`). A pointer's signature is `R(*)(void*, Args...)`
+for a mutable interface member or `R(*)(const void*, Args...)` for a const
+one. Entries are named by `vtable_entry_name`: the member's name (or
+`call_operator`) plus its index, so overloads sharing a name still get
+distinct entries.
 
-The implementation avoids compiler-generated virtual tables (`vtable`/`vptr`) to enforce value semantics, control layout constraints, and avoid runtime inheritance. Instead, it uses custom C++ structures of function pointers.
+`make_view_vtable<T, U, ConstPolicy>` populates a `vtable_generator<T>::vtable`
+for a concrete type `U`: each entry is a trampoline
+(`mutable_view_trampoline`/`const_view_trampoline`) that casts the
+type-erased pointer back to `U*`/`const U*` and calls the member of `U` found
+by `find_conforming_member`. Under `const_policy::const_only`, only entries
+for `T`'s const members are populated.
 
-### Vtable Layout
-For each interface, the generator produces two vtable layouts:
-- `const_view_vtable_<Protocol>` holds function pointers mapping const member functions.
-- `view_vtable_<Protocol>` holds a nested `const_view_vtable_<Protocol>` member followed by function pointers for non-const member functions.
+`protocol<I, Alloc>` extends this with its own `vtable`, which derives from
+`I`'s view vtable and adds `destroy`, `copy` and `move` function pointers
+(allocator-aware, built in `make_vtable_for`) used for ownership. A valueless
+(moved-from) `protocol` points at a `null_vtable` whose `destroy`/`copy`/
+`move` are no-ops and whose member-function entries are left null; calling a
+member function on it is a precondition violation.
 
-Function pointer signatures take a type-erased pointer (`const void*` or `void*`) as the first argument, followed by the function parameters.
+## 3. Member Function Thunks
 
-### Vtable Specialization
-For a concrete type `T`, static constexpr instances `const_view_vtable_for<T>` and `view_vtable_for<T>` are initialized with lambdas that cast the type-erased pointer back to the concrete type:
+Calling `p.member(args...)` is provided by a generated wrapper base, one per
+interface member function name, produced by `member_base_generator` /
+`generate_wrapper_bases` and combined into `protocol_wrappers_t`, which
+`protocol` and `protocol_view` inherit from.
+
+Each base holds a `member_thunk`: one `method_thunk` per overload (an
+`operator()` mirroring that overload's signature), with every overload's
+`operator()` brought into scope so ordinary overload resolution applies as it
+would on the interface itself. The call-operator case (`operator()`) is
+handled the same way through `call_operator_base`.
+
+A thunk recovers the enclosing `protocol`/`protocol_view` object with a
+"vanishing this pointer" cast (`method_thunk::enclosing`), then dispatches
+through the matching vtable entry:
+
 ```cpp
-[](const void* ptr, Args... args) -> Ret {
-    return static_cast<const T*>(ptr)->member_function(args...);
+R operator()(Args... args) noexcept(IsNoexcept) requires(!IsConst) {
+  auto* protocol_object = static_cast<ProtocolType*>(enclosing(this));
+  const Vtable* vtable = protocol_object->vtable_;
+  return vtable->[:entry:](protocol_object->object_,
+                           std::forward<Args>(args)...);
 }
 ```
 
-### Invocation Path
-`protocol_view` stores a type-erased pointer `ptr_` and a pointer to the generated vtable `vptr_`. Calling a member function performs a single indirection:
-```cpp
-vptr_->member_function_mangled(ptr_, args...);
-```
-Because vtable pointers point to statically allocated, immutable structs (`const_view_vtable_for<T>`), this is identical to a standard virtual call cost but without class hierarchy coupling.
+Thunks are private-defaulted (constructible/copyable only by their
+`member_thunk`/`call_operator_base`), and `protocol`/`protocol_view` each
+`friend` `method_thunk` to grant it access to their `object_`/`vtable_`.
 
----
+Where a const/non-const overload pair would collide once every wrapper is
+const-qualified (`protocol_view`'s shallow const), `generates_wrapper_for`
+drops the const overload, since a non-const reference would resolve to the
+non-const one anyway.
 
-## 3. Narrowing Conversions (Subtype Substitution)
+## 4. Ownership and Allocators
 
-A `protocol` or `protocol_view` for interface `A` can be converted to one for interface `B` if `B` is a subset (subtype) of `A`.
+`protocol<I, Alloc>` stores a type-erased `object_` pointer, a `vtable_`
+pointer and an `[[no_unique_address]] Alloc alloc_`. Construction rebinds
+`Alloc` to the stored (decayed) type and allocates/constructs through
+`allocator_traits`. Construction from any conforming `T`, allocator-extended
+construction, and in-place construction (`std::in_place_type_t`, including an
+initializer-list overload) are all provided, each with an allocator-extended
+counterpart.
 
-### Constructor Constraints
-Type traits `is_protocol` and `is_protocol_view` along with the concept `not_protocol_or_view` prevent concrete constructors from matching view/protocol types during conversions, avoiding recursion or self-wrapping.
+Copy construction/assignment go through the vtable's `copy` entry and are
+constrained on `std::is_copy_constructible_v<I>`. Move construction/
+assignment move the object pointer directly when the allocators compare
+equal or `allocator_traits::is_always_equal`, and otherwise heap-allocate in
+the target allocator and move-construct via the vtable's `move` entry,
+honouring `propagate_on_container_copy_assignment`,
+`propagate_on_container_move_assignment` and `propagate_on_container_swap`
+respectively. `swap` asserts the allocators are equal when neither
+`is_always_equal` nor propagation on swap holds. `valueless_after_move()`
+reports whether the stored pointer is null.
 
-### Converting Views
-Conversions are enabled via templated copy constructors constrained by the target vtable size and layout compatibility:
-```cpp
-template <typename Other>
-  requires (!std::same_as<Other, TargetProtocol>)
-constexpr protocol_view(const protocol_view<Other>& other)
-    : ptr_(other.ptr_),
-      vptr_(get_mutable_vtable<Other, TargetProtocol>(other.vptr_)) {}
-```
-Conversions are fully transitive (for example, `protocol_view<A>` to `protocol_view<B>` to `protocol_view<C>`). In each step, the registry maps the current vtable pointer to the target interface vtable. Since the mapping registry resolves type transitions directly, intermediate conversions do not create chain-linked redirects.
+## 5. `protocol_view<T>` and `protocol_view<const T>`
 
-### Converting Owning Protocols
-Allocator-extended and standard converting constructors construct the target `protocol` from the source `protocol`. If the allocators are equal, the storage pointer `p_` is moved directly (`std::exchange`) and the target vtable is mapped. If the allocators are not equal, the source's `xyz_protocol_move` or `xyz_protocol_clone` function is called to construct the value in the target allocator's storage.
+`protocol_view<T>` is a non-owning `void*`/vtable-pointer pair, constructible
+from any non-const `U` conforming to `T`. It is shallow-const: its wrappers
+are generated with `const_policy::all_const`, so every member is exposed as a
+const member function of the view and `const protocol_view<T>` does not
+restrict the interface, mirroring `std::span`.
 
----
+`protocol_view<const T>` is a `const void*`/vtable-pointer pair constructible
+from a (possibly const) `U`, generated with `const_policy::const_only`: only
+`T`'s const member functions get wrappers and vtable entries; the rest are
+never called through it.
 
-## 4. Vtable Registry & Concurrency
+Both specializations share one vtable per `(T, U, ConstPolicy)` combination
+(`view_vtable_for`), delete the default constructor, and default the
+remaining special member functions.
 
-When narrowing from `Other` to `Target`, a new vtable matching `Target`'s layout must be built and populated with function pointers extracted from `Other`'s vtable. This mapping occurs dynamically inside a global type-erased registry.
+## 6. Limitations
 
-### Registry Signature
-```cpp
-const void* get_mapped_vtable(
-    const void* source_vtable_pointer, const void* conversion_anchor,
-    std::size_t target_vtable_size,
-    void (*mapping_function)(const void* source, void* target));
-```
-
-### The Cache and Lifetime Control (Intentional Leak)
-Mapped vtables are cached in a static `std::unordered_map` keyed by `CacheKey{source_vtable_pointer, conversion_anchor}`. The `conversion_anchor` is the address of a static template local `conversion_anchor`, ensuring target vtable/allocator uniqueness. Values are stored as `std::unique_ptr<char[]>`. Because the map is node-allocated, returned pointers to elements remain stable.
-
-To ensure safety during program shutdown, the cache map and its protecting mutex are initialized as dynamic objects allocated via `new` on the heap and referenced statically (`static auto& cache = *new ...`). This deliberately prevents their destruction during program termination, avoiding Undefined Behavior (such as segfaults) if other global or static objects trigger protocol conversions during cleanup/destructor execution.
-
-Because active references to these static structures reside in the global data segment throughout the application runtime, Address Sanitizer's Leak Sanitizer (LSAN) classifies them as reachable memory rather than a leak, passing all sanitizer checks on exit without needing suppression files.
-
-Since the vtables are dynamically allocated and retained on the heap until program termination, memory growth is bounded by the total number of distinct conversion type pairs in the binary. This compile-time bound ensures that the cache does not require an eviction policy (such as LRU) or memory cap, as memory consumption remains flat after startup.
-
-Pointer equality is used to compare the `CacheKey` components. This is safe because static vtable instances and anchor variables are guaranteed to have unique heap or data segment addresses. Compiler optimization techniques (such as COMDAT folding or duplicate variable consolidation) do not affect correctness because identical layouts that are folded share identical function pointer semantics.
-
-### Split-Lock Pattern
-To prevent recursive deadlocks when nested conversions occur (e.g. mapping an owning vtable requires mapping its nested mutable vtable on the same thread), the mutex is not held during mapping.
-
-While the conversion is an O(1) pointer assignment on a cache hit, the very first conversion for a given type pair incurs a cold-start overhead due to the mutex lock, cache lookup, buffer allocation, and mapping. The conversions are therefore described as amortized zero-cost.
-
-The lookup and population sequence is:
-1. Lock the mutex and look up the key. If found, return the pointer and unlock the mutex.
-2. If it is a cache miss, unlock the mutex.
-3. Allocate the target vtable buffer in thread-local storage.
-4. Invoke `mapper()` to populate the new vtable.
-5. Lock the mutex and attempt to insert the buffer using `cache.emplace()`.
-6. If the insertion succeeds, publish and return the pointer.
-7. If the insertion fails (meaning another thread inserted the key concurrently), the local buffer is destroyed, and the already-cached pointer is returned.
-
-This guarantees that all threads always resolve to the identical vtable pointer for a given conversion key, eliminating data races and leaks under high contention.
+- No operators other than `operator()` are supported.
+- Member function templates are not matched as conformance candidates.
+- Conformance checking accounts for an interface member's lvalue/rvalue
+  reference qualifier, but the generated call wrapper does not itself apply
+  the qualifier: `method_thunk`'s `operator()` overloads are unqualified.
+- There is no conversion between a `protocol`/`protocol_view` of one
+  interface and a `protocol`/`protocol_view` of another.
+- Conformance checking (`is_protocol_conformant`) is O(N\*M) over interface
+  and candidate member counts.

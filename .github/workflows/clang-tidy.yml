@@ -13,7 +13,6 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "cmake/**"
-      - "**/*.j2"
   # No `paths:` filter here. The `clang-tidy` job is a required status check
   # for merging to main, and a workflow that is filtered out by `paths:` never
   # reports a check, which leaves unrelated pull requests blocked as
@@ -55,7 +54,6 @@ jobs:
               - "**/CMakeLists.txt"
               - "CMakePresets.json"
               - "cmake/**"
-              - "**/*.j2"
 
   clang-tidy:
     needs: detect-changes

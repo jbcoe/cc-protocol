@@ -5,21 +5,12 @@ description = "development support tools for value-types"
 readme = "README.md"
 requires-python = "~=3.12.0"
 dependencies = [
-    "clang<19.0.0",
     "clang-format>=22.1.4",
     "cmake-format>=0.6.13",
-    "jinja2>=3.1.6",
     "pre-commit>=4.2.0",
     "pyrefly>=0.62.0",
-    "pytest>=9.0.2",
-    "pyyaml>=6.0.2",
     "ruff>=0.15.7",
-    "xyz-cppmodel",
 ]
-
-[tool.uv.sources]
-xyz-cppmodel = { git = "https://github.com/jbcoe/py_cppmodel.git", rev = "eeb0921173dcde828eeb3940d1fdd4f64eaf7e6d" }
-
 
 [tool.ruff]
 # See https://docs.astral.sh/ruff/rules/.
@@ -49,9 +40,3 @@ force-single-line = true
 unannotated-parameter = "error"
 unannotated-return = "error"
 implicit-any = "error"
-
-[tool.pytest.ini_options]
-addopts = ["-p", "scripts.test_concept_errors"]
-pythonpath = ["."]
-testpaths = ["scripts"]
-python_files = ["test_generate_protocol.py"]

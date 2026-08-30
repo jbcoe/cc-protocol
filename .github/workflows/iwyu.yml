@@ -13,7 +13,6 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "cmake/**"
-      - "**/*.j2"
   pull_request:
     paths:
       - ".github/workflows/iwyu.yml" # This file
@@ -23,7 +22,6 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "cmake/**"
-      - "**/*.j2"
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
