@@ -235,12 +235,7 @@ constexpr bool is_identifier_char(char c) {
          (c >= '0' && c <= '9') || c == '_';
 }
 
-// Unlike everything else here, not collision-proof: mapping every
-// non-identifier character onto `_` means e.g. `foo<int>` and a type
-// literally named `foo_int_` sanitize identically, inside a single
-// `mangle_atom` call the length prefix can't see into. Used only as
-// `mangle_qualified_name`'s fallback for template argument lists, which
-// this tutorial doesn't decompose further.
+// Replaces every non-identifier character with `_`.
 consteval std::string sanitize(std::string_view text) {
   std::string out;
   for (char c : text) {
