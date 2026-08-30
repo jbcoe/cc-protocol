@@ -11,6 +11,13 @@ from typing import Any
 # reflection compiler when present (see --reflection below).
 GCC_LATEST_BIN_DIRECTORY = "/opt/gcc-latest/bin"
 
+# Resolved from this script's own location rather than the current working
+# directory, so default build directories land in the source root if this
+# script is invoked from elsewhere.
+SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_BUILD_DIR = os.path.join(SOURCE_ROOT, "build")
+DEFAULT_CLANG_TIDY_BUILD_DIR = f"{DEFAULT_BUILD_DIR}.clang-tidy"
+
 
 def main() -> None:
     """Execute the CMake build and test process based on command-line arguments."""
@@ -70,6 +77,15 @@ def main() -> None:
     # Determine preset: flag takes precedence, then default.
     preset = args.preset if args.preset else "Release"
 
+    # clang-tidy builds get their own directory by default, separate from
+    # DEFAULT_BUILD_DIR: toggling CLANG_TIDY_ENABLE against that directory
+    # would otherwise force a reconfigure every time --clang-tidy is turned
+    # on or off.
+    if not args.build_dir:
+        args.build_dir = (
+            DEFAULT_CLANG_TIDY_BUILD_DIR if args.clang_tidy else DEFAULT_BUILD_DIR
+        )
+
     # Map abbreviations to full mode names
     mode_map = {
         "b": "build",
@@ -96,9 +112,9 @@ def main() -> None:
         f"-DENABLE_MSAN={'ON' if args.msan else 'OFF'}",
         "-DXYZ_PROTOCOL_BUILD_REFLECTION=" + ("ON" if args.reflection else "OFF"),
         f"-DCLANG_TIDY_ENABLE={'ON' if args.clang_tidy else 'OFF'}",
+        "-B",
+        args.build_dir,
     ]
-    if args.build_dir:
-        configure_args.extend(["-B", args.build_dir])
     if args.clean:
         configure_args.append("--fresh")
 
@@ -126,11 +142,7 @@ def main() -> None:
     subprocess.check_call(configure_args, env=configure_env)
 
     # Build step (required for build, test, benchmark)
-    build_args = ["cmake", "--build"]
-    if args.build_dir:
-        build_args.extend([args.build_dir, "--config", preset])
-    else:
-        build_args.extend(["--preset", preset])
+    build_args = ["cmake", "--build", args.build_dir, "--config", preset]
     if args.clean:
         build_args.append("--clean-first")
     if args.clang_tidy:
@@ -143,23 +155,29 @@ def main() -> None:
 
     # Test step
     if mode == "test":
-        test_args = ["ctest", "--output-on-failure"]
-        if args.build_dir:
-            test_args.extend(["--test-dir", args.build_dir, "-C", preset])
-        else:
-            test_args.extend(["--preset", preset])
+        test_args = [
+            "ctest",
+            "--output-on-failure",
+            "--test-dir",
+            args.build_dir,
+            "-C",
+            preset,
+        ]
 
         log(f"Running: {' '.join(test_args)}")
         subprocess.check_call(test_args)
 
     # Benchmark step
     if mode == "benchmark":
-        benchmark_cmd = ["cmake", "--build"]
-        if args.build_dir:
-            benchmark_cmd.extend([args.build_dir, "--config", preset])
-        else:
-            benchmark_cmd.extend(["--preset", preset])
-        benchmark_cmd.extend(["--target", "run_benchmark"])
+        benchmark_cmd = [
+            "cmake",
+            "--build",
+            args.build_dir,
+            "--config",
+            preset,
+            "--target",
+            "run_benchmark",
+        ]
 
         log(f"Running: {' '.join(benchmark_cmd)}")
         subprocess.check_call(benchmark_cmd)
