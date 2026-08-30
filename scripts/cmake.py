@@ -7,8 +7,8 @@ import subprocess
 from typing import Any
 
 # Directory of the GCC trunk snapshot published at
-# https://jwakely.github.io/pkg-gcc-latest/, used as the default C++26
-# reflection compiler when present (see --reflection below).
+# https://jwakely.github.io/pkg-gcc-latest/, used as the default compiler
+# when present (see the CXX handling in main below).
 GCC_LATEST_BIN_DIRECTORY = "/opt/gcc-latest/bin"
 
 # Resolved from this script's own location rather than the current working
@@ -48,14 +48,6 @@ def main() -> None:
         "--ubsan", action="store_true", help="Enable Undefined Behaviour Sanitizer"
     )
     parser.add_argument("--tsan", action="store_true", help="Enable Thread Sanitizer")
-    parser.add_argument(
-        "--reflection",
-        action="store_true",
-        help="Build and test the reflection implementation (requires a P2996 "
-        "reflection compiler; defaults to the GCC trunk snapshot in "
-        "/opt/gcc-latest if present, else g++-16/gcc-16; set CXX/CC in the "
-        "environment to override)",
-    )
     parser.add_argument("-B", "--build-dir", help="Build directory")
     parser.add_argument(
         "--clean", action="store_true", help="Fresh configuration and clean-first build"
@@ -93,7 +85,6 @@ def main() -> None:
         f"-DENABLE_ASAN={'ON' if args.asan else 'OFF'}",
         f"-DENABLE_UBSAN={'ON' if args.ubsan else 'OFF'}",
         f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",
-        "-DXYZ_PROTOCOL_BUILD_REFLECTION=" + ("ON" if args.reflection else "OFF"),
         "-B",
         args.build_dir,
     ]
@@ -102,15 +93,15 @@ def main() -> None:
 
     configure_args.extend(extra)
 
-    # A P2996 reflection compiler is required to configure with
-    # XYZ_PROTOCOL_BUILD_REFLECTION=ON. CMake only reads CXX/CC
-    # from the environment, not from -D cache variables, so set them here
-    # rather than as configure_args. An existing CXX in the environment is
-    # left untouched so callers can override the compiler; otherwise prefer
-    # the GCC trunk snapshot in /opt/gcc-latest (see docker/Dockerfile) and
-    # fall back to Ubuntu's gcc-16 package if that snapshot isn't installed.
+    # The implementation requires a C++26 reflection (P2996) compiler. CMake
+    # only reads CXX/CC from the environment, not from -D cache variables, so
+    # set them here rather than as configure_args. An existing CXX in the
+    # environment is left untouched so callers can override the compiler;
+    # otherwise prefer the GCC trunk snapshot in /opt/gcc-latest (see
+    # docker/Dockerfile) and fall back to Ubuntu's gcc-16 package if that
+    # snapshot isn't installed.
     configure_env = os.environ.copy()
-    if args.reflection and "CXX" not in configure_env:
+    if "CXX" not in configure_env:
         gcc_latest_cxx = os.path.join(GCC_LATEST_BIN_DIRECTORY, "g++")
         gcc_latest_cc = os.path.join(GCC_LATEST_BIN_DIRECTORY, "gcc")
         if os.path.exists(gcc_latest_cxx):
