@@ -16,6 +16,7 @@
       },
       {
         "name": "default",
+        "binaryDir": "${sourceDir}/build",
         "cacheVariables": {
           "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
           "CMAKE_INTERPROCEDURAL_OPTIMIZATION": true
