@@ -3,6 +3,7 @@
 
 import argparse
 import os
+import shutil
 import subprocess
 from typing import Any
 
@@ -99,7 +100,10 @@ def main() -> None:
     # environment is left untouched so callers can override the compiler;
     # otherwise prefer the GCC trunk snapshot in /opt/gcc-latest (see
     # docker/Dockerfile) and fall back to Ubuntu's gcc-16 package if that
-    # snapshot isn't installed.
+    # snapshot isn't installed. When neither is present CXX stays unset so
+    # that CMake's default compiler reaches the reflection check in
+    # CMakeLists.txt and reports which compiler lacks reflection, rather
+    # than failing to find a compiler at all.
     configure_env = os.environ.copy()
     if "CXX" not in configure_env:
         gcc_latest_cxx = os.path.join(GCC_LATEST_BIN_DIRECTORY, "g++")
@@ -107,7 +111,7 @@ def main() -> None:
         if os.path.exists(gcc_latest_cxx):
             configure_env["CXX"] = gcc_latest_cxx
             configure_env["CC"] = gcc_latest_cc
-        else:
+        elif shutil.which("g++-16"):
             configure_env["CXX"] = "g++-16"
             configure_env["CC"] = "gcc-16"
 
