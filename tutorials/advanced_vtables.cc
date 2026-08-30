@@ -346,7 +346,7 @@ consteval std::string base_name_of(std::meta::info fn) {
 // ref-qualification, then each parameter's type, into the name. Matches the
 // Itanium ABI's own placement: cv-/ref-qualifiers sit inside `N...E`,
 // wrapping the function name, ahead of the parameter list.
-consteval std::string_view mangle(std::meta::info fn) {
+consteval std::string mangle(std::meta::info fn) {
   std::string quals;
   if (is_volatile(fn)) quals += "V";
   if (is_const(fn)) quals += "K";
@@ -358,7 +358,7 @@ consteval std::string_view mangle(std::meta::info fn) {
   for (auto param : params) {
     name += mangle_type(type_of(param));
   }
-  return std::define_static_string(name);
+  return name;
 }
 
 // `Type`'s public member functions with a name to mangle, in declaration
