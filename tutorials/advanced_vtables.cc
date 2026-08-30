@@ -23,6 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <array>
 #include <charconv>
 #include <cstddef>
+#include <functional>
 #include <limits>
 #include <meta>
 #include <optional>
@@ -30,7 +31,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "consteval_check.h"
@@ -192,12 +192,15 @@ using std::meta::is_const;
 using std::meta::is_const_type;
 using std::meta::is_function;
 using std::meta::is_fundamental_type;
+using std::meta::is_lvalue_reference_qualified;
 using std::meta::is_lvalue_reference_type;
 using std::meta::is_operator_function;
 using std::meta::is_pointer_type;
+using std::meta::is_rvalue_reference_qualified;
 using std::meta::is_rvalue_reference_type;
 using std::meta::is_special_member_function;
 using std::meta::is_static_member;
+using std::meta::is_volatile;
 using std::meta::parameters_of;
 using std::meta::remove_const;
 using std::meta::remove_pointer;
@@ -222,21 +225,12 @@ struct Cat {
   std::string_view noise(const int&) const;
   std::string_view noise(std::size_t) const;
   std::string_view noise(std::string_view) const;
+
+  std::string_view growl() &;
+  std::string_view growl() &&;
+  std::string_view growl() const;
+  std::string_view growl() const volatile;
 };
-
-constexpr bool is_identifier_char(char c) {
-  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-         (c >= '0' && c <= '9') || c == '_';
-}
-
-// Replaces every non-identifier character with `_`.
-consteval std::string sanitize(std::string_view text) {
-  std::string out;
-  for (char c : text) {
-    out += is_identifier_char(c) ? c : '_';
-  }
-  return out;
-}
 
 consteval std::string decimal(std::size_t value) {
   std::array<char, std::numeric_limits<std::size_t>::digits10 + 1> buffer;
@@ -250,18 +244,46 @@ consteval std::string mangle_atom(std::string_view text) {
   return decimal(text.size()) + std::string(text);
 }
 
-// Length-prefixes each `::`-separated component of a qualified name
-// individually, so e.g. `A::B` can't collide with a hypothetical `A_B`.
-consteval std::string mangle_qualified_name(std::string_view name) {
-  std::string out;
-  std::size_t pos = 0;
-  while (true) {
-    std::size_t next = name.find("::", pos);
-    out += mangle_atom(sanitize(name.substr(pos, next - pos)));
-    if (next == std::string_view::npos) break;
-    pos = next + 2;  // Advance past "::".
+// Forward-declared: mutually recursive with `mangle_scope_component` via a
+// template argument that is itself a class-template specialization.
+consteval std::string mangle_type(std::meta::info type);
+
+// Mangles one named scope level (a namespace or a class), folding in
+// template arguments when `scope` is a class-template specialization.
+consteval std::string mangle_scope_component(std::meta::info scope) {
+  std::meta::info named =
+      has_template_arguments(scope) ? template_of(scope) : scope;
+  std::string out = mangle_atom(std::string(identifier_of(named)));
+  if (has_template_arguments(scope)) {
+    out += "I";
+    auto args = template_arguments_of(scope);
+    for (std::meta::info arg : args) {
+      if (!is_type(arg)) {
+        // Limited template-argument handling for brevity.
+        throw std::runtime_error(
+            "mangle_scope_component: only type template arguments are "
+            "supported");
+      }
+      out += mangle_type(arg);
+    }
+    out += "E";
   }
   return out;
+}
+
+// Walks `parent_of` up to (not including) the global namespace, then wraps
+// 2+ levels in Itanium's N...E delimiters so a qualified name can't be
+// confused with a sequence of unqualified ones.
+consteval std::string mangle_qualified_name(std::meta::info type) {
+  std::vector<std::string> atoms;
+  std::meta::info scope = dealias(type);
+  while (!(is_namespace(scope) && !has_identifier(scope))) {
+    atoms.push_back(mangle_scope_component(scope));
+    scope = dealias(parent_of(scope));
+  }
+  std::string joined;
+  for (auto it = atoms.rbegin(); it != atoms.rend(); ++it) joined += *it;
+  return atoms.size() > 1 ? "N" + joined + "E" : joined;
 }
 
 // Itanium ABI <builtin-type> codes for fundamental types.
@@ -269,6 +291,7 @@ consteval std::optional<std::string_view> builtin_type_code(
     std::meta::info type) {
   type = dealias(type);
   if (type == ^^int) return "i";
+  if (type == ^^char) return "c";
   if (type == dealias(^^std::size_t)) return "m";
   if (is_fundamental_type(type)) {
     // Limited type handling for brevity.
@@ -291,7 +314,7 @@ consteval std::string mangle_type(std::meta::info type) {
     return "O" + mangle_type(remove_reference(type));
   }
   if (auto builtin = builtin_type_code(type)) return std::string(*builtin);
-  return mangle_qualified_name(std::meta::display_string_of(type));
+  return mangle_qualified_name(type);
 }
 
 // Itanium ABI <operator-name> mnemonics for operators.
@@ -319,55 +342,78 @@ consteval std::string base_name_of(std::meta::info fn) {
   return std::string(identifier_of(fn));
 }
 
-// Distinguishes overloads by folding each parameter's type and the
-// function's const-qualification into the name.
+// Distinguishes overloads by folding the function's cv- and
+// ref-qualification, then each parameter's type, into the name. Matches the
+// Itanium ABI's own placement: cv-/ref-qualifiers sit inside `N...E`,
+// wrapping the function name, ahead of the parameter list.
 consteval std::string_view mangle(std::meta::info fn) {
-  std::string name = "fn_" + mangle_atom(base_name_of(fn));
+  std::string quals;
+  if (is_volatile(fn)) quals += "V";
+  if (is_const(fn)) quals += "K";
+  if (is_lvalue_reference_qualified(fn)) quals += "R";
+  if (is_rvalue_reference_qualified(fn)) quals += "O";
+  std::string atom = mangle_atom(base_name_of(fn));
+  std::string name = "fn_" + (quals.empty() ? atom : "N" + quals + atom + "E");
   auto params = parameters_of(fn);
   for (auto param : params) {
     name += mangle_type(type_of(param));
   }
-  if (is_const(fn)) name += "K";
   return std::define_static_string(name);
 }
 
-// `Type`'s public, non-special member functions, in declaration order.
+// `Type`'s public member functions with a name to mangle, in declaration
+// order: named functions plus operators, excluding constructors and other
+// unnamed special members that `identifier_of` can't handle.
 template <std::meta::info Type>
 constexpr auto member_functions_of = std::define_static_array(
     members_of(Type, std::meta::access_context::unprivileged()) |
     filter(is_function) | filter(std::not_fn(is_static_member)) |
-    filter(std::not_fn(is_special_member_function)));
+    filter([](std::meta::info member) consteval {
+      return (has_identifier(member) || is_operator_function(member)) &&
+             !is_special_member_function(member);
+    }));
 
 TEST(TutorialsVtables, NameMangling) {
-  constexpr auto m_fns = member_functions_of<^^Cat>;
+  consteval {
+    auto m_fns = member_functions_of<^^Cat>;
 
-  // operator()() const
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[0]) == "fn_2clK");
-  // operator()()
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[1]) == "fn_2cl");
-  // operator()(int) const
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[2]) == "fn_2cliK");
-  // operator()(int)
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[3]) == "fn_2cli");
-  // operator[](int) const
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[4]) == "fn_2ixiK");
-  // operator->() const
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[5]) == "fn_2ptK");
-  // noise() const
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[6]) == "fn_5noiseK");
-  // noise(int) const
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[7]) == "fn_5noiseiK");
-  // noise(int*) const
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[8]) == "fn_5noisePiK");
-  // noise(int&) const
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[9]) == "fn_5noiseRiK");
-  // noise(const int&) const
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[10]) == "fn_5noiseRKiK");
-  // noise(std::size_t) const
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[11]) == "fn_5noisemK");
-  // noise(std::string_view) const
-  XYZ_CONSTEVAL_CHECK(mangle(m_fns[12]) ==
-                      "fn_5noise3std23basic_string_view_char_K");
+    // operator()() const
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[0]) == "fn_NK2clE");
+    // operator()()
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[1]) == "fn_2cl");
+    // operator()(int) const
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[2]) == "fn_NK2clEi");
+    // operator()(int)
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[3]) == "fn_2cli");
+    // operator[](int) const
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[4]) == "fn_NK2ixEi");
+    // operator->() const
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[5]) == "fn_NK2ptE");
+    // noise() const
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[6]) == "fn_NK5noiseE");
+    // noise(int) const
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[7]) == "fn_NK5noiseEi");
+    // noise(int*) const
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[8]) == "fn_NK5noiseEPi");
+    // noise(int&) const
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[9]) == "fn_NK5noiseERi");
+    // noise(const int&) const
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[10]) == "fn_NK5noiseERKi");
+    // noise(std::size_t) const
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[11]) == "fn_NK5noiseEm");
+    // noise(std::string_view) const
+    XYZ_CONSTEVAL_CHECK(
+        mangle(m_fns[12]) ==
+        "fn_NK5noiseEN3std17basic_string_viewIcN3std11char_traitsIcEEEE");
+    // growl() &
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[13]) == "fn_NR5growlE");
+    // growl() &&
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[14]) == "fn_NO5growlE");
+    // growl() const
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[15]) == "fn_NK5growlE");
+    // growl() const volatile
+    XYZ_CONSTEVAL_CHECK(mangle(m_fns[16]) == "fn_NVK5growlE");
+  }
 }
 
 }  // namespace xyz::tutorials::name_mangling_for_vtable
@@ -384,6 +430,7 @@ using xyz::tutorials::name_mangling_for_vtable::mangle;
 using xyz::tutorials::name_mangling_for_vtable::member_functions_of;
 
 struct Cat {
+  // For simplicity, we consider only const member functions.
   std::string_view noise() const { return "Meow"; }
 
   std::string_view noise(int) const { return "Purr"; }
@@ -425,33 +472,35 @@ class AnimalPtr {
   template <typename T>
   explicit AnimalPtr(const T* animal) : data_(animal) {
     constexpr static vtable_t vtable_for_type{
-        .fn_5noiseK =
+        .fn_NK5noiseE =
             +[](const void* data) {
               return static_cast<const T*>(data)->noise();
             },
-        .fn_5noiseiK =
+        .fn_NK5noiseEi =
             +[](const void* data, int x) {
               return static_cast<const T*>(data)->noise(x);
             },
-        .fn_2clK =
+        .fn_NK2clE =
             +[](const void* data) {  //
               return (*static_cast<const T*>(data))();
             },
-        .fn_2cliK = +[](const void* data,
-                        int x) {  //
+        .fn_NK2clEi = +[](const void* data,
+                          int x) {  //
           return (*static_cast<const T*>(data))(x);
         }};
     vtable_ = &vtable_for_type;
   }
 
-  std::string_view noise() const { return vtable_->fn_5noiseK(data_); }
+  std::string_view noise() const { return vtable_->fn_NK5noiseE(data_); }
 
-  std::string_view noise(int x) const { return vtable_->fn_5noiseiK(data_, x); }
+  std::string_view noise(int x) const {
+    return vtable_->fn_NK5noiseEi(data_, x);
+  }
 
-  std::string_view operator()() const { return vtable_->fn_2clK(data_); }
+  std::string_view operator()() const { return vtable_->fn_NK2clE(data_); }
 
   std::string_view operator()(int x) const {
-    return vtable_->fn_2cliK(data_, x);
+    return vtable_->fn_NK2clEi(data_, x);
   }
 };
 
