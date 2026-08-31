@@ -30,7 +30,6 @@ cc_test(
     deps = ["@googletest//:gtest_main"],
 )
 
-
 cc_test(
     name = "allocators_tutorial",
     srcs = ["05_allocators.cc"],
