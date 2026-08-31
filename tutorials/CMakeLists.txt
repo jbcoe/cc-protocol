@@ -3,25 +3,13 @@ xyz_add_test(
     NAME
     polymorphism_tutorial
     FILES
-    polymorphism.cc)
-
-xyz_add_test(
-    NAME
-    vanishing_this_tutorial
-    FILES
-    vanishing_this.cc)
+    01_polymorphism.cc)
 
 xyz_add_test(
     NAME
     type_erasure_tutorial
     FILES
-    type_erasure.cc)
-
-xyz_add_test(
-    NAME
-    allocators_tutorial
-    FILES
-    allocators.cc)
+    02_type_erasure.cc)
 
 xyz_add_test(
     NAME
@@ -29,7 +17,19 @@ xyz_add_test(
     LINK_LIBRARIES
     xyz_protocol::protocol
     FILES
-    reflection.cc)
+    03_reflection.cc)
+
+xyz_add_test(
+    NAME
+    vanishing_this_tutorial
+    FILES
+    04_vanishing_this.cc)
+
+xyz_add_test(
+    NAME
+    allocators_tutorial
+    FILES
+    05_allocators.cc)
 
 xyz_add_test(
     NAME
@@ -37,4 +37,4 @@ xyz_add_test(
     LINK_LIBRARIES
     xyz_protocol::protocol
     FILES
-    advanced_vtables.cc)
+    06_advanced_vtables.cc)
