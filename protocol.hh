@@ -141,7 +141,8 @@ consteval bool same_name_and_params_with_explicit_object(
     return false;
 
   const auto params = parameters_of(candidate);
-  if (is_const(interface) != is_const(remove_reference(params.front())))
+  if (is_const(interface) !=
+      is_const(remove_reference(type_of(params.front()))))
     return false;
 
   return std::ranges::equal(parameters_of(interface),
