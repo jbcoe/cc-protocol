@@ -3,6 +3,12 @@ include_guard(GLOBAL)
 if(ENABLE_SANITIZERS)
   set(SANITIZER_FLAGS_ASAN "-fsanitize=address" "-fno-omit-frame-pointer")
   set(SANITIZER_FLAGS_UBSAN "-fsanitize=undefined")
+  # The null checks disable -fdelete-null-pointer-checks, so GCC's constexpr
+  # evaluator stops folding `&object == nullptr` for std::define_static_string
+  # results and rejects protocol.hh's consteval aggregate generation. Exclude
+  # them; the exclusion has to follow -fsanitize=undefined to take effect.
+  list(APPEND SANITIZER_FLAGS_UBSAN
+       "-fno-sanitize=null,nonnull-attribute,returns-nonnull-attribute")
   set(SANITIZER_FLAGS_TSAN "-fsanitize=thread")
 
   include(CheckCXXCompilerFlag)
