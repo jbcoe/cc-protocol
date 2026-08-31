@@ -53,7 +53,7 @@ namespace xyz::reflection {
 
 template <typename I>
 concept is_valid_interface =
-    is_class_type(^^I) && std::same_as<I, std::remove_reference_t<I>> &&
+    is_class_type(^^I) && std::same_as<I, std::remove_cvref_t<I>> &&
     std::ranges::none_of(
         members_of(^^I, std::meta::access_context::unprivileged()),
         std::meta::is_volatile);
@@ -61,7 +61,8 @@ concept is_valid_interface =
 template <is_valid_interface T, typename Allocator>
 class protocol;
 
-template <is_valid_interface T>
+template <typename T>
+  requires is_valid_interface<T> || is_valid_interface<std::remove_const_t<T>>
 class protocol_view;
 
 template <typename T>
@@ -76,7 +77,8 @@ inline constexpr bool is_protocol_v = is_protocol<T>::value;
 template <typename T>
 struct is_protocol_view : std::false_type {};
 
-template <is_valid_interface T>
+template <typename T>
+  requires is_valid_interface<T> || is_valid_interface<std::remove_const_t<T>>
 struct is_protocol_view<protocol_view<T>> : std::true_type {};
 
 template <typename T>
@@ -994,7 +996,7 @@ class protocol
 // const object.
 // ---------------------------------------------------------------------------
 template <is_valid_interface T>
-class protocol_view
+class protocol_view<T>
     : public detail::protocol_wrappers_t<
           T, protocol_view<T>, typename detail::vtable_generator<T>::vtable,
           detail::const_policy::all_const> {
