@@ -900,8 +900,7 @@ TEST(ReflectionProtocolViewTest, IsConstructibleFromConformingType) {
   static_assert(std::is_convertible_v<Conforming&, protocol_view<Interface>>);
   static_assert(
       !std::is_constructible_v<protocol_view<Interface>, NonConforming&>);
-  // A view of a temporary would dangle; the lvalue-reference parameter
-  // rejects one.
+  // A view of a temporary would dangle.
   static_assert(!std::is_constructible_v<protocol_view<Interface>, Conforming>);
 }
 
@@ -944,8 +943,7 @@ TEST(ReflectionProtocolViewTest, ConstViewIsConstructibleFromConstObject) {
       std::is_convertible_v<Conforming&, protocol_view<const Interface>>);
   static_assert(!std::is_constructible_v<protocol_view<const Interface>,
                                          const NonConforming&>);
-  // A view of a temporary would dangle; the deleted rvalue overload rejects
-  // one even though the const-reference constructor would otherwise bind it.
+  // A view of a temporary would dangle.
   static_assert(
       !std::is_constructible_v<protocol_view<const Interface>, Conforming>);
   static_assert(!std::is_constructible_v<protocol_view<const Interface>,
