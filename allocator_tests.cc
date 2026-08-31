@@ -749,28 +749,23 @@ TEST(ProtocolTest, ConstructionException) {
   EXPECT_EQ(deallocs, 0);
 }
 
-// A conforming type whose copy and move constructors throw, so that
-// in-place construction fails after the owning allocation succeeded. The
-// move constructor cannot be deleted: the vtable's move entry requires the
-// stored type to be constructible from an rvalue.
-class ThrowingConstructionTester {
+// A conforming type whose copy constructor throws, so that in-place
+// construction fails after the owning allocation succeeded. The move
+// constructor is defaulted rather than deleted or throwing: the vtable's
+// move entry requires the stored type to be constructible from an rvalue,
+// and move constructors must not throw.
+class ThrowingCopyTester {
   int val_{0};
 
  public:
-  explicit ThrowingConstructionTester(int value) noexcept : val_(value) {}
+  explicit ThrowingCopyTester(int value) noexcept : val_(value) {}
 
-  ThrowingConstructionTester(const ThrowingConstructionTester&) {
-    throw TestException{};
-  }
+  ThrowingCopyTester(const ThrowingCopyTester&) { throw TestException{}; }
 
-  ThrowingConstructionTester(ThrowingConstructionTester&&) {
-    throw TestException{};
-  }
-
-  ThrowingConstructionTester& operator=(const ThrowingConstructionTester&) =
-      delete;
-  ThrowingConstructionTester& operator=(ThrowingConstructionTester&&) = delete;
-  ~ThrowingConstructionTester() = default;
+  ThrowingCopyTester(ThrowingCopyTester&&) noexcept = default;
+  ThrowingCopyTester& operator=(const ThrowingCopyTester&) = delete;
+  ThrowingCopyTester& operator=(ThrowingCopyTester&&) = delete;
+  ~ThrowingCopyTester() = default;
 
   int value() const noexcept { return val_; }
 };
@@ -781,7 +776,7 @@ TEST(ProtocolTest, ValueConstructionExceptionReleasesTheAllocation) {
   bool should_throw{false};
 
   ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
-  ThrowingConstructionTester original(5);
+  ThrowingCopyTester original(5);
 
   // The allocation succeeds, then copying `original` into it throws;
   // protocol's construction path must release the allocation and rethrow.
