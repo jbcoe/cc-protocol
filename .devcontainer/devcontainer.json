@@ -17,8 +17,13 @@
 	//
 	// The `vscode` user is created with UID 1000 (see docker/Dockerfile) so that
 	// these mounted files stay readable and writable on Linux and WSL hosts.
+	//
+	// The `cc-protocol-uv-cache` volume persists uv's download and build cache
+	// (mounted at UV_CACHE_DIR, see docker/Dockerfile) across container rebuilds,
+	// matching scripts/agentic-sandbox.py so both share one cache.
 	"mounts": [
-		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,readonly"
+		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,readonly",
+		"type=volume,source=cc-protocol-uv-cache,target=/home/vscode/.cache/uv"
 	],
 	"customizations": {
 		"vscode": {

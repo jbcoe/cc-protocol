@@ -13,6 +13,13 @@ from typing import TypedDict
 
 IMAGE_NAME = "cc-protocol-sandbox"
 
+# Docker named volume for uv's cache, mounted at UV_CACHE_DIR (see the
+# Dockerfile). It persists uv's downloads and built wheels across the ephemeral
+# `--rm` containers so dependencies aren't refetched every session. Docker
+# creates it on first use.
+UV_CACHE_VOLUME = "cc-protocol-uv-cache"
+UV_CACHE_DIR = "/home/vscode/.cache/uv"
+
 
 class AgentCli(TypedDict):
     """npm package and launch command for an agent CLI."""
@@ -178,6 +185,8 @@ def main() -> None:
         "--rm",
         "-v",
         f"{project_root}:/workspace",
+        "-v",
+        f"{UV_CACHE_VOLUME}:{UV_CACHE_DIR}",
         *_agent_mount_args(args.agent),
     ]
     if "TERM" in os.environ:
