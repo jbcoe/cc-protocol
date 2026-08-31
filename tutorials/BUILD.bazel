@@ -4,31 +4,19 @@ package(default_visibility = ["//visibility:public"])
 
 cc_test(
     name = "polymorphism_tutorial",
-    srcs = ["polymorphism.cc"],
-    deps = ["@googletest//:gtest_main"],
-)
-
-cc_test(
-    name = "vanishing_this_tutorial",
-    srcs = ["vanishing_this.cc"],
+    srcs = ["01_polymorphism.cc"],
     deps = ["@googletest//:gtest_main"],
 )
 
 cc_test(
     name = "type_erasure_tutorial",
-    srcs = ["type_erasure.cc"],
-    deps = ["@googletest//:gtest_main"],
-)
-
-cc_test(
-    name = "allocators_tutorial",
-    srcs = ["allocators.cc"],
+    srcs = ["02_type_erasure.cc"],
     deps = ["@googletest//:gtest_main"],
 )
 
 cc_test(
     name = "reflection_tutorial",
-    srcs = ["reflection.cc"],
+    srcs = ["03_reflection.cc"],
     deps = [
         "//:consteval_check",
         "//:protocol",
@@ -37,8 +25,21 @@ cc_test(
 )
 
 cc_test(
+    name = "vanishing_this_tutorial",
+    srcs = ["04_vanishing_this.cc"],
+    deps = ["@googletest//:gtest_main"],
+)
+
+
+cc_test(
+    name = "allocators_tutorial",
+    srcs = ["05_allocators.cc"],
+    deps = ["@googletest//:gtest_main"],
+)
+
+cc_test(
     name = "advanced_vtables_tutorial",
-    srcs = ["advanced_vtables.cc"],
+    srcs = ["06_advanced_vtables.cc"],
     deps = [
         "//:consteval_check",
         "//:protocol",
