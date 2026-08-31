@@ -89,7 +89,9 @@ xyz_add_library(
   NAME protocol
   ALIAS xyz_protocol::protocol)
 target_sources(
-  protocol INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.hh>)
+  protocol
+  INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.hh>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/name_mangling.h>)
 
 if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
@@ -119,7 +121,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       protocol_test.cc
       allocator_tests.cc
       consteval_check_test.cc
-      forwarding_test.cc)
+      forwarding_test.cc
+      name_mangling_tests.cc)
 
     add_subdirectory(tutorials)
   endif(${BUILD_TESTING})
