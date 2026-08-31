@@ -236,6 +236,36 @@ TEST(ProtocolTest, CopyAssignmentUnequal) {
   EXPECT_EQ(deallocs2, 1);
 }
 
+TEST(ProtocolTest, ValuelessSpecialMembersAreNoOps) {
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
+
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
+
+  TestAlloc alloc1{&allocs1, &deallocs1};
+  TestAlloc alloc2{&allocs2, &deallocs2};
+
+  TestProtocol source{std::allocator_arg, alloc1, Tester(1)};
+  TestProtocol sink{std::move(source)};
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  ASSERT_TRUE(source.valueless_after_move());
+
+  // Copying a valueless protocol goes through the null vtable's copy entry
+  // and allocates nothing.
+  TestProtocol copy{source};
+  EXPECT_TRUE(copy.valueless_after_move());
+
+  // Moving a valueless protocol to an unequal allocator takes the slow path
+  // through the null vtable's move and destroy entries.
+  TestProtocol moved{std::allocator_arg, alloc2, std::move(source)};
+  EXPECT_TRUE(moved.valueless_after_move());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+  EXPECT_EQ(allocs1, 1);
+  EXPECT_EQ(allocs2, 0);
+}
+
 TEST(ProtocolTest, MoveConstruction) {
   // protocol should always be nothrow move constructible.
   static_assert(std::is_nothrow_move_constructible_v<TestProtocol>);
