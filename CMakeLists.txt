@@ -37,6 +37,19 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   add_compile_options(-freflection)
   set(CMAKE_REQUIRED_FLAGS "-freflection")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  # Clang means the clang-p2996 fork (https://github.com/bloomberg/clang-p2996),
+  # the only Clang with P2996 support; upstream Clang cannot parse the
+  # sources. The fork enables reflection with -freflection-latest, expansion
+  # statements separately, and provides <meta> only in its bundled libc++.
+  # data_member_options::no_unique_address is deprecated there in favour of a
+  # fork-specific attributes member that GCC does not have, so the deprecation
+  # warning is disabled rather than moving off the standard field.
+  add_compile_options(-freflection-latest -fexpansion-statements -stdlib=libc++
+                      -Wno-deprecated-declarations)
+  add_link_options(-stdlib=libc++)
+  set(CMAKE_REQUIRED_FLAGS
+      "-freflection-latest -fexpansion-statements -stdlib=libc++")
 endif()
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles(
@@ -71,6 +84,18 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   get_filename_component(XYZ_PROTOCOL_LIBSTDCXX_DIRECTORY
                           "${XYZ_PROTOCOL_LIBSTDCXX_PATH}" DIRECTORY)
   list(APPEND CMAKE_BUILD_RPATH "${XYZ_PROTOCOL_LIBSTDCXX_DIRECTORY}")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  # Same for the clang-p2996 fork's libc++, which lives in the fork's build
+  # tree rather than a directory ld.so searches.
+  execute_process(
+    COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libc++.so
+    OUTPUT_VARIABLE XYZ_PROTOCOL_LIBCXX_PATH
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+  get_filename_component(XYZ_PROTOCOL_LIBCXX_PATH
+                          "${XYZ_PROTOCOL_LIBCXX_PATH}" REALPATH)
+  get_filename_component(XYZ_PROTOCOL_LIBCXX_DIRECTORY
+                          "${XYZ_PROTOCOL_LIBCXX_PATH}" DIRECTORY)
+  list(APPEND CMAKE_BUILD_RPATH "${XYZ_PROTOCOL_LIBCXX_DIRECTORY}")
 endif()
 
 if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN)
@@ -78,12 +103,14 @@ if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN)
 endif()
 
 # Include necessary submodules
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Custom CMake Includes
 include(xyz_add_library)
 include(xyz_add_test)
 include(xyz_add_object_library)
+
+find_package(ClangTidy)
 
 xyz_add_library(
   NAME protocol
@@ -97,7 +124,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
   if(${BUILD_TESTING})
     # SYSTEM marks the dependencies' include directories as system headers so
-    # that compiler warnings do not report on third-party code.
+    # that clang-tidy and compiler warnings do not report on third-party code.
     FetchContent_Declare(
       googletest
       GIT_REPOSITORY https://github.com/google/googletest.git

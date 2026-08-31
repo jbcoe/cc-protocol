@@ -135,6 +135,7 @@ TEST(ReflectionProtocolTest,
     D(D&&) = delete;
     D& operator=(const D&) = delete;
     D& operator=(D&&) = delete;
+    ~D() = delete;
   };
 
   static_assert(!std::is_default_constructible_v<protocol<D>>);
@@ -270,7 +271,10 @@ TEST(ReflectionProtocolViewTest, CopiedViewCallsThroughToViewedObject) {
   EXPECT_EQ(view.get(), 1);
   EXPECT_EQ(c.value, 1);
 
+  // NOLINTBEGIN(performance-move-const-arg,hicpp-move-const-arg): the test
+  // shows that moving a trivially copyable view is equivalent to copying it.
   protocol_view<A> move_constructed(std::move(copy_constructed));
+  // NOLINTEND(performance-move-const-arg,hicpp-move-const-arg)
   move_constructed.set(2);
   EXPECT_EQ(view.get(), 2);
   EXPECT_EQ(c.value, 2);
@@ -285,7 +289,10 @@ TEST(ReflectionProtocolViewTest, CopiedViewCallsThroughToViewedObject) {
 
   Conforming yet_another;
   protocol_view<A> yet_another_view(yet_another);
+  // NOLINTBEGIN(performance-move-const-arg,hicpp-move-const-arg): the test
+  // shows that moving a trivially copyable view is equivalent to copying it.
   yet_another_view = std::move(other_view);
+  // NOLINTEND(performance-move-const-arg,hicpp-move-const-arg)
   yet_another_view.set(4);
   EXPECT_EQ(view.get(), 4);
   EXPECT_EQ(c.value, 4);
@@ -315,7 +322,10 @@ TEST(ReflectionProtocolTest, CopiesAreIndependentObjects) {
   EXPECT_EQ(copy_constructed.get(), 2);
 
   protocol<A> move_constructed(std::move(copy_constructed));
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
   EXPECT_TRUE(copy_constructed.valueless_after_move());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_EQ(move_constructed.get(), 2);
 
   protocol<A> copy_assigned(Conforming{});
@@ -327,7 +337,10 @@ TEST(ReflectionProtocolTest, CopiesAreIndependentObjects) {
   protocol<A> move_assigned(Conforming{});
   move_assigned = std::move(copy_assigned);
   EXPECT_EQ(move_assigned.get(), 3);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
   EXPECT_TRUE(copy_assigned.valueless_after_move());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +349,11 @@ TEST(ReflectionProtocolTest, CopiesAreIndependentObjects) {
 
 // Returns `true` if checking conformance of `Candidate` against `Interface`
 // throws during constant evaluation, as it does for a ref-qualified
-// interface member function.
+// interface member function. Observing the rejection means catching the
+// exception at constant evaluation time (P3068 constexpr exceptions), which
+// GCC trunk implements but the clang-p2996 fork used for clang-tidy does
+// not; the rejection itself does not depend on P3068.
+#ifdef __cpp_constexpr_exceptions
 template <typename Interface, typename Candidate>
 consteval bool conformance_check_rejects() {
   try {
@@ -346,6 +363,7 @@ consteval bool conformance_check_rejects() {
   }
   return false;
 }
+#endif  // __cpp_constexpr_exceptions
 
 TEST(ConformsToTest, EmptyInterfaceIsAlwaysSatisfied) {
   struct EmptyInterface {};
@@ -522,6 +540,7 @@ TEST(ConformsToTest, RefQualifiedInterfaceMembersAreRejected) {
     void f();
   };
 
+#ifdef __cpp_constexpr_exceptions
   static_assert(conformance_check_rejects<LvalueRefInterface,
                                           MatchingLvalueRefCandidate>());
   static_assert(
@@ -530,6 +549,7 @@ TEST(ConformsToTest, RefQualifiedInterfaceMembersAreRejected) {
                                           MatchingRvalueRefCandidate>());
   static_assert(
       conformance_check_rejects<RvalueRefInterface, UnqualifiedCandidate>());
+#endif  // __cpp_constexpr_exceptions
 }
 
 TEST(ConformsToTest, UnqualifiedInterfaceDoesNotMatchRefQualifiedCandidate) {
@@ -736,7 +756,9 @@ TEST(ConformsToTest, RefQualifiedInterfaceMemberRejectedForStaticCandidate) {
     static int take();
   };
 
+#ifdef __cpp_constexpr_exceptions
   static_assert(conformance_check_rejects<Interface, Conforming>());
+#endif  // __cpp_constexpr_exceptions
 }
 
 TEST(ConformsToTest, StaticCandidateWithWrongSignatureDoesNotConform) {
@@ -1668,7 +1690,10 @@ TEST(ReflectionProtocolTest, ForwardingAfterCopyConstruction) {
 
   protocol<Interface> a(Conforming{});
   a.set(1);
+  // NOLINTBEGIN(performance-unnecessary-copy-initialization): the test
+  // exercises copy construction on purpose.
   protocol<Interface> b(a);
+  // NOLINTEND(performance-unnecessary-copy-initialization)
   b.set(2);
 
   // protocol owns a copy of the underlying object, so copies are
@@ -1696,7 +1721,10 @@ TEST(ReflectionProtocolTest, ForwardingAfterMoveConstruction) {
   protocol<Interface> b(std::move(a));
 
   EXPECT_EQ(b.get(), 5);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
   EXPECT_TRUE(a.valueless_after_move());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 TEST(ReflectionProtocolTest, ForwardingAfterCopyAssignment) {
@@ -1760,7 +1788,10 @@ TEST(ReflectionProtocolTest, ForwardingAfterMoveAssignment) {
   a = std::move(b);
   a.set(10);
   EXPECT_EQ(a.get(), 20);  // a now has Doubler's semantics.
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
   EXPECT_TRUE(b.valueless_after_move());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 TEST(ReflectionProtocolTest, ForwardingAfterSwap) {
@@ -2119,7 +2150,10 @@ TEST(ReflectionProtocolTest, CallOperatorForwardingAfterCopy) {
   };
 
   protocol<Interface> p(Conforming{});
+  // NOLINTBEGIN(performance-unnecessary-copy-initialization): the test
+  // exercises copy construction on purpose.
   protocol<Interface> copy(p);
+  // NOLINTEND(performance-unnecessary-copy-initialization)
   EXPECT_EQ(copy(21), 42);
 }
 
@@ -2139,9 +2173,12 @@ TEST(ReflectionProtocolTest, MutableValuelessCall) {
   EXPECT_EQ(p.foo(), 5);
 
   auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
   EXPECT_TRUE(p.valueless_after_move());
 
   EXPECT_DEATH(p.foo(), "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 TEST(ReflectionProtocolTest, ConstValuelessCall) {
@@ -2157,9 +2194,12 @@ TEST(ReflectionProtocolTest, ConstValuelessCall) {
   EXPECT_EQ(p.foo(), 5);
 
   auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
   EXPECT_TRUE(p.valueless_after_move());
 
   EXPECT_DEATH(p.foo(), "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 #endif
