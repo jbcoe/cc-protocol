@@ -1018,9 +1018,7 @@ class protocol_view
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::all_const>) {}
 
-  // Views the object a `protocol<T>` owns, sharing its vtable. The view is
-  // invalidated when `p` is destroyed or assigned to, but not when it is
-  // moved from, as the owned object moves with it.
+  // Views the object a `protocol<T>` owns, sharing its vtable.
   //
   // Precondition: `p` is not valueless.
   template <typename Alloc>
@@ -1083,9 +1081,7 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::const_only>) {}
 
-  // Views the object a `protocol<T>` owns, sharing its vtable. The view is
-  // invalidated when `p` is destroyed or assigned to, but not when it is
-  // moved from, as the owned object moves with it.
+  // Views the object a `protocol<T>` owns, sharing its vtable.
   //
   // Precondition: `p` is not valueless.
   template <typename Alloc>
