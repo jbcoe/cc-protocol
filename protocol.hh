@@ -51,16 +51,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace xyz::reflection {
 
-template <typename T, typename Allocator>
+template <typename I>
+concept is_valid_interface =
+    is_class_type(^^I) && std::same_as<I, std::remove_reference_t<I>> &&
+    std::ranges::none_of(
+        members_of(^^I, std::meta::access_context::unprivileged()),
+        std::meta::is_volatile);
+
+template <is_valid_interface T, typename Allocator>
 class protocol;
 
-template <typename T>
+template <is_valid_interface T>
 class protocol_view;
 
 template <typename T>
 struct is_protocol : std::false_type {};
 
-template <typename T, typename Allocator>
+template <is_valid_interface T, typename Allocator>
 struct is_protocol<protocol<T, Allocator>> : std::true_type {};
 
 template <typename T>
@@ -69,7 +76,7 @@ inline constexpr bool is_protocol_v = is_protocol<T>::value;
 template <typename T>
 struct is_protocol_view : std::false_type {};
 
-template <typename T>
+template <is_valid_interface T>
 struct is_protocol_view<protocol_view<T>> : std::true_type {};
 
 template <typename T>
@@ -503,8 +510,8 @@ consteval std::meta::info generate_wrapper_bases() {
 template <typename T, typename ProtocolType, typename Vtable,
           const_policy ConstPolicy = const_policy::propagate>
 using protocol_wrappers_t =
-    typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable,
-                                     ConstPolicy>():];
+    typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable, ConstPolicy>(
+                  ):];
 
 // Returns a list of data_member_spec values, one for each member function
 // implemented by `protocol`, each describing a vtable function pointer with
@@ -680,7 +687,7 @@ inline constexpr bool is_protocol_conformant_v =
 // through the owning vtable (see `vtable` below). Calling a member function
 // on a valueless (moved-from) `protocol` is a precondition violation.
 // ---------------------------------------------------------------------------
-template <typename I, typename Alloc = std::allocator<std::byte>>
+template <is_valid_interface I, typename Alloc = std::allocator<std::byte>>
 class protocol
     : public detail::protocol_wrappers_t<
           I, protocol<I, Alloc>, typename detail::vtable_generator<I>::vtable> {
@@ -986,7 +993,7 @@ class protocol
 // does not restrict the interface. Use `protocol_view<const T>` to view a
 // const object.
 // ---------------------------------------------------------------------------
-template <typename T>
+template <is_valid_interface T>
 class protocol_view
     : public detail::protocol_wrappers_t<
           T, protocol_view<T>, typename detail::vtable_generator<T>::vtable,
@@ -1033,7 +1040,7 @@ class protocol_view
 // Views a (possibly const) object and exposes only the const member
 // functions of `T`.
 // ---------------------------------------------------------------------------
-template <typename T>
+template <is_valid_interface T>
 class protocol_view<const T> : public detail::protocol_wrappers_t<
                                    T, protocol_view<const T>,
                                    typename detail::vtable_generator<T>::vtable,
