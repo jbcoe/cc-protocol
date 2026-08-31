@@ -16,12 +16,12 @@ on:
       - "scripts/cmake.py"
       - "scripts/cmake.sh"
       - "scripts/compiler_discovery.py"
-  # No `paths:` filter here. The `GCC trunk` build jobs are required status
-  # checks for merging to main, and a workflow that is filtered out by
+  # No `paths:` filter here. The `cmake` summary job is a required status
+  # check for merging to main, and a workflow that is filtered out by
   # `paths:` never reports a check, which leaves unrelated pull requests
   # blocked as "Expected - Waiting for status to be reported". Instead, the
-  # `detect-changes` job below decides whether the build needs to run, and a
-  # job skipped by an `if:` condition counts as a passing check.
+  # `detect-changes` job below decides whether the build needs to run, and
+  # the summary job reports a passing check when the build was skipped.
   pull_request:
 
 env:
@@ -129,3 +129,19 @@ jobs:
         run: uv sync
       - name: Run CMake
         run: ./scripts/cmake.sh --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }}
+
+  # The per-configuration checks cannot be required status checks: a matrix
+  # job skipped by its job-level `if:` reports a single check under the
+  # unexpanded name "${{ matrix.settings.name }} ${{ matrix.configuration }}",
+  # so on pull requests where `detect-changes` skips the build the expanded
+  # names never report. This non-matrix job always reports under a fixed
+  # name; require it instead.
+  summary:
+    name: cmake
+    needs: [detect-changes, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if the build failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
