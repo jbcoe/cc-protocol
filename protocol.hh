@@ -129,11 +129,17 @@ consteval bool same_signature_ignoring_const(std::meta::info candidate,
   return same_name_and_parameters(candidate, interface);
 }
 
+// Returns `true` if the member function `candidate` uses an explicit object
+// parameter.
 consteval bool is_explicit_object_function(std::meta::info candidate) {
   const auto params = parameters_of(candidate);
   return !params.empty() && is_explicit_object_parameter(params.front());
 }
 
+// Returns `true` if the member functions `candidate` and `interface` have the
+// same name, de-aliased return type and parameter types, and const / reference
+// qualification. `candidate` is assumed to be a function with an explicit
+// object parameter
 consteval bool same_name_and_params_with_explicit_object(
     std::meta::info candidate, std::meta::info interface) {
   if (!same_name(candidate, interface)) return false;
