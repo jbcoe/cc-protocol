@@ -1093,8 +1093,8 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
   protocol_view(const protocol<T, Alloc>&&) = delete;
 
   // Views the object a `protocol_view<T>` views, sharing its vtable. Taken
-  // by value: a view is a non-owning handle, so nothing dangles when the
-  // argument is a temporary.
+  // The argument `view` is passed by value as `protocol_view` is a non-owning
+  // handle.
   constexpr protocol_view(protocol_view<T> view) noexcept
       : object_(view.object_), vtable_(view.vtable_) {}
 
