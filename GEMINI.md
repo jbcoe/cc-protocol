@@ -23,8 +23,8 @@ general defaults for this repository.
   reflection-capable compiler and pass it to the build system; a bare
   `cmake`/`bazel` invocation uses stock GCC and fails on `-freflection`.
   The `scripts/cmake.sh` entrypoint supports `--debug`, `--release`,
-  `--asan`, `--ubsan`, and `--tsan`; `scripts/bazel.sh` supports
-  `build`/`test` and `--clean`.
+  `--asan`, `--ubsan`, `--tsan`, and `--clang-tidy`; `scripts/bazel.sh`
+  supports `build`/`test` and `--clean`.
 - **Compiler:** The implementation requires GCC with C++26 reflection (the GCC
   trunk snapshot in `/opt/gcc-latest`, or `gcc-16`); CI, including the
   sanitizer jobs, runs on GCC trunk.

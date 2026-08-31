@@ -46,6 +46,41 @@ On pull requests that touch no C++, CMake, or build-script sources, the build
 and sanitizer jobs are skipped by a change-detection job, which counts as
 passing.
 
+### Static Analysis
+
+The "Clang Tidy" workflow runs clang-tidy on every translation unit and fails
+on any finding (`WarningsAsErrors: '*'` in `.clang-tidy`). It runs nightly, on
+pushes to `main`, and on pull requests that touch C++ or CMake sources; it is
+not a required status check.
+
+Released clang-tidy versions cannot parse the reflection sources, so the
+workflow uses a clang-tidy built from the
+[clang-p2996](https://github.com/bloomberg/clang-p2996) fork, cached between
+runs and rebuilt when `.github/clang-p2996-commit` changes. To reproduce
+locally, build the fork's `clang`, `clang-tidy`, and `libc++`, then:
+
+```bash
+XYZ_PROTOCOL_CLANG_P2996_DIRECTORY=<toolchain root> ./scripts/cmake.sh --debug --clang-tidy
+```
+
+The same run is available as an opt-in pre-commit hook. It is a full build, so
+it is not part of the default commit-time hooks:
+
+```bash
+uv run pre-commit run --hook-stage manual clang-tidy
+```
+
+The fork is based on LLVM 21; the check set differs between clang-tidy
+releases, so a different version may report different findings. CMake warns at
+configure time when the version it found does not match
+`ClangTidy_EXPECTED_MAJOR_VERSION` in `cmake/modules/FindClangTidy.cmake`.
+
+Fix genuine findings. Suppress false positives at the site with a `NOLINT`
+comment that names the check and gives a reason, or, for a check that does not
+apply to a whole directory, in that directory's `.clang-tidy` (see
+`tutorials/.clang-tidy`). Checks disabled for the whole repository are listed
+with their rationale at the top of `.clang-tidy`.
+
 ## Core Concepts
 
 ### Structural Subtyping

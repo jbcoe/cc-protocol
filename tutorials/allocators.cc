@@ -459,7 +459,11 @@ class Owner {
   }
 
   // See the code below for a justification of the noexcept specification.
+  // NOLINTBEGIN(bugprone-exception-escape): conditionally noexcept, modelled
+  // on allocator-aware standard containers; the potentially throwing copy
+  // path is taken only when the noexcept condition is false.
   Owner& operator=(Owner&& other) noexcept(always_equal || pocma) {
+    // NOLINTEND(bugprone-exception-escape)
     if (this != &other) {
       destroy(obj_, alloc_);  // Destroy with the old allocator.
 
@@ -735,7 +739,11 @@ class Owner {
     return *this;
   }
 
+  // NOLINTBEGIN(bugprone-exception-escape): conditionally noexcept, modelled
+  // on allocator-aware standard containers; the potentially throwing copy
+  // path is taken only when the noexcept condition is false.
   Owner& operator=(Owner&& other) noexcept(always_equal || pocma) {
+    // NOLINTEND(bugprone-exception-escape)
     if (this == &other) {
       return *this;
     }

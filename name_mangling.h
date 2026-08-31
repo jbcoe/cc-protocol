@@ -79,9 +79,12 @@ consteval std::optional<std::string> integral_decimal(
     std::meta::info argument) {
   std::meta::info type = dealias(type_of(argument));
   std::optional<std::string> result;
-  ((type == ^^Integral ? (result = signed_decimal<Integral>(argument), true)
-                       : false) ||
-   ...);
+  // The fold's own value is discarded; the match is recorded through
+  // `result`. The cast keeps Clang's -Wunused-value quiet.
+  (void)((type == ^^Integral
+              ? (result = signed_decimal<Integral>(argument), true)
+              : false) ||
+         ...);
   return result;
 }
 
