@@ -1,12 +1,12 @@
 ignore:
   - "*_test.cc"
+  - "*_tests.cc"
 
 coverage:
   status:
-    # The project status compares against a baseline uploaded before the
-    # Coverage workflow existed, so its percentage change is a methodology
-    # artifact. Keep it informational until main has a baseline from the
-    # new setup, then set a real target (see the issue #257 checklist).
+    # Compare against the pull request's base, tolerating small drift from
+    # gcov's per-instantiation counting; a real drop fails the status.
     project:
       default:
-        informational: true
+        target: auto
+        threshold: 1%
