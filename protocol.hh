@@ -187,7 +187,7 @@ constexpr inline auto protocol_interface_functions_of =
 // The mangled name of `Member`, computed once per distinct `Member` and
 // reused by every vtable this member is looked up against.
 template <std::meta::info Member>
-constexpr inline const char* mangled_name_of =
+constexpr inline auto mangled_name_of =
     std::define_static_string(xyz::name_mangling::mangle(Member));
 
 // The entry of `VtableType` named by the mangled signature of the interface
