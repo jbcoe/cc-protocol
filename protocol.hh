@@ -511,14 +511,15 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
     }
     std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
 
-    // `mangled_name_of<member>` is a `const char*`; passing it here binds
-    // through `std::string`'s pointer constructor, whose null check GCC
-    // trunk can't constant-fold under `-fsanitize=undefined` even though the
-    // pointer is never null. A prvalue binds through the move constructor,
-    // which has no such check.
+    // `std::string`'s pointer-taking constructors have a null check GCC
+    // trunk can't constant-fold under `-fsanitize=undefined`, even though
+    // `mangled_name_of<member>` is never null. The iterator-pair
+    // constructor has no such check.
+    std::string_view cached_name = mangled_name_of<member>;
     function_pointer_specs.push_back(data_member_spec(
-        fn_ptr_type, std::meta::data_member_options{
-                         .name = xyz::name_mangling::mangle(member)}));
+        fn_ptr_type,
+        std::meta::data_member_options{
+            .name = std::string(cached_name.begin(), cached_name.end())}));
   }
   return function_pointer_specs;
 }
