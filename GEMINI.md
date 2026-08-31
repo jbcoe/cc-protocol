@@ -18,9 +18,13 @@ general defaults for this repository.
 ## Workflow Mandates
 
 - **Tooling:** Always use `uv` for Python dependency management (`uv run ...`).
-- **Build & Test:** Use `scripts/cmake.sh` for all build and test operations.
+- **Build & Test:** Use `scripts/cmake.sh` for all CMake build and test
+  operations, and `scripts/bazel.sh` for Bazel. Both entrypoints discover a
+  reflection-capable compiler and pass it to the build system; a bare
+  `cmake`/`bazel` invocation uses stock GCC and fails on `-freflection`.
   The `scripts/cmake.sh` entrypoint supports `--debug`, `--release`,
-  `--asan`, `--ubsan`, `--tsan`, and `--clang-tidy`.
+  `--asan`, `--ubsan`, `--tsan`, and `--clang-tidy`; `scripts/bazel.sh`
+  supports `build`/`test` and `--clean`.
 - **Compiler:** The implementation requires GCC with C++26 reflection (the GCC
   trunk snapshot in `/opt/gcc-latest`, or `gcc-16`); CI, including the
   sanitizer jobs, runs on GCC trunk.
@@ -45,4 +49,4 @@ general defaults for this repository.
 
 - Implementation: `protocol.hh`
 - Proposal Draft: `DRAFT.md`
-- Build Entrypoint: `scripts/cmake.sh`
+- Build Entrypoints: `scripts/cmake.sh` (CMake), `scripts/bazel.sh` (Bazel)
