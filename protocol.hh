@@ -225,23 +225,29 @@ consteval std::meta::info find_vtable_entry() {
                            std::string(name) + "'");
 }
 
+// The mangled name `Member` would have if it were noexcept, computed once
+// per distinct `Member` like `mangled_name_of`. Conformance checking uses it
+// to let a noexcept entry satisfy a member that is allowed to throw.
+template <std::meta::info Member>
+constexpr inline auto mangled_noexcept_name_of = std::define_static_string(
+    xyz::name_mangling::mangle(Member, /*as_noexcept=*/true));
+
 // The entry of `VtableType` named by the mangled signature of the interface
-// member function `member`, if it declares one. A `member` that may throw
+// member function `Member`, if it declares one. A `Member` that may throw
 // also matches an entry mangled as noexcept: a noexcept entry can stand in
 // for one that is allowed to throw, mirroring `member_function_conforms_to`.
-template <std::meta::info VtableType>
-consteval std::optional<std::meta::info> find_vtable_entry(
-    std::meta::info member) {
-  std::string name = xyz::name_mangling::mangle(member);
-  std::string noexcept_name =
-      is_noexcept(member)
-          ? name
-          : xyz::name_mangling::mangle(member, /*as_noexcept=*/true);
+template <std::meta::info VtableType, std::meta::info Member>
+consteval std::optional<std::meta::info> try_find_vtable_entry() {
   std::vector<std::meta::info> entries = nonstatic_data_members_of(
       VtableType, std::meta::access_context::unprivileged());
   for (std::meta::info entry : entries) {
     std::string_view entry_name = identifier_of(entry);
-    if (entry_name == name || entry_name == noexcept_name) return entry;
+    if (entry_name == std::string_view(mangled_name_of<Member>)) return entry;
+    if constexpr (!is_noexcept(Member)) {
+      if (entry_name == std::string_view(mangled_noexcept_name_of<Member>)) {
+        return entry;
+      }
+    }
   }
   return std::nullopt;
 }
@@ -593,13 +599,15 @@ using protocol_interface_t = protocol_interface<Protocol>::type;
 // the name, parameter types, cv- and ref-qualification, return type and
 // noexcept-ness of the member it was generated from, so a name match is a
 // signature match (with a noexcept entry also satisfying a member that is
-// allowed to throw; see `find_vtable_entry`).
+// allowed to throw; see `try_find_vtable_entry`).
 template <std::meta::info Interface, std::meta::info Vtable>
 consteval bool vtable_conforms_to() {
-  for (std::meta::info member : protocol_interface_functions_of<Interface>) {
-    if (!find_vtable_entry<Vtable>(member)) return false;
+  bool conforms = true;
+  template for (constexpr std::meta::info member :
+                protocol_interface_functions_of<Interface>) {
+    if (!try_find_vtable_entry<Vtable, member>()) conforms = false;
   }
-  return true;
+  return conforms;
 }
 
 // Finds the member of `CandidateType` that structurally conforms to
@@ -640,39 +648,9 @@ struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
   }
 };
 
-// Recovers the `Protocol` a vtable entry is called with and forwards to the
-// entry of the same name in that protocol's own vtable.
-//
-// Precondition: the protocol is not valueless.
-template <typename FnPtrType, typename Protocol, std::meta::info Entry>
-struct protocol_trampoline;
-
-template <typename R, typename... Args, bool Noexcept, typename Protocol,
-          std::meta::info Entry>
-struct protocol_trampoline<R (*)(void*, Args...) noexcept(Noexcept), Protocol,
-                           Entry> {
-  static R call(void* ptr, Args... args) noexcept(Noexcept) {
-    auto* stored = static_cast<Protocol*>(ptr);
-    return stored->vtable_->[:Entry:](stored->object_,
-                                      std::forward<Args>(args)...);
-  }
-};
-
-template <typename R, typename... Args, bool Noexcept, typename Protocol,
-          std::meta::info Entry>
-struct protocol_trampoline<R (*)(const void*, Args...) noexcept(Noexcept),
-                           Protocol, Entry> {
-  static R call(const void* ptr, Args... args) noexcept(Noexcept) {
-    const auto* stored = static_cast<const Protocol*>(ptr);
-    return stored->vtable_->[:Entry:](stored->object_,
-                                      std::forward<Args>(args)...);
-  }
-};
-
 // Builds a vtable for `T` whose entries call through to the corresponding
 // member of `U`: the conforming member function found by
-// `find_conforming_member`, or, when `U` is itself a `protocol`, the entry of
-// the same name in `U`'s own vtable.
+// `find_conforming_member`.
 //
 // For `const_policy::propagate` (`protocol<I>`) and `const_policy::all_const`
 // (`protocol_view<T>`) every entry is populated: `protocol` stores a decayed,
@@ -694,21 +672,12 @@ consteval typename vtable_generator<T>::vtable make_view_vtable() {
       constexpr std::meta::info vtable_member =
           find_vtable_entry<^^Vtable, member>();
       using FnPtrType = typename[:type_of(vtable_member):];
-      if constexpr (is_protocol_v<U>) {
-        using StoredVtable =
-            typename vtable_generator<protocol_interface_t<U>>::vtable;
-        constexpr std::meta::info entry =
-            *find_vtable_entry<^^StoredVtable>(member);
-        result.[:vtable_member:] = &protocol_trampoline<FnPtrType, U,
-                                                        entry>::call;
-      } else if constexpr (is_const(member)) {
-        constexpr std::meta::info candidate =
-            find_conforming_member<member, ^^U>();
+      constexpr std::meta::info candidate =
+          find_conforming_member<member, ^^U>();
+      if constexpr (is_const(member)) {
         result.[:vtable_member:] = &const_view_trampoline<FnPtrType, U,
                                                           candidate>::call;
       } else {
-        constexpr std::meta::info candidate =
-            find_conforming_member<member, ^^U>();
         result.[:vtable_member:] = &mutable_view_trampoline<FnPtrType, U,
                                                             candidate>::call;
       }
@@ -892,13 +861,9 @@ class protocol
   friend struct detail::method_thunk;
 
   // Grants `protocol_view` access so that a view of a protocol can share its
-  // vtable, and the forwarding trampolines so that a protocol stored in
-  // another protocol can be called through its own vtable.
+  // vtable.
   template <typename>
   friend class protocol_view;
-
-  template <typename FnPtrType, typename Protocol, std::meta::info Entry>
-  friend struct detail::protocol_trampoline;
 
   [[no_unique_address]] Alloc alloc_;
 
@@ -910,18 +875,18 @@ class protocol
 
   protocol() = delete;
 
-  // Construction from conforming T.
+  // Construction from conforming T. Any `protocol` is excluded, not just
+  // this specialisation: storing a protocol inside another would forward
+  // every call through two vtables, chaining further with each wrapping.
   template <typename T, typename TNorm = std::decay_t<T>>
-    requires(!std::same_as<TNorm, protocol> &&
-             is_protocol_conformant_v<I, TNorm> &&
+    requires(!is_protocol_v<TNorm> && is_protocol_conformant_v<I, TNorm> &&
              std::default_initializable<Alloc>)
   constexpr explicit protocol(T&& obj)
       : protocol(std::allocator_arg, Alloc{}, std::forward<T>(obj)) {}
 
   // Allocator-aware construction from conforming T.
   template <typename T, typename TNorm = std::decay_t<T>>
-    requires(!std::same_as<TNorm, protocol> &&
-             is_protocol_conformant_v<I, TNorm>)
+    requires(!is_protocol_v<TNorm> && is_protocol_conformant_v<I, TNorm>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, T&& obj)
       : alloc_(a),
         object_(create<T>(alloc_, std::forward<T>(obj))),
@@ -929,7 +894,7 @@ class protocol
 
   // In-place construction from conforming T.
   template <typename T, typename... Args>
-    requires(!std::same_as<std::decay_t<T>, protocol> &&
+    requires(!is_protocol_v<std::decay_t<T>> &&
              is_protocol_conformant_v<I, T> &&
              std::default_initializable<Alloc>)
   constexpr explicit protocol(std::in_place_type_t<T>, Args&&... args)
@@ -938,8 +903,7 @@ class protocol
 
   // Allocator-aware in-place construction from conforming T.
   template <typename T, typename... Args>
-    requires(!std::same_as<std::decay_t<T>, protocol> &&
-             is_protocol_conformant_v<I, T>)
+    requires(!is_protocol_v<std::decay_t<T>> && is_protocol_conformant_v<I, T>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
                               std::in_place_type_t<T>, Args&&... args)
       : alloc_(a),
@@ -949,7 +913,7 @@ class protocol
   // In-place construction needs this overload because templates cannot
   // deduce initializer lists.
   template <typename T, typename U, typename... Args>
-    requires(!std::same_as<std::decay_t<T>, protocol> &&
+    requires(!is_protocol_v<std::decay_t<T>> &&
              is_protocol_conformant_v<I, T> &&
              std::default_initializable<Alloc>)
   constexpr explicit protocol(std::in_place_type_t<T>,
@@ -959,8 +923,7 @@ class protocol
 
   // Allocator-aware in-place init-list construction from conforming T.
   template <typename T, typename U, typename... Args>
-    requires(!std::same_as<std::decay_t<T>, protocol> &&
-             is_protocol_conformant_v<I, T>)
+    requires(!is_protocol_v<std::decay_t<T>> && is_protocol_conformant_v<I, T>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
                               std::in_place_type_t<T>,
                               std::initializer_list<U> il, Args&&... args)
@@ -1112,10 +1075,15 @@ class protocol_view
   protocol_view& operator=(protocol_view&&) noexcept = default;
   ~protocol_view() = default;
 
-  // Construct from any non-const type U that conforms to the Interface T.
+  // Construct from any non-const type U that conforms to the Interface T. A
+  // `protocol` is excluded: a view of one is only supported for the same
+  // interface `T` (the vtable-sharing constructor below), as viewing one
+  // through a different interface would forward every call through two
+  // vtables, chaining further with each wrapping.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
                  (!is_protocol_view_v<std::remove_cvref_t<U>>) &&
+                 (!is_protocol_v<std::remove_cvref_t<U>>) &&
                  (!std::is_const_v<U>)
   explicit protocol_view(U& object)
       : object_(static_cast<void*>(std::addressof(object))),
@@ -1173,10 +1141,14 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
   ~protocol_view() = default;
 
   // Construct from any (possibly const) type U that conforms to the
-  // Interface T.
+  // Interface T. A `protocol` is excluded: a view of one is only supported
+  // for the same interface `T` (the vtable-sharing constructor below), as
+  // viewing one through a different interface would forward every call
+  // through two vtables, chaining further with each wrapping.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
-                 (!is_protocol_view_v<std::remove_cvref_t<U>>)
+                 (!is_protocol_view_v<std::remove_cvref_t<U>>) &&
+                 (!is_protocol_v<std::remove_cvref_t<U>>)
   explicit protocol_view(const U& object)
       : object_(static_cast<const void*>(std::addressof(object))),
         vtable_(

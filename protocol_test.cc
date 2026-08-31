@@ -2419,7 +2419,7 @@ TEST(ReflectionProtocolViewTest, ViewOfProtocolWithCustomAllocator) {
   EXPECT_EQ(view.get(), 9);
 }
 
-TEST(ReflectionProtocolViewTest, NarrowingViewOfProtocol) {
+TEST(ReflectionProtocolViewTest, NoViewOfProtocolThroughDifferentInterface) {
   struct Narrow {
     int get() const;
   };
@@ -2429,21 +2429,14 @@ TEST(ReflectionProtocolViewTest, NarrowingViewOfProtocol) {
     void update(int value);
   };
 
-  struct Conforming {
-    int value = 0;
-
-    int get() const { return value; }
-
-    void update(int new_value) { value = new_value; }
-  };
-
-  protocol<Wide> p(Conforming{});
-  protocol_view<Narrow> view(p);
-  protocol_view<const Narrow> const_view(p);
-
-  p.update(4);
-  EXPECT_EQ(view.get(), 4);
-  EXPECT_EQ(const_view.get(), 4);
+  // A `protocol<Wide>` conforms to `Narrow`, but viewing it through `Narrow`
+  // would forward every call through two vtables, so only same-interface
+  // views, which share the protocol's vtable, are supported.
+  static_assert(is_protocol_conformant<Narrow, protocol<Wide>>());
+  static_assert(
+      !std::is_constructible_v<protocol_view<Narrow>, protocol<Wide>&>);
+  static_assert(!std::is_constructible_v<protocol_view<const Narrow>,
+                                         const protocol<Wide>&>);
 }
 
 TEST(ReflectionProtocolViewTest, ViewOfProtocolPassedToInterfaceMember) {
@@ -2477,32 +2470,7 @@ TEST(ReflectionProtocolViewTest, ViewOfProtocolPassedToInterfaceMember) {
   EXPECT_EQ(total, 10);
 }
 
-TEST(ReflectionProtocolTest, StoresProtocolWithDifferentAllocator) {
-  struct Interface {
-    int get() const;
-  };
-
-  struct Conforming {
-    int get() const { return 8; }
-  };
-
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  xyz::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
-
-  protocol<Interface, xyz::TrackingAllocator<std::byte>> inner(
-      std::allocator_arg, alloc, Conforming{});
-  protocol<Interface> outer(std::move(inner));
-
-  EXPECT_EQ(outer.get(), 8);
-  EXPECT_EQ(allocs, 1);
-
-  protocol<Interface> copy(outer);
-  EXPECT_EQ(copy.get(), 8);
-  EXPECT_EQ(allocs, 2);
-}
-
-TEST(ReflectionProtocolTest, StoresProtocolOfWiderInterface) {
+TEST(ReflectionProtocolTest, NoProtocolStoredInsideAnotherProtocol) {
   struct Narrow {
     int get() const;
   };
@@ -2512,21 +2480,14 @@ TEST(ReflectionProtocolTest, StoresProtocolOfWiderInterface) {
     void update(int value);
   };
 
-  struct Conforming {
-    int value = 0;
-
-    int get() const { return value; }
-
-    void update(int new_value) { value = new_value; }
-  };
-
-  static_assert(std::is_constructible_v<protocol<Narrow>, protocol<Wide>>);
+  // Storing a protocol inside another would forward every call through two
+  // vtables, chaining further with each wrapping, so construction from any
+  // `protocol` is excluded even though `protocol<Wide>` conforms to `Narrow`.
+  static_assert(is_protocol_conformant<Narrow, protocol<Wide>>());
+  static_assert(!std::is_constructible_v<protocol<Narrow>, protocol<Wide>>);
   static_assert(!std::is_constructible_v<protocol<Wide>, protocol<Narrow>>);
-
-  protocol<Wide> wide(Conforming{});
-  wide.update(6);
-  protocol<Narrow> narrow(std::move(wide));
-
-  EXPECT_EQ(narrow.get(), 6);
+  static_assert(!std::is_constructible_v<
+                protocol<Narrow>,
+                protocol<Narrow, xyz::TrackingAllocator<std::byte>>>);
 }
 }  // namespace
