@@ -177,12 +177,30 @@ constexpr inline auto conformance_candidates_of =
 // The non-static members of `conformance_candidates_of<Type>`: the member
 // functions an interface `Type` requires. Overloads appear as separate
 // entries, each naming its own vtable entry (see
-// `xyz::name_mangling::mangle`).
+// `xyz::name_mangling::mangle`). Ref-qualified members are rejected: the
+// synthesised thunks call the target on an lvalue and cannot forward the
+// protocol object's value category (see the TODO on `method_thunk`).
+template <std::meta::info Type>
+consteval std::vector<std::meta::info> protocol_interface_function_infos() {
+  std::vector<std::meta::info> result;
+  for (std::meta::info member : conformance_candidates_of<Type>) {
+    if (is_static_member(member)) continue;
+    if (is_lvalue_reference_qualified(member) ||
+        is_rvalue_reference_qualified(member)) {
+      std::string name = has_identifier(member)
+                             ? std::string(identifier_of(member))
+                             : "operator()";
+      throw std::runtime_error("ref-qualified member function '" + name +
+                               "' is not supported in a protocol interface");
+    }
+    result.push_back(member);
+  }
+  return result;
+}
+
 template <std::meta::info Type>
 constexpr inline auto protocol_interface_functions_of =
-    std::define_static_array(
-        conformance_candidates_of<Type> |
-        std::views::filter(std::not_fn(std::meta::is_static_member)));
+    std::define_static_array(protocol_interface_function_infos<Type>());
 
 // The mangled name of `Member`, computed once per distinct `Member` and
 // reused by every vtable this member is looked up against.
@@ -215,7 +233,9 @@ template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
           bool IsNoexcept>
 struct method_thunk;
 
-// TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers.
+// TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers;
+// until then `protocol_interface_function_infos` rejects ref-qualified
+// interface members.
 template <typename R, typename... Args, typename EnclosingType,
           typename ProtocolType, typename Vtable, std::meta::info Member,
           bool IsConst, bool IsNoexcept>
@@ -629,8 +649,12 @@ consteval bool is_protocol_conformant() {
   // Checking for protocol interface conformance is O(N*M) over member counts,
   // assumed to be negligible at compile time.
   // TODO(jbcoe): Use set/map once there is library support for `constexpr`.
+  // Calls `protocol_interface_function_infos` rather than reading
+  // `protocol_interface_functions_of` so that the rejection of a
+  // ref-qualified interface member is thrown from this function, where a
+  // caller can catch it, instead of escaping a variable initializer.
   auto interface_member_functions =
-      detail::protocol_interface_functions_of<^^Interface>;
+      detail::protocol_interface_function_infos<^^Interface>();
   auto candidate_member_functions =
       detail::conformance_candidates_of<^^Candidate>;
 
