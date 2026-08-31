@@ -58,11 +58,14 @@ concept is_valid_interface =
         members_of(^^I, std::meta::access_context::unprivileged()),
         std::meta::is_volatile);
 
+template <typename I>
+concept is_valid_view_interface =
+    is_valid_interface<I> || is_valid_interface<std::remove_const_t<I>>;
+
 template <is_valid_interface T, typename Allocator>
 class protocol;
 
-template <typename T>
-  requires is_valid_interface<T> || is_valid_interface<std::remove_const_t<T>>
+template <is_valid_view_interface T>
 class protocol_view;
 
 template <typename T>
@@ -77,8 +80,7 @@ inline constexpr bool is_protocol_v = is_protocol<T>::value;
 template <typename T>
 struct is_protocol_view : std::false_type {};
 
-template <typename T>
-  requires is_valid_interface<T> || is_valid_interface<std::remove_const_t<T>>
+template <is_valid_view_interface T>
 struct is_protocol_view<protocol_view<T>> : std::true_type {};
 
 template <typename T>
@@ -512,8 +514,8 @@ consteval std::meta::info generate_wrapper_bases() {
 template <typename T, typename ProtocolType, typename Vtable,
           const_policy ConstPolicy = const_policy::propagate>
 using protocol_wrappers_t =
-    typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable, ConstPolicy>(
-                  ):];
+    typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable,
+                                     ConstPolicy>():];
 
 // Returns a list of data_member_spec values, one for each member function
 // implemented by `protocol`, each describing a vtable function pointer with
@@ -802,7 +804,7 @@ class protocol
 
   // Grants `protocol_view` access so that a view of a protocol can share its
   // vtable.
-  template <typename>
+  template <is_valid_view_interface>
   friend class protocol_view;
 
   [[no_unique_address]] Alloc alloc_;
@@ -1000,8 +1002,8 @@ class protocol
 // does not restrict the interface. Use `protocol_view<const T>` to view a
 // const object.
 // ---------------------------------------------------------------------------
-template <is_valid_interface T>
-class protocol_view<T>
+template <is_valid_view_interface T>
+class protocol_view
     : public detail::protocol_wrappers_t<
           T, protocol_view<T>, typename detail::vtable_generator<T>::vtable,
           detail::const_policy::all_const> {
@@ -1041,7 +1043,7 @@ class protocol_view<T>
  private:
   // Grants `protocol_view<const T>` access so it can share this view's
   // `object_`/`vtable_`.
-  template <typename>
+  template <is_valid_view_interface>
   friend class protocol_view;
 
   // Grants the synthesised member thunks access to `object_`/`vtable_` so

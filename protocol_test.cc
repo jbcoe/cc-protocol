@@ -2270,6 +2270,7 @@ TEST(ReflectionProtocolTest, VolatileConformingType) {
   protocol<Interface> p(Conforming{});
   EXPECT_EQ(p.foo(), 10);
 }
+
 // ---------------------------------------------------------------------------
 // Views of protocols: a `protocol_view<I>` or `protocol_view<const I>` views
 // the object a `protocol<I>` owns, sharing its vtable; a
