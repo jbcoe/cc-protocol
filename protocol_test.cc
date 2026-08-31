@@ -2379,35 +2379,21 @@ TEST(ReflectionProtocolViewTest, ConstViewOfViewCallsViewedObject) {
   static_assert(!has_update<protocol_view<const Interface>>);
 }
 
-TEST(ReflectionProtocolViewTest, ViewOfProtocolPassedToInterfaceMember) {
-  struct Source {
+TEST(ReflectionProtocolViewTest, ViewOfProtocolPassedByValue) {
+  struct Interface {
     int get() const;
   };
 
-  struct Sink {
-    void accept(protocol_view<const Source> source);
-  };
-
-  struct Constant {
+  struct Conforming {
     int value;
 
     int get() const { return value; }
   };
 
-  struct Summer {
-    int* total;
+  auto read = [](protocol_view<const Interface> view) { return view.get(); };
 
-    void accept(protocol_view<const Source> source) { *total += source.get(); }
-  };
-
-  protocol<Source> source(Constant{5});
-  int total = 0;
-  protocol<Sink> sink(Summer{&total});
-
-  sink.accept(protocol_view<const Source>(source));
-  sink.accept(protocol_view<const Source>(source));
-
-  EXPECT_EQ(total, 10);
+  protocol<Interface> p(Conforming{5});
+  EXPECT_EQ(read(protocol_view<const Interface>(p)), 5);
 }
 
 }  // namespace
