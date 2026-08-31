@@ -749,17 +749,28 @@ TEST(ProtocolTest, ConstructionException) {
   EXPECT_EQ(deallocs, 0);
 }
 
-// A conforming type whose copy constructor throws, so that in-place
-// construction fails after the owning allocation succeeded.
-class ThrowingCopyTester {
-  int val_;
+// A conforming type whose copy and move constructors throw, so that
+// in-place construction fails after the owning allocation succeeded. The
+// move constructor cannot be deleted: the vtable's move entry requires the
+// stored type to be constructible from an rvalue.
+class ThrowingConstructionTester {
+  int val_{0};
 
  public:
-  explicit ThrowingCopyTester(int value) noexcept : val_(value) {}
+  explicit ThrowingConstructionTester(int value) noexcept : val_(value) {}
 
-  ThrowingCopyTester(const ThrowingCopyTester&) : val_(0) {
+  ThrowingConstructionTester(const ThrowingConstructionTester&) {
     throw TestException{};
   }
+
+  ThrowingConstructionTester(ThrowingConstructionTester&&) {
+    throw TestException{};
+  }
+
+  ThrowingConstructionTester& operator=(const ThrowingConstructionTester&) =
+      delete;
+  ThrowingConstructionTester& operator=(ThrowingConstructionTester&&) = delete;
+  ~ThrowingConstructionTester() = default;
 
   int value() const noexcept { return val_; }
 };
@@ -770,7 +781,7 @@ TEST(ProtocolTest, ValueConstructionExceptionReleasesTheAllocation) {
   bool should_throw{false};
 
   ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
-  ThrowingCopyTester original(5);
+  ThrowingConstructionTester original(5);
 
   // The allocation succeeds, then copying `original` into it throws;
   // protocol's construction path must release the allocation and rethrow.
@@ -875,8 +886,11 @@ TEST(ProtocolTest, UnequalMoveConstructionException) {
     EXPECT_EQ(allocs2, 0);
 
     // p1 should be unmodified.
+    // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+    // move never happened because the allocation threw first.
     ASSERT_FALSE(p1.valueless_after_move());
     EXPECT_EQ(p1.value(), 25);
+    // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   }
 
   EXPECT_EQ(deallocs1, 1);
@@ -935,8 +949,11 @@ TEST(ProtocolTest, UnequalMoveAssignmentException) {
     EXPECT_EQ(p1.value(), 25);
 
     // p2 should not have been destroyed.
+    // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+    // move never happened because the allocation threw first.
     EXPECT_FALSE(p2.valueless_after_move());
     EXPECT_EQ(p2.value(), 55);
+    // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   }
 
   EXPECT_EQ(deallocs1, 1);
