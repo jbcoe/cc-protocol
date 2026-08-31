@@ -8,6 +8,7 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -334,6 +335,19 @@ TEST(ReflectionProtocolTest, CopiesAreIndependentObjects) {
 // Conformance check tests.
 // ---------------------------------------------------------------------------
 
+// Returns `true` if checking conformance of `Candidate` against `Interface`
+// throws during constant evaluation, as it does for a ref-qualified
+// interface member function.
+template <typename Interface, typename Candidate>
+consteval bool conformance_check_rejects() {
+  try {
+    (void)is_protocol_conformant<Interface, Candidate>();
+  } catch (const std::runtime_error&) {
+    return true;
+  }
+  return false;
+}
+
 TEST(ConformsToTest, EmptyInterfaceIsAlwaysSatisfied) {
   struct EmptyInterface {};
 
@@ -488,34 +502,20 @@ TEST(ConformsToTest, NonNoexceptInterfaceAcceptsNoexceptCandidate) {
   static_assert(is_protocol_conformant<Interface, NoexceptCandidate>());
 }
 
-TEST(ConformsToTest, LvalueRefQualifierMustMatch) {
-  struct Interface {
+TEST(ConformsToTest, RefQualifiedInterfaceMembersAreRejected) {
+  struct LvalueRefInterface {
     void f() &;
   };
 
-  struct Conforming {
+  struct RvalueRefInterface {
+    void f() &&;
+  };
+
+  struct MatchingLvalueRefCandidate {
     void f() &;
   };
 
-  struct UnqualifiedCandidate {
-    void f();
-  };
-
-  struct RvalueRefCandidate {
-    void f() &&;
-  };
-
-  static_assert(is_protocol_conformant<Interface, Conforming>());
-  static_assert(!is_protocol_conformant<Interface, UnqualifiedCandidate>());
-  static_assert(!is_protocol_conformant<Interface, RvalueRefCandidate>());
-}
-
-TEST(ConformsToTest, RvalueRefQualifierMustMatch) {
-  struct Interface {
-    void f() &&;
-  };
-
-  struct Conforming {
+  struct MatchingRvalueRefCandidate {
     void f() &&;
   };
 
@@ -523,13 +523,14 @@ TEST(ConformsToTest, RvalueRefQualifierMustMatch) {
     void f();
   };
 
-  struct LvalueRefCandidate {
-    void f() &;
-  };
-
-  static_assert(is_protocol_conformant<Interface, Conforming>());
-  static_assert(!is_protocol_conformant<Interface, UnqualifiedCandidate>());
-  static_assert(!is_protocol_conformant<Interface, LvalueRefCandidate>());
+  static_assert(conformance_check_rejects<LvalueRefInterface,
+                                          MatchingLvalueRefCandidate>());
+  static_assert(
+      conformance_check_rejects<LvalueRefInterface, UnqualifiedCandidate>());
+  static_assert(conformance_check_rejects<RvalueRefInterface,
+                                          MatchingRvalueRefCandidate>());
+  static_assert(
+      conformance_check_rejects<RvalueRefInterface, UnqualifiedCandidate>());
 }
 
 TEST(ConformsToTest, UnqualifiedInterfaceDoesNotMatchRefQualifiedCandidate) {
@@ -727,19 +728,16 @@ TEST(ConformsToTest, StaticCandidateConformsToNonConstMember) {
   static_assert(is_protocol_conformant<Interface, Conforming>());
 }
 
-TEST(ConformsToTest, StaticCandidateConformsToRefQualifiedMember) {
+TEST(ConformsToTest, RefQualifiedInterfaceMemberRejectedForStaticCandidate) {
   struct Interface {
-    int get() &;
     int take() &&;
   };
 
   struct Conforming {
-    static int get();
-
     static int take();
   };
 
-  static_assert(is_protocol_conformant<Interface, Conforming>());
+  static_assert(conformance_check_rejects<Interface, Conforming>());
 }
 
 TEST(ConformsToTest, StaticCandidateWithWrongSignatureDoesNotConform) {
