@@ -74,16 +74,19 @@ TEST(ReflectionProtocolTest, IsValidInterface) {
   struct Invalid1 {
     int foo() volatile;
   };
+
   static_assert(!is_valid_interface<Invalid1>);
 
   union Invalid2 {
     int foo();
   };
+
   static_assert(!is_valid_interface<Invalid2>);
 
   struct Valid {
     int foo();
   };
+
   static_assert(is_valid_interface<Valid>);
   static_assert(!is_valid_interface<Valid&>);
   static_assert(!is_valid_interface<const Valid>);
