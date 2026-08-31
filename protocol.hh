@@ -800,6 +800,11 @@ class protocol
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
+  // Grants `protocol_view` access so that a view of a protocol can share its
+  // vtable.
+  template <typename>
+  friend class protocol_view;
+
   [[no_unique_address]] Alloc alloc_;
 
   void* object_ = nullptr;
@@ -1022,7 +1027,23 @@ class protocol_view<T>
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::all_const>) {}
 
+  // Views the object a `protocol<T>` owns, sharing its vtable.
+  //
+  // Precondition: `p` is not valueless.
+  template <typename Alloc>
+  explicit protocol_view(protocol<T, Alloc>& p) noexcept
+      : object_(p.object_), vtable_(p.vtable_) {}
+
+  // A view of a temporary would dangle.
+  template <typename Alloc>
+  protocol_view(protocol<T, Alloc>&&) = delete;
+
  private:
+  // Grants `protocol_view<const T>` access so it can share this view's
+  // `object_`/`vtable_`.
+  template <typename>
+  friend class protocol_view;
+
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
@@ -1068,6 +1089,23 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
       : object_(static_cast<const void*>(std::addressof(object))),
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::const_only>) {}
+
+  // Views the object a `protocol<T>` owns, sharing its vtable.
+  //
+  // Precondition: `p` is not valueless.
+  template <typename Alloc>
+  explicit protocol_view(const protocol<T, Alloc>& p) noexcept
+      : object_(p.object_), vtable_(p.vtable_) {}
+
+  // A view of a temporary would dangle.
+  template <typename Alloc>
+  protocol_view(const protocol<T, Alloc>&&) = delete;
+
+  // Views the object a `protocol_view<T>` views, sharing its vtable. Taken
+  // The argument `view` is passed by value as `protocol_view` is a non-owning
+  // handle.
+  constexpr protocol_view(protocol_view<T> view) noexcept
+      : object_(view.object_), vtable_(view.vtable_) {}
 
  private:
   // Grants the synthesised member thunks access to `object_`/`vtable_` so

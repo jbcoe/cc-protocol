@@ -368,6 +368,35 @@ TEST(ReflectionProtocolTest, CopiesAreIndependentObjects) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
+TEST(ReflectionProtocolTest, SelfAssignmentLeavesValueUnchanged) {
+  struct A {
+    int get() const;
+    void set(int);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  protocol<A> p(Conforming{});
+  p.set(7);
+
+  // Self-assignment through a reference, so the operators' self checks are
+  // exercised rather than rejected at the call site.
+  protocol<A>& same = p;
+  p = same;
+  EXPECT_EQ(p.get(), 7);
+  EXPECT_FALSE(p.valueless_after_move());
+
+  p = std::move(same);
+  EXPECT_EQ(p.get(), 7);
+  EXPECT_FALSE(p.valueless_after_move());
+}
+
 // ---------------------------------------------------------------------------
 // Conformance check tests.
 // ---------------------------------------------------------------------------
@@ -2240,6 +2269,197 @@ TEST(ReflectionProtocolTest, VolatileConformingType) {
 
   protocol<Interface> p(Conforming{});
   EXPECT_EQ(p.foo(), 10);
+}
+// ---------------------------------------------------------------------------
+// Views of protocols: a `protocol_view<I>` or `protocol_view<const I>` views
+// the object a `protocol<I>` owns, sharing its vtable; a
+// `protocol_view<const I>` can also be constructed from a
+// `protocol_view<I>`.
+// ---------------------------------------------------------------------------
+
+TEST(ReflectionProtocolViewTest, IsConstructibleFromProtocol) {
+  struct Interface {
+    int get() const;
+  };
+
+  static_assert(
+      std::is_constructible_v<protocol_view<Interface>, protocol<Interface>&>);
+  static_assert(!std::is_constructible_v<protocol_view<Interface>,
+                                         const protocol<Interface>&>);
+  static_assert(
+      !std::is_constructible_v<protocol_view<Interface>, protocol<Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewIsConstructibleFromProtocol) {
+  struct Interface {
+    int get() const;
+  };
+
+  static_assert(std::is_constructible_v<protocol_view<const Interface>,
+                                        const protocol<Interface>&>);
+  static_assert(std::is_constructible_v<protocol_view<const Interface>,
+                                        protocol<Interface>&>);
+  static_assert(!std::is_constructible_v<protocol_view<const Interface>,
+                                         protocol<Interface>>);
+  static_assert(!std::is_constructible_v<protocol_view<const Interface>,
+                                         const protocol<Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, ViewOfProtocolCallsOwnedObject) {
+  struct Interface {
+    int get() const;
+    void update(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void update(int new_value) { value = new_value; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  protocol_view<Interface> view(p);
+
+  view.update(7);
+  EXPECT_EQ(p.get(), 7);
+
+  p.update(11);
+  EXPECT_EQ(view.get(), 11);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewOfProtocolExposesOnlyConstMembers) {
+  struct Interface {
+    int get() const;
+    void update(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void update(int new_value) { value = new_value; }
+  };
+
+  const protocol<Interface> p(Conforming{3});
+  protocol_view<const Interface> view(p);
+
+  EXPECT_EQ(view.get(), 3);
+  static_assert(!has_update<protocol_view<const Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, ViewOfProtocolWithOverloadsAndCallOperator) {
+  struct Interface {
+    int get() const;
+    int get(int value) const;
+    int operator()(int value) const;
+  };
+
+  struct Conforming {
+    int get() const { return 1; }
+
+    int get(int value) const { return value + 1; }
+
+    int operator()(int value) const { return value * 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  protocol_view<Interface> view(p);
+
+  EXPECT_EQ(view.get(), 1);
+  EXPECT_EQ(view.get(4), 5);
+  EXPECT_EQ(view(21), 42);
+}
+
+TEST(ReflectionProtocolViewTest, ViewOfProtocolRemainsValidAfterMove) {
+  struct Interface {
+    int get() const;
+  };
+
+  struct Conforming {
+    int get() const { return 5; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  protocol_view<Interface> view(p);
+
+  protocol<Interface> moved_to(std::move(p));
+
+  EXPECT_EQ(view.get(), 5);
+}
+
+TEST(ReflectionProtocolViewTest, ViewOfProtocolWithCustomAllocator) {
+  struct Interface {
+    int get() const;
+  };
+
+  struct Conforming {
+    int get() const { return 9; }
+  };
+
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+  xyz::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
+
+  protocol<Interface, xyz::TrackingAllocator<std::byte>> p(std::allocator_arg,
+                                                           alloc, Conforming{});
+  protocol_view<Interface> view(p);
+
+  EXPECT_EQ(view.get(), 9);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewIsConstructibleFromView) {
+  struct Interface {
+    int get() const;
+    void update(int value);
+  };
+
+  static_assert(std::is_convertible_v<protocol_view<Interface>,
+                                      protocol_view<const Interface>>);
+  static_assert(!std::is_constructible_v<protocol_view<Interface>,
+                                         protocol_view<const Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewOfViewCallsViewedObject) {
+  struct Interface {
+    int get() const;
+    void update(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void update(int new_value) { value = new_value; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  protocol_view<Interface> view(p);
+  protocol_view<const Interface> const_view(view);
+
+  view.update(7);
+  EXPECT_EQ(const_view.get(), 7);
+  static_assert(!has_update<protocol_view<const Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, ViewOfProtocolPassedByValue) {
+  struct Interface {
+    int get() const;
+  };
+
+  struct Conforming {
+    int value;
+
+    int get() const { return value; }
+  };
+
+  auto read = [](protocol_view<const Interface> view) { return view.get(); };
+
+  protocol<Interface> p(Conforming{5});
+  EXPECT_EQ(read(protocol_view<const Interface>(p)), 5);
 }
 
 }  // namespace
