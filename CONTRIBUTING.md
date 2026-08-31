@@ -32,12 +32,9 @@ For more detailed CMake options, run `./scripts/cmake.sh --help`.
 ./scripts/bazel.sh
 ```
 
-or directly using Bazel:
-
-```bash
-bazel test //...
-```
-
+Both scripts select a reflection-capable compiler and pass it to their
+underlying build system; a bare `cmake`/`bazel` invocation skips that and
+fails on stock GCC.
 
 ### Continuous Integration
 

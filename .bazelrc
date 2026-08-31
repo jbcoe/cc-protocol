@@ -2,5 +2,20 @@
 build --cxxopt=-std=c++26
 build --cxxopt=-freflection
 
+# Treat external repositories' headers (e.g. googletest) as system headers,
+# matching CMake's SYSTEM FetchContent_Declare, so -Werror below only holds
+# our own code to account and not warnings from vendored dependencies.
+build --features=external_include_paths
+
+# Match the warnings cmake/xyz_add_test.cmake applies to every test and
+# tutorial, so a green Bazel build can't hide a warning the required CMake CI
+# job would reject.
+build --cxxopt=-Wall
+build --cxxopt=-Werror
+build --cxxopt=-Wno-self-assign-overloaded
+build --cxxopt=-Wno-delete-non-abstract-non-virtual-dtor
+build --cxxopt=-Wno-unknown-warning-option
+build --cxxopt=-Wno-self-move
+
 # Show test output on failure
 test --test_output=errors

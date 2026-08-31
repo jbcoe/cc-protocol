@@ -3,20 +3,32 @@
 
 import argparse
 import os
-import shutil
+import platform
+import re
 import subprocess
 from typing import Any
 
-# Directory of the GCC trunk snapshot published at
-# https://jwakely.github.io/pkg-gcc-latest/, used as the default compiler
-# when present (see the CXX handling in main below).
-GCC_LATEST_BIN_DIRECTORY = "/opt/gcc-latest/bin"
+from compiler_discovery import find_reflection_compilers
 
 # Resolved from this script's own location rather than the current working
 # directory, so default build directories land in the source root if this
 # script is invoked from elsewhere.
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_BUILD_DIR = os.path.join(SOURCE_ROOT, "build")
+
+# The single literal directory .bazelignore (which supports no globs) needs
+# to hide the CMake dependency sources, with their own incompatible
+# BUILD.bazel files, from Bazel. Every build directory lives under it
+# regardless of name.
+BUILD_ROOT = os.path.join(SOURCE_ROOT, "build")
+
+
+def _default_build_dir() -> str:
+    """Build a default directory under BUILD_ROOT, distinct per OS and host."""
+    host_identifier = re.sub(r"[^A-Za-z0-9.-]", "-", platform.node()) or "unknown-host"
+    return os.path.join(BUILD_ROOT, f"{platform.system().lower()}-{host_identifier}")
+
+
+DEFAULT_BUILD_DIR = _default_build_dir()
 
 
 def main() -> None:
@@ -49,7 +61,11 @@ def main() -> None:
         "--ubsan", action="store_true", help="Enable Undefined Behaviour Sanitizer"
     )
     parser.add_argument("--tsan", action="store_true", help="Enable Thread Sanitizer")
-    parser.add_argument("-B", "--build-dir", help="Build directory")
+    parser.add_argument(
+        "-B",
+        "--build-dir",
+        help="Build directory; relative paths are placed under build/",
+    )
     parser.add_argument(
         "--clean", action="store_true", help="Fresh configuration and clean-first build"
     )
@@ -64,6 +80,8 @@ def main() -> None:
 
     if not args.build_dir:
         args.build_dir = DEFAULT_BUILD_DIR
+    elif not os.path.isabs(args.build_dir):
+        args.build_dir = os.path.join(BUILD_ROOT, args.build_dir)
 
     # Map abbreviations to full mode names
     mode_map = {
@@ -96,24 +114,13 @@ def main() -> None:
 
     # The implementation requires a C++26 reflection (P2996) compiler. CMake
     # only reads CXX/CC from the environment, not from -D cache variables, so
-    # set them here rather than as configure_args. An existing CXX in the
-    # environment is left untouched so callers can override the compiler;
-    # otherwise prefer the GCC trunk snapshot in /opt/gcc-latest (see
-    # docker/Dockerfile) and fall back to Ubuntu's gcc-16 package if that
-    # snapshot isn't installed. When neither is present CXX stays unset so
-    # that CMake's default compiler reaches the reflection check in
-    # CMakeLists.txt and reports which compiler lacks reflection, rather
-    # than failing to find a compiler at all.
+    # set them here rather than as configure_args.
     configure_env = os.environ.copy()
-    if "CXX" not in configure_env:
-        gcc_latest_cxx = os.path.join(GCC_LATEST_BIN_DIRECTORY, "g++")
-        gcc_latest_cc = os.path.join(GCC_LATEST_BIN_DIRECTORY, "gcc")
-        if os.path.exists(gcc_latest_cxx):
-            configure_env["CXX"] = gcc_latest_cxx
-            configure_env["CC"] = gcc_latest_cc
-        elif shutil.which("g++-16"):
-            configure_env["CXX"] = "g++-16"
-            configure_env["CC"] = "gcc-16"
+    cc_path, cxx_path = find_reflection_compilers(configure_env)
+    if cxx_path is not None:
+        configure_env["CXX"] = cxx_path
+        if cc_path is not None:
+            configure_env["CC"] = cc_path
 
     log(f"Running: {' '.join(configure_args)}")
     subprocess.check_call(configure_args, env=configure_env)
