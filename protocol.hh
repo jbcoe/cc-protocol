@@ -1008,21 +1008,25 @@ class protocol_view
   protocol_view& operator=(protocol_view&&) noexcept = default;
   ~protocol_view() = default;
 
-  // Construct from any non-const type U that conforms to the Interface T.
+  // Views a non-const object that conforms to the Interface T. Implicit
+  // because the lvalue-reference parameter already rejects temporaries, so a
+  // view can never outlive what it views.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
                  (!is_protocol_view_v<std::remove_cvref_t<U>>) &&
                  (!std::is_const_v<U>)
-  explicit protocol_view(U& object)
+  protocol_view(U& object)
       : object_(static_cast<void*>(std::addressof(object))),
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::all_const>) {}
 
-  // Views the object a `protocol<T>` owns, sharing its vtable.
+  // Views the object a `protocol<T>` owns, sharing its vtable. Implicit
+  // because a view is a non-owning handle and the deleted rvalue overload
+  // below rejects temporaries, so nothing can dangle.
   //
   // Precondition: `p` is not valueless.
   template <typename Alloc>
-  explicit protocol_view(protocol<T, Alloc>& p) noexcept
+  protocol_view(protocol<T, Alloc>& p) noexcept
       : object_(p.object_), vtable_(p.vtable_) {}
 
   // A view of a temporary would dangle.
@@ -1071,21 +1075,30 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
   protocol_view& operator=(protocol_view&&) noexcept = default;
   ~protocol_view() = default;
 
-  // Construct from any (possibly const) type U that conforms to the
-  // Interface T.
+  // Views a (possibly const) object that conforms to the Interface T.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
                  (!is_protocol_view_v<std::remove_cvref_t<U>>)
-  explicit protocol_view(const U& object)
+  protocol_view(const U& object)
       : object_(static_cast<const void*>(std::addressof(object))),
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::const_only>) {}
 
-  // Views the object a `protocol<T>` owns, sharing its vtable.
+  // A view of a temporary would dangle. Unlike the mutable view, this
+  // constructor's const-reference parameter would otherwise bind an rvalue,
+  // so a deleted overload rejects them.
+  template <typename U>
+    requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
+                 (!is_protocol_view_v<std::remove_cvref_t<U>>)
+  protocol_view(const U&&) = delete;
+
+  // Views the object a `protocol<T>` owns, sharing its vtable. Implicit
+  // because a view is a non-owning handle and the deleted rvalue overload
+  // below rejects temporaries, so nothing can dangle.
   //
   // Precondition: `p` is not valueless.
   template <typename Alloc>
-  explicit protocol_view(const protocol<T, Alloc>& p) noexcept
+  protocol_view(const protocol<T, Alloc>& p) noexcept
       : object_(p.object_), vtable_(p.vtable_) {}
 
   // A view of a temporary would dangle.
