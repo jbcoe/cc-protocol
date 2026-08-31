@@ -1,0 +1,144 @@
+name: Clang Tidy
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/clang-tidy.yml" # This file
+      - ".github/clang-p2996-commit"
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/*.hh"
+      - "**/CMakeLists.txt"
+      - "CMakePresets.json"
+      - "**/*.cmake"
+      - "**/.clang-tidy"
+      - "scripts/cmake.py"
+      - "scripts/cmake.sh"
+  # The clang-tidy job is not a required status check, so a `paths:` filter
+  # here is safe: a pull request that touches nothing relevant simply gets no
+  # check rather than an eternally pending one.
+  pull_request:
+    paths:
+      # Keep in sync with the `push.paths` list above.
+      - ".github/workflows/clang-tidy.yml" # This file
+      - ".github/clang-p2996-commit"
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/*.hh"
+      - "**/CMakeLists.txt"
+      - "CMakePresets.json"
+      - "**/*.cmake"
+      - "**/.clang-tidy"
+      - "scripts/cmake.py"
+      - "scripts/cmake.sh"
+  workflow_dispatch:
+
+env:
+  UV_FROZEN: 1
+
+jobs:
+  clang-tidy:
+    runs-on: ubuntu-latest
+
+    # reviewdog posts review comments on pull requests and check annotations
+    # on pushes and scheduled runs.
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: lukka/get-cmake@v4.4.2
+
+      # Released clang-tidy versions cannot parse the reflection sources, so
+      # the job runs a clang-tidy built from the clang-p2996 fork
+      # (https://github.com/bloomberg/clang-p2996), pinned by commit in
+      # .github/clang-p2996-commit and cached between runs. Building the
+      # toolchain takes several hours on a standard runner; it happens only
+      # when the pinned commit changes or the cache was evicted, and the
+      # nightly schedule keeps the cache warm.
+      - name: Set toolchain paths
+        run: |
+          echo "XYZ_PROTOCOL_CLANG_P2996_DIRECTORY=$HOME/clang-p2996-toolchain" >> "$GITHUB_ENV"
+          echo "CLANG_P2996_COMMIT=$(cat .github/clang-p2996-commit)" >> "$GITHUB_ENV"
+
+      - name: Restore the clang-p2996 toolchain
+        id: toolchain-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/clang-p2996-toolchain
+          key: clang-p2996-${{ runner.os }}-${{ env.CLANG_P2996_COMMIT }}
+
+      - name: Build the clang-p2996 toolchain
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          git init "$RUNNER_TEMP/clang-p2996"
+          git -C "$RUNNER_TEMP/clang-p2996" remote add origin https://github.com/bloomberg/clang-p2996.git
+          git -C "$RUNNER_TEMP/clang-p2996" fetch --depth 1 origin "$CLANG_P2996_COMMIT"
+          git -C "$RUNNER_TEMP/clang-p2996" checkout FETCH_HEAD
+
+          cmake -G Ninja -S "$RUNNER_TEMP/clang-p2996/llvm" -B "$RUNNER_TEMP/clang-p2996/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" \
+            -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind" \
+            -DLLVM_TARGETS_TO_BUILD=X86 \
+            -DLLVM_ENABLE_ASSERTIONS=OFF \
+            -DLLVM_INCLUDE_TESTS=OFF \
+            -DCLANG_INCLUDE_TESTS=OFF \
+            -DLLVM_INCLUDE_EXAMPLES=OFF \
+            -DLLVM_INCLUDE_BENCHMARKS=OFF \
+            -DLLVM_PARALLEL_LINK_JOBS=2
+          ninja -C "$RUNNER_TEMP/clang-p2996/build" clang clang-tidy runtimes
+
+          # Keep only what the clang-tidy build needs: the driver, clang-tidy,
+          # the compiler resource headers, and the fork's libc++, laid out as
+          # a regular toolchain installation so the driver finds its own
+          # headers and libraries relative to bin/.
+          build="$RUNNER_TEMP/clang-p2996/build"
+          toolchain="$XYZ_PROTOCOL_CLANG_P2996_DIRECTORY"
+          mkdir -p "$toolchain/bin" "$toolchain/lib" "$toolchain/include"
+          cp -a "$build/bin/clang-tidy" "$toolchain/bin/"
+          cp -a "$(readlink -f "$build/bin/clang")" "$toolchain/bin/"
+          cp -a "$build/bin/clang" "$build/bin/clang++" "$toolchain/bin/"
+          cp -a "$build/lib/clang" "$toolchain/lib/"
+          cp -a "$build/lib/x86_64-unknown-linux-gnu" "$toolchain/lib/"
+          cp -a "$build/include/c++" "$build/include/x86_64-unknown-linux-gnu" "$toolchain/include/"
+          find "$toolchain/bin" -type f -exec strip {} +
+          rm -rf "$RUNNER_TEMP/clang-p2996"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: "3.12"
+      - name: Set up Python
+        run: uv sync
+      - uses: reviewdog/action-setup@v1.5.0
+        with:
+          reviewdog_version: latest
+
+      - name: Build with clang-tidy
+        # `shell: bash` enables pipefail, so a clang-tidy failure is not
+        # masked by `tee`. WarningsAsErrors in .clang-tidy makes any finding
+        # fail the build.
+        shell: bash
+        run: |
+          ./scripts/cmake.sh --debug --clang-tidy build 2>&1 | tee build.log
+
+      - name: Report findings with reviewdog
+        # Runs even when the build failed so that the findings are annotated.
+        if: always()
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            reporter=github-pr-review
+          else
+            reporter=github-check
+          fi
+          reviewdog -reporter="$reporter" -name=clang-tidy \
+            -efm="%W%f:%l:%c: warning: %m" -efm="%E%f:%l:%c: error: %m" < build.log

@@ -59,10 +59,10 @@ class Tester {
   [[maybe_unused]] std::array<std::byte, sizeof(TestProtocol)> padding_;
 
  public:
-  Tester(int value) noexcept : val_(value) {}
+  Tester(int value) noexcept : val_(value), padding_{} {}
 
   // Just so we can exercise protocol's in-place init list constructor.
-  Tester(std::initializer_list<int>) noexcept {}
+  Tester(std::initializer_list<int>) noexcept : val_(0), padding_{} {}
 
   int value() const noexcept { return val_; }
 };
@@ -123,7 +123,10 @@ TEST(ProtocolTest, CopyConstruction) {
   {
     TestAlloc alloc{&allocs, &deallocs};
     TestProtocol p1{std::allocator_arg, alloc, Tester(25)};
+    // NOLINTBEGIN(performance-unnecessary-copy-initialization): the test
+    // exercises copy construction on purpose.
     xyz::protocol p2{p1};
+    // NOLINTEND(performance-unnecessary-copy-initialization)
     EXPECT_EQ(allocs, 2);  // Once for p1, and once for p2.
     EXPECT_EQ(deallocs, 0);
   }
@@ -677,10 +680,15 @@ struct ThrowingAllocator : xyz::TrackingAllocator<T> {
     using other = ThrowingAllocator<Other>;
   };
 
+  // NOLINTBEGIN(readability-non-const-parameter): the TrackingAllocator base
+  // stores the counters as pointers to non-const and increments through
+  // them; the check cannot see that in this uninstantiated template.
   ThrowingAllocator(unsigned* allocs, unsigned* deallocs,
                     const bool* should_throw)
       : xyz::TrackingAllocator<T>(allocs, deallocs),
         should_throw_(should_throw) {}
+
+  // NOLINTEND(readability-non-const-parameter)
 
   T* allocate(std::size_t count) {
     if (*should_throw_) {

@@ -20,7 +20,7 @@ general defaults for this repository.
 - **Tooling:** Always use `uv` for Python dependency management (`uv run ...`).
 - **Build & Test:** Use `scripts/cmake.sh` for all build and test operations.
   The `scripts/cmake.sh` entrypoint supports `--debug`, `--release`,
-  `--asan`, `--ubsan`, and `--tsan`.
+  `--asan`, `--ubsan`, `--tsan`, and `--clang-tidy`.
 - **Compiler:** The implementation requires GCC with C++26 reflection (the GCC
   trunk snapshot in `/opt/gcc-latest`, or `gcc-16`); CI, including the
   sanitizer jobs, runs on GCC trunk.

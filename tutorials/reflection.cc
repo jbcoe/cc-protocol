@@ -40,7 +40,7 @@ struct Point {
   double x = 0;
   double y = 0;
 
-  double norm() const noexcept { return std::sqrt(x * x + y * y); }
+  double norm() const noexcept { return std::sqrt((x * x) + (y * y)); }
 };
 
 }  // namespace xyz::tutorials
@@ -56,7 +56,9 @@ TEST(TutorialsReflection, MetaInfoIdentifier) {
 }
 
 TEST(TutorialsReflection, AliasesCompareDifferent) {
-  using PointAlias = Point;
+  // Only observed through reflection, which the unused-type-alias warning
+  // does not count as a use.
+  using PointAlias [[maybe_unused]] = Point;
 
   constexpr std::meta::info point_info = ^^Point;
   constexpr std::meta::info point_alias_info = ^^PointAlias;
@@ -136,7 +138,7 @@ TEST(TutorialsReflection, MemberFunctions) {
 
   static_assert(identifier_of(norm) == "norm");
   static_assert(return_type_of(norm) == ^^double);
-  static_assert(parameters_of(norm).size() == 0);
+  static_assert(parameters_of(norm).empty());
   static_assert(is_const(norm));
   static_assert(is_noexcept(norm));
 }
@@ -166,7 +168,9 @@ TEST(TutorialsReflection, AccessContext) {
     int visible;
 
    private:
-    int hidden;
+    // Only observed through reflection, which the unused-private-field
+    // warning does not count as a use.
+    [[maybe_unused]] int hidden;
   };
 
   constexpr std::ranges::range auto visible_members =
@@ -221,8 +225,11 @@ template <typename E>
   requires std::is_enum_v<E>
 std::string enum_to_string(E value) {
   // `template for` unrolls a compile-time range into ordinary code.
+  // NOLINTBEGIN(bugprone-reserved-identifier): fires on the compiler's own
+  // internal variables in the expansion statement's desugaring.
   template for (constexpr std::meta::info e :
                 std::define_static_array(enumerators_of(^^E))) {
+    // NOLINTEND(bugprone-reserved-identifier)
     if (value == [:e:]) return std::string(identifier_of(e));
   }
   return "<unknown>";

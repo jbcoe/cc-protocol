@@ -56,3 +56,19 @@ repos:
   rev: v0.8.0
   hooks:
   - id: action-validator
+- repo: local
+  hooks:
+  # Runs the same full clang-tidy build as the "Clang Tidy" CI workflow, so
+  # local and CI findings match. It is a full build, so it is opt-in (manual
+  # stage) rather than run on every commit:
+  #
+  #   uv run pre-commit run --hook-stage manual clang-tidy
+  #
+  # Requires a clang-p2996 toolchain (see cmake/modules/FindClangTidy.cmake).
+  - id: clang-tidy
+    name: clang-tidy
+    entry: ./scripts/cmake.sh --debug --clang-tidy
+    language: system
+    pass_filenames: false
+    files: '(\.(cc|h|hh)|CMakeLists\.txt|\.clang-tidy)$|^cmake/'
+    stages: [manual]

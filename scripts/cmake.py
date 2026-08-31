@@ -12,11 +12,22 @@ from typing import Any
 # when present (see the CXX handling in main below).
 GCC_LATEST_BIN_DIRECTORY = "/opt/gcc-latest/bin"
 
+# Root of a clang-p2996 toolchain (https://github.com/bloomberg/clang-p2996),
+# the only Clang that can parse the reflection sources. --clang-tidy builds
+# compile with its clang++ so that clang-tidy analyses exactly what the
+# compiler accepted. Overridden by the XYZ_PROTOCOL_CLANG_P2996_DIRECTORY
+# environment variable; CI provisions the toolchain at this default (see
+# .github/workflows/clang-tidy.yml).
+CLANG_P2996_DIRECTORY = os.environ.get(
+    "XYZ_PROTOCOL_CLANG_P2996_DIRECTORY", "/opt/clang-p2996"
+)
+
 # Resolved from this script's own location rather than the current working
 # directory, so default build directories land in the source root if this
 # script is invoked from elsewhere.
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_BUILD_DIR = os.path.join(SOURCE_ROOT, "build")
+DEFAULT_CLANG_TIDY_BUILD_DIR = f"{DEFAULT_BUILD_DIR}.clang-tidy"
 
 
 def main() -> None:
@@ -49,6 +60,13 @@ def main() -> None:
         "--ubsan", action="store_true", help="Enable Undefined Behaviour Sanitizer"
     )
     parser.add_argument("--tsan", action="store_true", help="Enable Thread Sanitizer")
+    parser.add_argument(
+        "--clang-tidy",
+        action="store_true",
+        help="Run clang-tidy on every translation unit as it is compiled "
+        "(requires a clang-p2996 toolchain, see "
+        "cmake/modules/FindClangTidy.cmake; findings fail the build)",
+    )
     parser.add_argument("-B", "--build-dir", help="Build directory")
     parser.add_argument(
         "--clean", action="store_true", help="Fresh configuration and clean-first build"
@@ -62,8 +80,14 @@ def main() -> None:
     # Determine preset: flag takes precedence, then default.
     preset = args.preset if args.preset else "Release"
 
+    # clang-tidy builds get their own directory by default, separate from
+    # DEFAULT_BUILD_DIR: toggling CLANG_TIDY_ENABLE against that directory
+    # would otherwise force a reconfigure every time --clang-tidy is turned
+    # on or off.
     if not args.build_dir:
-        args.build_dir = DEFAULT_BUILD_DIR
+        args.build_dir = (
+            DEFAULT_CLANG_TIDY_BUILD_DIR if args.clang_tidy else DEFAULT_BUILD_DIR
+        )
 
     # Map abbreviations to full mode names
     mode_map = {
@@ -86,6 +110,7 @@ def main() -> None:
         f"-DENABLE_ASAN={'ON' if args.asan else 'OFF'}",
         f"-DENABLE_UBSAN={'ON' if args.ubsan else 'OFF'}",
         f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",
+        f"-DCLANG_TIDY_ENABLE={'ON' if args.clang_tidy else 'OFF'}",
         "-B",
         args.build_dir,
     ]
@@ -106,9 +131,13 @@ def main() -> None:
     # than failing to find a compiler at all.
     configure_env = os.environ.copy()
     if "CXX" not in configure_env:
+        clang_p2996_cxx = os.path.join(CLANG_P2996_DIRECTORY, "bin", "clang++")
         gcc_latest_cxx = os.path.join(GCC_LATEST_BIN_DIRECTORY, "g++")
         gcc_latest_cc = os.path.join(GCC_LATEST_BIN_DIRECTORY, "gcc")
-        if os.path.exists(gcc_latest_cxx):
+        if args.clang_tidy and os.path.exists(clang_p2996_cxx):
+            configure_env["CXX"] = clang_p2996_cxx
+            configure_env["CC"] = os.path.join(CLANG_P2996_DIRECTORY, "bin", "clang")
+        elif os.path.exists(gcc_latest_cxx):
             configure_env["CXX"] = gcc_latest_cxx
             configure_env["CC"] = gcc_latest_cc
         elif shutil.which("g++-16"):
@@ -122,6 +151,10 @@ def main() -> None:
     build_args = ["cmake", "--build", args.build_dir, "--config", preset]
     if args.clean:
         build_args.append("--clean-first")
+    if args.clang_tidy:
+        # Keep going after a failing translation unit so that one run reports
+        # every clang-tidy finding rather than only the first file's.
+        build_args.extend(["--", "-k", "0"])
 
     log(f"Running: {' '.join(build_args)}")
     subprocess.check_call(build_args)

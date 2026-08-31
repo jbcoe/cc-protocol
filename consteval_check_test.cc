@@ -55,6 +55,10 @@ TEST(ConstevalCheckTest, PassingChecksInConstevalBlock) {
   }
 }
 
+// Catching the failure at constant evaluation time requires P3068 constexpr
+// exceptions, which GCC trunk implements but the clang-p2996 fork used for
+// clang-tidy does not. The run-time tests below cover catchability there.
+#ifdef __cpp_constexpr_exceptions
 consteval bool ConstevalCheckFailureIsCatchable() {
   try {
     XYZ_CONSTEVAL_CHECK(10 < 5);
@@ -67,6 +71,7 @@ consteval bool ConstevalCheckFailureIsCatchable() {
 TEST(ConstevalCheckTest, FailureIsCatchableAtCompileTime) {
   static_assert(ConstevalCheckFailureIsCatchable());
 }
+#endif  // __cpp_constexpr_exceptions
 
 // ---------------------------------------------------------------------------
 // Run-time usage: `XYZ_CONSTEVAL_CHECK` is plain constexpr code, so it also
