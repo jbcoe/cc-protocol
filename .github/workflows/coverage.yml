@@ -1,0 +1,107 @@
+name: Coverage
+
+# Not a required check, so plain `paths:` filtering is safe here (unlike
+# cmake.yml, whose required jobs need the detect-changes pattern).
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/coverage.yml" # This file
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/*.hh"
+      - "**/CMakeLists.txt"
+      - "CMakePresets.json"
+      - "**/*.cmake"
+      - "codecov.yml"
+      - "scripts/cmake.py"
+      - "scripts/cmake.sh"
+      - "scripts/compiler_discovery.py"
+      - "scripts/consteval_coverage.py"
+      - "scripts/consteval_coverage.sh"
+  pull_request:
+    paths:
+      # Keep in sync with the `push.paths` list above.
+      - ".github/workflows/coverage.yml" # This file
+      - "**/*.cc"
+      - "**/*.h"
+      - "**/*.hh"
+      - "**/CMakeLists.txt"
+      - "CMakePresets.json"
+      - "**/*.cmake"
+      - "codecov.yml"
+      - "scripts/cmake.py"
+      - "scripts/cmake.sh"
+      - "scripts/compiler_discovery.py"
+      - "scripts/consteval_coverage.py"
+      - "scripts/consteval_coverage.sh"
+
+env:
+  UV_FROZEN: 1
+
+jobs:
+  # gcov-instrumented Debug build: measures the code that executes at
+  # runtime. Consteval code is invisible to gcov (marked non-executable),
+  # so it is measured by the consteval-coverage job instead.
+  runtime-coverage:
+    name: runtime coverage
+    runs-on: ubuntu-26.04
+    permissions:
+      id-token: write # Tokenless Codecov upload via OIDC.
+    steps:
+      - uses: actions/checkout@v5
+      - uses: lukka/get-cmake@v4.4.2
+      - name: Install GCC trunk
+        # Prebuilt GCC trunk snapshot from https://jwakely.github.io/pkg-gcc-latest/;
+        # scripts/cmake.py finds /opt/gcc-latest itself, so no PATH changes are needed.
+        run: |
+          wget --quiet https://kayari.org/gcc-latest/gcc-latest.deb
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ./gcc-latest.deb
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+      - name: Set up Python
+        run: uv sync
+      - name: Build, test and report runtime coverage
+        run: ./scripts/cmake.sh test --coverage -B coverage
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: build/coverage/coverage.info
+          flags: runtime
+          disable_search: true
+
+  # Compile-time trap probing of the consteval code in protocol.hh: one
+  # -fsyntax-only compile per probe point, see scripts/consteval_coverage.py.
+  consteval-coverage:
+    name: consteval coverage
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    permissions:
+      id-token: write # Tokenless Codecov upload via OIDC.
+    steps:
+      - uses: actions/checkout@v5
+      - uses: lukka/get-cmake@v4.4.2
+      - name: Install GCC trunk
+        run: |
+          wget --quiet https://kayari.org/gcc-latest/gcc-latest.deb
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ./gcc-latest.deb
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+      - name: Set up Python
+        run: uv sync
+      - name: Build (provides the googletest headers)
+        run: ./scripts/cmake.sh build -B coverage
+      - name: Probe consteval coverage
+        run: ./scripts/consteval_coverage.sh --lcov-output build/consteval-coverage/coverage.info
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: build/consteval-coverage/coverage.info
+          flags: consteval
+          disable_search: true

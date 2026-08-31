@@ -81,6 +81,46 @@ apply to a whole directory, in that directory's `.clang-tidy` (see
 `tutorials/.clang-tidy`). Checks disabled for the whole repository are listed
 with their rationale at the top of `.clang-tidy`.
 
+### Measuring Test Coverage
+
+Test coverage is measured in two halves, because much of `protocol.hh` is
+`consteval` code that executes inside the compiler where runtime coverage
+instrumentation cannot see it.
+
+Runtime coverage uses GCC's gcov:
+
+```bash
+./scripts/cmake.sh test --coverage
+```
+
+This builds the Debug preset with `--coverage`, runs the tests, prints a
+gcovr summary and writes an LCOV trace to `<build-dir>/coverage.info`. gcov
+marks consteval code as non-executable, so it neither counts towards nor
+against these numbers. The usual workaround for `constexpr` code - running
+every test at both compile time and runtime so that runtime instrumentation
+observes it - does not work here: immediate functions cannot execute at
+runtime, and calling a P2996 metafunction makes the caller immediate too.
+
+Consteval coverage is instead measured by compile-time trap probing:
+
+```bash
+./scripts/cmake.sh build          # provides the googletest headers
+./scripts/consteval_coverage.sh
+```
+
+The tool instruments a copy of `protocol.hh` with trap calls at every block
+entry and `return`/`throw` statement in consteval code, then recompiles the
+protocol-instantiating test translation units once per trap with
+`-fsyntax-only`, arming one trap at a time; a compile failure proves the
+test suite evaluated that line, because a constant evaluation has no other
+observable side effect. The design and its limitations are documented in
+`scripts/consteval_coverage.py`. Pass `--lcov-output <path>` for an LCOV
+trace that merges with the runtime one.
+
+The "Coverage" workflow runs both measurements and uploads them to Codecov
+under the `runtime` and `consteval` flags; it is not a required status
+check.
+
 ## Core Concepts
 
 ### Structural Subtyping

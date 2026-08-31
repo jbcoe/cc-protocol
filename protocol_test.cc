@@ -343,6 +343,35 @@ TEST(ReflectionProtocolTest, CopiesAreIndependentObjects) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
+TEST(ReflectionProtocolTest, SelfAssignmentLeavesValueUnchanged) {
+  struct A {
+    int get() const;
+    void set(int);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void set(int new_value) { value = new_value; }
+  };
+
+  protocol<A> p(Conforming{});
+  p.set(7);
+
+  // Self-assignment through a reference, so the operators' self checks are
+  // exercised rather than rejected at the call site.
+  protocol<A>& same = p;
+  p = same;
+  EXPECT_EQ(p.get(), 7);
+  EXPECT_FALSE(p.valueless_after_move());
+
+  p = std::move(same);
+  EXPECT_EQ(p.get(), 7);
+  EXPECT_FALSE(p.valueless_after_move());
+}
+
 // ---------------------------------------------------------------------------
 // Conformance check tests.
 // ---------------------------------------------------------------------------

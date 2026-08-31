@@ -1,2 +1,12 @@
 ignore:
   - "*_test.cc"
+  - "*_tests.cc"
+
+coverage:
+  status:
+    # Compare against the pull request's base, tolerating small drift from
+    # gcov's per-instantiation counting; a real drop fails the status.
+    project:
+      default:
+        target: auto
+        threshold: 1%
