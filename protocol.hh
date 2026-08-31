@@ -131,7 +131,7 @@ consteval bool same_signature_ignoring_const(std::meta::info candidate,
 
 consteval bool is_explicit_object_function(std::meta::info candidate) {
   const auto params = parameters_of(candidate);
-  return !params.empty() && is_explicit_object_paramater(params.front());
+  return !params.empty() && is_explicit_object_parameter(params.front());
 }
 
 consteval bool same_name_and_params_with_explicit_object(
@@ -159,7 +159,7 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
     // or reference qualification of `interface`.
     if (!same_name_and_parameters(candidate, interface)) return false;
   } else if (is_explicit_object_function(candidate)) {
-    if (!same_name_and_parameters_with_explicit_object(candidate, interface))
+    if (!same_name_and_params_with_explicit_object(candidate, interface))
       return false;
   } else {
     if (!same_signature_ignoring_const(candidate, interface)) return false;
