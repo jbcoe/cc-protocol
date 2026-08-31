@@ -4,7 +4,10 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "protocol",
-    hdrs = ["protocol.hh"],
+    hdrs = [
+        "name_mangling.h",
+        "protocol.hh",
+    ],
 )
 
 cc_library(
@@ -18,6 +21,7 @@ cc_test(
         "allocator_tests.cc",
         "consteval_check_test.cc",
         "forwarding_test.cc",
+        "name_mangling_tests.cc",
         "protocol_test.cc",
         "tagged_allocator.h",
         "test_helpers.h",

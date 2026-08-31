@@ -71,11 +71,38 @@ def main() -> None:
         bazel_command.append(f"--action_env=CXX={cxx_target_path}")
         bazel_command.append(f"--repo_env=CXX={cxx_target_path}")
 
+        # Bazel's autoconfigured C++ toolchain selects the compiler from CC and
+        # never reads CXX. A caller that exports CXX alone (scripts/cmake.py's
+        # convention) leaves cc_path unset, so derive the sibling gcc next to
+        # g++ rather than letting Bazel fall back to the default /usr/bin/gcc.
+        if cc_path is None:
+            cxx_directory, cxx_name = os.path.split(cxx_target_path)
+            sibling_cc_path = os.path.join(
+                cxx_directory, cxx_name.replace("g++", "gcc")
+            )
+            if os.path.exists(sibling_cc_path):
+                cc_path = sibling_cc_path
+
         if cc_path is not None:
             cc_target_path = shutil.which(cc_path) or cc_path
             bazel_environment["CC"] = cc_target_path
             bazel_command.append(f"--action_env=CC={cc_target_path}")
             bazel_command.append(f"--repo_env=CC={cc_target_path}")
+
+        # The compiler binary is not itself an action input, so a constant path
+        # whose contents change (the /opt/gcc-latest trunk snapshot is replaced
+        # weekly in place) would otherwise replay cached objects built by the
+        # previous compiler. Stamping the version into every action and repo
+        # rule key ties the cache to the compiler's identity, not just its path.
+        compiler_version = subprocess.check_output(
+            [cxx_target_path, "--version"], text=True
+        ).splitlines()[0]
+        bazel_command.append(
+            f"--action_env=XYZ_PROTOCOL_COMPILER_VERSION={compiler_version}"
+        )
+        bazel_command.append(
+            f"--repo_env=XYZ_PROTOCOL_COMPILER_VERSION={compiler_version}"
+        )
 
         libstdcxx_directory = find_libstdcxx_directory(cxx_target_path)
         if libstdcxx_directory:

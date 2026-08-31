@@ -15,6 +15,7 @@ on:
       - "**/*.cmake"
       - "scripts/cmake.py"
       - "scripts/cmake.sh"
+      - "scripts/compiler_discovery.py"
   # No `paths:` filter here. The `GCC trunk` build jobs are required status
   # checks for merging to main, and a workflow that is filtered out by
   # `paths:` never reports a check, which leaves unrelated pull requests
@@ -53,6 +54,7 @@ jobs:
               - "**/*.cmake"
               - "scripts/cmake.py"
               - "scripts/cmake.sh"
+              - "scripts/compiler_discovery.py"
 
   build:
     needs: detect-changes
