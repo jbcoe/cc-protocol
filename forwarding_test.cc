@@ -37,6 +37,7 @@ struct CopyCounter {
 
   CopyCounter& operator=(const CopyCounter&) = default;
   CopyCounter& operator=(CopyCounter&&) = default;
+  ~CopyCounter() = default;
 
   static void reset() {
     copies = 0;
@@ -207,7 +208,11 @@ TEST(ReflectionProtocolTest, ByValueParameterFromLvalueIsCopiedOnce) {
   };
 
   struct Conforming {
+    // NOLINTBEGIN(performance-unnecessary-value-param): the by-value
+    // parameter is what the test measures.
     int consume(CopyCounter counter) { return counter.value; }
+
+    // NOLINTEND(performance-unnecessary-value-param)
   };
 
   protocol<Interface> p(Conforming{});
@@ -224,7 +229,11 @@ TEST(ReflectionProtocolViewTest, ByValueParameterFromLvalueIsCopiedOnce) {
   };
 
   struct Conforming {
+    // NOLINTBEGIN(performance-unnecessary-value-param): the by-value
+    // parameter is what the test measures.
     int consume(CopyCounter counter) { return counter.value; }
+
+    // NOLINTEND(performance-unnecessary-value-param)
   };
 
   Conforming implementation;
@@ -242,7 +251,11 @@ TEST(ReflectionProtocolTest, ByValueParameterFromRvalueIsNotCopied) {
   };
 
   struct Conforming {
+    // NOLINTBEGIN(performance-unnecessary-value-param): the by-value
+    // parameter is what the test measures.
     int consume(CopyCounter counter) { return counter.value; }
+
+    // NOLINTEND(performance-unnecessary-value-param)
   };
 
   protocol<Interface> p(Conforming{});
@@ -258,7 +271,11 @@ TEST(ReflectionProtocolViewTest, ByValueParameterFromRvalueIsNotCopied) {
   };
 
   struct Conforming {
+    // NOLINTBEGIN(performance-unnecessary-value-param): the by-value
+    // parameter is what the test measures.
     int consume(CopyCounter counter) { return counter.value; }
+
+    // NOLINTEND(performance-unnecessary-value-param)
   };
 
   Conforming implementation;
@@ -621,7 +638,10 @@ TEST(ReflectionProtocolTest, ImplementationSeesItsOwnThis) {
 
   EXPECT_EQ(p.self(), p.self());
 
+  // NOLINTBEGIN(performance-unnecessary-copy-initialization): the test
+  // exercises copy construction on purpose.
   protocol<Interface> copy(p);
+  // NOLINTEND(performance-unnecessary-copy-initialization)
   EXPECT_NE(copy.self(), p.self());
 }
 

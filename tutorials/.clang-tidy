@@ -1,0 +1,26 @@
+# The tutorials deliberately show the non-protocol baseline: classic
+# inheritance hierarchies, hand-written vtables with raw casts, and manual
+# allocation. Checks that object to those techniques are disabled here only;
+# everything else inherits from the repository configuration.
+#
+# - clang-analyzer-deadcode.DeadStores: fires on constexpr variables whose
+#   only uses are in static_asserts, the shape of most reflection tutorials.
+# - performance-enum-size: the tutorial enums illustrate reflection, not
+#   storage tuning; an explicit base type would be noise.
+InheritParentConfig: true
+Checks: '
+    -cppcoreguidelines-virtual-class-destructor,
+    -bugprone-derived-method-shadowing-base-method,
+    -cppcoreguidelines-pro-type-member-init,
+    -hicpp-member-init,
+    -cppcoreguidelines-non-private-member-variables-in-classes,
+    -misc-non-private-member-variables-in-classes,
+    -misc-multiple-inheritance,
+    -cppcoreguidelines-pro-type-reinterpret-cast,
+    -cppcoreguidelines-pro-type-static-cast-downcast,
+    -cppcoreguidelines-owning-memory,
+    -misc-unused-parameters,
+    -clang-analyzer-optin.cplusplus.UninitializedObject,
+    -clang-analyzer-deadcode.DeadStores,
+    -performance-enum-size
+'

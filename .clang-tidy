@@ -1,0 +1,92 @@
+# Checks are enabled with '*' and then opted out. Rationale for the less
+# obvious exclusions at the end of the list:
+#
+# - cppcoreguidelines-avoid-magic-numbers: alias of readability-magic-numbers,
+#   which is already disabled.
+# - readability-convert-member-functions-to-static: interface structs and
+#   conforming types must have non-static member functions; that is the whole
+#   point of structural subtyping.
+# - google-explicit-constructor, hicpp-explicit-conversions: implicit
+#   construction of protocol from a conforming type is by design.
+# - misc-const-correctness, modernize-use-nodiscard: style churn with no
+#   bug-finding value in a reference implementation.
+# - llvm-prefer-static-over-anonymous-namespace, misc-use-internal-linkage:
+#   conflict with Google style, which prefers anonymous namespaces.
+# - readability-function-cognitive-complexity: fires only on test bodies.
+# - clang-analyzer-cplusplus.Move: duplicates bugprone-use-after-move but
+#   reports inside the generated callee rather than at the call site, so it
+#   cannot be suppressed where tests deliberately exercise moved-from objects.
+# - cppcoreguidelines-pro-bounds-avoid-unchecked-container-access: added in
+#   clang-tidy 22; fires on every operator[] in tests.
+# - bugprone-chained-comparison: XYZ_CONSTEVAL_CHECK captures its operand as
+#   `value_capturer{} <= (expression)`, so every check of a comparison is a
+#   chained comparison by construction.
+# - boost-use-ranges: suggests Boost algorithms; the project does not use
+#   Boost.
+Checks: '
+    *,
+    -abseil-*,
+    -altera-*,
+    -cert-dcl37-c,
+    -cert-dcl21-cpp,
+    -cert-dcl50-cpp,
+    -cert-dcl51-cpp,
+    -cert-dcl58-cpp,
+    -cppcoreguidelines-avoid-const-or-ref-data-members,
+    -cppcoreguidelines-avoid-do-while,
+    -cppcoreguidelines-pro-bounds-constant-array-index,
+    -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+    -cppcoreguidelines-pro-type-vararg,
+    -llvm-header-guard,
+    -llvm-include-order,
+    -llvm-namespace-comment,
+    -llvmlibc-*,
+    -fuchsia-default-arguments-calls,
+    -fuchsia-default-arguments-declarations,
+    -fuchsia-multiple-inheritance,
+    -fuchsia-overloaded-operator,
+    -fuchsia-statically-constructed-objects,
+    -fuchsia-trailing-return,
+    -google-readability-namespace-comments,
+    -google-readability-todo,
+    -google-runtime-int,
+    -hicpp-signed-bitwise,
+    -hicpp-vararg,
+    -misc-include-cleaner,
+    -modernize-use-trailing-return-type,
+    -modernize-use-designated-initializers,
+    -portability-avoid-pragma-once,
+    -readability-identifier-length,
+    -readability-isolate-declaration,
+    -readability-magic-numbers,
+    -readability-static-accessed-through-instance,
+    -*-braces-around-statements,
+    -*-named-parameter,
+    -*-uppercase-literal-suffix,
+    -misc-no-recursion,
+    -cppcoreguidelines-avoid-magic-numbers,
+    -readability-convert-member-functions-to-static,
+    -google-explicit-constructor,
+    -hicpp-explicit-conversions,
+    -misc-const-correctness,
+    -modernize-use-nodiscard,
+    -llvm-prefer-static-over-anonymous-namespace,
+    -misc-use-internal-linkage,
+    -readability-function-cognitive-complexity,
+    -clang-analyzer-cplusplus.Move,
+    -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+    -bugprone-chained-comparison,
+    -boost-use-ranges
+'
+CheckOptions:
+    - key: hicpp-signed-bitwise.IgnorePositiveIntegerLiterals
+      value: true
+    - key: misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
+      value: true
+# The run is kept at zero findings; anything new fails the build so that it is
+# either fixed or explicitly suppressed with a reason. Run locally with
+# `./scripts/cmake.sh --debug --clang-tidy`.
+WarningsAsErrors: '*'
+# Exclude third-party dependencies fetched by CMake.
+HeaderFilterRegex: '^(?!.*_deps).*'
+FormatStyle: file

@@ -236,7 +236,7 @@ consteval std::string decimal(std::size_t value) {
   std::array<char, std::numeric_limits<std::size_t>::digits10 + 1> buffer;
   auto result =
       std::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
-  return std::string(buffer.data(), result.ptr);
+  return {buffer.data(), result.ptr};
 }
 
 // Length-prefixed with no separator, modelled on the Itanium ABI.
@@ -277,12 +277,15 @@ consteval std::string mangle_scope_component(std::meta::info scope) {
 consteval std::string mangle_qualified_name(std::meta::info type) {
   std::vector<std::string> atoms;
   std::meta::info scope = dealias(type);
+  // NOLINTBEGIN(readability-simplify-boolean-expr): the negated conjunction
+  // spells out the loop's stopping point, the unnamed global namespace.
   while (!(is_namespace(scope) && !has_identifier(scope))) {
+    // NOLINTEND(readability-simplify-boolean-expr)
     atoms.push_back(mangle_scope_component(scope));
     scope = dealias(parent_of(scope));
   }
   std::string joined;
-  for (auto it = atoms.rbegin(); it != atoms.rend(); ++it) joined += *it;
+  for (const auto& atom : std::ranges::reverse_view(atoms)) joined += atom;
   return atoms.size() > 1 ? "N" + joined + "E" : joined;
 }
 
@@ -368,7 +371,7 @@ template <std::meta::info Type>
 constexpr auto member_functions_of = std::define_static_array(
     members_of(Type, std::meta::access_context::unprivileged()) |
     filter(is_function) | filter(std::not_fn(is_static_member)) |
-    filter([](std::meta::info member) consteval {
+    filter([](std::meta::info member) consteval noexcept {
       return (has_identifier(member) || is_operator_function(member)) &&
              !is_special_member_function(member);
     }));
@@ -401,10 +404,14 @@ TEST(TutorialsVtables, NameMangling) {
     XYZ_CONSTEVAL_CHECK(mangle(m_fns[10]) == "fn_NK5noiseERKi");
     // noise(std::size_t) const
     XYZ_CONSTEVAL_CHECK(mangle(m_fns[11]) == "fn_NK5noiseEm");
-    // noise(std::string_view) const
+// noise(std::string_view) const. The expected spelling is libstdc++'s:
+// libc++ wraps std::basic_string_view in the inline namespace __1, which
+// mangles differently.
+#ifdef __GLIBCXX__
     XYZ_CONSTEVAL_CHECK(
         mangle(m_fns[12]) ==
         "fn_NK5noiseEN3std17basic_string_viewIcN3std11char_traitsIcEEEE");
+#endif  // __GLIBCXX__
     // growl() &
     XYZ_CONSTEVAL_CHECK(mangle(m_fns[13]) == "fn_NR5growlE");
     // growl() &&
@@ -446,7 +453,10 @@ using const_fn_ptr_t = R (*)(const void*, Args...);
 template <std::meta::info Interface>
 consteval std::vector<std::meta::info> mangled_vtable_specs() {
   std::vector<std::meta::info> specs;
+  // NOLINTBEGIN(bugprone-reserved-identifier): fires on the compiler's own
+  // internal variables in the expansion statement's desugaring.
   template for (constexpr std::meta::info fn : member_functions_of<Interface>) {
+    // NOLINTEND(bugprone-reserved-identifier)
     std::vector<std::meta::info> fn_args{dealias(return_type_of(fn))};
     for (std::meta::info param : parameters_of(fn)) {
       fn_args.push_back(dealias(type_of(param)));

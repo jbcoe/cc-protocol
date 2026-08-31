@@ -46,6 +46,81 @@ On pull requests that touch no C++, CMake, or build-script sources, the build
 and sanitizer jobs are skipped by a change-detection job, which counts as
 passing.
 
+### Static Analysis
+
+The "Clang Tidy" workflow runs clang-tidy on every translation unit and fails
+on any finding (`WarningsAsErrors: '*'` in `.clang-tidy`). It runs nightly, on
+pushes to `main`, and on pull requests that touch C++ or CMake sources; it is
+not a required status check.
+
+Released clang-tidy versions cannot parse the reflection sources, so the
+workflow uses a clang-tidy built from the
+[clang-p2996](https://github.com/bloomberg/clang-p2996) fork, cached between
+runs and rebuilt when `.github/clang-p2996-commit` changes. To reproduce
+locally, build the fork's `clang`, `clang-tidy`, and `libc++`, then:
+
+```bash
+XYZ_PROTOCOL_CLANG_P2996_DIRECTORY=<toolchain root> ./scripts/cmake.sh --debug --clang-tidy
+```
+
+The same run is available as an opt-in pre-commit hook. It is a full build, so
+it is not part of the default commit-time hooks:
+
+```bash
+uv run pre-commit run --hook-stage manual clang-tidy
+```
+
+The fork is based on LLVM 21; the check set differs between clang-tidy
+releases, so a different version may report different findings. CMake warns at
+configure time when the version it found does not match
+`ClangTidy_EXPECTED_MAJOR_VERSION` in `cmake/modules/FindClangTidy.cmake`.
+
+Fix genuine findings. Suppress false positives at the site with a `NOLINT`
+comment that names the check and gives a reason, or, for a check that does not
+apply to a whole directory, in that directory's `.clang-tidy` (see
+`tutorials/.clang-tidy`). Checks disabled for the whole repository are listed
+with their rationale at the top of `.clang-tidy`.
+
+### Measuring Test Coverage
+
+Test coverage is measured in two halves, because much of `protocol.hh` is
+`consteval` code that executes inside the compiler where runtime coverage
+instrumentation cannot see it.
+
+Runtime coverage uses GCC's gcov:
+
+```bash
+./scripts/cmake.sh test --coverage
+```
+
+This builds the Debug preset with `--coverage`, runs the tests, prints a
+gcovr summary and writes an LCOV trace to `<build-dir>/coverage.info`. gcov
+marks consteval code as non-executable, so it neither counts towards nor
+against these numbers. The usual workaround for `constexpr` code - running
+every test at both compile time and runtime so that runtime instrumentation
+observes it - does not work here: immediate functions cannot execute at
+runtime, and calling a P2996 metafunction makes the caller immediate too.
+
+Consteval coverage is instead measured by compile-time trap probing:
+
+```bash
+./scripts/cmake.sh build          # provides the googletest headers
+./scripts/consteval_coverage.sh
+```
+
+The tool instruments a copy of `protocol.hh` with trap calls at every block
+entry and `return`/`throw` statement in consteval code, then recompiles the
+protocol-instantiating test translation units once per trap with
+`-fsyntax-only`, arming one trap at a time; a compile failure proves the
+test suite evaluated that line, because a constant evaluation has no other
+observable side effect. The design and its limitations are documented in
+`scripts/consteval_coverage.py`. Pass `--lcov-output <path>` for an LCOV
+trace that merges with the runtime one.
+
+The "Coverage" workflow runs both measurements and uploads them to Codecov
+under the `runtime` and `consteval` flags; it is not a required status
+check.
+
 ## Core Concepts
 
 ### Structural Subtyping

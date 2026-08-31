@@ -59,10 +59,10 @@ class Tester {
   [[maybe_unused]] std::array<std::byte, sizeof(TestProtocol)> padding_;
 
  public:
-  Tester(int value) noexcept : val_(value) {}
+  Tester(int value) noexcept : val_(value), padding_{} {}
 
   // Just so we can exercise protocol's in-place init list constructor.
-  Tester(std::initializer_list<int>) noexcept {}
+  Tester(std::initializer_list<int>) noexcept : val_(0), padding_{} {}
 
   int value() const noexcept { return val_; }
 };
@@ -123,7 +123,10 @@ TEST(ProtocolTest, CopyConstruction) {
   {
     TestAlloc alloc{&allocs, &deallocs};
     TestProtocol p1{std::allocator_arg, alloc, Tester(25)};
+    // NOLINTBEGIN(performance-unnecessary-copy-initialization): the test
+    // exercises copy construction on purpose.
     xyz::protocol p2{p1};
+    // NOLINTEND(performance-unnecessary-copy-initialization)
     EXPECT_EQ(allocs, 2);  // Once for p1, and once for p2.
     EXPECT_EQ(deallocs, 0);
   }
@@ -231,6 +234,36 @@ TEST(ProtocolTest, CopyAssignmentUnequal) {
   }
   EXPECT_EQ(deallocs1, 2);
   EXPECT_EQ(deallocs2, 1);
+}
+
+TEST(ProtocolTest, ValuelessSpecialMembersAreNoOps) {
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
+
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
+
+  TestAlloc alloc1{&allocs1, &deallocs1};
+  TestAlloc alloc2{&allocs2, &deallocs2};
+
+  TestProtocol source{std::allocator_arg, alloc1, Tester(1)};
+  TestProtocol sink{std::move(source)};
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  ASSERT_TRUE(source.valueless_after_move());
+
+  // Copying a valueless protocol goes through the null vtable's copy entry
+  // and allocates nothing.
+  TestProtocol copy{source};
+  EXPECT_TRUE(copy.valueless_after_move());
+
+  // Moving a valueless protocol to an unequal allocator takes the slow path
+  // through the null vtable's move and destroy entries.
+  TestProtocol moved{std::allocator_arg, alloc2, std::move(source)};
+  EXPECT_TRUE(moved.valueless_after_move());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+  EXPECT_EQ(allocs1, 1);
+  EXPECT_EQ(allocs2, 0);
 }
 
 TEST(ProtocolTest, MoveConstruction) {
@@ -677,10 +710,15 @@ struct ThrowingAllocator : xyz::TrackingAllocator<T> {
     using other = ThrowingAllocator<Other>;
   };
 
+  // NOLINTBEGIN(readability-non-const-parameter): the TrackingAllocator base
+  // stores the counters as pointers to non-const and increments through
+  // them; the check cannot see that in this uninstantiated template.
   ThrowingAllocator(unsigned* allocs, unsigned* deallocs,
                     const bool* should_throw)
       : xyz::TrackingAllocator<T>(allocs, deallocs),
         should_throw_(should_throw) {}
+
+  // NOLINTEND(readability-non-const-parameter)
 
   T* allocate(std::size_t count) {
     if (*should_throw_) {
@@ -711,54 +749,92 @@ TEST(ProtocolTest, ConstructionException) {
   EXPECT_EQ(deallocs, 0);
 }
 
-// TEST(ProtocolTest, CopyConstructionException) {
-//   unsigned allocs = 0;
-//   unsigned deallocs = 0;
+// A conforming type whose copy constructor throws, so that in-place
+// construction fails after the owning allocation succeeded. The move
+// constructor is defaulted rather than deleted or throwing: the vtable's
+// move entry requires the stored type to be constructible from an rvalue,
+// and move constructors must not throw.
+class ThrowingCopyTester {
+  int val_{0};
 
-//   {
-//     bool should_throw{false};
+ public:
+  explicit ThrowingCopyTester(int value) noexcept : val_(value) {}
 
-//     ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
-//     ThrowingProtocol p1{std::allocator_arg, alloc, Tester(10)};
-//     // p1 was allocated safely.
-//     EXPECT_EQ(allocs, 1);
+  ThrowingCopyTester(const ThrowingCopyTester&) { throw TestException{}; }
 
-//     should_throw = true;
-//     // We attempt to copy p1, and now throw during allocation.
-//     EXPECT_THROW(ThrowingProtocol{p1}, TestException);
-//     // p1 should be unchanged.
-//     EXPECT_EQ(p1.value(), 10);
-//   }
+  ThrowingCopyTester(ThrowingCopyTester&&) noexcept = default;
+  ThrowingCopyTester& operator=(const ThrowingCopyTester&) = delete;
+  ThrowingCopyTester& operator=(ThrowingCopyTester&&) = delete;
+  ~ThrowingCopyTester() = default;
 
-//   EXPECT_EQ(deallocs, 1);
-// }
+  int value() const noexcept { return val_; }
+};
 
-// TEST(ProtocolTest, CopyAssignmentException) {
-//   unsigned allocs = 0;
-//   unsigned deallocs = 0;
+TEST(ProtocolTest, ValueConstructionExceptionReleasesTheAllocation) {
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+  bool should_throw{false};
 
-//   {
-//     bool should_throw{false};
+  ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
+  ThrowingCopyTester original(5);
 
-//     // p1 and p2 are both constructed without issue.
-//     ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
-//     ThrowingProtocol p1{std::allocator_arg, alloc, Tester(10)};
-//     ThrowingProtocol p2{std::allocator_arg, alloc, Tester(20)};
+  // The allocation succeeds, then copying `original` into it throws;
+  // protocol's construction path must release the allocation and rethrow.
+  EXPECT_THROW((xyz::protocol<IntLike, ThrowingAlloc>{std::allocator_arg, alloc,
+                                                      original}),
+               TestException);
+  EXPECT_EQ(allocs, 1);
+  EXPECT_EQ(deallocs, 1);
+}
 
-//     EXPECT_EQ(allocs, 2);
-//     EXPECT_EQ(deallocs, 0);
+TEST(ProtocolTest, CopyConstructionException) {
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
 
-//     // Copy assignment triggers an allocation and throws an exception.
-//     should_throw = true;
-//     EXPECT_THROW(p2 = p1, TestException);
+  {
+    bool should_throw{false};
 
-//     // Both values are left in their original states. This is the strong
-//     // exception guarantee.
-//     EXPECT_EQ(p1.value(), 10);
-//     EXPECT_EQ(p2.value(), 20);
-//   }
-//   EXPECT_EQ(deallocs, 2);
-// }
+    ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
+    ThrowingProtocol p1{std::allocator_arg, alloc, Tester(10)};
+    // p1 was allocated safely.
+    EXPECT_EQ(allocs, 1);
+
+    should_throw = true;
+    // We attempt to copy p1, and now throw during allocation.
+    EXPECT_THROW(ThrowingProtocol{p1}, TestException);
+    // p1 should be unchanged.
+    EXPECT_EQ(p1.value(), 10);
+  }
+
+  EXPECT_EQ(deallocs, 1);
+}
+
+TEST(ProtocolTest, CopyAssignmentException) {
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+
+  {
+    bool should_throw{false};
+
+    // p1 and p2 are both constructed without issue.
+    ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
+    ThrowingProtocol p1{std::allocator_arg, alloc, Tester(10)};
+    ThrowingProtocol p2{std::allocator_arg, alloc, Tester(20)};
+
+    EXPECT_EQ(allocs, 2);
+    EXPECT_EQ(deallocs, 0);
+
+    // Copy assignment triggers an allocation and throws an exception.
+    should_throw = true;
+    EXPECT_THROW(p2 = p1, TestException);
+
+    // Both values are left in their original states. This is the strong
+    // exception guarantee.
+    EXPECT_EQ(p1.value(), 10);
+    EXPECT_EQ(p2.value(), 20);
+  }
+  EXPECT_EQ(deallocs, 2);
+}
 
 TEST(ProtocolTest, EqualMoveConstructionNoException) {
   unsigned allocs = 0;
@@ -778,40 +854,42 @@ TEST(ProtocolTest, EqualMoveConstructionNoException) {
   EXPECT_EQ(deallocs, 1);
 }
 
-// TEST(ProtocolTest, UnequalMoveConstructionException) {
-//   unsigned allocs1 = 0;
-//   unsigned deallocs1 = 0;
+TEST(ProtocolTest, UnequalMoveConstructionException) {
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-//   unsigned allocs2 = 0;
-//   unsigned deallocs2 = 0;
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
 
-//   {
-//     bool should_throw{false};
+  {
+    bool should_throw{false};
 
-//     ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw};
-//     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
+    ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw};
+    ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
 
-//     should_throw = true;
-//     ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw};
+    should_throw = true;
+    ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw};
 
-//     // We now construct with an alloc2, which is not equal to alloc1. This
-//     // requires us to allocate space and then move from p1, which triggers an
-//     // exception.
-//     EXPECT_THROW((ThrowingProtocol{std::allocator_arg, alloc2,
-//     std::move(p1)}),
-//                  TestException);
+    // We now construct with an alloc2, which is not equal to alloc1. This
+    // requires us to allocate space and then move from p1, which triggers an
+    // exception.
+    EXPECT_THROW((ThrowingProtocol{std::allocator_arg, alloc2, std::move(p1)}),
+                 TestException);
 
-//     EXPECT_EQ(allocs1, 1);
-//     EXPECT_EQ(deallocs1, 0);
-//     EXPECT_EQ(allocs2, 0);
+    EXPECT_EQ(allocs1, 1);
+    EXPECT_EQ(deallocs1, 0);
+    EXPECT_EQ(allocs2, 0);
 
-//     // p1 should be unmodified.
-//     ASSERT_FALSE(p1.valueless_after_move());
-//     EXPECT_EQ(p1.value(), 25);
-//   }
+    // p1 should be unmodified.
+    // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+    // move never happened because the allocation threw first.
+    ASSERT_FALSE(p1.valueless_after_move());
+    EXPECT_EQ(p1.value(), 25);
+    // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+  }
 
-//   EXPECT_EQ(deallocs1, 1);
-// }
+  EXPECT_EQ(deallocs1, 1);
+}
 
 TEST(ProtocolTest, EqualMoveAssignmentNoException) {
   unsigned allocs = 0;
@@ -836,42 +914,110 @@ TEST(ProtocolTest, EqualMoveAssignmentNoException) {
   EXPECT_EQ(deallocs, 2);
 }
 
-// TEST(ProtocolTest, UnequalMoveAssignmentException) {
-//   unsigned allocs1 = 0;
-//   unsigned deallocs1 = 0;
+TEST(ProtocolTest, UnequalMoveAssignmentException) {
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
 
-//   unsigned allocs2 = 0;
-//   unsigned deallocs2 = 0;
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
 
-//   {
-//     bool should_throw1{false};
-//     bool should_throw2{false};
+  {
+    bool should_throw1{false};
+    bool should_throw2{false};
 
-//     ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw1};
-//     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
+    ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw1};
+    ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
 
-//     ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw2};
-//     ThrowingProtocol p2{std::allocator_arg, alloc2, Tester(55)};
+    ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw2};
+    ThrowingProtocol p2{std::allocator_arg, alloc2, Tester(55)};
 
-//     EXPECT_EQ(allocs1, 1);
-//     EXPECT_EQ(allocs2, 1);
+    EXPECT_EQ(allocs1, 1);
+    EXPECT_EQ(allocs2, 1);
 
-//     // Move assignment with unequal allocators requires new allocation.
-//     // This results in an exception being thrown.
-//     should_throw1 = true;
-//     EXPECT_THROW(p1 = std::move(p2), TestException);
-//     EXPECT_EQ(deallocs2, 0);
+    // Move assignment with unequal allocators requires new allocation.
+    // This results in an exception being thrown.
+    should_throw1 = true;
+    EXPECT_THROW(p1 = std::move(p2), TestException);
+    EXPECT_EQ(deallocs2, 0);
 
-//     // p1 should be valid after the exception is caught.
-//     EXPECT_EQ(p1.value(), 25);
+    // p1 should be valid after the exception is caught.
+    EXPECT_EQ(p1.value(), 25);
 
-//     // p2 should not have been destroyed.
-//     EXPECT_FALSE(p2.valueless_after_move());
-//     EXPECT_EQ(p2.value(), 55);
-//   }
+    // p2 should not have been destroyed.
+    // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+    // move never happened because the allocation threw first.
+    EXPECT_FALSE(p2.valueless_after_move());
+    EXPECT_EQ(p2.value(), 55);
+    // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+  }
 
-//   EXPECT_EQ(deallocs1, 1);
-//   EXPECT_EQ(deallocs2, 1);
-// }
+  EXPECT_EQ(deallocs1, 1);
+  EXPECT_EQ(deallocs2, 1);
+}
+
+TEST(ProtocolTest, UnequalMoveConstruction) {
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
+
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
+
+  bool should_throw{false};
+
+  {
+    ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw};
+    ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
+
+    // Move construction with an unequal allocator cannot steal the pointer:
+    // it allocates with the new allocator, moves the object across and
+    // releases the source's storage.
+    ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw};
+    ThrowingProtocol p2{std::allocator_arg, alloc2, std::move(p1)};
+
+    EXPECT_EQ(allocs2, 1);
+    EXPECT_EQ(deallocs1, 1);
+    // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+    // test exercises the moved-from state on purpose.
+    EXPECT_TRUE(p1.valueless_after_move());
+    // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+    EXPECT_EQ(p2.value(), 25);
+  }
+
+  EXPECT_EQ(deallocs2, 1);
+}
+
+TEST(ProtocolTest, UnequalMoveAssignment) {
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
+
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
+
+  bool should_throw{false};
+
+  {
+    ThrowingAlloc alloc1{&allocs1, &deallocs1, &should_throw};
+    ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
+
+    ThrowingAlloc alloc2{&allocs2, &deallocs2, &should_throw};
+    ThrowingProtocol p2{std::allocator_arg, alloc2, Tester(55)};
+
+    // Move assignment with unequal, non-propagating allocators takes the
+    // slow path: allocate with p1's allocator, move the object across and
+    // release both old objects.
+    p1 = std::move(p2);
+
+    EXPECT_EQ(allocs1, 2);
+    EXPECT_EQ(deallocs1, 1);
+    EXPECT_EQ(deallocs2, 1);
+    EXPECT_EQ(p1.value(), 55);
+    // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+    // test exercises the moved-from state on purpose.
+    EXPECT_TRUE(p2.valueless_after_move());
+    // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+  }
+
+  EXPECT_EQ(deallocs1, 2);
+}
 
 }  // namespace
