@@ -2229,4 +2229,17 @@ TEST(ReflectionProtocolTest, ConstValuelessCall) {
 
 #endif
 
+TEST(ReflectionProtocolTest, VolatileConformingType) {
+  struct Interface {
+    int foo();
+  };
+
+  struct Conforming {
+    int foo() volatile { return 10; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.foo(), 10);
+}
+
 }  // namespace
