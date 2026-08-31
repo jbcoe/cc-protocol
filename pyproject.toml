@@ -36,6 +36,11 @@ unfixable = []
 force-single-line = true
 
 [tool.pyrefly]
+# scripts/*.py are run directly (e.g. `uv run scripts/bazel.py`), which puts
+# scripts/ itself on sys.path, so compiler_discovery.py is imported as a
+# top-level module rather than via scripts.compiler_discovery.
+search-path = ["scripts"]
+
 [tool.pyrefly.errors]
 unannotated-parameter = "error"
 unannotated-return = "error"
