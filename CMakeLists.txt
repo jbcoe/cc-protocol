@@ -27,6 +27,7 @@ option(ENABLE_SANITIZERS
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
 option(ENABLE_UBSAN "Enable Undefined Behaviour Sanitizer" OFF)
 option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
+option(ENABLE_COVERAGE "Enable gcov coverage instrumentation" OFF)
 
 # The implementation requires C++26 reflection (P2996). GCC only enables it
 # with -freflection, which it accepts solely alongside -std=c++26, so every
@@ -100,6 +101,13 @@ endif()
 
 if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN)
   set(ENABLE_SANITIZERS ON)
+endif()
+
+# Runtime coverage only: consteval code never reaches the gcov
+# instrumentation, see scripts/consteval_coverage.py.
+if(ENABLE_COVERAGE)
+  add_compile_options(--coverage)
+  add_link_options(--coverage)
 endif()
 
 # Include necessary submodules

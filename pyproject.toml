@@ -7,6 +7,7 @@ requires-python = "~=3.12.0"
 dependencies = [
     "clang-format>=22.1.4",
     "cmake-format>=0.6.13",
+    "gcovr>=8.6",
     "pre-commit>=4.2.0",
     "pyrefly>=0.62.0",
     "ruff>=0.15.7",
