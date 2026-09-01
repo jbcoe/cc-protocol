@@ -2463,11 +2463,4 @@ TEST(ReflectionProtocolViewTest, ViewOfProtocolPassedByValue) {
   EXPECT_EQ(read(protocol_view<const Interface>(p)), 5);
 }
 
-// ---------------------------------------------------------------------------
-// Views of protocols: a `protocol_view<I>` or `protocol_view<const I>` views
-// the object a `protocol<I>` owns, sharing its vtable; a
-// `protocol_view<const I>` can also be constructed from a
-// `protocol_view<I>`.
-// ---------------------------------------------------------------------------
-
 }  // namespace
