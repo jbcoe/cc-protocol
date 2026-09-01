@@ -126,9 +126,8 @@ TEST(ReflectionProtocolTest, CheckSpecialMembers) {
 
 TEST(ReflectionProtocolTest,
      CheckSpecialMembersForStructWithDeletedSpecialMembers) {
-  // `protocol` is not default-constructible and cannot be copied, or
-  // assigned to if the interface type cannot be copied.
-  // `protocol` can be unconditionally move constructed and move assigned.
+  // `protocol` is not default-constructible and is not move or
+  // copy constructible or assignable.
   struct D {
     D() = delete;
     D(const D&) = delete;
@@ -140,9 +139,9 @@ TEST(ReflectionProtocolTest,
 
   static_assert(!std::is_default_constructible_v<protocol<D>>);
   static_assert(!std::is_copy_constructible_v<protocol<D>>);
-  static_assert(std::is_move_constructible_v<protocol<D>>);
+  static_assert(!std::is_move_constructible_v<protocol<D>>);
   static_assert(!std::is_copy_assignable_v<protocol<D>>);
-  static_assert(std::is_move_assignable_v<protocol<D>>);
+  static_assert(!std::is_move_assignable_v<protocol<D>>);
 }
 
 TEST(ReflectionProtocolViewTest, IsTriviallyCopyable) {

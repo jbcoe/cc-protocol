@@ -673,6 +673,10 @@ template <typename Interface, typename Candidate>
 inline constexpr bool is_protocol_conformant_v =
     is_protocol_conformant<Interface, Candidate>();
 
+template <typename Interface, typename Candidate>
+inline constexpr bool has_conformant_special_members_v =
+  (!std::is_copy_constructible_v<Interface> || std::is_copy_constructible_v<Candidate>) &&
+  (!std::is_move_constructible_v<Interface> || std::is_move_constructible_v<Candidate>);
 // ---------------------------------------------------------------------------
 // protocol<I, Allocator>
 //
@@ -758,8 +762,14 @@ class protocol
       }
     };
 
+    // Move construction and assignment should only reach this
+    // if the interface is move constructible.
     result.move = +[](const Alloc& alloc, void* data) -> void* {
-      return create<TNorm>(alloc, std::move(*static_cast<TNorm*>(data)));
+      if constexpr (std::is_move_constructible_v<I>) {
+        return create<TNorm>(alloc, std::move(*static_cast<TNorm*>(data)));
+      } else {
+        std::unreachable();
+      }
     };
 
     return result;
@@ -810,13 +820,14 @@ class protocol
   template <typename T, typename TNorm = std::decay_t<T>>
     requires(!std::same_as<TNorm, protocol> &&
              is_protocol_conformant_v<I, TNorm> &&
+             has_conformant_special_members_v<I, TNorm> &&
              std::default_initializable<Alloc>)
   constexpr explicit protocol(T&& obj)
       : protocol(std::allocator_arg, Alloc{}, std::forward<T>(obj)) {}
 
   // Allocator-aware construction from conforming T.
   template <typename T, typename TNorm = std::decay_t<T>>
-    requires(!std::same_as<TNorm, protocol> &&
+    requires(!std::same_as<TNorm, protocol> && has_conformant_special_members_v<I, TNorm> &&
              is_protocol_conformant_v<I, TNorm>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, T&& obj)
       : alloc_(a),
@@ -826,7 +837,7 @@ class protocol
   // In-place construction from conforming T.
   template <typename T, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
-             is_protocol_conformant_v<I, T> &&
+             is_protocol_conformant_v<I, T> && has_conformant_special_members_v<I, T> &&
              std::default_initializable<Alloc>)
   constexpr explicit protocol(std::in_place_type_t<T>, Args&&... args)
       : protocol(std::allocator_arg, Alloc{}, std::in_place_type<T>,
@@ -835,7 +846,7 @@ class protocol
   // Allocator-aware in-place construction from conforming T.
   template <typename T, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
-             is_protocol_conformant_v<I, T>)
+             is_protocol_conformant_v<I, T> && has_conformant_special_members_v<I, T>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
                               std::in_place_type_t<T>, Args&&... args)
       : alloc_(a),
@@ -846,7 +857,7 @@ class protocol
   // deduce initializer lists.
   template <typename T, typename U, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
-             is_protocol_conformant_v<I, T> &&
+             is_protocol_conformant_v<I, T> && has_conformant_special_members_v<I, T> &&
              std::default_initializable<Alloc>)
   constexpr explicit protocol(std::in_place_type_t<T>,
                               std::initializer_list<U> il, Args&&... args)
@@ -856,7 +867,7 @@ class protocol
   // Allocator-aware in-place init-list construction from conforming T.
   template <typename T, typename U, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
-             is_protocol_conformant_v<I, T>)
+             is_protocol_conformant_v<I, T> && has_conformant_special_members_v<I, T>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
                               std::in_place_type_t<T>,
                               std::initializer_list<U> il, Args&&... args)
@@ -883,11 +894,13 @@ class protocol
 
   // Move construction.
   constexpr protocol(protocol&& other) noexcept
+    requires std::is_move_constructible_v<I>
       : protocol(std::allocator_arg, other.alloc_, std::move(other)) {}
 
   // Allocator-aware move construction.
   constexpr protocol(std::allocator_arg_t, const Alloc& a,
                      protocol&& other) noexcept(always_equal)
+    requires std::is_move_constructible_v<I>
       : alloc_(a), vtable_(other.vtable_) {
     if (always_equal || alloc_ == other.alloc_) {
       // Fast path, we can just do a pointer swap.
@@ -929,7 +942,8 @@ class protocol
 
   // Move assignment.
   constexpr protocol& operator=(protocol&& other) noexcept(always_equal ||
-                                                           pocma) {
+                                                           pocma)
+    requires std::is_move_constructible_v<I> {
     if (this == &other) {
       return *this;
     }
@@ -980,7 +994,7 @@ class protocol
 
   constexpr const Alloc& get_allocator() const { return alloc_; }
 
-  constexpr bool valueless_after_move() const { return object_ == nullptr; }
+  constexpr bool valueless_after_move() const requires std::is_move_constructible_v<I> { return object_ == nullptr; }
 };
 
 // ---------------------------------------------------------------------------
