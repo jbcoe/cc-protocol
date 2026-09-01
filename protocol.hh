@@ -82,9 +82,16 @@ namespace detail {
 // This concept will also match an unnamed class type with a single
 // `operator()`.
 // TODO(jbcoe): Refine this concept to match only lambdas.
+//
+// Base classes are excluded: a closure type has none, and a class template
+// specialization also has no identifier, so without this `protocol<I>` and
+// `protocol_view<I>` would match when `I` has a single call operator —
+// their `operator()` is a wrapper-base member brought in by a
+// using-declaration, whose reflection clang-p2996 rejects.
 template <typename T>
 concept is_maybe_lambda =
     is_class_type(dealias(^^T)) && !has_identifier(dealias(^^T)) &&
+    bases_of(dealias(^^T), std::meta::access_context::unprivileged()).empty() &&
     requires { &T::operator(); };
 
 consteval bool is_call_operator(std::meta::info function) {
