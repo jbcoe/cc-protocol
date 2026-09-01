@@ -101,7 +101,7 @@ namespace detail {
 template <typename T>
 concept is_maybe_lambda =
     is_class_type(dealias(^^T)) && !has_identifier(dealias(^^T)) &&
-    !is_aggregate(dealias(^^T)) && !has_template_arguments(dealias(^^T)) &&
+    !is_aggregate_type(dealias(^^T)) && !has_template_arguments(dealias(^^T)) &&
     bases_of(dealias(^^T), std::meta::access_context::unprivileged()).empty() &&
     requires { &T::operator(); };
 
