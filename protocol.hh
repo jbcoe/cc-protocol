@@ -129,24 +129,20 @@ consteval bool same_signature_ignoring_const(std::meta::info candidate,
   return same_name_and_parameters(candidate, interface);
 }
 
-// Returns `true` if the member function `candidate` uses an explicit object
-// parameter.
-consteval bool is_explicit_object_function(std::meta::info candidate) {
-  const auto params = parameters_of(candidate);
-  return !params.empty() && is_explicit_object_parameter(params.front());
-}
-
-// Returns `true` if the member functions `candidate` and `interface` have the
+// Returns `true` if `candidate is a function with an explicit object parameter,
+// the member functions `candidate` and `interface` have the
 // same name, de-aliased return type and parameter types, and const / reference
-// qualification. `candidate` is assumed to be a function with an explicit
-// object parameter
-consteval bool same_name_and_params_with_explicit_object(
-    std::meta::info candidate, std::meta::info interface) {
+// qualification.
+consteval bool same_function_with_explicit_object(std::meta::info candidate,
+                                                  std::meta::info interface) {
   if (!same_name(candidate, interface)) return false;
   if (dealias(return_type_of(candidate)) != dealias(return_type_of(interface)))
     return false;
 
   const auto params = parameters_of(candidate);
+  if (params.empty() || !is_explicit_object_parameter(params.front()))
+    return false;
+
   if (is_const(interface) !=
       is_const(remove_reference(type_of(params.front()))))
     return false;
@@ -165,9 +161,8 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
     // A static candidate has no object parameter, so it satisfies any const
     // or reference qualification of `interface`.
     if (!same_name_and_parameters(candidate, interface)) return false;
-  } else if (is_explicit_object_function(candidate)) {
-    if (!same_name_and_params_with_explicit_object(candidate, interface))
-      return false;
+  } else if (same_function_with_explicit_object(candidate, interface)) {
+    // No additional conditions.
   } else {
     if (!same_signature_ignoring_const(candidate, interface)) return false;
     // If interface is `const`, `candidate` must be const.
