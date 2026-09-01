@@ -922,8 +922,11 @@ TEST(ReflectionProtocolViewTest, IsConstructibleFromConformingType) {
   // protocol_view's constructor takes U&, so constructibility is checked
   // from an lvalue, not a prvalue.
   static_assert(std::is_constructible_v<protocol_view<Interface>, Conforming&>);
+  static_assert(std::is_convertible_v<Conforming&, protocol_view<Interface>>);
   static_assert(
       !std::is_constructible_v<protocol_view<Interface>, NonConforming&>);
+  // A view of a temporary would dangle.
+  static_assert(!std::is_constructible_v<protocol_view<Interface>, Conforming>);
 }
 
 TEST(ReflectionProtocolViewTest, NotConstructibleFromConstObject) {
@@ -959,8 +962,17 @@ TEST(ReflectionProtocolViewTest, ConstViewIsConstructibleFromConstObject) {
                                         const Conforming&>);
   static_assert(
       std::is_constructible_v<protocol_view<const Interface>, Conforming&>);
+  static_assert(
+      std::is_convertible_v<const Conforming&, protocol_view<const Interface>>);
+  static_assert(
+      std::is_convertible_v<Conforming&, protocol_view<const Interface>>);
   static_assert(!std::is_constructible_v<protocol_view<const Interface>,
                                          const NonConforming&>);
+  // A view of a temporary would dangle.
+  static_assert(
+      !std::is_constructible_v<protocol_view<const Interface>, Conforming>);
+  static_assert(!std::is_constructible_v<protocol_view<const Interface>,
+                                         const Conforming>);
 }
 
 TEST(ReflectionProtocolTest, IsConstructibleInPlaceFromConformingType) {
@@ -2285,6 +2297,8 @@ TEST(ReflectionProtocolViewTest, IsConstructibleFromProtocol) {
 
   static_assert(
       std::is_constructible_v<protocol_view<Interface>, protocol<Interface>&>);
+  static_assert(
+      std::is_convertible_v<protocol<Interface>&, protocol_view<Interface>>);
   static_assert(!std::is_constructible_v<protocol_view<Interface>,
                                          const protocol<Interface>&>);
   static_assert(
@@ -2300,6 +2314,10 @@ TEST(ReflectionProtocolViewTest, ConstViewIsConstructibleFromProtocol) {
                                         const protocol<Interface>&>);
   static_assert(std::is_constructible_v<protocol_view<const Interface>,
                                         protocol<Interface>&>);
+  static_assert(std::is_convertible_v<const protocol<Interface>&,
+                                      protocol_view<const Interface>>);
+  static_assert(std::is_convertible_v<protocol<Interface>&,
+                                      protocol_view<const Interface>>);
   static_assert(!std::is_constructible_v<protocol_view<const Interface>,
                                          protocol<Interface>>);
   static_assert(!std::is_constructible_v<protocol_view<const Interface>,
@@ -2460,7 +2478,7 @@ TEST(ReflectionProtocolViewTest, ViewOfProtocolPassedByValue) {
   auto read = [](protocol_view<const Interface> view) { return view.get(); };
 
   protocol<Interface> p(Conforming{5});
-  EXPECT_EQ(read(protocol_view<const Interface>(p)), 5);
+  EXPECT_EQ(read(p), 5);
 }
 
 }  // namespace
