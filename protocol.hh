@@ -79,12 +79,19 @@ namespace detail {
 
 // Per ISO C++ ([expr.prim.lambda.closure]), closure types are unique, unnamed,
 // non-union class types.
+// The closure type is not an aggregate type.
 // This concept will also match an unnamed class type with a single
 // `operator()`.
+//
+// In practice a lambda has no base classes and no template arguments, although
+// there is no wording in the standard to guarantee this.
+//
 // TODO(jbcoe): Refine this concept to match only lambdas.
 template <typename T>
 concept is_maybe_lambda =
     is_class_type(dealias(^^T)) && !has_identifier(dealias(^^T)) &&
+    !is_aggregate_type(dealias(^^T)) && !has_template_arguments(dealias(^^T)) &&
+    bases_of(dealias(^^T), std::meta::access_context::unprivileged()).empty() &&
     requires { &T::operator(); };
 
 consteval bool is_call_operator(std::meta::info function) {
