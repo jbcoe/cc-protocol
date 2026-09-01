@@ -87,7 +87,8 @@ namespace detail {
 // specialization also has no identifier, so without this `protocol<I>` and
 // `protocol_view<I>` would match when `I` has a single call operator —
 // their `operator()` is a wrapper-base member brought in by a
-// using-declaration, whose reflection clang-p2996 rejects.
+// using-declaration, whose reflection clang-p2996 rejects
+// (https://github.com/bloomberg/clang-p2996/issues/342).
 template <typename T>
 concept is_maybe_lambda =
     is_class_type(dealias(^^T)) && !has_identifier(dealias(^^T)) &&
