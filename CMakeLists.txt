@@ -126,7 +126,8 @@ xyz_add_library(
 target_sources(
   protocol
   INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protocol.hh>
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/name_mangling.h>)
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/name_mangling.h>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/operators.h>)
 
 if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 

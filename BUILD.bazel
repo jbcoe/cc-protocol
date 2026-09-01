@@ -6,6 +6,7 @@ cc_library(
     name = "protocol",
     hdrs = [
         "name_mangling.h",
+        "operators.h",
         "protocol.hh",
     ],
 )

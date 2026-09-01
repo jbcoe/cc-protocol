@@ -27,6 +27,11 @@ struct Interface {
   void update(int value);
   int operator()(int value) const;
   int cl(int value) const;
+  int operator[](int value) const;
+  int ix(int value) const;
+  int operator+(int value) const;
+  bool operator==(int value) const;
+  int operator-() const;
   void set_int(int value);
   void set_double(double value);
   void set_widget_ref(const Widget& value);
@@ -63,6 +68,37 @@ TEST(NameManglingTest, NamesTheCallOperatorUsingItsOperatorNameCode) {
 TEST(NameManglingTest, CallOperatorDoesNotCollideWithAMemberLiterallyNamedCl) {
   static_assert(mangle(^^Interface::cl) == "fn_NK2clEii");
   static_assert(mangle(^^Interface::operator()) != mangle(^^Interface::cl));
+}
+
+TEST(NameManglingTest, NamesTheSubscriptOperatorUsingItsOperatorNameCode) {
+  static_assert(mangle(^^Interface::operator[]) == "fn_NKixEii");
+}
+
+TEST(NameManglingTest,
+     SubscriptOperatorDoesNotCollideWithAMemberLiterallyNamedIx) {
+  static_assert(mangle(^^Interface::ix) == "fn_NK2ixEii");
+  static_assert(mangle(^^Interface::operator[]) != mangle(^^Interface::ix));
+}
+
+TEST(NameManglingTest, NamesOtherOperatorsUsingTheirOperatorNameCodes) {
+  static_assert(mangle(^^Interface::operator+) == "fn_NKplEii");
+  static_assert(mangle(^^Interface::operator==) == "fn_NKeqEbi");
+  static_assert(mangle(^^Interface::operator-) == "fn_NKmiEi");
+}
+
+TEST(NameManglingTest, DistinguishesPrefixFromPostfixIncrement) {
+  struct Prefix {
+    int operator++();
+  };
+
+  struct Postfix {
+    int operator++(int);
+  };
+
+  // The postfix overload's dummy `int` parameter folds into its name, so the
+  // two forms mangle to different vtable entries.
+  static_assert(mangle(^^Prefix::operator++) == "fn_ppi");
+  static_assert(mangle(^^Postfix::operator++) == "fn_ppii");
 }
 
 TEST(NameManglingTest, NamesAPointerParameter) {

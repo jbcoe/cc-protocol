@@ -46,6 +46,10 @@ concept is_callable = requires(P& p) { p(); };
 template <typename P>
 concept is_callable_with_int = requires(P& p) { p(0); };
 
+// Concepts for subscript operator tests.
+template <typename P>
+concept is_subscriptable_with_int = requires(P& p) { p[0]; };
+
 // ---------------------------------------------------------------------------
 // Type trait tests.
 // ---------------------------------------------------------------------------
@@ -849,6 +853,40 @@ TEST(ConformsToTest, StaticCallOperatorConforms) {
   static_assert(is_protocol_conformant<Interface, Conforming>());
 }
 
+TEST(ConformsToTest, SubscriptOperatorConforms) {
+  struct Interface {
+    int operator[](int x) const;
+  };
+
+  struct Conforming {
+    int operator[](int x) const { return x + 1; }
+  };
+
+  struct WrongParam {
+    int operator[](double x) const { return static_cast<int>(x); }
+  };
+
+  struct NonConst {
+    int operator[](int x) { return x; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+  static_assert(!is_protocol_conformant<Interface, WrongParam>());
+  static_assert(!is_protocol_conformant<Interface, NonConst>());
+}
+
+TEST(ConformsToTest, CallOperatorDoesNotConformToSubscriptOperator) {
+  struct Interface {
+    int operator[](int x) const;
+  };
+
+  struct HasCallOperator {
+    int operator()(int x) const { return x + 1; }
+  };
+
+  static_assert(!is_protocol_conformant<Interface, HasCallOperator>());
+}
+
 TEST(ConformsToTest, StaticOverloadConformsAlongsideNonStatic) {
   struct Interface {
     int f(int x) const;
@@ -1539,6 +1577,48 @@ TEST(ReflectionProtocolViewTest, StaticCallOperator) {
   Conforming c;
   protocol_view<Interface> view(c);
   EXPECT_EQ(view(5), 15);
+}
+
+// Subscript operator tests for protocol_view.
+
+TEST(ReflectionProtocolViewTest, SubscriptOperator) {
+  struct Interface {
+    int operator[](int x) const;
+  };
+
+  struct Conforming {
+    int operator[](int x) const { return x * 2; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+  EXPECT_EQ(view[21], 42);
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewExposesOnlyConstSubscriptOperators) {
+  struct Interface {
+    int operator[](int row, int column) const;
+    void operator[](int x);
+  };
+
+  // A mutable view exposes both overloads; a const view exposes only the const
+  // one, which does not take a single argument.
+  static_assert(is_subscriptable_with_int<protocol_view<Interface>>);
+  static_assert(!is_subscriptable_with_int<protocol_view<const Interface>>);
+}
+
+TEST(ReflectionProtocolViewTest, BinaryOperator) {
+  struct Interface {
+    int operator+(int x) const;
+  };
+
+  struct Conforming {
+    int operator+(int x) const { return x + 100; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+  EXPECT_EQ(view + 5, 105);
 }
 
 // Member function forwarding tests for protocol.
@@ -2232,6 +2312,291 @@ TEST(ReflectionProtocolTest, ConstValuelessCall) {
 }
 
 #endif
+
+// Subscript operator tests for protocol.
+
+TEST(ReflectionProtocolTest, SubscriptOperator) {
+  struct Interface {
+    int operator[](int x) const;
+  };
+
+  struct Conforming {
+    int operator[](int x) const { return x * 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p[21], 42);
+}
+
+TEST(ReflectionProtocolTest, MultidimensionalSubscriptOperator) {
+  struct Interface {
+    int operator[](int row, int column) const;
+  };
+
+  struct Conforming {
+    int operator[](int row, int column) const { return row * 10 + column; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ((p[3, 4]), 34);
+}
+
+TEST(ReflectionProtocolTest, OverloadedSubscriptOperators) {
+  struct Interface {
+    int operator[](int x);
+    std::string operator[](const std::string& x) const;
+  };
+
+  struct Conforming {
+    int operator[](int x) { return x * 2; }
+
+    std::string operator[](const std::string& x) const { return x + x; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p[5], 10);
+
+  const auto& const_p = p;
+  EXPECT_EQ(const_p[std::string("A")], "AA");
+}
+
+TEST(ReflectionProtocolTest, ConstAndNonConstSubscriptOperatorPair) {
+  struct Interface {
+    int operator[](int x) const;
+    int operator[](int x);
+  };
+
+  struct Conforming {
+    int operator[](int x) const { return 1; }
+
+    int operator[](int x) { return 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p[0], 2);
+
+  const protocol<Interface>& const_p = p;
+  EXPECT_EQ(const_p[0], 1);
+}
+
+TEST(ReflectionProtocolTest, ConstProtocolExposesOnlyConstSubscriptOperators) {
+  struct Interface {
+    int operator[](int row, int column) const;
+    void operator[](int x);
+  };
+
+  // `p[0]` names the single-argument, non-const overload, which const does not
+  // expose.
+  static_assert(!is_subscriptable_with_int<const protocol<Interface>>);
+  static_assert(is_subscriptable_with_int<protocol<Interface>>);
+}
+
+TEST(ReflectionProtocolTest, SubscriptOperatorAlongsideCallOperator) {
+  struct Interface {
+    int operator[](int x) const;
+    int operator()(int x) const;
+    int get() const;
+  };
+
+  struct Conforming {
+    int operator[](int x) const { return x * 2; }
+
+    int operator()(int x) const { return x * 3; }
+
+    int get() const { return 7; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p[2], 4);
+  EXPECT_EQ(p(2), 6);
+  EXPECT_EQ(p.get(), 7);
+}
+
+TEST(ReflectionProtocolTest, NoexceptSubscriptOperator) {
+  struct Interface {
+    int operator[](int x) noexcept;
+  };
+
+  struct Conforming {
+    int operator[](int x) noexcept { return x * 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p[21], 42);
+  static_assert(noexcept(p[1]));
+}
+
+// Other operator tests for protocol. These exercise the operator table: a
+// representative operator from each call shape is dispatched through the vtable
+// like the call and subscript operators.
+
+TEST(ReflectionProtocolTest, UnaryOperator) {
+  struct Interface {
+    int operator-() const;
+  };
+
+  struct Conforming {
+    int operator-() const { return -42; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(-p, -42);
+}
+
+TEST(ReflectionProtocolTest, BinaryArithmeticOperator) {
+  struct Interface {
+    int operator+(int x) const;
+  };
+
+  struct Conforming {
+    int operator+(int x) const { return x + 100; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p + 5, 105);
+}
+
+TEST(ReflectionProtocolTest, UnaryAndBinaryFormsOfOneOperatorCoexist) {
+  struct Interface {
+    int operator-() const;       // negation
+    int operator-(int x) const;  // subtraction
+  };
+
+  struct Conforming {
+    int operator-() const { return -1; }
+
+    int operator-(int x) const { return 10 - x; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(-p, -1);
+  EXPECT_EQ(p - 3, 7);
+}
+
+TEST(ReflectionProtocolTest, ComparisonOperators) {
+  struct Interface {
+    bool operator==(int x) const;
+    std::strong_ordering operator<=>(int x) const;
+  };
+
+  struct Conforming {
+    int value = 5;
+
+    bool operator==(int x) const { return value == x; }
+
+    std::strong_ordering operator<=>(int x) const { return value <=> x; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(p == 5);
+  EXPECT_FALSE(p == 4);
+  EXPECT_TRUE((p <=> 9) < 0);
+  EXPECT_TRUE((p <=> 1) > 0);
+}
+
+TEST(ReflectionProtocolTest, CompoundAssignmentOperator) {
+  struct Interface {
+    int operator+=(int x);
+  };
+
+  struct Conforming {
+    int total = 0;
+
+    int operator+=(int x) { return total += x; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p += 3, 3);
+  EXPECT_EQ(p += 4, 7);
+}
+
+TEST(ReflectionProtocolTest, ShiftOperator) {
+  struct Interface {
+    std::string operator<<(const std::string& text) const;
+  };
+
+  struct Conforming {
+    std::string operator<<(const std::string& text) const {
+      return "> " + text;
+    }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p << std::string("hi"), "> hi");
+}
+
+TEST(ReflectionProtocolTest, LogicalNotAndComplementOperators) {
+  struct Interface {
+    bool operator!() const;
+    int operator~() const;
+  };
+
+  struct Conforming {
+    bool operator!() const { return true; }
+
+    int operator~() const { return ~0; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(!p);
+  EXPECT_EQ(~p, ~0);
+}
+
+TEST(ReflectionProtocolTest, DereferenceAndArrowOperators) {
+  struct Point {
+    int x;
+  };
+
+  struct Interface {
+    int operator*() const;
+    const Point* operator->() const;
+  };
+
+  struct Conforming {
+    Point point{7};
+
+    int operator*() const { return point.x; }
+
+    const Point* operator->() const { return &point; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(*p, 7);
+  EXPECT_EQ(p->x, 7);
+}
+
+TEST(ReflectionProtocolTest, PrefixAndPostfixIncrementOperators) {
+  struct Interface {
+    int operator++();     // prefix
+    int operator++(int);  // postfix
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int operator++() { return ++value; }
+
+    int operator++(int) { return value++; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(++p, 1);  // prefix returns the incremented value
+  EXPECT_EQ(p++, 1);  // postfix returns the value before incrementing
+  EXPECT_EQ(++p, 3);
+}
+
+TEST(ReflectionProtocolTest, CommaOperator) {
+  struct Interface {
+    int operator,(int x) const;
+  };
+
+  struct Conforming {
+    int operator,(int x) const { return x + 1; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ((p, 41), 42);
+}
 
 // ---------------------------------------------------------------------------
 // Views of protocols: a `protocol_view<I>` or `protocol_view<const I>` views
