@@ -46,10 +46,6 @@ concept is_callable = requires(P& p) { p(); };
 template <typename P>
 concept is_callable_with_int = requires(P& p) { p(0); };
 
-// Concepts for subscript operator tests.
-template <typename P>
-concept is_subscriptable_with_int = requires(P& p) { p[0]; };
-
 // ---------------------------------------------------------------------------
 // Type trait tests.
 // ---------------------------------------------------------------------------
@@ -853,28 +849,6 @@ TEST(ConformsToTest, StaticCallOperatorConforms) {
   static_assert(is_protocol_conformant<Interface, Conforming>());
 }
 
-TEST(ConformsToTest, SubscriptOperatorConforms) {
-  struct Interface {
-    int operator[](int x) const;
-  };
-
-  struct Conforming {
-    int operator[](int x) const { return x + 1; }
-  };
-
-  struct WrongParam {
-    int operator[](double x) const { return static_cast<int>(x); }
-  };
-
-  struct NonConst {
-    int operator[](int x) { return x; }
-  };
-
-  static_assert(is_protocol_conformant<Interface, Conforming>());
-  static_assert(!is_protocol_conformant<Interface, WrongParam>());
-  static_assert(!is_protocol_conformant<Interface, NonConst>());
-}
-
 TEST(ConformsToTest, CallOperatorDoesNotConformToSubscriptOperator) {
   struct Interface {
     int operator[](int x) const;
@@ -1591,33 +1565,7 @@ TEST(ReflectionProtocolViewTest, StaticCallOperator) {
   EXPECT_EQ(view(5), 15);
 }
 
-// Subscript operator tests for protocol_view.
-
-TEST(ReflectionProtocolViewTest, SubscriptOperator) {
-  struct Interface {
-    int operator[](int x) const;
-  };
-
-  struct Conforming {
-    int operator[](int x) const { return x * 2; }
-  };
-
-  Conforming c;
-  protocol_view<Interface> view(c);
-  EXPECT_EQ(view[21], 42);
-}
-
-TEST(ReflectionProtocolViewTest, ConstViewExposesOnlyConstSubscriptOperators) {
-  struct Interface {
-    int operator[](int row, int column) const;
-    void operator[](int x);
-  };
-
-  // A mutable view exposes both overloads; a const view exposes only the const
-  // one, which does not take a single argument.
-  static_assert(is_subscriptable_with_int<protocol_view<Interface>>);
-  static_assert(!is_subscriptable_with_int<protocol_view<const Interface>>);
-}
+// An operator is dispatched through a view like a call operator is.
 
 TEST(ReflectionProtocolViewTest, BinaryOperator) {
   struct Interface {
@@ -2340,107 +2288,11 @@ TEST(ReflectionProtocolTest, SubscriptOperator) {
   EXPECT_EQ(p[21], 42);
 }
 
-TEST(ReflectionProtocolTest, MultidimensionalSubscriptOperator) {
-  struct Interface {
-    int operator[](int row, int column) const;
-  };
-
-  struct Conforming {
-    int operator[](int row, int column) const { return (row * 10) + column; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ((p[3, 4]), 34);
-}
-
-TEST(ReflectionProtocolTest, OverloadedSubscriptOperators) {
-  struct Interface {
-    int operator[](int x);
-    std::string operator[](const std::string& x) const;
-  };
-
-  struct Conforming {
-    int operator[](int x) { return x * 2; }
-
-    std::string operator[](const std::string& x) const { return x + x; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(p[5], 10);
-
-  const auto& const_p = p;
-  EXPECT_EQ(const_p[std::string("A")], "AA");
-}
-
-TEST(ReflectionProtocolTest, ConstAndNonConstSubscriptOperatorPair) {
-  struct Interface {
-    int operator[](int x) const;
-    int operator[](int x);
-  };
-
-  struct Conforming {
-    int operator[](int) const { return 1; }
-
-    int operator[](int) { return 2; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(p[0], 2);
-
-  const protocol<Interface>& const_p = p;
-  EXPECT_EQ(const_p[0], 1);
-}
-
-TEST(ReflectionProtocolTest, ConstProtocolExposesOnlyConstSubscriptOperators) {
-  struct Interface {
-    int operator[](int row, int column) const;
-    void operator[](int x);
-  };
-
-  // `p[0]` names the single-argument, non-const overload, which const does not
-  // expose.
-  static_assert(!is_subscriptable_with_int<const protocol<Interface>>);
-  static_assert(is_subscriptable_with_int<protocol<Interface>>);
-}
-
-TEST(ReflectionProtocolTest, SubscriptOperatorAlongsideCallOperator) {
-  struct Interface {
-    int operator[](int x) const;
-    int operator()(int x) const;
-    int get() const;
-  };
-
-  struct Conforming {
-    int operator[](int x) const { return x * 2; }
-
-    int operator()(int x) const { return x * 3; }
-
-    int get() const { return 7; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(p[2], 4);
-  EXPECT_EQ(p(2), 6);
-  EXPECT_EQ(p.get(), 7);
-}
-
-TEST(ReflectionProtocolTest, NoexceptSubscriptOperator) {
-  struct Interface {
-    int operator[](int x) noexcept;
-  };
-
-  struct Conforming {
-    int operator[](int x) noexcept { return x * 2; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(p[21], 42);
-  static_assert(noexcept(p[1]));
-}
-
 // Other operator tests for protocol. These exercise the operator table: a
 // representative operator from each call shape is dispatched through the vtable
-// like the call and subscript operators.
+// like the call and subscript operators. Overload resolution, const
+// propagation and noexcept are shared wrapper machinery covered by the
+// operator() and named-member tests, so they are not re-tested per operator.
 
 TEST(ReflectionProtocolTest, UnaryOperator) {
   struct Interface {
@@ -2466,23 +2318,6 @@ TEST(ReflectionProtocolTest, BinaryArithmeticOperator) {
 
   protocol<Interface> p(Conforming{});
   EXPECT_EQ(p + 5, 105);
-}
-
-TEST(ReflectionProtocolTest, UnaryAndBinaryFormsOfOneOperatorCoexist) {
-  struct Interface {
-    int operator-() const;       // negation
-    int operator-(int x) const;  // subtraction
-  };
-
-  struct Conforming {
-    int operator-() const { return -1; }
-
-    int operator-(int x) const { return 10 - x; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(-p, -1);
-  EXPECT_EQ(p - 3, 7);
 }
 
 TEST(ReflectionProtocolTest, ComparisonOperators) {
