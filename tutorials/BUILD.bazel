@@ -4,18 +4,21 @@ package(default_visibility = ["//visibility:public"])
 
 cc_test(
     name = "polymorphism_tutorial",
+    size = "small",
     srcs = ["01_polymorphism.cc"],
     deps = ["@googletest//:gtest_main"],
 )
 
 cc_test(
     name = "type_erasure_tutorial",
+    size = "small",
     srcs = ["02_type_erasure.cc"],
     deps = ["@googletest//:gtest_main"],
 )
 
 cc_test(
     name = "reflection_tutorial",
+    size = "small",
     srcs = ["03_reflection.cc"],
     deps = [
         "//:consteval_check",
@@ -26,18 +29,21 @@ cc_test(
 
 cc_test(
     name = "vanishing_this_tutorial",
+    size = "small",
     srcs = ["04_vanishing_this.cc"],
     deps = ["@googletest//:gtest_main"],
 )
 
 cc_test(
     name = "allocators_tutorial",
+    size = "small",
     srcs = ["05_allocators.cc"],
     deps = ["@googletest//:gtest_main"],
 )
 
 cc_test(
     name = "advanced_vtables_tutorial",
+    size = "small",
     srcs = ["06_advanced_vtables.cc"],
     deps = [
         "//:consteval_check",
