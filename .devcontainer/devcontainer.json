@@ -18,15 +18,17 @@
 	// The `vscode` user is created with UID 1000 (see docker/Dockerfile) so that
 	// these mounted files stay readable and writable on Linux and WSL hosts.
 	//
-	// Two Docker named volumes persist tool caches across container rebuilds,
+	// Docker named volumes persist tool caches across container rebuilds,
 	// matching scripts/agentic-sandbox.py so both entrypoints share them:
-	// `cc-protocol-uv-cache` holds uv's download and build cache (UV_CACHE_DIR),
-	// and `cc-protocol-pre-commit-cache` holds pre-commit's hook environments
-	// (PRE_COMMIT_HOME). Both target paths are set in docker/Dockerfile.
+	// uv's download and build cache, pre-commit's hook environments, the
+	// bazelisk-selected Bazel binary, and Bazel's external repositories. Every
+	// target path is set in docker/Dockerfile.
 	"mounts": [
 		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,readonly",
 		"type=volume,source=cc-protocol-uv-cache,target=/home/vscode/.cache/uv",
-		"type=volume,source=cc-protocol-pre-commit-cache,target=/home/vscode/.cache/pre-commit"
+		"type=volume,source=cc-protocol-pre-commit-cache,target=/home/vscode/.cache/pre-commit",
+		"type=volume,source=cc-protocol-bazelisk-cache,target=/home/vscode/.cache/bazelisk",
+		"type=volume,source=cc-protocol-bazel-repository-cache,target=/home/vscode/.cache/bazel-repository"
 	],
 	"customizations": {
 		"vscode": {

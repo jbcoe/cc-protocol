@@ -61,6 +61,15 @@ def main() -> None:
     bazel_command.append("--action_env=PATH")
     bazel_command.append("--repo_env=PATH")
 
+    # Reuse downloaded external repositories across runs when the launch script
+    # provides a persistent cache directory (see docker/Dockerfile). Unset on
+    # host builds, which then use Bazel's default per-output-base cache.
+    repository_cache_directory = os.environ.get(
+        "XYZ_PROTOCOL_BAZEL_REPOSITORY_CACHE_DIRECTORY"
+    )
+    if repository_cache_directory:
+        bazel_command.append(f"--repository_cache={repository_cache_directory}")
+
     # Bazel's repository rules need concrete, absolute compiler paths rather
     # than bare names resolved via PATH. If none was found, leave CC/CXX
     # unset so Bazel falls through to its own default toolchain and reports

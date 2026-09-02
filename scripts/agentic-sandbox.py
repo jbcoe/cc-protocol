@@ -13,15 +13,17 @@ from typing import TypedDict
 
 IMAGE_NAME = "cc-protocol-sandbox"
 
-# Docker named volumes for tool caches, mounted at the paths the Dockerfile pins
-# via UV_CACHE_DIR and PRE_COMMIT_HOME. They persist uv's downloads and built
-# wheels and pre-commit's hook environments across the ephemeral `--rm`
-# containers so neither is rebuilt every session. Docker creates them on first
-# use.
-UV_CACHE_VOLUME = "cc-protocol-uv-cache"
-UV_CACHE_DIR = "/home/vscode/.cache/uv"
-PRE_COMMIT_CACHE_VOLUME = "cc-protocol-pre-commit-cache"
-PRE_COMMIT_CACHE_DIR = "/home/vscode/.cache/pre-commit"
+# Docker named volumes for tool caches, each mounted at the path the Dockerfile
+# pins for that tool. They persist downloads across the ephemeral `--rm`
+# containers so nothing is refetched every session: uv's wheel cache,
+# pre-commit's hook environments, the bazelisk-selected Bazel binary, and
+# Bazel's external repositories. Docker creates each volume on first use.
+CACHE_VOLUMES: list[tuple[str, str]] = [
+    ("cc-protocol-uv-cache", "/home/vscode/.cache/uv"),
+    ("cc-protocol-pre-commit-cache", "/home/vscode/.cache/pre-commit"),
+    ("cc-protocol-bazelisk-cache", "/home/vscode/.cache/bazelisk"),
+    ("cc-protocol-bazel-repository-cache", "/home/vscode/.cache/bazel-repository"),
+]
 
 
 class AgentCli(TypedDict):
@@ -188,10 +190,11 @@ def main() -> None:
         "--rm",
         "-v",
         f"{project_root}:/workspace",
-        "-v",
-        f"{UV_CACHE_VOLUME}:{UV_CACHE_DIR}",
-        "-v",
-        f"{PRE_COMMIT_CACHE_VOLUME}:{PRE_COMMIT_CACHE_DIR}",
+        *[
+            arg
+            for volume, target in CACHE_VOLUMES
+            for arg in ("-v", f"{volume}:{target}")
+        ],
         *_agent_mount_args(args.agent),
     ]
     if "TERM" in os.environ:

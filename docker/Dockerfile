@@ -118,11 +118,33 @@ RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
 # container instances, so both are populated once rather than rebuilt for every
 # session. Creating the directories as `vscode` gives each named volume `vscode`
 # ownership when Docker first populates it.
+#
+# UV_LINK_MODE is set to copy because the cache volume and the venv sit on
+# different filesystems (a named volume versus the container's overlay), so uv
+# cannot hardlink packages from the cache into the venv. Copy is the fallback uv
+# would take anyway; setting it explicitly acknowledges the cross-filesystem
+# layout and silences the hardlink warning.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
+ENV UV_LINK_MODE="copy"
 ENV PRE_COMMIT_HOME="/home/vscode/.cache/pre-commit"
 RUN mkdir -p /home/vscode/.cache/uv /home/vscode/.cache/pre-commit
+
+# Pin the Bazel download caches so the launch script can mount a Docker named
+# volume at each, persisting the pinned dependencies (the bazelisk-selected
+# Bazel binary and Bazel's external repositories) across the ephemeral
+# (`docker run --rm`) containers.
+#
+# XYZ_PROTOCOL_BAZEL_REPOSITORY_CACHE_DIRECTORY is read by scripts/bazel.py only
+# when set, so it takes effect inside the container without changing host
+# (macOS) builds, which never see the variable. Creating the directories as
+# `vscode` gives each named volume `vscode` ownership when Docker first
+# populates it.
+ENV BAZELISK_HOME="/home/vscode/.cache/bazelisk"
+ENV XYZ_PROTOCOL_BAZEL_REPOSITORY_CACHE_DIRECTORY="/home/vscode/.cache/bazel-repository"
+RUN mkdir -p /home/vscode/.cache/bazelisk \
+             /home/vscode/.cache/bazel-repository
 
 # Agent config dirs (~/.gemini / ~/.claude) are mounted from the host at runtime
 # to persist auth state between sessions. Default config files are seeded by the launch
