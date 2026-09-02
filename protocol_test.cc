@@ -2346,7 +2346,7 @@ TEST(ReflectionProtocolTest, MultidimensionalSubscriptOperator) {
   };
 
   struct Conforming {
-    int operator[](int row, int column) const { return row * 10 + column; }
+    int operator[](int row, int column) const { return (row * 10) + column; }
   };
 
   protocol<Interface> p(Conforming{});
@@ -2379,9 +2379,9 @@ TEST(ReflectionProtocolTest, ConstAndNonConstSubscriptOperatorPair) {
   };
 
   struct Conforming {
-    int operator[](int x) const { return 1; }
+    int operator[](int) const { return 1; }
 
-    int operator[](int x) { return 2; }
+    int operator[](int) { return 2; }
   };
 
   protocol<Interface> p(Conforming{});
