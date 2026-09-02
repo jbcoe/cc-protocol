@@ -764,7 +764,7 @@ class protocol
     return obj;
   }
 
-  using view_vtable = typename detail::vtable_generator<I>::vtable;
+  using view_vtable = detail::vtable_generator<I>::vtable;
 
   // Extends the generated per-member-function vtable with the entries needed
   // for ownership. Because it derives from `view_vtable`, the synthesised
@@ -1165,7 +1165,7 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
   // Non-owning pointer to the viewed object.
   const void* object_ = nullptr;
 
-  const typename detail::vtable_generator<T>::vtable* vtable_;
+  const detail::vtable_generator<T>::vtable* vtable_;
 };
 
 }  // namespace xyz::reflection
