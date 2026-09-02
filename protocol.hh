@@ -1061,6 +1061,13 @@ class protocol_view
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::all_const>) {}
 
+  // A view of a temporary would dangle.
+  template <typename U>
+    requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
+                 (!is_protocol_view_v<std::remove_cvref_t<U>>) &&
+                 (!std::is_const_v<U>)
+  protocol_view(const U&&) = delete;
+
   // Views the object a `protocol<T>` owns, sharing its vtable.
   //
   // Precondition: `p` is not valueless.
