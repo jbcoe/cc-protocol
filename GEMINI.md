@@ -18,18 +18,21 @@ general defaults for this repository.
 ## Workflow Mandates
 
 - **Tooling:** Always use `uv` for Python dependency management (`uv run ...`).
-- **Build & Test:** Use `scripts/cmake.sh` for all CMake build and test
-  operations, and `scripts/bazel.sh` for Bazel. Both entrypoints discover a
+- **Build & Test:** Prefer `scripts/bazel.sh` for building and testing; it
+  is markedly faster than the CMake build, both from scratch and after
+  editing `protocol.hh`. Use `scripts/cmake.sh` only for what Bazel does not
+  provide: sanitizers, coverage, and clang-tidy. Both entrypoints discover a
   reflection-capable compiler and pass it to the build system; a bare
-  `cmake`/`bazel` invocation uses stock GCC and fails on `-freflection`.
-  The `scripts/cmake.sh` entrypoint supports `--debug`, `--release`,
-  `--asan`, `--ubsan`, `--tsan`, and `--clang-tidy`; `scripts/bazel.sh`
-  supports `build`/`test` and `--clean`.
+  `bazel`/`cmake` invocation uses stock GCC and fails on `-freflection`.
+  The `scripts/bazel.sh` entrypoint supports `build`/`test` and `--clean`;
+  `scripts/cmake.sh` supports `--debug`, `--release`, `--asan`, `--ubsan`,
+  `--tsan`, `--coverage`, and `--clang-tidy`.
 - **Compiler:** The implementation requires GCC with C++26 reflection (the GCC
   trunk snapshot in `/opt/gcc-latest`, or `gcc-16`); CI, including the
   sanitizer jobs, runs on GCC trunk.
-- **Verification:** All changes must be verified using the `scripts/cmake.sh`
-  script to build and test the implementation.
+- **Verification:** All changes must be verified by building and testing the
+  implementation, with `scripts/bazel.sh` by default. Changes to CMake files
+  or to `scripts/cmake.py` must also be verified with `scripts/cmake.sh`.
 - **Sanitizer Verification:** When modifying memory-sensitive or concurrent
   code, verify changes locally using at least one sanitizer (e.g.,
   `./scripts/cmake.sh --asan` or `--tsan`). Note that ASAN and TSAN are
@@ -49,4 +52,5 @@ general defaults for this repository.
 
 - Implementation: `protocol.hh`
 - Proposal Draft: `DRAFT.md`
-- Build Entrypoints: `scripts/cmake.sh` (CMake), `scripts/bazel.sh` (Bazel)
+- Build Entrypoints: `scripts/bazel.sh` (Bazel, preferred), `scripts/cmake.sh`
+  (CMake: sanitizers, coverage, clang-tidy)
