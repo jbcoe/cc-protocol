@@ -660,4 +660,29 @@ TEST(ReflectionProtocolViewTest, ImplementationSeesItsOwnThis) {
   EXPECT_EQ(view.self(), &implementation);
 }
 
+TEST(ReflectionProtocolTest, AcceptExplicitObject) {
+  struct Interface {
+    int foo();
+    int bar() const;
+  };
+
+  struct Conforming {
+    int foo(this Conforming&) { return 5; }
+
+    int bar(this const Conforming&) { return 10; }
+  };
+
+  static_assert(
+      xyz::reflection::is_protocol_conformant_v<Interface, Conforming>);
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.foo(), 5);
+  EXPECT_EQ(p.bar(), 10);
+
+  Conforming c;
+  protocol_view<Interface> v(c);
+  EXPECT_EQ(v.foo(), 5);
+  EXPECT_EQ(v.bar(), 10);
+}
+
 }  // namespace
