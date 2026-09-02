@@ -81,12 +81,19 @@ namespace detail {
 
 // Per ISO C++ ([expr.prim.lambda.closure]), closure types are unique, unnamed,
 // non-union class types.
+// The closure type is not an aggregate type.
 // This concept will also match an unnamed class type with a single
 // `operator()`.
+//
+// In practice a lambda has no base classes and no template arguments, although
+// there is no wording in the standard to guarantee this.
+//
 // TODO(jbcoe): Refine this concept to match only lambdas.
 template <typename T>
 concept is_maybe_lambda =
     is_class_type(dealias(^^T)) && !has_identifier(dealias(^^T)) &&
+    !is_aggregate(dealias(^^T)) && !has_template_arguments(dealias(^^T)) &&
+    bases_of(dealias(^^T), std::meta::access_context::unprivileged()).empty() &&
     requires { &T::operator(); };
 
 // Returns `true` if `function` is an operator a protocol can expose, one of the
@@ -1144,12 +1151,12 @@ class protocol_view
   protocol_view& operator=(protocol_view&&) noexcept = default;
   ~protocol_view() = default;
 
-  // Construct from any non-const type U that conforms to the Interface T.
+  // Views a non-const object that conforms to the Interface T.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
                  (!is_protocol_view_v<std::remove_cvref_t<U>>) &&
                  (!std::is_const_v<U>)
-  explicit protocol_view(U& object)
+  protocol_view(U& object)
       : object_(static_cast<void*>(std::addressof(object))),
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::all_const>) {}
@@ -1158,7 +1165,7 @@ class protocol_view
   //
   // Precondition: `p` is not valueless.
   template <typename Alloc>
-  explicit protocol_view(protocol<T, Alloc>& p) noexcept
+  protocol_view(protocol<T, Alloc>& p) noexcept
       : object_(p.object_), vtable_(p.vtable_) {}
 
   // A view of a temporary would dangle.
@@ -1207,21 +1214,26 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
   protocol_view& operator=(protocol_view&&) noexcept = default;
   ~protocol_view() = default;
 
-  // Construct from any (possibly const) type U that conforms to the
-  // Interface T.
+  // Views a (possibly const) object that conforms to the Interface T.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
                  (!is_protocol_view_v<std::remove_cvref_t<U>>)
-  explicit protocol_view(const U& object)
+  protocol_view(const U& object)
       : object_(static_cast<const void*>(std::addressof(object))),
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::const_only>) {}
+
+  // A view of a temporary would dangle.
+  template <typename U>
+    requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
+                 (!is_protocol_view_v<std::remove_cvref_t<U>>)
+  protocol_view(const U&&) = delete;
 
   // Views the object a `protocol<T>` owns, sharing its vtable.
   //
   // Precondition: `p` is not valueless.
   template <typename Alloc>
-  explicit protocol_view(const protocol<T, Alloc>& p) noexcept
+  protocol_view(const protocol<T, Alloc>& p) noexcept
       : object_(p.object_), vtable_(p.vtable_) {}
 
   // A view of a temporary would dangle.
