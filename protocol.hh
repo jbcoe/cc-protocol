@@ -183,7 +183,7 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
     // No additional conditions.
   } else {
     if (!same_signature_ignoring_const(candidate, interface)) return false;
-    // If interface is `const`, `candidate` must be const.
+    // `const` qualifiers must match.
     if (is_const(interface) != is_const(candidate)) return false;
   }
   // If interface is `noexcept`, `candidate` must be noexcept.
@@ -544,7 +544,7 @@ consteval std::meta::info generate_wrapper_bases() {
 // named members with `operator()` for each public, non-special, member
 // function from `T` selected by `ConstPolicy`.
 template <typename T, typename ProtocolType, typename Vtable,
-          const_policy ConstPolicy = const_policy::propagate>
+          const_policy ConstPolicy>
 using protocol_wrappers_t =
     typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable,
                                      ConstPolicy>():];
@@ -726,7 +726,8 @@ inline constexpr bool is_protocol_conformant_v =
 template <is_valid_interface I, typename Alloc = std::allocator<std::byte>>
 class protocol
     : public detail::protocol_wrappers_t<
-          I, protocol<I, Alloc>, typename detail::vtable_generator<I>::vtable> {
+          I, protocol<I, Alloc>, typename detail::vtable_generator<I>::vtable,
+          detail::const_policy::propagate> {
   using traits = std::allocator_traits<Alloc>;
 
   // When using allocators in a type-erased context, we must rebind
@@ -1095,7 +1096,7 @@ class protocol_view
   // Non-owning pointer to the viewed object.
   void* object_ = nullptr;
 
-  const typename detail::vtable_generator<T>::vtable* vtable_;
+  const detail::vtable_generator<T>::vtable* vtable_;
 };
 
 // ---------------------------------------------------------------------------
