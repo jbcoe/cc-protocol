@@ -13,12 +13,15 @@ from typing import TypedDict
 
 IMAGE_NAME = "cc-protocol-sandbox"
 
-# Docker named volume for uv's cache, mounted at UV_CACHE_DIR (see the
-# Dockerfile). It persists uv's downloads and built wheels across the ephemeral
-# `--rm` containers so dependencies aren't refetched every session. Docker
-# creates it on first use.
+# Docker named volumes for tool caches, mounted at the paths the Dockerfile pins
+# via UV_CACHE_DIR and PRE_COMMIT_HOME. They persist uv's downloads and built
+# wheels and pre-commit's hook environments across the ephemeral `--rm`
+# containers so neither is rebuilt every session. Docker creates them on first
+# use.
 UV_CACHE_VOLUME = "cc-protocol-uv-cache"
 UV_CACHE_DIR = "/home/vscode/.cache/uv"
+PRE_COMMIT_CACHE_VOLUME = "cc-protocol-pre-commit-cache"
+PRE_COMMIT_CACHE_DIR = "/home/vscode/.cache/pre-commit"
 
 
 class AgentCli(TypedDict):
@@ -187,6 +190,8 @@ def main() -> None:
         f"{project_root}:/workspace",
         "-v",
         f"{UV_CACHE_VOLUME}:{UV_CACHE_DIR}",
+        "-v",
+        f"{PRE_COMMIT_CACHE_VOLUME}:{PRE_COMMIT_CACHE_DIR}",
         *_agent_mount_args(args.agent),
     ]
     if "TERM" in os.environ:

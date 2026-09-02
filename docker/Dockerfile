@@ -112,15 +112,17 @@ RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
 
 # Set up uv and Python environment.
 #
-# UV_CACHE_DIR is pinned so the launch script can mount a Docker named volume
-# there. That volume persists uv's download and build cache across the ephemeral
-# (`docker run --rm`) container instances, so dependencies are fetched once
-# rather than rebuilt for every session. Creating the directory as `vscode`
-# gives the named volume `vscode` ownership when Docker first populates it.
+# UV_CACHE_DIR and PRE_COMMIT_HOME are pinned so the launch script can mount a
+# Docker named volume at each. The volumes persist uv's download and build cache
+# and pre-commit's hook environments across the ephemeral (`docker run --rm`)
+# container instances, so both are populated once rather than rebuilt for every
+# session. Creating the directories as `vscode` gives each named volume `vscode`
+# ownership when Docker first populates it.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
-RUN mkdir -p /home/vscode/.cache/uv
+ENV PRE_COMMIT_HOME="/home/vscode/.cache/pre-commit"
+RUN mkdir -p /home/vscode/.cache/uv /home/vscode/.cache/pre-commit
 
 # Agent config dirs (~/.gemini / ~/.claude) are mounted from the host at runtime
 # to persist auth state between sessions. Default config files are seeded by the launch
