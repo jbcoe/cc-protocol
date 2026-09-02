@@ -809,8 +809,7 @@ class protocol
     return result;
   }
 
-  // Creates a vtable for the type T. TNorm is used throughout
-  // this file to create a convenient alias for a decayed type.
+  // Creates a vtable for the type T.
   template <typename T>
   static constexpr vtable vtable_for = make_vtable_for<T>();
 
