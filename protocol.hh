@@ -1102,8 +1102,7 @@ class protocol_view
 // ---------------------------------------------------------------------------
 // protocol_view<const T>
 //
-// Views a (possibly const) object and exposes only the const member
-// functions of `T`.
+// Views a const object `T` and exposes the const member functions.
 // ---------------------------------------------------------------------------
 template <is_valid_interface T>
 class protocol_view<const T> : public detail::protocol_wrappers_t<
