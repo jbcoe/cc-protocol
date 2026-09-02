@@ -53,16 +53,27 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace xyz::reflection {
 
-template <typename T, typename Allocator>
+template <typename I>
+concept is_valid_interface =
+    is_class_type(^^I) && std::same_as<I, std::remove_cvref_t<I>> &&
+    std::ranges::none_of(
+        members_of(^^I, std::meta::access_context::unprivileged()),
+        std::meta::is_volatile);
+
+template <typename I>
+concept is_valid_view_interface =
+    is_valid_interface<I> || is_valid_interface<std::remove_const_t<I>>;
+
+template <is_valid_interface T, typename Allocator>
 class protocol;
 
-template <typename T>
+template <is_valid_view_interface T>
 class protocol_view;
 
 template <typename T>
 struct is_protocol : std::false_type {};
 
-template <typename T, typename Allocator>
+template <is_valid_interface T, typename Allocator>
 struct is_protocol<protocol<T, Allocator>> : std::true_type {};
 
 template <typename T>
@@ -71,7 +82,7 @@ inline constexpr bool is_protocol_v = is_protocol<T>::value;
 template <typename T>
 struct is_protocol_view : std::false_type {};
 
-template <typename T>
+template <is_valid_view_interface T>
 struct is_protocol_view<protocol_view<T>> : std::true_type {};
 
 template <typename T>
@@ -157,6 +168,29 @@ consteval bool same_signature_ignoring_const(std::meta::info candidate,
   return same_name_and_parameters(candidate, interface);
 }
 
+// Returns `true` if `candidate is a function with an explicit object parameter,
+// the member functions `candidate` and `interface` have the
+// same name, de-aliased return type and parameter types, and const / reference
+// qualification.
+consteval bool same_function_with_explicit_object(std::meta::info candidate,
+                                                  std::meta::info interface) {
+  if (!same_name(candidate, interface)) return false;
+  if (dealias(return_type_of(candidate)) != dealias(return_type_of(interface)))
+    return false;
+
+  const auto params = parameters_of(candidate);
+  if (params.empty() || !is_explicit_object_parameter(params.front()))
+    return false;
+
+  if (is_const(interface) !=
+      is_const(remove_reference(type_of(params.front()))))
+    return false;
+
+  return std::ranges::equal(parameters_of(interface),
+                            params | std::views::drop(1), {},
+                            std::meta::type_of, std::meta::type_of);
+}
+
 // Returns `true` if the `candidate` member function is consistent with the
 // `interface` member function for the purposes of structural subtyping;
 // otherwise returns `false`.
@@ -166,6 +200,8 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
     // A static candidate has no object parameter, so it satisfies any const
     // or reference qualification of `interface`.
     if (!same_name_and_parameters(candidate, interface)) return false;
+  } else if (same_function_with_explicit_object(candidate, interface)) {
+    // No additional conditions.
   } else {
     if (!same_signature_ignoring_const(candidate, interface)) return false;
     // If interface is `const`, `candidate` must be const.
@@ -823,7 +859,7 @@ inline constexpr bool is_protocol_conformant_v =
 // through the owning vtable (see `vtable` below). Calling a member function
 // on a valueless (moved-from) `protocol` is a precondition violation.
 // ---------------------------------------------------------------------------
-template <typename I, typename Alloc = std::allocator<std::byte>>
+template <is_valid_interface I, typename Alloc = std::allocator<std::byte>>
 class protocol
     : public detail::protocol_wrappers_t<
           I, protocol<I, Alloc>, typename detail::vtable_generator<I>::vtable> {
@@ -936,7 +972,7 @@ class protocol
 
   // Grants `protocol_view` access so that a view of a protocol can share its
   // vtable.
-  template <typename>
+  template <is_valid_view_interface>
   friend class protocol_view;
 
   [[no_unique_address]] Alloc alloc_;
@@ -1134,7 +1170,7 @@ class protocol
 // does not restrict the interface. Use `protocol_view<const T>` to view a
 // const object.
 // ---------------------------------------------------------------------------
-template <typename T>
+template <is_valid_view_interface T>
 class protocol_view
     : public detail::protocol_wrappers_t<
           T, protocol_view<T>, typename detail::vtable_generator<T>::vtable,
@@ -1175,7 +1211,7 @@ class protocol_view
  private:
   // Grants `protocol_view<const T>` access so it can share this view's
   // `object_`/`vtable_`.
-  template <typename>
+  template <is_valid_view_interface>
   friend class protocol_view;
 
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
@@ -1197,7 +1233,7 @@ class protocol_view
 // Views a (possibly const) object and exposes only the const member
 // functions of `T`.
 // ---------------------------------------------------------------------------
-template <typename T>
+template <is_valid_interface T>
 class protocol_view<const T> : public detail::protocol_wrappers_t<
                                    T, protocol_view<const T>,
                                    typename detail::vtable_generator<T>::vtable,

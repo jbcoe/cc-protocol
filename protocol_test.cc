@@ -19,6 +19,7 @@
 using xyz::reflection::is_protocol_conformant;
 using xyz::reflection::is_protocol_v;
 using xyz::reflection::is_protocol_view_v;
+using xyz::reflection::is_valid_interface;
 using xyz::reflection::protocol;
 using xyz::reflection::protocol_view;
 
@@ -65,6 +66,30 @@ TEST(ReflectionProtocolViewTest, IsProtocolViewV) {
   static_assert(is_protocol_view_v<protocol_view<const Interface>>);
   static_assert(!is_protocol_view_v<protocol<Interface>>);
   static_assert(!is_protocol_view_v<Interface>);
+}
+
+TEST(ReflectionProtocolTest, IsValidInterface) {
+  static_assert(!is_valid_interface<int>);
+
+  struct Invalid1 {
+    int foo() volatile;
+  };
+
+  static_assert(!is_valid_interface<Invalid1>);
+
+  union Invalid2 {
+    int foo();
+  };
+
+  static_assert(!is_valid_interface<Invalid2>);
+
+  struct Valid {
+    int foo();
+  };
+
+  static_assert(is_valid_interface<Valid>);
+  static_assert(!is_valid_interface<Valid&>);
+  static_assert(!is_valid_interface<const Valid>);
 }
 
 // ---------------------------------------------------------------------------
@@ -2443,6 +2468,19 @@ TEST(ReflectionProtocolTest, CommaOperator) {
 
   protocol<Interface> p(Conforming{});
   EXPECT_EQ((p, 41), 42);
+}
+
+TEST(ReflectionProtocolTest, VolatileConformingType) {
+  struct Interface {
+    int foo();
+  };
+
+  struct Conforming {
+    int foo() volatile { return 10; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.foo(), 10);
 }
 
 // ---------------------------------------------------------------------------
