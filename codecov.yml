@@ -1,3 +1,9 @@
+codecov:
+  notify:
+    # Two uploads per commit (runtime and consteval flags); wait for both
+    # before comparing against the base, or the first one fails the status.
+    after_n_builds: 2
+
 ignore:
   - "*_test.cc"
   - "*_tests.cc"
