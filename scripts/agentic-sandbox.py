@@ -13,14 +13,12 @@ from typing import TypedDict
 
 IMAGE_NAME = "cc-protocol-sandbox"
 
-# Docker named volumes for tool caches, each mounted at the path the Dockerfile
-# pins for that tool. They persist downloads across the ephemeral `--rm`
-# containers so nothing is refetched every session: uv's wheel cache,
-# pre-commit's hook environments, the bazelisk-selected Bazel binary, and
-# Bazel's external repositories. Docker creates each volume on first use.
+# Docker named volumes persisting each tool's cache across the `--rm` containers,
+# at the paths docker/Dockerfile pins. Docker creates them on first use.
 CACHE_VOLUMES: list[tuple[str, str]] = [
     ("cc-protocol-uv-cache", "/home/vscode/.cache/uv"),
     ("cc-protocol-pre-commit-cache", "/home/vscode/.cache/pre-commit"),
+    ("cc-protocol-npm-cache", "/home/vscode/.cache/npm"),
     ("cc-protocol-bazelisk-cache", "/home/vscode/.cache/bazelisk"),
     ("cc-protocol-bazel-repository-cache", "/home/vscode/.cache/bazel-repository"),
 ]
