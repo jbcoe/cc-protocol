@@ -31,10 +31,22 @@ def main() -> None:
         help="Clean Bazel build artifacts and expunge cache",
     )
     argument_parser.add_argument(
+        "--asan", action="store_true", help="Enable Address Sanitizer"
+    )
+    argument_parser.add_argument(
+        "--ubsan", action="store_true", help="Enable Undefined Behaviour Sanitizer"
+    )
+    argument_parser.add_argument(
+        "--tsan", action="store_true", help="Enable Thread Sanitizer"
+    )
+    argument_parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging"
     )
 
     parsed_arguments = argument_parser.parse_args()
+
+    if parsed_arguments.asan and parsed_arguments.tsan:
+        argument_parser.error("--asan and --tsan cannot be combined")
 
     mode_map = {
         "b": "build",
@@ -58,6 +70,13 @@ def main() -> None:
         subprocess.check_call(clean_command, cwd=SOURCE_ROOT, env=bazel_environment)
 
     bazel_command = ["bazel", target_mode]
+
+    # Each sanitizer is a named config in .bazelrc; `bazel test --config=...`
+    # applies the build config to the test build as well.
+    for sanitizer_name in ("asan", "ubsan", "tsan"):
+        if getattr(parsed_arguments, sanitizer_name):
+            bazel_command.append(f"--config={sanitizer_name}")
+
     bazel_command.append("--action_env=PATH")
     bazel_command.append("--repo_env=PATH")
 

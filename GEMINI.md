@@ -21,12 +21,13 @@ general defaults for this repository.
 - **Build & Test:** Prefer `scripts/bazel.sh` for building and testing; it
   is markedly faster than the CMake build, both from scratch and after
   editing `protocol.hh`. Use `scripts/cmake.sh` only for what Bazel does not
-  provide: sanitizers, coverage, and clang-tidy. Both entrypoints discover a
+  provide: coverage and clang-tidy. Both entrypoints discover a
   reflection-capable compiler and pass it to the build system; a bare
   `bazel`/`cmake` invocation uses stock GCC and fails on `-freflection`.
-  The `scripts/bazel.sh` entrypoint supports `build`/`test` and `--clean`;
-  `scripts/cmake.sh` supports `--debug`, `--release`, `--asan`, `--ubsan`,
-  `--tsan`, `--coverage`, and `--clang-tidy`.
+  The `scripts/bazel.sh` entrypoint supports `build`/`test`, `--clean`,
+  `--asan`, `--ubsan`, and `--tsan`; `scripts/cmake.sh` supports `--debug`,
+  `--release`, `--asan`, `--ubsan`, `--tsan`, `--coverage`, and
+  `--clang-tidy`.
 - **Compiler:** The implementation requires GCC with C++26 reflection (the GCC
   trunk snapshot in `/opt/gcc-latest`, or `gcc-16`); CI, including the
   sanitizer jobs, runs on GCC trunk.
@@ -35,7 +36,8 @@ general defaults for this repository.
   or to `scripts/cmake.py` must also be verified with `scripts/cmake.sh`.
 - **Sanitizer Verification:** When modifying memory-sensitive or concurrent
   code, verify changes locally using at least one sanitizer (e.g.,
-  `./scripts/cmake.sh --asan` or `--tsan`). Note that ASAN and TSAN are
+  `./scripts/bazel.sh --asan` or `--tsan`; `scripts/cmake.sh` takes the same
+  flags). CI runs the sanitizers through Bazel. Note that ASAN and TSAN are
   mutually exclusive.
 - **Post-Change Checks:** Tests and pre-commit checks MUST be run after any
   modifications to the codebase.
@@ -53,4 +55,4 @@ general defaults for this repository.
 - Implementation: `protocol.hh`
 - Proposal Draft: `DRAFT.md`
 - Build Entrypoints: `scripts/bazel.sh` (Bazel, preferred), `scripts/cmake.sh`
-  (CMake: sanitizers, coverage, clang-tidy)
+  (CMake: coverage, clang-tidy)
