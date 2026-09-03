@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/sanitizers.yml" # This file
+      - ".github/actions/install-gcc-trunk/action.yml"
       - "**/*.cc"
       - "**/*.h"
       - "**/*.hh"
@@ -50,6 +51,7 @@ jobs:
           filters: |
             relevant:
               - ".github/workflows/sanitizers.yml" # This file
+              - ".github/actions/install-gcc-trunk/action.yml"
               - "**/*.cc"
               - "**/*.h"
               - "**/*.hh"
@@ -87,13 +89,8 @@ jobs:
         if: needs.detect-changes.outputs.relevant != 'false'
       - name: Install GCC trunk
         if: needs.detect-changes.outputs.relevant != 'false'
-        # Prebuilt GCC trunk snapshot from https://jwakely.github.io/pkg-gcc-latest/;
-        # scripts/bazel.py finds /opt/gcc-latest itself, so no PATH changes are needed.
-        # Keep in sync with the same step in bazel.yml.
-        run: |
-          wget --quiet https://kayari.org/gcc-latest/gcc-latest.deb
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ./gcc-latest.deb
+        # Cached between runs; the action documents how to pin a snapshot.
+        uses: ./.github/actions/install-gcc-trunk
       - name: Install uv
         if: needs.detect-changes.outputs.relevant != 'false'
         uses: astral-sh/setup-uv@v10.0.1

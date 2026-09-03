@@ -1,0 +1,72 @@
+name: Install GCC trunk
+description: >-
+  Install the prebuilt GCC trunk snapshot from
+  https://jwakely.github.io/pkg-gcc-latest/ into /opt/gcc-latest, restoring
+  the installed tree from the Actions cache while the snapshot is unchanged.
+  scripts/cmake.py and scripts/bazel.py find /opt/gcc-latest themselves, so
+  callers need no PATH changes.
+
+inputs:
+  package-url:
+    description: >-
+      URL of the snapshot .deb. The default tracks upstream weekly; if a
+      snapshot regression breaks a job, pin the versioned file linked from
+      https://jwakely.github.io/pkg-gcc-latest/, e.g.
+      https://kayari.org/gcc-latest/gcc-latest_17.0.0-20260816git8df013222dff.deb
+    required: false
+    default: https://kayari.org/gcc-latest/gcc-latest.deb
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve the snapshot
+      id: snapshot
+      shell: bash
+      # The unversioned URL redirects to a versioned file name, and that name
+      # plus the file's Last-Modified date keys the cache. A HEAD request that
+      # follows the redirect finds both without downloading anything. If the
+      # server ever stops providing either, the key would be constant and the
+      # cache would go stale, so caching is skipped rather than keyed blindly.
+      run: |
+        headers=$(curl --silent --show-error --fail --head --location \
+          "${{ inputs.package-url }}" | tr -d '\r')
+        final_url=$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ocation: //p' | tail -1)
+        final_url=${final_url:-${{ inputs.package-url }}}
+        last_modified=$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ast-[Mm]odified: //p' | tail -1)
+        file_name=$(basename "$final_url")
+        if [ "$file_name" = "gcc-latest.deb" ] || [ -z "$last_modified" ]; then
+          echo "::warning::Cannot identify the GCC snapshot ($file_name, '$last_modified'); installing without a cache"
+          echo "cache-key=" >> "$GITHUB_OUTPUT"
+        else
+          date_key=$(printf '%s' "$last_modified" | tr -c 'A-Za-z0-9' '-')
+          echo "cache-key=gcc-trunk-${{ runner.os }}-${{ runner.arch }}-${file_name}-${date_key}" >> "$GITHUB_OUTPUT"
+        fi
+        echo "Snapshot: $file_name ($last_modified)"
+
+    - name: Make /opt/gcc-latest writable for the cache
+      shell: bash
+      # actions/cache extracts as the runner user, and /opt is root-owned.
+      run: |
+        sudo mkdir -p /opt/gcc-latest
+        sudo chown "$(id -u):$(id -g)" /opt/gcc-latest
+
+    - name: Restore the installed tree
+      id: cache
+      if: steps.snapshot.outputs.cache-key != ''
+      uses: actions/cache@v4
+      with:
+        path: /opt/gcc-latest
+        key: ${{ steps.snapshot.outputs.cache-key }}
+
+    - name: Download and install the snapshot
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      # The package's postinst runs GCC's `mkheaders`, which regenerates the
+      # fixed system headers for this machine and is the slow part of the
+      # install. It must run, so the cache holds the installed tree rather
+      # than the .deb.
+      run: |
+        wget --quiet --output-document "$RUNNER_TEMP/gcc-latest.deb" "${{ inputs.package-url }}"
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends "$RUNNER_TEMP/gcc-latest.deb"
+        rm "$RUNNER_TEMP/gcc-latest.deb"
