@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/bazel.yml" # This file
+      - ".github/actions/install-gcc-trunk/action.yml"
       - "**/*.cc"
       - "**/*.h"
       - "**/*.hh"
@@ -50,6 +51,7 @@ jobs:
           filters: |
             relevant:
               - ".github/workflows/bazel.yml" # This file
+              - ".github/actions/install-gcc-trunk/action.yml"
               - "**/*.cc"
               - "**/*.h"
               - "**/*.hh"
@@ -115,15 +117,8 @@ jobs:
         if: needs.detect-changes.outputs.relevant != 'false'
       - name: Install GCC trunk
         if: needs.detect-changes.outputs.relevant != 'false' && matrix.settings.compiler.type == 'GCC_TRUNK'
-        # Prebuilt GCC trunk snapshot from https://jwakely.github.io/pkg-gcc-latest/;
-        # scripts/bazel.py finds /opt/gcc-latest itself, so no PATH changes are needed.
-        # The unversioned URL tracks upstream weekly. If a snapshot regression breaks
-        # this job, temporarily pin the versioned file linked from that page, e.g.
-        # https://kayari.org/gcc-latest/gcc-latest_17.0.0-20260816git8df013222dff.deb
-        run: |
-          wget --quiet https://kayari.org/gcc-latest/gcc-latest.deb
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ./gcc-latest.deb
+        # Cached between runs; the action documents how to pin a snapshot.
+        uses: ./.github/actions/install-gcc-trunk
       - name: Install GCC 16
         if: needs.detect-changes.outputs.relevant != 'false' && matrix.settings.compiler.type == 'GCC16'
         # Set CXX/CC explicitly so scripts/bazel.py does not pick a stray
