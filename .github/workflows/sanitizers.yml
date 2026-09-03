@@ -76,12 +76,15 @@ jobs:
 
   sanitized-tests:
     needs: detect-changes
-    # Run unless change detection positively reported that nothing relevant
-    # changed. `!cancelled()` lets this job run when `detect-changes` was
-    # skipped (push and schedule events), and an empty output (because
-    # `detect-changes` failed) falls through to running the build rather than
-    # silently passing the required check.
-    if: ${{ !cancelled() && needs.detect-changes.outputs.relevant != 'false' }}
+    # `!cancelled()` lets this job run when `detect-changes` was skipped (push
+    # and schedule events). When change detection positively reported that
+    # nothing relevant changed, every step below is skipped rather than the
+    # job itself: a matrix job skipped at job level never expands its matrix
+    # and reports a single check under the unexpanded name
+    # "${{ matrix.build_system }} ${{ matrix.sanitizer }}". An empty output
+    # (because `detect-changes` failed) falls through to running the build
+    # rather than silently passing the required check.
+    if: ${{ !cancelled() }}
     name: ${{ matrix.build_system }} ${{ matrix.sanitizer }}
     runs-on: ubuntu-26.04
     strategy:
@@ -95,9 +98,11 @@ jobs:
         sanitizer: ["asan", "tsan"]
     steps:
       - uses: actions/checkout@v5
+        if: needs.detect-changes.outputs.relevant != 'false'
       - uses: lukka/get-cmake@v4.4.2
-        if: matrix.build_system == 'cmake'
+        if: needs.detect-changes.outputs.relevant != 'false' && matrix.build_system == 'cmake'
       - name: Install GCC trunk
+        if: needs.detect-changes.outputs.relevant != 'false'
         # Prebuilt GCC trunk snapshot from https://jwakely.github.io/pkg-gcc-latest/;
         # scripts/cmake.py and scripts/bazel.py find /opt/gcc-latest themselves,
         # so no PATH changes are needed.
@@ -107,11 +112,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ./gcc-latest.deb
       - name: Install uv
+        if: needs.detect-changes.outputs.relevant != 'false'
         uses: astral-sh/setup-uv@v10.0.1
       - name: Set up Python
+        if: needs.detect-changes.outputs.relevant != 'false'
         run: uv sync
       - name: Set up Bazel
-        if: matrix.build_system == 'bazel'
+        if: needs.detect-changes.outputs.relevant != 'false' && matrix.build_system == 'bazel'
         uses: bazel-contrib/setup-bazel@0.19.0
         with:
           bazelisk-cache: true
@@ -119,7 +126,7 @@ jobs:
           # race to save under the same key and one of them would lose.
           disk-cache: ${{ github.workflow }}-${{ matrix.sanitizer }}
       - name: Run CMake
-        if: matrix.build_system == 'cmake'
+        if: needs.detect-changes.outputs.relevant != 'false' && matrix.build_system == 'cmake'
         run: |
           UBSAN_FLAG=""
           if [ "${{ matrix.sanitizer }}" = "asan" ]; then
@@ -127,7 +134,7 @@ jobs:
           fi
           ./scripts/cmake.sh --debug --${{ matrix.sanitizer }} ${UBSAN_FLAG}
       - name: Run Bazel
-        if: matrix.build_system == 'bazel'
+        if: needs.detect-changes.outputs.relevant != 'false' && matrix.build_system == 'bazel'
         run: |
           UBSAN_FLAG=""
           if [ "${{ matrix.sanitizer }}" = "asan" ]; then
@@ -135,11 +142,9 @@ jobs:
           fi
           ./scripts/bazel.sh --${{ matrix.sanitizer }} ${UBSAN_FLAG}
 
-  # The per-sanitizer checks cannot be required status checks: a matrix
-  # job skipped by its job-level `if:` reports a single check under the
-  # unexpanded name "${{ matrix.build_system }} ${{ matrix.sanitizer }}", so on pull requests where
-  # `detect-changes` skips the tests the expanded names never report. This
-  # non-matrix job always reports under a fixed name; require it instead.
+  # This non-matrix job reports under a fixed name whatever the matrix above
+  # did, so the ruleset can require one check per workflow instead of every
+  # per-sanitizer entry.
   summary:
     name: sanitizers
     needs: [detect-changes, sanitized-tests]

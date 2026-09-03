@@ -55,8 +55,8 @@ are required for merging to `main`: `GCC trunk Release`, `GCC trunk Debug`,
 `GCC-16 Release`, `GCC-16 Debug`, `asan`, `tsan`, `uv-lock`, `pre-commit`.
 
 On pull requests that touch no C++, CMake, Bazel, or build-script sources,
-the build and sanitizer jobs are skipped by a change-detection job, which
-counts as passing. The sanitizer jobs run under both CMake and Bazel
+a change-detection job makes the build and sanitizer jobs skip their steps,
+so they pass without building. The sanitizer jobs run under both CMake and Bazel
 (`--asan --ubsan` and `--tsan`, through `scripts/cmake.sh --debug` and
 `scripts/bazel.sh`).
 
