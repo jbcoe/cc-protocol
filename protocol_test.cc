@@ -151,9 +151,8 @@ TEST(ReflectionProtocolTest, CheckSpecialMembers) {
 
 TEST(ReflectionProtocolTest,
      CheckSpecialMembersForStructWithDeletedSpecialMembers) {
-  // `protocol` is not default-constructible and cannot be copied, or
-  // assigned to if the interface type cannot be copied.
-  // `protocol` can be unconditionally move constructed and move assigned.
+  // `protocol` is not default-constructible and is not move or
+  // copy constructible or assignable.
   struct D {
     D() = delete;
     D(const D&) = delete;
@@ -165,9 +164,9 @@ TEST(ReflectionProtocolTest,
 
   static_assert(!std::is_default_constructible_v<protocol<D>>);
   static_assert(!std::is_copy_constructible_v<protocol<D>>);
-  static_assert(std::is_move_constructible_v<protocol<D>>);
+  static_assert(!std::is_move_constructible_v<protocol<D>>);
   static_assert(!std::is_copy_assignable_v<protocol<D>>);
-  static_assert(std::is_move_assignable_v<protocol<D>>);
+  static_assert(!std::is_move_assignable_v<protocol<D>>);
 }
 
 TEST(ReflectionProtocolViewTest, IsTriviallyCopyable) {
@@ -906,6 +905,47 @@ TEST(ReflectionProtocolTest, IsConstructibleFromConformingType) {
 
   static_assert(std::is_constructible_v<protocol<Interface>, Conforming>);
   static_assert(!std::is_constructible_v<protocol<Interface>, NonConforming>);
+}
+
+TEST(ReflectionProtocolTest, IsConstructibleFromMoveOnlyType) {
+  struct Interface {
+    Interface(const Interface&) = delete;
+    Interface(Interface&&) = delete;
+
+    Interface& operator=(const Interface&) = delete;
+    Interface& operator=(Interface&&) = delete;
+  };
+
+  static_assert(!std::is_move_constructible_v<protocol<Interface>>);
+  static_assert(!std::is_move_assignable_v<protocol<Interface>>);
+
+  struct Default {};
+
+  static_assert(std::is_constructible_v<protocol<Interface>, Default>);
+
+  struct MoveOnly {
+    MoveOnly(const MoveOnly&) = delete;
+    MoveOnly(MoveOnly&&) = default;
+
+    MoveOnly& operator=(const MoveOnly&) = delete;
+    MoveOnly& operator=(MoveOnly&&) = default;
+
+    ~MoveOnly() = default;
+  };
+
+  static_assert(std::is_constructible_v<protocol<Interface>, MoveOnly>);
+
+  struct Immovable {
+    Immovable(const Immovable&) = delete;
+    Immovable(Immovable&&) = delete;
+
+    Immovable& operator=(const Immovable&) = delete;
+    Immovable& operator=(Immovable&&) = delete;
+
+    ~Immovable() = default;
+  };
+
+  static_assert(std::is_constructible_v<protocol<Interface>, Immovable>);
 }
 
 TEST(ReflectionProtocolViewTest, IsConstructibleFromConformingType) {
