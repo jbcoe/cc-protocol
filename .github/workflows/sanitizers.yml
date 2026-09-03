@@ -10,11 +10,6 @@ on:
       - "**/*.cc"
       - "**/*.h"
       - "**/*.hh"
-      - "**/CMakeLists.txt"
-      - "CMakePresets.json"
-      - "**/*.cmake"
-      - "scripts/cmake.py"
-      - "scripts/cmake.sh"
       - "**/*.bazel"
       - "BUILD.bazel"
       - "MODULE.bazel"
@@ -58,11 +53,6 @@ jobs:
               - "**/*.cc"
               - "**/*.h"
               - "**/*.hh"
-              - "**/CMakeLists.txt"
-              - "CMakePresets.json"
-              - "**/*.cmake"
-              - "scripts/cmake.py"
-              - "scripts/cmake.sh"
               - "**/*.bazel"
               - "BUILD.bazel"
               - "MODULE.bazel"
@@ -81,32 +71,25 @@ jobs:
     # nothing relevant changed, every step below is skipped rather than the
     # job itself: a matrix job skipped at job level never expands its matrix
     # and reports a single check under the unexpanded name
-    # "${{ matrix.build_system }} ${{ matrix.sanitizer }}". An empty output
-    # (because `detect-changes` failed) falls through to running the build
-    # rather than silently passing the required check.
+    # "${{ matrix.sanitizer }}". An empty output (because `detect-changes`
+    # failed) falls through to running the build rather than silently passing
+    # the required check.
     if: ${{ !cancelled() }}
-    name: ${{ matrix.build_system }} ${{ matrix.sanitizer }}
+    name: ${{ matrix.sanitizer }}
     runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
-        # The same sanitizers run under both build systems for now (issue
-        # #292): Bazel builds are faster, and the CMake jobs stay until the
-        # Bazel ones have proven themselves.
-        build_system: ["cmake", "bazel"]
         # GCC has no MemorySanitizer, so there is no msan job.
         sanitizer: ["asan", "tsan"]
     steps:
       - uses: actions/checkout@v5
         if: needs.detect-changes.outputs.relevant != 'false'
-      - uses: lukka/get-cmake@v4.4.2
-        if: needs.detect-changes.outputs.relevant != 'false' && matrix.build_system == 'cmake'
       - name: Install GCC trunk
         if: needs.detect-changes.outputs.relevant != 'false'
         # Prebuilt GCC trunk snapshot from https://jwakely.github.io/pkg-gcc-latest/;
-        # scripts/cmake.py and scripts/bazel.py find /opt/gcc-latest themselves,
-        # so no PATH changes are needed.
-        # Keep in sync with the same step in cmake.yml and bazel.yml.
+        # scripts/bazel.py finds /opt/gcc-latest itself, so no PATH changes are needed.
+        # Keep in sync with the same step in bazel.yml.
         run: |
           wget --quiet https://kayari.org/gcc-latest/gcc-latest.deb
           sudo apt-get update
@@ -118,23 +101,15 @@ jobs:
         if: needs.detect-changes.outputs.relevant != 'false'
         run: uv sync
       - name: Set up Bazel
-        if: needs.detect-changes.outputs.relevant != 'false' && matrix.build_system == 'bazel'
+        if: needs.detect-changes.outputs.relevant != 'false'
         uses: bazel-contrib/setup-bazel@0.19.0
         with:
           bazelisk-cache: true
-          # One disk cache per sanitizer: the two Bazel jobs would otherwise
-          # race to save under the same key and one of them would lose.
+          # One disk cache per sanitizer: the two jobs would otherwise race
+          # to save under the same key and one of them would lose.
           disk-cache: ${{ github.workflow }}-${{ matrix.sanitizer }}
-      - name: Run CMake
-        if: needs.detect-changes.outputs.relevant != 'false' && matrix.build_system == 'cmake'
-        run: |
-          UBSAN_FLAG=""
-          if [ "${{ matrix.sanitizer }}" = "asan" ]; then
-            UBSAN_FLAG="--ubsan"
-          fi
-          ./scripts/cmake.sh --debug --${{ matrix.sanitizer }} ${UBSAN_FLAG}
       - name: Run Bazel
-        if: needs.detect-changes.outputs.relevant != 'false' && matrix.build_system == 'bazel'
+        if: needs.detect-changes.outputs.relevant != 'false'
         run: |
           UBSAN_FLAG=""
           if [ "${{ matrix.sanitizer }}" = "asan" ]; then

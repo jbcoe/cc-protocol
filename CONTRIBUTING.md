@@ -56,9 +56,8 @@ are required for merging to `main`: `GCC trunk Release`, `GCC trunk Debug`,
 
 On pull requests that touch no C++, CMake, Bazel, or build-script sources,
 a change-detection job makes the build and sanitizer jobs skip their steps,
-so they pass without building. The sanitizer jobs run under both CMake and Bazel
-(`--asan --ubsan` and `--tsan`, through `scripts/cmake.sh --debug` and
-`scripts/bazel.sh`).
+so they pass without building. The sanitizer jobs build with Bazel
+(`./scripts/bazel.sh --asan --ubsan` and `./scripts/bazel.sh --tsan`).
 
 ### Static Analysis
 

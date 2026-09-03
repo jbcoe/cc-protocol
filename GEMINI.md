@@ -37,8 +37,8 @@ general defaults for this repository.
 - **Sanitizer Verification:** When modifying memory-sensitive or concurrent
   code, verify changes locally using at least one sanitizer (e.g.,
   `./scripts/bazel.sh --asan` or `--tsan`; `scripts/cmake.sh` takes the same
-  flags). CI runs the sanitizers under both build systems. Note that ASAN and
-  TSAN are mutually exclusive.
+  flags). CI runs the sanitizers through Bazel. Note that ASAN and TSAN are
+  mutually exclusive.
 - **Post-Change Checks:** Tests and pre-commit checks MUST be run after any
   modifications to the codebase.
 
