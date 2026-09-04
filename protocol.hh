@@ -204,7 +204,7 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
     // No additional conditions.
   } else {
     if (!same_signature_ignoring_const(candidate, interface)) return false;
-    // If interface is `const`, `candidate` must be const.
+    // `const` qualifiers must match.
     if (is_const(interface) != is_const(candidate)) return false;
   }
   // If interface is `noexcept`, `candidate` must be noexcept.
@@ -680,7 +680,7 @@ consteval std::meta::info generate_wrapper_bases() {
 // named members with `operator()` for each public, non-special, member
 // function from `T` selected by `ConstPolicy`.
 template <typename T, typename ProtocolType, typename Vtable,
-          const_policy ConstPolicy = const_policy::propagate>
+          const_policy ConstPolicy>
 using protocol_wrappers_t =
     typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable,
                                      ConstPolicy>():];
@@ -862,7 +862,8 @@ inline constexpr bool is_protocol_conformant_v =
 template <is_valid_interface I, typename Alloc = std::allocator<std::byte>>
 class protocol
     : public detail::protocol_wrappers_t<
-          I, protocol<I, Alloc>, typename detail::vtable_generator<I>::vtable> {
+          I, protocol<I, Alloc>, typename detail::vtable_generator<I>::vtable,
+          detail::const_policy::propagate> {
   using traits = std::allocator_traits<Alloc>;
 
   // When using allocators in a type-erased context, we must rebind
@@ -899,7 +900,7 @@ class protocol
     return obj;
   }
 
-  using view_vtable = typename detail::vtable_generator<I>::vtable;
+  using view_vtable = detail::vtable_generator<I>::vtable;
 
   // Extends the generated per-member-function vtable with the entries needed
   // for ownership. Because it derives from `view_vtable`, the synthesised
@@ -944,8 +945,7 @@ class protocol
     return result;
   }
 
-  // Creates a vtable for the type T. TNorm is used throughout
-  // this file to create a convenient alias for a decayed type.
+  // Creates a vtable for the type T.
   template <typename T>
   static constexpr vtable vtable_for = make_vtable_for<T>();
 
@@ -1197,6 +1197,13 @@ class protocol_view
         vtable_(
             &detail::view_vtable_for<T, U, detail::const_policy::all_const>) {}
 
+  // A view of a temporary would dangle.
+  template <typename U>
+    requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
+                 (!is_protocol_view_v<std::remove_cvref_t<U>>) &&
+                 (!std::is_const_v<U>)
+  protocol_view(const U&&) = delete;
+
   // Views the object a `protocol<T>` owns, sharing its vtable.
   //
   // Precondition: `p` is not valueless.
@@ -1224,14 +1231,13 @@ class protocol_view
   // Non-owning pointer to the viewed object.
   void* object_ = nullptr;
 
-  const typename detail::vtable_generator<T>::vtable* vtable_;
+  const detail::vtable_generator<T>::vtable* vtable_;
 };
 
 // ---------------------------------------------------------------------------
 // protocol_view<const T>
 //
-// Views a (possibly const) object and exposes only the const member
-// functions of `T`.
+// Views a const object `T` and exposes the const member functions.
 // ---------------------------------------------------------------------------
 template <is_valid_interface T>
 class protocol_view<const T> : public detail::protocol_wrappers_t<
@@ -1293,7 +1299,7 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
   // Non-owning pointer to the viewed object.
   const void* object_ = nullptr;
 
-  const typename detail::vtable_generator<T>::vtable* vtable_;
+  const detail::vtable_generator<T>::vtable* vtable_;
 };
 
 }  // namespace xyz::reflection

@@ -161,7 +161,7 @@ def main() -> None:
 
     if args.agent is None:
         print("To build and test (GCC trunk with C++26 reflection):")
-        print("  ./scripts/cmake.sh --release")
+        print("  ./scripts/bazel.sh")
         container_cmd = None
     else:
         cli = AGENT_CLIS[args.agent]

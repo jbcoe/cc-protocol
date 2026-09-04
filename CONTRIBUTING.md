@@ -6,19 +6,37 @@ This document explains how to set up, build, and understand the internals of the
 
 ### Prerequisites
 
-Before building, ensure you have [CMake](https://cmake.org/download/) 3.25 or
-later, a GCC with C++26 reflection (P2996) support, and
+Before building, ensure you have
+[Bazelisk](https://github.com/bazelbuild/bazelisk) (which fetches a current
+Bazel release on first use), a GCC with C++26 reflection (P2996) support, and
 [uv](https://docs.astral.sh/uv/getting-started/installation/) installed. The
 reflection compiler is either the GCC trunk snapshot from
 [jwakely.github.io/pkg-gcc-latest](https://jwakely.github.io/pkg-gcc-latest/)
 or Ubuntu 26.04's `gcc-16` package. The project relies on `uv` to manage
-Python dependencies and execute build scripts.
+Python dependencies and execute build scripts. The CMake build, used for
+coverage and clang-tidy, additionally needs
+[CMake](https://cmake.org/download/) 3.25 or later.
 
 ### Building and Testing
 
-The project supports both CMake and Bazel build systems.
+The project supports both Bazel and CMake build systems. Prefer Bazel for
+day-to-day building and testing: on a two-core codespace a full Bazel build
+took 140 s against 223 s for CMake, and rebuilding after a one-character edit
+to `protocol.hh` took 45 s against 81 s.
 
-1. **CMake**: To build the project and run tests with CMake, execute:
+1. **Bazel** (preferred): To build the project and run tests, execute:
+
+```bash
+./scripts/bazel.sh
+```
+
+Pass `build` to compile without running tests, `--asan`, `--ubsan`, or
+`--tsan` for a sanitized build (`--asan` and `--tsan` cannot be combined), or
+`--clean` to expunge the Bazel cache first.
+
+2. **CMake**: The CMake build provides the coverage and clang-tidy
+configurations described below, and the same sanitizer flags as Bazel. To
+build and test with it, execute:
 
 ```bash
 ./scripts/cmake.sh
@@ -26,14 +44,8 @@ The project supports both CMake and Bazel build systems.
 
 For more detailed CMake options, run `./scripts/cmake.sh --help`.
 
-2. **Bazel**: To build the project and run tests with Bazel, execute:
-
-```bash
-./scripts/bazel.sh
-```
-
 Both scripts select a reflection-capable compiler and pass it to their
-underlying build system; a bare `cmake`/`bazel` invocation skips that and
+underlying build system; a bare `bazel`/`cmake` invocation skips that and
 fails on stock GCC.
 
 ### Continuous Integration
@@ -42,9 +54,10 @@ Pull requests run the workflows in `.github/workflows`. The following checks
 are required for merging to `main`: `GCC trunk Release`, `GCC trunk Debug`,
 `GCC-16 Release`, `GCC-16 Debug`, `asan`, `tsan`, `uv-lock`, `pre-commit`.
 
-On pull requests that touch no C++, CMake, or build-script sources, the build
-and sanitizer jobs are skipped by a change-detection job, which counts as
-passing.
+On pull requests that touch no C++, CMake, Bazel, or build-script sources,
+a change-detection job makes the build and sanitizer jobs skip their steps,
+so they pass without building. The sanitizer jobs build with Bazel
+(`./scripts/bazel.sh --asan --ubsan` and `./scripts/bazel.sh --tsan`).
 
 ### Static Analysis
 
