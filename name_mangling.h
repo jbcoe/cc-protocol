@@ -39,6 +39,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <type_traits>
 #include <vector>
 
+#include "operators.h"
+
 namespace xyz::name_mangling {
 
 namespace detail {
@@ -237,13 +239,21 @@ consteval std::string mangle_type(std::meta::info type) {
 }
 
 // Returns the mangled function-name atom for `function`: the Itanium
-// <operator-name> `cl` for the call operator, or a length-prefixed
-// <source-name> for its identifier otherwise. `identifier_of` throws for
-// `operator()`, which has no identifier.
+// <operator-name> for a supported operator function, or a length-prefixed
+// <source-name> for its identifier otherwise. `identifier_of` throws for an
+// operator function, which has no identifier.
 consteval std::string base_name_of(std::meta::info function) {
-  if (is_operator_function(function) &&
-      operator_of(function) == std::meta::operators::op_parentheses) {
-    return "cl";
+  if (is_operator_function(function)) {
+    switch (operator_of(function)) {
+#define XYZ_REFLECTION_OPERATOR_MANGLING_CASE(name, token, code) \
+  case std::meta::operators::op_##name:                          \
+    return code;
+      XYZ_REFLECTION_FOR_EACH_OPERATOR(XYZ_REFLECTION_OPERATOR_MANGLING_CASE)
+#undef XYZ_REFLECTION_OPERATOR_MANGLING_CASE
+      default:
+        throw std::runtime_error(
+            "name mangling: unsupported operator function");
+    }
   }
   return mangle_atom(identifier_of(function));
 }
