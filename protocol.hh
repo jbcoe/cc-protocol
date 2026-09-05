@@ -852,6 +852,18 @@ class protocol
   template <is_valid_view_interface>
   friend class protocol_view;
 
+  // Grants protocol_cast access to protocol's underlying data.
+  template <typename T, typename Protocol>
+    requires(is_protocol_v<std::remove_cvref_t<Protocol>>)
+  friend constexpr T protocol_cast(Protocol&& operand);
+
+  template <typename T, typename Interface>
+  friend constexpr T* protocol_cast(protocol<Interface>* operand) noexcept;
+
+  template <typename T, typename Interface>
+  friend constexpr const T* protocol_cast(
+      const protocol<Interface>* operand) noexcept;
+
   [[no_unique_address]] Alloc alloc_;
 
   void* object_ = nullptr;
@@ -1052,6 +1064,40 @@ class protocol
     return object_ == nullptr;
   }
 };
+
+template <typename T, typename Protocol>
+  requires(is_protocol_v<std::remove_cvref_t<Protocol>>)
+constexpr T protocol_cast(Protocol&& operand) {
+  if (operand.vtable_ != &Protocol::template vtable_for<T>) {
+    throw bad_protocol_cast{};
+  }
+
+  using pointer_type =
+      std::conditional_t<std::is_const_v<std::remove_reference_t<Protocol>>,
+                         const T*, T*>;
+  return std::forward_like<Protocol>(
+      *static_cast<pointer_type>(operand.object_));
+}
+}
+
+template <typename T, typename Interface>
+constexpr T* protocol_cast(
+    xyz::reflection::protocol<Interface>* operand) noexcept {
+  if (operand.vtable_ != &protocol<Interface>::template vtable_for<T>) {
+    return nullptr;
+  }
+
+  return static_cast<T*>(operand_ > object_);
+}
+
+template <typename T, typename Interface>
+constexpr const T* protocol_cast(const protocol<Interface>* operand) noexcept {
+  if (operand.vtable_ != &protocol<Interface>::template vtable_for<T>) {
+    return nullptr;
+  }
+
+  return static_cast<const T*>(operand->object_);
+}
 
 // ---------------------------------------------------------------------------
 // protocol_view<T>
