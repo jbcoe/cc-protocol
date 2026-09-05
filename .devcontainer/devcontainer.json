@@ -2,7 +2,11 @@
 	"name": "xyz.cc-protocol",
 	"build": {
 		"dockerfile": "../docker/Dockerfile",
-		"context": ".."
+		"context": "..",
+		// The base stage holds the C++ toolchain and language tools. The agent
+		// CLIs and the persistent uv cache live in the sandbox stage, which only
+		// scripts/agentic-sandbox.py builds.
+		"target": "base"
 	},
 	"remoteUser": "vscode",
 	// Host credentials are shared with the container by bind-mounting them into
@@ -14,9 +18,6 @@
 	//   "type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.config/gh,target=/home/vscode/.config/gh",
 	//   "type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/home/vscode/.claude",
 	//   "type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude.json,target=/home/vscode/.claude.json"
-	//
-	// The `vscode` user is created with UID 1000 (see docker/Dockerfile) so that
-	// these mounted files stay readable and writable on Linux and WSL hosts.
 	"mounts": [
 		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,readonly"
 	],
