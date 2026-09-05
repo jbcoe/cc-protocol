@@ -3,9 +3,6 @@
 	"build": {
 		"dockerfile": "../docker/Dockerfile",
 		"context": "..",
-		// The base stage holds the C++ toolchain and language tools. The agent
-		// CLIs and the persistent uv cache live in the sandbox stage, which only
-		// scripts/agentic-sandbox.py builds.
 		"target": "base"
 	},
 	"remoteUser": "vscode",
