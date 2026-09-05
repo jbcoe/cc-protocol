@@ -123,6 +123,14 @@ ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
 # https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory
 RUN git config --global --add safe.directory /workspace
 
+# Pre-warm bazelisk's download of the pinned Bazel binary (~60MB) so the
+# sandbox reuses the baked copy instead of fetching it on every run. bazelisk
+# reads the version from .bazelversion; the runtime bind mount supplies the
+# same file, so the cached binary matches and is reused. Runs as vscode so
+# the cache lands in that user's ~/.cache/bazelisk.
+COPY .bazelversion /workspace/.bazelversion
+RUN bazel version
+
 # The sandbox image needs additional setup to use the Docker volumes for persistent cache.
 FROM base AS sandbox
 
