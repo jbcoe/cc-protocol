@@ -107,7 +107,6 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
 ENV UV_LINK_MODE="copy"
-RUN mkdir -p /home/vscode/.cache/uv
 
 # Pre-warm bazelisk's download of the pinned Bazel binary (~60MB) so the
 # ephemeral sandbox reuses the baked copy instead of fetching it on every run.

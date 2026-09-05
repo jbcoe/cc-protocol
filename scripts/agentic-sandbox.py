@@ -7,6 +7,7 @@ Supported agents: Gemini CLI, Claude Code, Antigravity CLI.
 
 import argparse
 import os
+import platform
 import shlex
 import subprocess
 import sys
@@ -19,6 +20,9 @@ IMAGE_NAME = "cc-protocol-sandbox"
 # them on first use. Only the sandbox mounts them; the long-lived devcontainer
 # keeps its cache in its own writable layer.
 CACHE_VOLUMES: dict[str, str] = {"cc-protocol-uv-cache": "/home/vscode/.cache/uv"}
+
+# Enabled by default only on macOS, where the cache volumes are known to work.
+CACHE_VOLUMES_DEFAULT = platform.system() == "Darwin"
 
 
 class AgentCli(TypedDict):
@@ -131,6 +135,12 @@ def main() -> None:
         "--rebuild-docker", action="store_true", help="Rebuild the Docker image."
     )
     parser.add_argument(
+        "--cache-volumes",
+        action=argparse.BooleanOptionalAction,
+        default=CACHE_VOLUMES_DEFAULT,
+        help="Mount the persistent uv cache volumes.",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging."
     )
     args, agent_args = parser.parse_known_args()
@@ -196,8 +206,9 @@ def main() -> None:
             container_cmd += " " + " ".join(shlex.quote(arg) for arg in agent_args)
 
     cache_mounts = []
-    for volume, target in CACHE_VOLUMES.items():
-        cache_mounts.extend(["-v", f"{volume}:{target}"])
+    if args.cache_volumes:
+        for volume, target in CACHE_VOLUMES.items():
+            cache_mounts.extend(["-v", f"{volume}:{target}"])
 
     run_args = [
         "docker",
