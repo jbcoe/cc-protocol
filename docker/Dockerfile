@@ -1,4 +1,10 @@
-FROM ubuntu:26.04
+# Two build stages sharing a common base:
+#   base    - C++ toolchain and language tools; the devcontainer builds this.
+#   sandbox - base plus the agent CLIs and a persistent uv cache; built by
+#             scripts/agentic-sandbox.py for ephemeral `--rm` agent containers.
+# The devcontainer container is long-lived, so it keeps its uv cache in its own
+# writable layer and mounts no cache volume; only the sandbox does.
+FROM ubuntu:26.04 AS base
 
 # Install base tools and C++ development tools.
 #
@@ -55,7 +61,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
 
 # Install the GitHub CLI (gh) from its own apt repository, per
 # https://github.com/cli/cli/blob/trunk/docs/install_linux.md (not reliably
-# available via Ubuntu 24.04's default repos).
+# available via Ubuntu's default repos).
 RUN mkdir -p -m 755 /etc/apt/keyrings \
     && wget -nv -O /etc/apt/keyrings/githubcli-archive-keyring.gpg https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
@@ -76,43 +82,52 @@ RUN ARCH=$(dpkg --print-architecture) && \
     && tar -xzf /tmp/jj.tar.gz -C /usr/local/bin ./jj \
     && rm /tmp/jj.tar.gz
 
-# Create non-root user.
-#
-# Ubuntu 24.04+ base images ship a default `ubuntu` user at UID/GID 1000, so
-# a plain `useradd vscode` would land on 1001. Host config directories that
-# are bind-mounted at runtime (~/.claude, ~/.gemini, ~/.ssh, ...) are almost
-# always owned by UID 1000, and VS Code's `updateRemoteUserUID` cannot remap
-# `vscode` onto an ID that is already taken. Remove the stock user first so
-# `vscode` gets 1000:1000 and the mounted files are readable and writable.
+# Install Node.js. The devcontainer's Claude Code VS Code extension needs it,
+# and the sandbox stage installs the agent CLIs on top of it.
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create the non-root user `vscode` at UID 1000. Ubuntu ships a stock `ubuntu`
+# user at UID 1000; remove it first so `vscode` gets 1000.
 RUN userdel -r ubuntu \
     && useradd -m -s /bin/bash --uid 1000 vscode \
     && mkdir -p /workspace \
     && chown vscode:vscode /workspace
 
-# Install Node.js (required for both Gemini CLI and Claude Code).
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
-# Switch to non-root user.
 USER vscode
 WORKDIR /workspace
 
-# Configure npm for user-local global installs.
-ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
-ENV PATH="/home/vscode/.npm-global/bin:/home/vscode/.local/bin:/usr/local/bin:${PATH}"
-RUN mkdir -p /home/vscode/.npm-global
+ENV PATH="/home/vscode/.local/bin:/usr/local/bin:${PATH}"
 
-# Install both AI agent CLIs for compatibility with existing tooling that
-# may invoke either `gemini` or `claude`.
+# Set up uv and the Python environment. UV_CACHE_DIR names the download cache;
+# in the devcontainer it lives in the container's writable layer, and the
+# sandbox stage mounts a persistent volume there instead.
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
+ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
+ENV UV_LINK_MODE="copy"
+RUN mkdir -p /home/vscode/.cache/uv
+
+# Pre-warm bazelisk's download of the pinned Bazel binary (~60MB) so the
+# ephemeral sandbox reuses the baked copy instead of fetching it on every run.
+# bazelisk reads the version from .bazelversion; the runtime bind mount supplies
+# the same file, so the cached binary matches and is reused. Runs as vscode so
+# the cache lands in that user's ~/.cache/bazelisk.
+COPY .bazelversion /workspace/.bazelversion
+RUN bazel version
+
+
+FROM base AS sandbox
+
+# Configure npm for user-local global installs, then install the agent CLIs.
+ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
+ENV PATH="/home/vscode/.npm-global/bin:${PATH}"
+RUN mkdir -p /home/vscode/.npm-global
 RUN npm install -g @google/gemini-cli @anthropic-ai/claude-code
 
 # Install Antigravity CLI (installs binary as `agy` into ~/.local/bin).
 RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
-
-# Set up uv and Python environment.
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 
 # Agent config dirs (~/.gemini / ~/.claude) are mounted from the host at runtime
 # to persist auth state between sessions. Default config files are seeded by the launch
