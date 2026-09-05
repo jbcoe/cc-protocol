@@ -7,11 +7,18 @@ Supported agents: Gemini CLI, Claude Code, Antigravity CLI.
 
 import argparse
 import os
+import shlex
 import subprocess
 import sys
 from typing import TypedDict
 
 IMAGE_NAME = "cc-protocol-sandbox"
+
+# Docker named volumes persisting each tool's cache across the `--rm` sandbox
+# containers, mounted at the cache paths the Dockerfile sets. Docker creates
+# them on first use. Only the sandbox mounts them; the long-lived devcontainer
+# keeps its cache in its own writable layer.
+CACHE_VOLUMES: dict[str, str] = {"cc-protocol-uv-cache": "/home/vscode/.cache/uv"}
 
 
 class AgentCli(TypedDict):
@@ -102,7 +109,11 @@ def main() -> None:
     """Provide the main entry point for the agentic sandbox script."""
     parser = argparse.ArgumentParser(
         description="Run an AI agent (gemini, claude, or agy) in a Docker "
-        "sandbox, or a plain shell if no agent is given."
+        "sandbox, or a plain shell if no agent is given.",
+        epilog="Any arguments not listed here are forwarded to the agent, e.g. "
+        "`agentic-sandbox.py claude --model opus`. Put a flag that clashes with "
+        "this script's own after a `--`, e.g. `agentic-sandbox.py claude -- "
+        "--verbose`.",
     )
     parser.add_argument(
         "agent",
@@ -122,10 +133,16 @@ def main() -> None:
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging."
     )
-    args = parser.parse_args()
+    args, agent_args = parser.parse_known_args()
+    # argparse leaves the `--` separator in the extras when a known flag precedes
+    # it (CPython gh-61252), so drop a leading one before forwarding.
+    if agent_args and agent_args[0] == "--":
+        agent_args = agent_args[1:]
 
     if args.update and args.agent is None:
         parser.error("--update requires an agent")
+    if agent_args and args.agent is None:
+        parser.error(f"no agent to forward arguments to: {' '.join(agent_args)}")
 
     def log(msg: str) -> None:
         if args.verbose:
@@ -147,6 +164,8 @@ def main() -> None:
             [
                 "docker",
                 "build",
+                "--target",
+                "sandbox",
                 "-t",
                 IMAGE_NAME,
                 "-f",
@@ -170,6 +189,15 @@ def main() -> None:
             if args.update
             else cli["cmd"]
         )
+        # Forward unrecognized arguments to the agent. The agent command is last
+        # in container_cmd (even after an --update prefix), so appending here
+        # passes them to the agent. shlex.quote keeps each argument intact.
+        if agent_args:
+            container_cmd += " " + " ".join(shlex.quote(arg) for arg in agent_args)
+
+    cache_mounts = []
+    for volume, target in CACHE_VOLUMES.items():
+        cache_mounts.extend(["-v", f"{volume}:{target}"])
 
     run_args = [
         "docker",
@@ -178,8 +206,11 @@ def main() -> None:
         "--rm",
         "-v",
         f"{project_root}:/workspace",
-        *_agent_mount_args(args.agent),
     ]
+
+    run_args.extend(cache_mounts)
+    run_args.extend(_agent_mount_args(args.agent))
+
     if "TERM" in os.environ:
         run_args.extend(["-e", f"TERM={os.environ['TERM']}"])
     if "COLORTERM" in os.environ:
