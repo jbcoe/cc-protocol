@@ -2481,4 +2481,15 @@ TEST(ReflectionProtocolViewTest, ViewOfProtocolPassedByValue) {
   EXPECT_EQ(read(p), 5);
 }
 
+TEST(ReflectionProtocolTest, ProtocolCast) {
+  struct Interface {};
+
+  struct Conforming {
+    int value;
+  };
+
+  protocol<Interface> p(Conforming{.value = 25});
+  EXPECT_EQ(protocol_cast<Conforming>(p).value, 25);
+}
+
 }  // namespace
