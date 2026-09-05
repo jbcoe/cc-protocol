@@ -61,7 +61,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
 
 # Install the GitHub CLI (gh) from its own apt repository, per
 # https://github.com/cli/cli/blob/trunk/docs/install_linux.md (not reliably
-# available via Ubuntu's default repos).
+# available via Ubuntu 24.04's default repos).
 RUN mkdir -p -m 755 /etc/apt/keyrings \
     && wget -nv -O /etc/apt/keyrings/githubcli-archive-keyring.gpg https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
@@ -107,14 +107,6 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
 ENV UV_LINK_MODE="copy"
-
-# Pre-warm bazelisk's download of the pinned Bazel binary (~60MB) so the
-# ephemeral sandbox reuses the baked copy instead of fetching it on every run.
-# bazelisk reads the version from .bazelversion; the runtime bind mount supplies
-# the same file, so the cached binary matches and is reused. Runs as vscode so
-# the cache lands in that user's ~/.cache/bazelisk.
-COPY .bazelversion /workspace/.bazelversion
-RUN bazel version
 
 
 FROM base AS sandbox
