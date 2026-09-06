@@ -107,6 +107,9 @@ jobs:
           # One disk cache per sanitizer: the two jobs would otherwise race
           # to save under the same key and one of them would lose.
           disk-cache: ${{ github.workflow }}-${{ matrix.sanitizer }}
+          # Downloaded external deps don't vary by sanitizer, so one shared
+          # repository cache serves both matrix jobs.
+          repository-cache: true
       - name: Run Bazel
         if: needs.detect-changes.outputs.relevant != 'false'
         run: |

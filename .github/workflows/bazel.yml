@@ -142,6 +142,7 @@ jobs:
         with:
           bazelisk-cache: true
           disk-cache: ${{ github.workflow }}
+          repository-cache: true
       - name: Run Bazel
         if: needs.detect-changes.outputs.relevant != 'false'
         run: ./scripts/bazel.sh
