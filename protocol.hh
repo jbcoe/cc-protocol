@@ -857,12 +857,12 @@ class protocol
   // calling a member function on a valueless protocol, or through a view of
   // one, aborts with a diagnostic.
   static consteval vtable make_null_vtable() {
-    vtable result{};
-    static_cast<view_vtable&>(result) = detail::make_invalid_vtable<I>();
-    result.destroy = +[](const Alloc&, void*) -> void {};
-    result.copy = +[](const Alloc&, const void*) -> void* { return nullptr; };
-    result.move = +[](const Alloc&, void*) -> void* { return nullptr; };
-    return result;
+    vtable null{};
+    static_cast<view_vtable&>(null) = detail::make_invalid_vtable<I>();
+    null.destroy = +[](const Alloc&, void*) -> void {};
+    null.copy = +[](const Alloc&, const void*) -> void* { return nullptr; };
+    null.move = +[](const Alloc&, void*) -> void* { return nullptr; };
+    return null;
   }
 
   static constexpr vtable null_vtable = make_null_vtable();
