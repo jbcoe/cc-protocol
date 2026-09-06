@@ -1,0 +1,5 @@
+# dockerfilelint's missing_tag check predates multi-stage builds: it reads the
+# `FROM base` in the sandbox stage as an untagged external image and flags it.
+# The real base image is pinned to a tag at the top of Dockerfile, so disable it.
+rules:
+  missing_tag: off
