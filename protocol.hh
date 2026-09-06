@@ -851,11 +851,11 @@ class protocol
   template <typename T>
   static constexpr vtable vtable_for = make_vtable_for<T>();
 
-  // The stand-in for a nullptr vtable. Prevents redundant null checks in the
-  // special member functions. Its ownership entries are no-ops; its member
-  // function entries are `invalid_call_trampoline`s, so calling a member
-  // function on a valueless protocol, or through a view of one, aborts with
-  // a diagnostic instead of calling through a null function pointer.
+  // A vtable for a valueless protocol. Using the null vtable, the special
+  // member functions don't need a null check. Its ownership entries are
+  // no-ops; its member function entries are `invalid_call_trampoline`s, so
+  // calling a member function on a valueless protocol, or through a view of
+  // one, aborts with a diagnostic.
   static consteval vtable make_null_vtable() {
     vtable result{};
     static_cast<view_vtable&>(result) = detail::make_invalid_vtable<I>();
