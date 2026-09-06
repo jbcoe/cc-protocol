@@ -14,10 +14,8 @@ from typing import TypedDict
 
 IMAGE_NAME = "cc-protocol-sandbox"
 
-# Docker named volumes persisting each tool's cache across the `--rm` sandbox
-# containers, mounted at the cache paths the Dockerfile sets. Docker creates
-# them on first use. Only the sandbox mounts them; the long-lived devcontainer
-# keeps its cache in its own writable layer.
+# Docker named volumes persisting each tool's cache across constainer instances.
+# The long-lived devcontainer does not use these, it keeps its cache locally.
 CACHE_VOLUMES: dict[str, str] = {"cc-protocol-uv-cache": "/home/vscode/.cache/uv"}
 
 # Enabled by default only on macOS, where the cache volumes are known to work.
