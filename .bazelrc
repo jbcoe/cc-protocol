@@ -2,6 +2,9 @@
 build --cxxopt=-std=c++26
 build --cxxopt=-freflection
 
+# Store downloaded dependency archives.
+common --repository_cache=~/.cache/bazel/_bazel_repo_cache
+
 # Treat external repositories' headers (e.g. googletest) as system headers,
 # matching CMake's SYSTEM FetchContent_Declare, so -Werror below only holds
 # our own code to account and not warnings from vendored dependencies.

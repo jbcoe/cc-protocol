@@ -18,8 +18,10 @@ IMAGE_NAME = "cc-protocol-sandbox"
 # containers, mounted at the cache paths the Dockerfile sets. Docker creates
 # them on first use. Only the sandbox mounts them; the long-lived devcontainer
 # keeps its cache in its own writable layer.
-CACHE_VOLUMES: dict[str, str] = {"cc-protocol-uv-cache": "/home/vscode/.cache/uv"}
-
+CACHE_VOLUMES: dict[str, str] = {
+    "cc-protocol-uv-cache": "/home/vscode/.cache/uv",
+    "cc-protocol-bazel-cache": "/home/vscode/.cache/bazel/",
+}
 # Enabled by default only on macOS, where the cache volumes are known to work.
 CACHE_VOLUMES_DEFAULT = platform.system() == "Darwin"
 
