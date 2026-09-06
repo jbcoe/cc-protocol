@@ -35,6 +35,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <cassert>
 #include <concepts>
 #include <cstddef>
+#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <meta>
@@ -309,11 +310,6 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(enclosing(this));
-    if constexpr (is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
-             "cannot call member function of valueless protocol");
-    }
-
     const Vtable* vtable = protocol_object->vtable_;
     constexpr std::meta::info entry = vtable_entry;
     return vtable->[:entry:](protocol_object->object_,
@@ -325,11 +321,6 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   {
     const auto* protocol_object =
         static_cast<const ProtocolType*>(enclosing(this));
-    if constexpr (is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
-             "cannot call member function of valueless protocol");
-    }
-
     const Vtable* vtable = protocol_object->vtable_;
     constexpr std::meta::info entry = vtable_entry;
     return vtable->[:entry:](protocol_object->object_,
@@ -633,6 +624,46 @@ struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
   }
 };
 
+// A vtable entry for a valueless protocol. Calling a member function on a
+// valueless protocol, or through a view of one, is a precondition violation:
+// diagnosed by an assert when NDEBUG is unset, and by an unconditional
+// abort() otherwise, rather than by calling through a null function pointer.
+template <typename FnPtrType>
+struct invalid_call_trampoline;
+
+template <typename R, typename... Args, bool Noexcept>
+struct invalid_call_trampoline<R (*)(void*, Args...) noexcept(Noexcept)> {
+  static R call(void*, Args...) noexcept(Noexcept) {
+    assert(false && "cannot call member function of valueless protocol");
+    std::abort();
+  }
+};
+
+template <typename R, typename... Args, bool Noexcept>
+struct invalid_call_trampoline<R (*)(const void*, Args...) noexcept(Noexcept)> {
+  static R call(const void*, Args...) noexcept(Noexcept) {
+    assert(false && "cannot call member function of valueless protocol");
+    std::abort();
+  }
+};
+
+// Builds a vtable for `T` whose entries are all `invalid_call_trampoline`s:
+// the null vtable shared by every valueless `protocol<T>`.
+template <typename T>
+consteval typename vtable_generator<T>::vtable make_invalid_vtable() {
+  using Vtable = typename vtable_generator<T>::vtable;
+  Vtable result{};
+
+  template for (constexpr std::meta::info member :
+                protocol_interface_functions_of<^^T>) {
+    constexpr std::meta::info vtable_member =
+        find_vtable_entry<^^Vtable, member>();
+    using FnPtrType = typename[:type_of(vtable_member):];
+    result.[:vtable_member:] = &invalid_call_trampoline<FnPtrType>::call;
+  }
+  return result;
+}
+
 // Builds a vtable for `T` whose entries call through to the corresponding
 // member of `U`.
 //
@@ -813,12 +844,14 @@ class protocol
   template <typename T>
   static constexpr vtable vtable_for = make_vtable_for<T>();
 
-  // A no-op vtable that is the stand-in for a nullptr vtable. Prevents
-  // redundant null checks in the special member functions. The member
-  // function entries are left null: calling a member function on a
-  // valueless protocol is a precondition violation.
+  // The stand-in for a nullptr vtable. Prevents redundant null checks in the
+  // special member functions. Its ownership entries are no-ops; its member
+  // function entries are `invalid_call_trampoline`s, so calling a member
+  // function on a valueless protocol, or through a view of one, aborts with
+  // a diagnostic instead of calling through a null function pointer.
   static consteval vtable make_null_vtable() {
     vtable result{};
+    static_cast<view_vtable&>(result) = detail::make_invalid_vtable<I>();
     result.destroy = +[](const Alloc&, void*) -> void {};
     result.copy = +[](const Alloc&, const void*) -> void* { return nullptr; };
     result.move = +[](const Alloc&, void*) -> void* { return nullptr; };

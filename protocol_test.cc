@@ -2409,6 +2409,52 @@ TEST(ReflectionProtocolViewTest, ViewOfProtocolRemainsValidAfterMove) {
   EXPECT_EQ(view.get(), 5);
 }
 
+// Tests that dispatching through a view of a moved-from protocol fails the
+// same way as dispatching on the protocol directly.
+#if (defined(_MSC_VER) && defined(_DEBUG)) || (!defined(NDEBUG))
+
+TEST(ReflectionProtocolViewTest, ViewOfValuelessProtocolCall) {
+  struct Interface {
+    int foo();
+  };
+
+  struct TypeA {
+    int foo() { return 5; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  EXPECT_TRUE(p.valueless_after_move());
+
+  protocol_view<Interface> view(p);
+  EXPECT_DEATH(view.foo(), "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolViewTest, ConstViewOfValuelessProtocolCall) {
+  struct Interface {
+    int foo() const;
+  };
+
+  struct TypeA {
+    int foo() const { return 5; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  EXPECT_TRUE(p.valueless_after_move());
+
+  protocol_view<const Interface> view(p);
+  EXPECT_DEATH(view.foo(), "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+#endif
+
 TEST(ReflectionProtocolViewTest, ViewOfProtocolWithCustomAllocator) {
   struct Interface {
     int get() const;
