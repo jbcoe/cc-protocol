@@ -134,6 +134,7 @@ constexpr void trap() {{
 }}  // namespace xyz::consteval_coverage_probe
 """
 
+
 # Tokens whose presence directly before `{` marks it as opening a compound
 # statement rather than a braced initialiser. `)` covers control clauses,
 # function signatures and lambdas; `consteval` covers consteval blocks.
@@ -496,7 +497,9 @@ def probe_all_lines(
         new_hits: set[int] = set()
         with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
             futures = [
-                pool.submit(compile_batch, configuration, translation_unit, batch_id, batch)
+                pool.submit(
+                    compile_batch, configuration, translation_unit, batch_id, batch
+                )
                 for translation_unit in configuration.translation_units
                 for batch_id, batch in enumerate(line_batches)
             ]
