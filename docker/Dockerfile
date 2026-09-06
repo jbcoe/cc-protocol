@@ -136,3 +136,6 @@ RUN bazel version
 # volume's mount point as root on first use, and these tools cannot write
 # into a root-owned directory.
 RUN mkdir -p /home/vscode/.cache/uv /home/vscode/.cache/bazel /home/vscode/.cache/pre-commit
+
+# Avoid dubious ownership errors from git for '/workspace'.
+RUN git config --global --add safe.directory /workspace
