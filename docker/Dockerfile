@@ -124,6 +124,11 @@ RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
 # to persist auth state between sessions. Default config files are seeded by the launch
 # script before the mount, so image-side preconfiguration is not needed here.
 
+# Pre-create the cache dirs owned by vscode: Docker otherwise creates a
+# volume's mount point as root on first use, and these tools cannot write
+# into a root-owned directory.
+RUN mkdir -p /home/vscode/.cache/uv
+
 # Avoid dubious ownership issues flagged by recent versions of git by trusting `/workspace`.
 # https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory
 RUN git config --global --add safe.directory /workspace
