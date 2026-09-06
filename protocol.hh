@@ -631,6 +631,11 @@ struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
 template <typename FnPtrType>
 struct invalid_call_trampoline;
 
+// gcov never records this function's body as executed: EXPECT_DEATH runs it
+// in a forked child that terminates via SIGABRT, and gcov's counters are
+// only flushed by an atexit hook, which a signal-terminated process never
+// runs.
+// GCOVR_EXCL_START
 template <typename R, typename... Args, bool Noexcept>
 struct invalid_call_trampoline<R (*)(void*, Args...) noexcept(Noexcept)> {
   static R call(void*, Args...) noexcept(Noexcept) {
@@ -646,6 +651,8 @@ struct invalid_call_trampoline<R (*)(const void*, Args...) noexcept(Noexcept)> {
     std::abort();
   }
 };
+
+// GCOVR_EXCL_STOP
 
 // Builds a vtable for `T` whose entries are all `invalid_call_trampoline`s:
 // the null vtable shared by every valueless `protocol<T>`.
