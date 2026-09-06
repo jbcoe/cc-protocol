@@ -7,7 +7,6 @@ Supported agents: Gemini CLI, Claude Code, Antigravity CLI.
 
 import argparse
 import os
-import platform
 import subprocess
 import sys
 from typing import TypedDict
@@ -17,9 +16,6 @@ IMAGE_NAME = "cc-protocol-sandbox"
 # Docker named volumes persisting each tool's cache across constainer instances.
 # The long-lived devcontainer does not use these, it keeps its cache locally.
 CACHE_VOLUMES: dict[str, str] = {"cc-protocol-uv-cache": "/home/vscode/.cache/uv"}
-
-# Enabled by default only on macOS, where the cache volumes are known to work.
-CACHE_VOLUMES_DEFAULT = platform.system() == "Darwin"
 
 
 class AgentCli(TypedDict):
@@ -130,7 +126,7 @@ def main() -> None:
     parser.add_argument(
         "--cache-volumes",
         action=argparse.BooleanOptionalAction,
-        default=CACHE_VOLUMES_DEFAULT,
+        default=True,
         help="Mount the persistent uv cache volumes.",
     )
     parser.add_argument(
