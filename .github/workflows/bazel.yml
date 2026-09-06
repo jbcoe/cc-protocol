@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/bazel.yml" # This file
+      - ".github/actions/install-gcc-trunk/action.yml"
       - "**/*.cc"
       - "**/*.h"
       - "**/*.hh"
@@ -50,6 +51,7 @@ jobs:
           filters: |
             relevant:
               - ".github/workflows/bazel.yml" # This file
+              - ".github/actions/install-gcc-trunk/action.yml"
               - "**/*.cc"
               - "**/*.h"
               - "**/*.hh"
@@ -66,12 +68,15 @@ jobs:
 
   build:
     needs: detect-changes
-    # Run unless change detection positively reported that nothing relevant
-    # changed. `!cancelled()` lets this job run when `detect-changes` was
-    # skipped (push and schedule events), and an empty output (because
-    # `detect-changes` failed) falls through to running the build rather than
-    # silently passing the required check.
-    if: ${{ !cancelled() && needs.detect-changes.outputs.relevant != 'false' }}
+    # `!cancelled()` lets this job run when `detect-changes` was skipped (push
+    # and schedule events). When change detection positively reported that
+    # nothing relevant changed, every step below is skipped rather than the
+    # job itself: a matrix job skipped at job level never expands its matrix
+    # and reports a single check under the unexpanded name
+    # "${{ matrix.settings.name }}". An empty output (because `detect-changes`
+    # failed) falls through to running the build rather than silently passing
+    # the required check.
+    if: ${{ !cancelled() }}
     name: ${{ matrix.settings.name }}
     runs-on: ${{ matrix.settings.os }}
     strategy:
@@ -109,19 +114,13 @@ jobs:
             }
     steps:
       - uses: actions/checkout@v5
+        if: needs.detect-changes.outputs.relevant != 'false'
       - name: Install GCC trunk
-        if: matrix.settings.compiler.type == 'GCC_TRUNK'
-        # Prebuilt GCC trunk snapshot from https://jwakely.github.io/pkg-gcc-latest/;
-        # scripts/bazel.py finds /opt/gcc-latest itself, so no PATH changes are needed.
-        # The unversioned URL tracks upstream weekly. If a snapshot regression breaks
-        # this job, temporarily pin the versioned file linked from that page, e.g.
-        # https://kayari.org/gcc-latest/gcc-latest_17.0.0-20260816git8df013222dff.deb
-        run: |
-          wget --quiet https://kayari.org/gcc-latest/gcc-latest.deb
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ./gcc-latest.deb
+        if: needs.detect-changes.outputs.relevant != 'false' && matrix.settings.compiler.type == 'GCC_TRUNK'
+        # Cached between runs; the action documents how to pin a snapshot.
+        uses: ./.github/actions/install-gcc-trunk
       - name: Install GCC 16
-        if: matrix.settings.compiler.type == 'GCC16'
+        if: needs.detect-changes.outputs.relevant != 'false' && matrix.settings.compiler.type == 'GCC16'
         # Set CXX/CC explicitly so scripts/bazel.py does not pick a stray
         # /opt/gcc-latest on the runner.
         run: |
@@ -130,22 +129,24 @@ jobs:
           echo "CXX=$(which ${{ matrix.settings.compiler.cxx }})" >> "$GITHUB_ENV"
           echo "CC=$(which ${{ matrix.settings.compiler.cc }})" >> "$GITHUB_ENV"
       - name: Install uv
+        if: needs.detect-changes.outputs.relevant != 'false'
         uses: astral-sh/setup-uv@v10.0.1
       - name: Set up Python
+        if: needs.detect-changes.outputs.relevant != 'false'
         run: uv sync
       - name: Set up Bazel
+        if: needs.detect-changes.outputs.relevant != 'false'
         uses: bazel-contrib/setup-bazel@0.19.0
         with:
           bazelisk-cache: true
           disk-cache: ${{ github.workflow }}
       - name: Run Bazel
+        if: needs.detect-changes.outputs.relevant != 'false'
         run: ./scripts/bazel.sh
 
-  # The per-compiler checks cannot be required status checks: a matrix job
-  # skipped by its job-level `if:` reports a single check under the
-  # unexpanded name "${{ matrix.settings.name }}", so on pull requests where
-  # `detect-changes` skips the build the expanded names never report. This
-  # non-matrix job always reports under a fixed name; require it instead.
+  # This non-matrix job reports under a fixed name whatever the matrix above
+  # did, so the ruleset can require one check per workflow instead of every
+  # per-compiler entry.
   summary:
     name: bazel
     needs: [detect-changes, build]

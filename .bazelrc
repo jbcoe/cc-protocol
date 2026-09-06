@@ -19,3 +19,22 @@ build --cxxopt=-Wno-self-move
 
 # Show test output on failure
 test --test_output=errors
+
+# Sanitizer builds, matching the flags cmake/sanitizers.cmake applies. Select
+# one with `--config=asan`, `--config=ubsan`, or `--config=tsan`
+# (`scripts/bazel.sh --asan/--ubsan/--tsan`). `--copt` rather than `--cxxopt`
+# so external dependencies (googletest) are instrumented too, and `dbg` so
+# sanitizer reports carry symbolised stack traces. ASAN and TSAN cannot be
+# combined; ASAN and UBSAN can.
+build:asan --compilation_mode=dbg
+build:asan --copt=-fsanitize=address
+build:asan --copt=-fno-omit-frame-pointer
+build:asan --linkopt=-fsanitize=address
+
+build:ubsan --compilation_mode=dbg
+build:ubsan --copt=-fsanitize=undefined
+build:ubsan --linkopt=-fsanitize=undefined
+
+build:tsan --compilation_mode=dbg
+build:tsan --copt=-fsanitize=thread
+build:tsan --linkopt=-fsanitize=thread

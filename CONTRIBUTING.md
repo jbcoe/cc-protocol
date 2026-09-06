@@ -14,7 +14,7 @@ reflection compiler is either the GCC trunk snapshot from
 [jwakely.github.io/pkg-gcc-latest](https://jwakely.github.io/pkg-gcc-latest/)
 or Ubuntu 26.04's `gcc-16` package. The project relies on `uv` to manage
 Python dependencies and execute build scripts. The CMake build, used for
-sanitizers, coverage and clang-tidy, additionally needs
+coverage and clang-tidy, additionally needs
 [CMake](https://cmake.org/download/) 3.25 or later.
 
 ### Building and Testing
@@ -30,11 +30,13 @@ to `protocol.hh` took 45 s against 81 s.
 ./scripts/bazel.sh
 ```
 
-Pass `build` to compile without running tests, or `--clean` to expunge the
-Bazel cache first.
+Pass `build` to compile without running tests, `--asan`, `--ubsan`, or
+`--tsan` for a sanitized build (`--asan` and `--tsan` cannot be combined), or
+`--clean` to expunge the Bazel cache first.
 
-2. **CMake**: The CMake build provides the sanitizer, coverage and clang-tidy
-configurations described below. To build and test with it, execute:
+2. **CMake**: The CMake build provides the coverage and clang-tidy
+configurations described below, and the same sanitizer flags as Bazel. To
+build and test with it, execute:
 
 ```bash
 ./scripts/cmake.sh
@@ -52,9 +54,10 @@ Pull requests run the workflows in `.github/workflows`. The following checks
 are required for merging to `main`: `GCC trunk Release`, `GCC trunk Debug`,
 `GCC-16 Release`, `GCC-16 Debug`, `asan`, `tsan`, `uv-lock`, `pre-commit`.
 
-On pull requests that touch no C++, CMake, or build-script sources, the build
-and sanitizer jobs are skipped by a change-detection job, which counts as
-passing.
+On pull requests that touch no C++, CMake, Bazel, or build-script sources,
+a change-detection job makes the build and sanitizer jobs skip their steps,
+so they pass without building. The sanitizer jobs build with Bazel
+(`./scripts/bazel.sh --asan --ubsan` and `./scripts/bazel.sh --tsan`).
 
 ### Static Analysis
 

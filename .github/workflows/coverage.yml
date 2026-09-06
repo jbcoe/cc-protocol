@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/coverage.yml" # This file
+      - ".github/actions/install-gcc-trunk/action.yml"
       - "**/*.cc"
       - "**/*.h"
       - "**/*.hh"
@@ -25,6 +26,7 @@ on:
     paths:
       # Keep in sync with the `push.paths` list above.
       - ".github/workflows/coverage.yml" # This file
+      - ".github/actions/install-gcc-trunk/action.yml"
       - "**/*.cc"
       - "**/*.h"
       - "**/*.hh"
@@ -54,12 +56,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: lukka/get-cmake@v4.4.2
       - name: Install GCC trunk
-        # Prebuilt GCC trunk snapshot from https://jwakely.github.io/pkg-gcc-latest/;
-        # scripts/cmake.py finds /opt/gcc-latest itself, so no PATH changes are needed.
-        run: |
-          wget --quiet https://kayari.org/gcc-latest/gcc-latest.deb
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ./gcc-latest.deb
+        # Cached between runs; the action documents how to pin a snapshot.
+        uses: ./.github/actions/install-gcc-trunk
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
       - name: Set up Python
@@ -86,10 +84,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: lukka/get-cmake@v4.4.2
       - name: Install GCC trunk
-        run: |
-          wget --quiet https://kayari.org/gcc-latest/gcc-latest.deb
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ./gcc-latest.deb
+        uses: ./.github/actions/install-gcc-trunk
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
       - name: Set up Python
