@@ -1,9 +1,8 @@
 # Two build stages sharing a common base:
 #   base    - C++ toolchain and language tools; the devcontainer builds this.
 #   sandbox - base plus the agent CLIs and a persistent uv cache; built by
-#             scripts/agentic-sandbox.py for ephemeral `--rm` agent containers.
-# The devcontainer container is long-lived, so it keeps its uv cache in its own
-# writable layer and mounts no cache volume; only the sandbox does.
+#             scripts/agentic-sandbox.py for ephemeral agent containers.
+# The devcontainer container is long-lived and keeps cache locally.
 FROM ubuntu:26.04 AS base
 
 # Install base tools and C++ development tools.
