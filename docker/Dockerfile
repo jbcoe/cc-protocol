@@ -116,8 +116,9 @@ ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
 
 # Agent config dirs (~/.gemini / ~/.claude) are mounted from the host at runtime
-# to persist auth state between sessions. Default config files are seeded by the launch
-# script before the mount, so image-side preconfiguration is not needed here.
+# to persist auth state between sessions. Default config files are seeded by the
+# launch script before the mount, so image-side preconfiguration is not needed
+# here.
 
 # Avoid dubious ownership issues flagged by recent versions of git by trusting `/workspace`.
 # https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory
