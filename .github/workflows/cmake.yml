@@ -129,9 +129,16 @@ jobs:
       - name: Set up Python
         if: needs.detect-changes.outputs.relevant != 'false'
         run: uv sync
+      - name: Set up ccache
+        if: needs.detect-changes.outputs.relevant != 'false'
+        uses: hendrikmuhs/ccache-action@v1.2.24
+        with:
+          key: ${{ github.job }}-${{ matrix.settings.name }}-${{ matrix.configuration }}
       - name: Run CMake
         if: needs.detect-changes.outputs.relevant != 'false'
-        run: ./scripts/cmake.sh --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }}
+        run: |
+          ./scripts/cmake.sh --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
   # This non-matrix job reports under a fixed name whatever the matrix above
   # did, so the ruleset can require one check per workflow instead of every

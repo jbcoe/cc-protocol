@@ -62,8 +62,12 @@ jobs:
         uses: astral-sh/setup-uv@v10.0.1
       - name: Set up Python
         run: uv sync
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2.24
       - name: Build, test and report runtime coverage
-        run: ./scripts/cmake.sh test --coverage -B coverage
+        run: |
+          ./scripts/cmake.sh test --coverage -B coverage \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -89,8 +93,12 @@ jobs:
         uses: astral-sh/setup-uv@v10.0.1
       - name: Set up Python
         run: uv sync
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2.24
       - name: Build (provides the googletest headers)
-        run: ./scripts/cmake.sh build -B coverage
+        run: |
+          ./scripts/cmake.sh build -B coverage \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
       - name: Probe consteval coverage
         run: ./scripts/consteval_coverage.sh --lcov-output build/consteval-coverage/coverage.info
       - name: Upload to Codecov

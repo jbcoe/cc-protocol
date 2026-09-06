@@ -131,3 +131,8 @@ RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
 # the cache lands in that user's ~/.cache/bazelisk.
 COPY .bazelversion /workspace/.bazelversion
 RUN bazel version
+
+# Pre-create the cache dirs owned by vscode: Docker otherwise creates a
+# volume's mount point as root on first use, and these tools cannot write
+# into a root-owned directory.
+RUN mkdir -p /home/vscode/.cache/uv /home/vscode/.cache/bazel /home/vscode/.cache/pre-commit

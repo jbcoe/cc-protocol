@@ -120,6 +120,8 @@ jobs:
       - uses: reviewdog/action-setup@v1.5.0
         with:
           reviewdog_version: latest
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2.24
 
       - name: Build with clang-tidy
         # `shell: bash` enables pipefail, so a clang-tidy failure is not
@@ -127,7 +129,9 @@ jobs:
         # fail the build.
         shell: bash
         run: |
-          ./scripts/cmake.sh --debug --clang-tidy build 2>&1 | tee build.log
+          ./scripts/cmake.sh --debug --clang-tidy build \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            2>&1 | tee build.log
 
       - name: Report findings with reviewdog
         # Runs even when the build failed so that the findings are annotated.

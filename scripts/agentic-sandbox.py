@@ -21,6 +21,7 @@ IMAGE_NAME = "cc-protocol-sandbox"
 CACHE_VOLUMES: dict[str, str] = {
     "cc-protocol-uv-cache": "/home/vscode/.cache/uv",
     "cc-protocol-bazel-cache": "/home/vscode/.cache/bazel/",
+    "cc-protocol-pre-commit-cache": "/home/vscode/.cache/pre-commit",
 }
 # Enabled by default only on macOS, where the cache volumes are known to work.
 CACHE_VOLUMES_DEFAULT = platform.system() == "Darwin"
