@@ -558,9 +558,18 @@ using protocol_wrappers_t =
 template <std::meta::info interface_type>
 consteval std::vector<std::meta::info> generate_vtable_specs() {
   std::vector<std::meta::info> function_pointer_specs;
+
+  // The type of the vtable's `xyz_protocol_typeid` entry. Reflected through an
+  // alias rather than spelled inline: clang-p2996's `define_aggregate` builds a
+  // member whose type is written with a nested-name-specifier (`std::`) with an
+  // inconsistent qualifier location, which crashes clang-tidy and asserting
+  // builds of the compiler (bloomberg/clang-p2996#349). The alias has no
+  // qualifier, so it sidesteps the bug.
+  using type_info_pointer = const std::type_info*;
+
   function_pointer_specs.push_back(data_member_spec(
-      ^^const std::type_info*, {
-                                   .name = "xyz_protocol_typeid"}));
+      ^^type_info_pointer, {
+                               .name = "xyz_protocol_typeid"}));
 
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<interface_type>) {
