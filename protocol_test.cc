@@ -2618,26 +2618,41 @@ TEST(ReflectionProtocolViewTest, ConstProtocolCast) {
   static_assert(std::same_as<decltype(underlying_ptr), const Conforming*>);
 }
 
-TEST(ReflectionProtocolTest, ProtocolCastValueCategory) {
-  struct Interface {};
+TEST(ReflectionProtocolTest, ProtocolCastCopies) {
+  struct Interface {
+    Interface(const Interface&) = delete;
+  };
 
-  struct Conforming {};
+  struct Conforming {
+    int* copies = nullptr;
 
-  protocol<Interface> p(Conforming{});
+    Conforming(int& copyCounter) : copies(&copyCounter) {}
 
-  decltype(auto) a = protocol_cast<Conforming>(p);
-  static_assert(std::same_as<decltype(a), Conforming&>);
+    Conforming(const Conforming& other) : copies(other.copies) { ++(*copies); }
 
-  decltype(auto) b = protocol_cast<Conforming>(std::move(p));
-  static_assert(std::same_as<decltype(b), Conforming&&>);
+    Conforming& operator=(const Conforming&) = default;
 
-  const protocol p2(p);
+    Conforming(Conforming&&) = default;
+    Conforming& operator=(Conforming&&) = default;
 
-  decltype(auto) c = protocol_cast<Conforming>(p2);
-  static_assert(std::same_as<decltype(c), const Conforming&>);
+    ~Conforming() = default;
+  };
 
-  decltype(auto) d = protocol_cast<Conforming>(std::move(p2));
-  static_assert(std::same_as<decltype(d), const Conforming&&>);
+  int copies{};
+
+  protocol<Interface> p(Conforming{copies});
+
+  Conforming& _ = protocol_cast<Conforming&>(p);
+  EXPECT_EQ(copies, 0);
+
+  Conforming _ = protocol_cast<Conforming&>(p);
+  EXPECT_EQ(copies, 1);
+
+  Conforming _ = protocol_cast<Conforming>(p);
+  EXPECT_EQ(copies, 2);
+
+  Conforming _ = protocol_cast<Conforming&&>(std::move(p));
+  EXPECT_EQ(copies, 2);
 }
 
 }  // namespace

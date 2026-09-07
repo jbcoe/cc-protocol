@@ -44,6 +44,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <typeinfo>
 #include <utility>
 #include <vector>
 
@@ -864,8 +865,8 @@ class protocol
 
   template <typename T, typename Protocol>
     requires(is_protocol_v<std::decay_t<Protocol>> &&
-             is_protocol_conformant_v<std::decay_t<Protocol>, T>)
-  friend constexpr decltype(auto) protocol_cast(Protocol&& operand);
+             is_protocol_conformant_v<std::decay_t<Protocol>, std::decay_t<T>>)
+  friend constexpr T protocol_cast(Protocol&& operand);
 
   template <typename T, typename Interface>
     requires(is_protocol_conformant_v<Interface, T>)
@@ -1085,15 +1086,15 @@ struct bad_protocol_cast : std::exception {
 
 template <typename T, typename Protocol>
   requires(is_protocol_v<std::decay_t<Protocol>> &&
-           is_protocol_conformant_v<std::decay_t<Protocol>, T>)
-constexpr decltype(auto) protocol_cast(Protocol&& operand) {
+           is_protocol_conformant_v<std::decay_t<Protocol>, std::decay_t<T>>)
+constexpr T protocol_cast(Protocol&& operand) {
   if (*operand.vtable_->xyz_protocol_typeid != typeid(T)) {
     throw bad_protocol_cast{};
   }
 
   using pointer_type =
       std::conditional_t<std::is_const_v<std::remove_reference_t<Protocol>>,
-                         const T*, T*>;
+                         const std::decay_t<T>*, std::decay_t<T>*>;
   return std::forward_like<Protocol>(
       *static_cast<pointer_type>(operand.object_));
 }
@@ -1186,7 +1187,7 @@ class protocol_view
 
   template <typename U, typename Interface>
     requires(!std::is_const_v<Interface> &&
-             is_protocol_conformant_v<Interface, U>)
+             is_protocol_conformant_v<Interface, std::decay_t<U>>)
   friend constexpr U& protocol_cast(protocol_view<Interface> operand);
 
   template <typename U, typename Interface>
@@ -1202,7 +1203,7 @@ class protocol_view
 
 template <typename U, typename Interface>
   requires(!std::is_const_v<Interface> &&
-           is_protocol_conformant_v<Interface, U>)
+           is_protocol_conformant_v<Interface, std::decay_t<U>>)
 constexpr U& protocol_cast(protocol_view<Interface> operand) {
   if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
     throw bad_protocol_cast{};
@@ -1285,7 +1286,7 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
   friend struct detail::method_thunk;
 
   template <typename U, typename Interface>
-    requires(is_protocol_conformant_v<Interface, U>)
+    requires(is_protocol_conformant_v<Interface, std::decay_t<U>>)
   friend constexpr const U& protocol_cast(
       protocol_view<const Interface> operand);
 
@@ -1301,7 +1302,7 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
 };
 
 template <typename U, typename Interface>
-  requires(is_protocol_conformant_v<Interface, U>)
+  requires(is_protocol_conformant_v<Interface, std::decay_t<U>>)
 constexpr const U& protocol_cast(protocol_view<const Interface> operand) {
   if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
     throw bad_protocol_cast{};
