@@ -126,6 +126,7 @@ RUN git config --global --add safe.directory /workspace
 
 # Pre-warm bazelisk's download of the pinned Bazel binary to avoid fetching and
 # installing it on every run.
+COPY --chown=vscode:vscode .bazelversion .bazelversion
 RUN USE_BAZEL_VERSION="$(cat .bazelversion)" bazel version
 
 # The sandbox image needs additional setup to use the Docker volumes for persistent cache.
