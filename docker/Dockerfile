@@ -112,7 +112,7 @@ ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
 
 # Configure npm for user-local global installs, then install the agent CLIs.
 ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
-ENV PATH="/home/vscode/.npm-global/bin:${PATH}"
+ENV PATH="/home/vscode/.npm-global/bin:/home/vscode/.local/bin:/usr/local/bin:${PATH}"
 RUN mkdir -p /home/vscode/.npm-global
 RUN npm install -g @google/gemini-cli @anthropic-ai/claude-code
 
