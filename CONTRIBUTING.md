@@ -235,7 +235,7 @@ plain shell in the container.
 
 The `uv` package cache, Bazel's downloaded dependency archives, and pre-commit's
 environment cache persist across sandbox runs in Docker named volumes,
-`cc-protocol-uv-cache`, `cc-protocol-bazel-cache`, and
+`cc-protocol-uv-cache`, `cc-protocol-bazel-repository-cache`, and
 `cc-protocol-pre-commit-cache`. These grow without bound since none of the
 tools prune them; to reset one, run `docker volume rm <name>`.
 

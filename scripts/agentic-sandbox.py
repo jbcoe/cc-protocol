@@ -17,7 +17,7 @@ IMAGE_NAME = "cc-protocol-sandbox"
 # The devcontainer is long-lived and does not use these, it keeps its cache locally.
 CACHE_VOLUMES: dict[str, str] = {
     "cc-protocol-uv-cache": "/home/vscode/.cache/uv",
-    "cc-protocol-bazel-cache": "/home/vscode/.cache/bazel-repo",
+    "cc-protocol-bazel-repository-cache": "/home/vscode/.cache/bazel-repo",
     "cc-protocol-pre-commit-cache": "/home/vscode/.cache/pre-commit",
 }
 
