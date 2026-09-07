@@ -129,8 +129,7 @@ RUN git config --global --add safe.directory /workspace
 # https://github.com/bazelbuild/bazelisk#how-does-bazelisk-know-which-bazel-version-to-run
 # We use .bazelversion to avoid hard-coding the bazel version number in multiple places.
 COPY .bazelversion .bazelversion
-RUN read -r USE_BAZEL_VERSION < .bazelversion \
-    && bazel version \
+RUN USE_BAZEL_VERSION="$(cat .bazelversion)" bazel version \
     && rm .bazelversion
 
 # The sandbox image needs additional setup to use the Docker volumes for persistent cache.
