@@ -1158,11 +1158,13 @@ class protocol_view
   friend struct detail::method_thunk;
 
   template <typename U, typename Interface>
-    requires(is_protocol_conformant_v<Interface, U>)
+    requires(!std::is_const_v<Interface> &&
+             is_protocol_conformant_v<Interface, U>)
   friend constexpr U& protocol_cast(protocol_view<Interface> operand);
 
   template <typename U, typename Interface>
-    requires(is_protocol_conformant_v<Interface, U>)
+    requires(!std::is_const_v<Interface> &&
+             is_protocol_conformant_v<Interface, U>)
   friend constexpr U* protocol_cast(protocol_view<Interface>* operand) noexcept;
 
   // Non-owning pointer to the viewed object.
@@ -1172,7 +1174,8 @@ class protocol_view
 };
 
 template <typename U, typename Interface>
-  requires(is_protocol_conformant_v<Interface, U>)
+  requires(!std::is_const_v<Interface> &&
+           is_protocol_conformant_v<Interface, U>)
 constexpr U& protocol_cast(protocol_view<Interface> operand) {
   if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
     throw bad_protocol_cast{};
@@ -1182,13 +1185,14 @@ constexpr U& protocol_cast(protocol_view<Interface> operand) {
 }
 
 template <typename U, typename Interface>
-  requires(is_protocol_conformant_v<Interface, U>)
+  requires(!std::is_const_v<Interface> &&
+           is_protocol_conformant_v<Interface, U>)
 constexpr U* protocol_cast(protocol_view<Interface>* operand) noexcept {
   if (*operand->vtable_->xyz_protocol_typeid != typeid(U)) {
     return nullptr;
   }
 
-  return static_cast<U*>(operand.object_);
+  return static_cast<U*>(operand->object_);
 }
 
 // ---------------------------------------------------------------------------
@@ -1283,11 +1287,11 @@ template <typename U, typename Interface>
   requires(is_protocol_conformant_v<Interface, U>)
 constexpr const U* protocol_cast(
     protocol_view<const Interface>* operand) noexcept {
-  if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
+  if (*operand->vtable_->xyz_protocol_typeid != typeid(U)) {
     return nullptr;
   }
 
-  return static_cast<const U*>(operand.object_);
+  return static_cast<const U*>(operand->object_);
 }
 
 }  // namespace xyz::reflection
