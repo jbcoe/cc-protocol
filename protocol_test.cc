@@ -2567,14 +2567,10 @@ TEST(ReflectionProtocolViewTest, ViewOfConformingObjectPassedByValue) {
 }
 
 TEST(ReflectionProtocolTest, ProtocolCast) {
-  struct Interface {
-    int foo();
-  };
+  struct Interface {};
 
   struct Conforming {
     int value;
-
-    int foo() { return 10; }
   };
 
   protocol<Interface> p(Conforming{.value = 25});
@@ -2587,19 +2583,13 @@ TEST(ReflectionProtocolTest, ProtocolCast) {
 }
 
 TEST(ReflectionProtocolTest, FailedProtocolCast) {
-  struct Interface {
-    int foo() { return 10; }
-  };
+  struct Interface {};
 
   struct Conforming {
     int value;
-
-    int foo() { return 10; }
   };
 
-  struct OtherType {
-    int foo() { return 5; }
-  };
+  struct OtherType {};
 
   protocol<Interface> p(Conforming{.value = 25});
   EXPECT_THROW(protocol_cast<OtherType>(p), xyz::reflection::bad_protocol_cast);
@@ -2612,14 +2602,10 @@ TEST(ReflectionProtocolTest, FailedProtocolCast) {
 }
 
 TEST(ReflectionProtocolViewTest, ConstProtocolCast) {
-  struct Interface {
-    int foo() { return 10; }
-  };
+  struct Interface {};
 
   struct Conforming {
     int value;
-
-    int foo() { return 10; }
   };
 
   Conforming c{.value = 20};
@@ -2630,6 +2616,28 @@ TEST(ReflectionProtocolViewTest, ConstProtocolCast) {
 
   auto* underlying_ptr = protocol_cast<Conforming>(&cv);
   static_assert(std::same_as<decltype(underlying_ptr), const Conforming*>);
+}
+
+TEST(ReflectionProtocolTest, ProtocolCastValueCategory) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  protocol<Interface> p(Conforming{});
+
+  decltype(auto) a = protocol_cast<Conforming>(p);
+  static_assert(std::same_as<decltype(a), Conforming&>);
+
+  decltype(auto) b = protocol_cast<Conforming>(std::move(p));
+  static_assert(std::same_as<decltype(b), Conforming&&>);
+
+  const protocol p2(p);
+
+  decltype(auto) c = protocol_cast<Conforming>(p2);
+  static_assert(std::same_as<decltype(c), const Conforming&>);
+
+  decltype(auto) d = protocol_cast<Conforming>(std::move(p2));
+  static_assert(std::same_as<decltype(d), const Conforming&&>);
 }
 
 }  // namespace
