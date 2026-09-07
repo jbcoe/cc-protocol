@@ -557,6 +557,9 @@ using protocol_wrappers_t =
 template <std::meta::info interface_type>
 consteval std::vector<std::meta::info> generate_vtable_specs() {
   std::vector<std::meta::info> function_pointer_specs;
+  function_pointer_specs.push_back(data_member_spec(
+      ^^const std::type_info*, {
+                                   .name = "xyz_protocol_typeid"}));
 
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<interface_type>) {
@@ -649,6 +652,8 @@ template <typename T, typename U, const_policy ConstPolicy>
 consteval typename vtable_generator<T>::vtable make_view_vtable() {
   using Vtable = typename vtable_generator<T>::vtable;
   Vtable result{};
+
+  result.xyz_protocol_typeid = &typeid(U);
 
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<^^T>) {
@@ -857,11 +862,10 @@ class protocol
   template <is_valid_view_interface>
   friend class protocol_view;
 
-  // Grants protocol_cast access to protocol's underlying data.
   template <typename T, typename Protocol>
     requires(is_protocol_v<std::decay_t<Protocol>> &&
              is_protocol_conformant_v<std::decay_t<Protocol>, T>)
-  friend constexpr T protocol_cast(Protocol&& operand);
+  friend constexpr decltype(auto) protocol_cast(Protocol&& operand);
 
   template <typename T, typename Interface>
     requires(is_protocol_conformant_v<Interface, T>)
@@ -1082,8 +1086,8 @@ struct bad_protocol_cast : std::exception {
 template <typename T, typename Protocol>
   requires(is_protocol_v<std::decay_t<Protocol>> &&
            is_protocol_conformant_v<std::decay_t<Protocol>, T>)
-constexpr T protocol_cast(Protocol&& operand) {
-  if (operand.vtable_ != &std::decay_t<Protocol>::template vtable_for<T>) {
+constexpr decltype(auto) protocol_cast(Protocol&& operand) {
+  if (*operand.vtable_->xyz_protocol_typeid != typeid(T)) {
     throw bad_protocol_cast{};
   }
 
@@ -1097,7 +1101,7 @@ constexpr T protocol_cast(Protocol&& operand) {
 template <typename T, typename Interface>
   requires(is_protocol_conformant_v<Interface, T>)
 constexpr T* protocol_cast(protocol<Interface>* operand) noexcept {
-  if (operand->vtable_ != &protocol<Interface>::template vtable_for<T>) {
+  if (*operand->vtable_->xyz_protocol_typeid != typeid(T)) {
     return nullptr;
   }
 
@@ -1107,7 +1111,7 @@ constexpr T* protocol_cast(protocol<Interface>* operand) noexcept {
 template <typename T, typename Interface>
   requires(is_protocol_conformant_v<Interface, T>)
 constexpr const T* protocol_cast(const protocol<Interface>* operand) noexcept {
-  if (operand->vtable_ != &protocol<Interface>::template vtable_for<T>) {
+  if (*operand->vtable_->xyz_protocol_typeid != typeid(T)) {
     return nullptr;
   }
 
@@ -1180,11 +1184,39 @@ class protocol_view
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
+  template <typename U, typename Interface>
+    requires(is_protocol_conformant_v<Interface, U>)
+  friend constexpr U& protocol_cast(protocol_view<Interface> operand);
+
+  template <typename U, typename Interface>
+    requires(is_protocol_conformant_v<Interface, U>)
+  friend constexpr U* protocol_cast(protocol_view<Interface>* operand) noexcept;
+
   // Non-owning pointer to the viewed object.
   void* object_ = nullptr;
 
   const detail::vtable_generator<T>::vtable* vtable_;
 };
+
+template <typename U, typename Interface>
+  requires(is_protocol_conformant_v<Interface, U>)
+constexpr U& protocol_cast(protocol_view<Interface> operand) {
+  if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
+    throw bad_protocol_cast{};
+  }
+
+  return *static_cast<U*>(operand.object_);
+}
+
+template <typename U, typename Interface>
+  requires(is_protocol_conformant_v<Interface, U>)
+constexpr U* protocol_cast(protocol_view<Interface>* operand) noexcept {
+  if (*operand->vtable_->xyz_protocol_typeid != typeid(U)) {
+    return nullptr;
+  }
+
+  return static_cast<U*>(operand.object_);
+}
 
 // ---------------------------------------------------------------------------
 // protocol_view<const T>
@@ -1248,11 +1280,42 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
+  template <typename U, typename Interface>
+    requires(is_protocol_conformant_v<Interface, U>)
+  friend constexpr const U& protocol_cast(
+      protocol_view<const Interface> operand);
+
+  template <typename U, typename Interface>
+    requires(is_protocol_conformant_v<Interface, U>)
+  friend constexpr const U* protocol_cast(
+      protocol_view<const Interface>* operand) noexcept;
+
   // Non-owning pointer to the viewed object.
   const void* object_ = nullptr;
 
   const detail::vtable_generator<T>::vtable* vtable_;
 };
+
+template <typename U, typename Interface>
+  requires(is_protocol_conformant_v<Interface, U>)
+constexpr const U& protocol_cast(protocol_view<const Interface> operand) {
+  if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
+    throw bad_protocol_cast{};
+  }
+
+  return *static_cast<const U*>(operand.object_);
+}
+
+template <typename U, typename Interface>
+  requires(is_protocol_conformant_v<Interface, U>)
+constexpr const U* protocol_cast(
+    protocol_view<const Interface>* operand) noexcept {
+  if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
+    return nullptr;
+  }
+
+  return static_cast<const U*>(operand.object_);
+}
 
 }  // namespace xyz::reflection
 #endif  // XYZ_REFLECTION_PROTOCOL_HH_
