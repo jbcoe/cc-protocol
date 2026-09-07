@@ -13,7 +13,7 @@ from typing import TypedDict
 
 IMAGE_NAME = "cc-protocol-sandbox"
 
-# Docker named volumes persisting each tool's cache across constainer instances.
+# Docker named volumes persisting each tool's cache across container instances.
 # The long-lived devcontainer does not use these, it keeps its cache locally.
 CACHE_VOLUMES: dict[str, str] = {"cc-protocol-uv-cache": "/home/vscode/.cache/uv"}
 

@@ -87,8 +87,12 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Create the non-root user `vscode` at UID 1000. Ubuntu ships a stock `ubuntu`
-# user at UID 1000; remove it first so `vscode` gets 1000.
+# Ubuntu 24.04+ base images ship a default `ubuntu` user at UID/GID 1000, so
+# a plain `useradd vscode` would land on 1001. Host config directories that
+# are bind-mounted at runtime (~/.claude, ~/.gemini, ~/.ssh, ...) are almost
+# always owned by UID 1000, and VS Code's `updateRemoteUserUID` cannot remap
+# `vscode` onto an ID that is already taken. Remove the stock user first so
+# `vscode` gets 1000:1000 and the mounted files are readable and writable.
 RUN userdel -r ubuntu \
     && useradd -m -s /bin/bash --uid 1000 vscode \
     && mkdir -p /workspace \
@@ -105,10 +109,6 @@ ENV PATH="/home/vscode/.local/bin:/usr/local/bin:${PATH}"
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
-ENV UV_LINK_MODE="copy"
-
-
-FROM base AS sandbox
 
 # Configure npm for user-local global installs, then install the agent CLIs.
 ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
@@ -123,11 +123,17 @@ RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
 # to persist auth state between sessions. Default config files are seeded by the launch
 # script before the mount, so image-side preconfiguration is not needed here.
 
-# Pre-create the cache dirs owned by vscode: Docker otherwise creates a
-# volume's mount point as root on first use, and these tools cannot write
-# into a root-owned directory.
-RUN mkdir -p /home/vscode/.cache/uv
-
 # Avoid dubious ownership issues flagged by recent versions of git by trusting `/workspace`.
 # https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory
 RUN git config --global --add safe.directory /workspace
+
+# The sandbox image needs additional setup to use the Docker volumes for persistent cache.
+FROM base AS sandbox
+
+# uv must copy files as the cache volume is on a different filesystem.
+ENV UV_LINK_MODE="copy"
+
+# Pre-create the cache dirs owned by vscode: Docker otherwise creates a
+# volume's mount point as root on first use, and these tools cannot write
+# into a root-owned directory.
+RUN mkdir -p "$UV_CACHE_DIR"
