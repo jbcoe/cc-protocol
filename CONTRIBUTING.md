@@ -233,11 +233,10 @@ plain shell in the container.
 | `--cache-volumes`, `--no-cache-volumes` | Mount the persistent cache volumes (default: on). |
 | `-v`, `--verbose` | Enable verbose logging. |
 
-The `uv` package cache, Bazel's repository cache, and pre-commit's
-environment cache persist across sandbox runs in Docker named volumes,
-`cc-protocol-uv-cache`, `cc-protocol-bazel-repository-cache`, and
-`cc-protocol-pre-commit-cache`. These grow without bound since none of the
-tools prune them; to reset one, run `docker volume rm <name>`.
+The `uv` package cache and Bazel's downloaded dependency archives persist
+across sandbox runs in Docker named volumes, `cc-protocol-uv-cache` and
+`cc-protocol-bazel-repository-cache`. These grow without bound since neither
+tool prunes them; to reset one, run `docker volume rm <name>`.
 
 ### Using pre-commit Locally to run Github Workflow checks
 
