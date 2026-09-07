@@ -9,23 +9,13 @@ import argparse
 import os
 import subprocess
 import sys
-import tomllib
 from typing import TypedDict
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PYPROJECT_PATH = os.path.join(PROJECT_ROOT, "pyproject.toml")
-with open(PYPROJECT_PATH, "rb") as f:
-    DEVTOOLS_VERSION = tomllib.load(f)["project"]["version"]
-
-IMAGE_NAME = f"cc-protocol-sandbox-{DEVTOOLS_VERSION}"
+IMAGE_NAME = "cc-protocol-sandbox"
 
 # Docker named volumes persisting each tool's cache across container instances.
 # The devcontainer is long-lived and does not use these, it keeps its cache locally.
-_UNVERSIONED_CACHE_VOLUMES: dict[str, str] = {"uv-cache": "/home/vscode/.cache/uv"}
-CACHE_VOLUMES = {
-    f"cc-protocol-{k}-{DEVTOOLS_VERSION}": v
-    for k, v in _UNVERSIONED_CACHE_VOLUMES.items()
-}
+CACHE_VOLUMES: dict[str, str] = {"cc-protocol-uv-cache": "/home/vscode/.cache/uv"}
 
 
 class AgentCli(TypedDict):

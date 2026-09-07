@@ -231,9 +231,8 @@ plain shell in the container.
 | `-v`, `--verbose` | Enable verbose logging. |
 
 The `uv` cache persists across sandbox runs in a Docker named volume,
-`cc-protocol-uv-cache-<version>`, where `<version>` is the `version` field
-in `pyproject.toml`. The cache grows without bound since `uv` never prunes
-it; to reset it, run `docker volume rm cc-protocol-uv-cache-<version>`.
+`cc-protocol-uv-cache`. The cache grows without bound since `uv` never prunes
+it; to reset it, run `docker volume rm cc-protocol-uv-cache`.
 
 ### Using pre-commit Locally to run Github Workflow checks
 
