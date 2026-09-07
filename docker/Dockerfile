@@ -138,9 +138,8 @@ FROM base AS sandbox
 ENV UV_LINK_MODE="copy"
 
 ENV BAZEL_REPOSITORY_CACHE_DIR="/home/vscode/.cache/bazel-repo"
-ENV PRE_COMMIT_HOME="/home/vscode/.cache/pre-commit"
 
 # Pre-create the cache dirs owned by vscode: Docker otherwise creates a
 # volume's mount point as root on first use, and these tools cannot write
 # into a root-owned directory.
-RUN mkdir -p "$UV_CACHE_DIR" "$BAZEL_REPOSITORY_CACHE_DIR" "$PRE_COMMIT_HOME"
+RUN mkdir -p "$UV_CACHE_DIR" "$BAZEL_REPOSITORY_CACHE_DIR"
