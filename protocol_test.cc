@@ -2567,29 +2567,69 @@ TEST(ReflectionProtocolViewTest, ViewOfConformingObjectPassedByValue) {
 }
 
 TEST(ReflectionProtocolTest, ProtocolCast) {
-  struct Interface {};
+  struct Interface {
+    int foo();
+  };
 
   struct Conforming {
     int value;
+
+    int foo() { return 10; }
   };
 
   protocol<Interface> p(Conforming{.value = 25});
   EXPECT_EQ(protocol_cast<Conforming>(p).value, 25);
   EXPECT_EQ(protocol_cast<Conforming>(&p)->value, 25);
+
+  protocol_view<Interface> pv(p);
+  EXPECT_EQ(protocol_cast<Conforming>(pv).value, 25);
+  EXPECT_EQ(protocol_cast<Conforming>(&pv)->value, 25);
 }
 
 TEST(ReflectionProtocolTest, FailedProtocolCast) {
-  struct Interface {};
+  struct Interface {
+    int foo() { return 10; }
+  };
 
   struct Conforming {
     int value;
+
+    int foo() { return 10; }
   };
 
-  struct OtherType {};
+  struct OtherType {
+    int foo() { return 5; }
+  };
 
   protocol<Interface> p(Conforming{.value = 25});
   EXPECT_THROW(protocol_cast<OtherType>(p), xyz::reflection::bad_protocol_cast);
   EXPECT_EQ(protocol_cast<OtherType>(&p), nullptr);
+
+  protocol_view<Interface> pv(p);
+  EXPECT_THROW(protocol_cast<OtherType>(pv),
+               xyz::reflection::bad_protocol_cast);
+  EXPECT_EQ(protocol_cast<OtherType>(&pv), nullptr);
+}
+
+TEST(ReflectionProtocolViewTest, ConstProtocolCast) {
+  struct Interface {
+    int foo() { return 10; }
+  };
+
+  struct Conforming {
+    int value;
+
+    int foo() { return 10; }
+  };
+
+  Conforming c{.value = 20};
+  protocol_view<const Interface> cv(c);
+
+  auto& underlying = protocol_cast<Conforming>(cv);
+  static_assert(std::same_as<decltype(underlying), const Conforming&>);
+
+  auto* underlying_ptr = protocol_cast<Conforming>(&cv);
+  static_assert(std::same_as<decltype(underlying_ptr), const Conforming*>);
 }
 
 }  // namespace
