@@ -2490,6 +2490,21 @@ TEST(ReflectionProtocolTest, ProtocolCast) {
 
   protocol<Interface> p(Conforming{.value = 25});
   EXPECT_EQ(protocol_cast<Conforming>(p).value, 25);
+  EXPECT_EQ(protocol_cast<Conforming>(&p)->value, 25);
+}
+
+TEST(ReflectionProtocolTest, FailedProtocolCast) {
+  struct Interface {};
+
+  struct Conforming {
+    int value;
+  };
+
+  struct OtherType {};
+
+  protocol<Interface> p(Conforming{.value = 25});
+  EXPECT_THROW(protocol_cast<OtherType>(p), xyz::reflection::bad_protocol_cast);
+  EXPECT_EQ(protocol_cast<OtherType>(&p), nullptr);
 }
 
 }  // namespace
