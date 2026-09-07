@@ -1,4 +1,4 @@
-FROM ubuntu:26.04
+FROM ubuntu:26.04 AS base
 
 # Install base tools and C++ development tools.
 #
@@ -113,6 +113,7 @@ RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
 # Set up uv and Python environment.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
+ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
 
 # Agent config dirs (~/.gemini / ~/.claude) are mounted from the host at runtime
 # to persist auth state between sessions. Default config files are seeded by the launch
@@ -121,3 +122,14 @@ ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 # Avoid dubious ownership issues flagged by recent versions of git by trusting `/workspace`.
 # https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory
 RUN git config --global --add safe.directory /workspace
+
+# The sandbox image needs additional setup to use the Docker volumes for persistent cache.
+FROM base AS sandbox
+
+# uv must copy files as the cache volume is on a different filesystem.
+ENV UV_LINK_MODE="copy"
+
+# Pre-create the cache dirs owned by vscode: Docker otherwise creates a
+# volume's mount point as root on first use, and these tools cannot write
+# into a root-owned directory.
+RUN mkdir -p "$UV_CACHE_DIR"
