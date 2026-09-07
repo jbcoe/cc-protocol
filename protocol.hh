@@ -716,6 +716,11 @@ template <typename Interface, typename Candidate>
 inline constexpr bool is_protocol_conformant_v =
     is_protocol_conformant<Interface, Candidate>();
 
+template <typename Interface, typename Allocator, typename Candidate>
+inline constexpr bool
+    is_protocol_conformant_v<protocol<Interface, Allocator>, Candidate> =
+        is_protocol_conformant<Interface, Candidate>();
+
 // ---------------------------------------------------------------------------
 // protocol<I, Allocator>
 //
@@ -841,13 +846,16 @@ class protocol
 
   // Grants protocol_cast access to protocol's underlying data.
   template <typename T, typename Protocol>
-    requires(is_protocol_v<std::remove_cvref_t<Protocol>>)
+    requires(is_protocol_v<std::decay_t<Protocol>> &&
+             is_protocol_conformant_v<std::decay_t<Protocol>, T>)
   friend constexpr T protocol_cast(Protocol&& operand);
 
   template <typename T, typename Interface>
+    requires(is_protocol_conformant_v<Interface, T>)
   friend constexpr T* protocol_cast(protocol<Interface>* operand) noexcept;
 
   template <typename T, typename Interface>
+    requires(is_protocol_conformant_v<Interface, T>)
   friend constexpr const T* protocol_cast(
       const protocol<Interface>* operand) noexcept;
 
@@ -1038,10 +1046,17 @@ class protocol
   constexpr bool valueless_after_move() const { return object_ == nullptr; }
 };
 
+struct bad_protocol_cast : std::exception {
+  constexpr const char* what() const noexcept override {
+    return "bad protocol_cast";
+  }
+};
+
 template <typename T, typename Protocol>
-  requires(is_protocol_v<std::remove_cvref_t<Protocol>>)
+  requires(is_protocol_v<std::decay_t<Protocol>> &&
+           is_protocol_conformant_v<std::decay_t<Protocol>, T>)
 constexpr T protocol_cast(Protocol&& operand) {
-  if (operand.vtable_ != &Protocol::template vtable_for<T>) {
+  if (operand.vtable_ != &std::decay_t<Protocol>::template vtable_for<T>) {
     throw bad_protocol_cast{};
   }
 
@@ -1051,21 +1066,21 @@ constexpr T protocol_cast(Protocol&& operand) {
   return std::forward_like<Protocol>(
       *static_cast<pointer_type>(operand.object_));
 }
-}
 
 template <typename T, typename Interface>
-constexpr T* protocol_cast(
-    xyz::reflection::protocol<Interface>* operand) noexcept {
-  if (operand.vtable_ != &protocol<Interface>::template vtable_for<T>) {
+  requires(is_protocol_conformant_v<Interface, T>)
+constexpr T* protocol_cast(protocol<Interface>* operand) noexcept {
+  if (operand->vtable_ != &protocol<Interface>::template vtable_for<T>) {
     return nullptr;
   }
 
-  return static_cast<T*>(operand_ > object_);
+  return static_cast<T*>(operand->object_);
 }
 
 template <typename T, typename Interface>
+  requires(is_protocol_conformant_v<Interface, T>)
 constexpr const T* protocol_cast(const protocol<Interface>* operand) noexcept {
-  if (operand.vtable_ != &protocol<Interface>::template vtable_for<T>) {
+  if (operand->vtable_ != &protocol<Interface>::template vtable_for<T>) {
     return nullptr;
   }
 
