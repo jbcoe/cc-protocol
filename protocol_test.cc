@@ -2647,6 +2647,10 @@ TEST(ReflectionProtocolViewTest, FailedConstProtocolCast) {
 TEST(ReflectionProtocolTest, ProtocolCastCopies) {
   struct Interface {
     Interface(const Interface&) = delete;
+    Interface(Interface&&) = default;
+    Interface& operator=(const Interface&) = delete;
+    Interface& operator=(Interface&&) = delete;
+    ~Interface() = default;
   };
 
   struct Conforming {
