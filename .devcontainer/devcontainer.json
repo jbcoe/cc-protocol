@@ -2,7 +2,8 @@
 	"name": "xyz.cc-protocol",
 	"build": {
 		"dockerfile": "../docker/Dockerfile",
-		"context": ".."
+		"context": "..",
+		"target": "base"
 	},
 	"remoteUser": "vscode",
 	// Host credentials are shared with the container by bind-mounting them into

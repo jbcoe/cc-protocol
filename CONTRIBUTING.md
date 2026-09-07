@@ -7,15 +7,18 @@ This document explains how to set up, build, and understand the internals of the
 ### Prerequisites
 
 Before building, ensure you have
-[Bazelisk](https://github.com/bazelbuild/bazelisk) (which fetches a current
-Bazel release on first use), a GCC with C++26 reflection (P2996) support, and
+[Bazelisk](https://github.com/bazelbuild/bazelisk) (which fetches the Bazel
+release pinned in `.bazelversion` on first use), a GCC with C++26 reflection
+(P2996) support, and
 [uv](https://docs.astral.sh/uv/getting-started/installation/) installed. The
 reflection compiler is either the GCC trunk snapshot from
 [jwakely.github.io/pkg-gcc-latest](https://jwakely.github.io/pkg-gcc-latest/)
 or Ubuntu 26.04's `gcc-16` package. The project relies on `uv` to manage
 Python dependencies and execute build scripts. The CMake build, used for
 coverage and clang-tidy, additionally needs
-[CMake](https://cmake.org/download/) 3.25 or later.
+[CMake](https://cmake.org/download/) 3.25 or later. To move to a newer Bazel
+release, bump `.bazelversion` and rebuild the sandbox Docker image so its
+pre-warmed download stays in sync.
 
 ### Building and Testing
 
@@ -209,14 +212,17 @@ This library is an active proof of concept and is subject to change.
 The repository includes a Docker-based sandbox script for AI coding
 assistants. It mounts the project into a container with all build dependencies
 pre-installed, providing an isolated environment for AI-assisted development.
+The instructions the assistants read are in [AGENTS.md](AGENTS.md);
+`CLAUDE.md` and `GEMINI.md` are symbolic links to it.
 
 ### Usage
 
 ```bash
-./scripts/agentic-sandbox.sh <agent> [options]
+./scripts/agentic-sandbox.sh [agent] [options]
 ```
 
-where `<agent>` is either `claude` or `gemini`.
+where `agent` is `claude`, `gemini`, or `agy` (Antigravity). Omit it for a
+plain shell in the container.
 
 ### Options
 
@@ -224,7 +230,12 @@ where `<agent>` is either `claude` or `gemini`.
 |------|-------------|
 | `--rebuild-docker` | Rebuild the Docker image before starting. |
 | `--update` | Update the agent CLI to the latest version before running. |
+| `--cache-volumes`, `--no-cache-volumes` | Mount the persistent `uv` cache volume (default: on). |
 | `-v`, `--verbose` | Enable verbose logging. |
+
+The `uv` cache persists across sandbox runs in a Docker named volume,
+`cc-protocol-uv-cache`. The cache grows without bound since `uv` never prunes
+it; to reset it, run `docker volume rm cc-protocol-uv-cache`.
 
 ### Using pre-commit Locally to run Github Workflow checks
 
@@ -248,4 +259,4 @@ uv run pre-commit run --all-files
 
 ---
 
-_Last updated: August 30, 2026_
+_Last updated: September 7, 2026_

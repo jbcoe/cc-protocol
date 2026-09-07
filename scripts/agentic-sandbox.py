@@ -13,6 +13,10 @@ from typing import TypedDict
 
 IMAGE_NAME = "cc-protocol-sandbox"
 
+# Docker named volumes persisting each tool's cache across container instances.
+# The devcontainer is long-lived and does not use these, it keeps its cache locally.
+CACHE_VOLUMES: dict[str, str] = {"cc-protocol-uv-cache": "/home/vscode/.cache/uv"}
+
 
 class AgentCli(TypedDict):
     """npm package and launch command for an agent CLI."""
@@ -120,6 +124,12 @@ def main() -> None:
         "--rebuild-docker", action="store_true", help="Rebuild the Docker image."
     )
     parser.add_argument(
+        "--cache-volumes",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Mount the persistent uv cache volumes.",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging."
     )
     args = parser.parse_args()
@@ -147,6 +157,8 @@ def main() -> None:
             [
                 "docker",
                 "build",
+                "--target",
+                "sandbox",
                 "-t",
                 IMAGE_NAME,
                 "-f",
@@ -171,6 +183,11 @@ def main() -> None:
             else cli["cmd"]
         )
 
+    cache_mounts = []
+    if args.cache_volumes:
+        for volume, target in CACHE_VOLUMES.items():
+            cache_mounts.extend(["-v", f"{volume}:{target}"])
+
     run_args = [
         "docker",
         "run",
@@ -178,8 +195,11 @@ def main() -> None:
         "--rm",
         "-v",
         f"{project_root}:/workspace",
-        *_agent_mount_args(args.agent),
     ]
+
+    run_args.extend(cache_mounts)
+    run_args.extend(_agent_mount_args(args.agent))
+
     if "TERM" in os.environ:
         run_args.extend(["-e", f"TERM={os.environ['TERM']}"])
     if "COLORTERM" in os.environ:
