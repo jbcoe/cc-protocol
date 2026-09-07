@@ -2626,6 +2626,21 @@ TEST(ReflectionProtocolViewTest, ConstProtocolCast) {
   static_assert(std::same_as<decltype(underlying_ptr), const Conforming*>);
 }
 
+TEST(ReflectionProtocolViewTest, FailedConstProtocolCast) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  Conforming c;
+  protocol_view<const Interface> pv(c);
+
+  EXPECT_THROW(protocol_cast<OtherType>(pv),
+               xyz::reflection::bad_protocol_cast);
+  EXPECT_EQ(protocol_cast<OtherType>(&pv), nullptr);
+}
+
 TEST(ReflectionProtocolTest, ProtocolCastCopies) {
   struct Interface {
     Interface(const Interface&) = delete;
@@ -2664,6 +2679,22 @@ TEST(ReflectionProtocolTest, ProtocolCastCopies) {
   auto _ = protocol_cast<Conforming&&>(std::move(p));
   EXPECT_EQ(copies, 2);
   // NOLINTEND(clang-analyzer-deadcode.DeadStores)
+}
+
+TEST(ReflectionProtocolTest, CatchingBadProtocolCast) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  protocol<Interface> p(Conforming{});
+
+  try {
+    protocol_cast<OtherType>(p);
+  } catch (const std::exception& e) {
+    EXPECT_EQ(std::string{e.what()}, "bad protocol_cast");
+  }
 }
 
 }  // namespace
