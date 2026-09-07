@@ -103,21 +103,21 @@ WORKDIR /workspace
 
 ENV PATH="/home/vscode/.local/bin:/usr/local/bin:${PATH}"
 
-# Set up uv and the Python environment. UV_CACHE_DIR names the download cache;
-# in the devcontainer it lives in the container's writable layer, and the
-# sandbox stage mounts a persistent volume there instead.
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
-ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
-
 # Configure npm for user-local global installs, then install the agent CLIs.
 ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
 ENV PATH="/home/vscode/.npm-global/bin:/home/vscode/.local/bin:/usr/local/bin:${PATH}"
 RUN mkdir -p /home/vscode/.npm-global
+
+# Install both AI agent CLIs for compatibility with existing tooling that
+# may invoke either `gemini` or `claude`.
 RUN npm install -g @google/gemini-cli @anthropic-ai/claude-code
 
 # Install Antigravity CLI (installs binary as `agy` into ~/.local/bin).
 RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
+
+# Set up uv and Python environment.
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 
 # Agent config dirs (~/.gemini / ~/.claude) are mounted from the host at runtime
 # to persist auth state between sessions. Default config files are seeded by the launch
