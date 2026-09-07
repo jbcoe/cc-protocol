@@ -2650,16 +2650,16 @@ TEST(ReflectionProtocolTest, ProtocolCastCopies) {
 
   protocol<Interface> p(Conforming{copies});
 
-  Conforming& _ = protocol_cast<Conforming&>(p);
+  auto& _ = protocol_cast<Conforming&>(p);
   EXPECT_EQ(copies, 0);
 
-  Conforming _ = protocol_cast<Conforming&>(p);
+  auto _ = protocol_cast<Conforming&>(p);
   EXPECT_EQ(copies, 1);
 
-  Conforming _ = protocol_cast<Conforming>(p);
+  auto _ = protocol_cast<Conforming>(p);
   EXPECT_EQ(copies, 2);
 
-  Conforming _ = protocol_cast<Conforming&&>(std::move(p));
+  auto _ = protocol_cast<Conforming&&>(std::move(p));
   EXPECT_EQ(copies, 2);
 }
 
