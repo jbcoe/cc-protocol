@@ -131,12 +131,23 @@ target_sources(
 if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
   if(${BUILD_TESTING})
+    # Caches downloaded archives outside the build directory, so a fresh build
+    # directory doesn't re-fetch. Left empty when $HOME is unset (e.g. on
+    # Windows), which FetchContent treats as no persistent cache.
+    set(XYZ_PROTOCOL_FETCHCONTENT_DOWNLOAD_CACHE_DIRECTORY "")
+    if(DEFINED ENV{HOME})
+      set(XYZ_PROTOCOL_FETCHCONTENT_DOWNLOAD_CACHE_DIRECTORY
+          "$ENV{HOME}/.cache/cmake-fetchcontent")
+    endif()
+
     # SYSTEM marks the dependencies' include directories as system headers so
     # that clang-tidy and compiler warnings do not report on third-party code.
     FetchContent_Declare(
       googletest
-      GIT_REPOSITORY https://github.com/google/googletest.git
-      GIT_TAG v1.18.0
+      URL https://github.com/google/googletest/archive/refs/tags/v1.18.0.tar.gz
+      URL_HASH
+        SHA256=6e3191c1455468b3fc35a417fb565c1c5071aee1b7e7f85e30cf48a98d37d8b5
+      DOWNLOAD_DIR "${XYZ_PROTOCOL_FETCHCONTENT_DOWNLOAD_CACHE_DIRECTORY}"
       SYSTEM)
     # For Windows: Prevent overriding the parent project's compiler/linker
     # settings
