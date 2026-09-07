@@ -234,14 +234,6 @@ The `uv` cache persists across sandbox runs in a Docker named volume,
 `cc-protocol-uv-cache`. It grows without bound since `uv` never prunes it; to
 reset it, run `docker volume rm cc-protocol-uv-cache`.
 
-If `uv` fails with `Permission denied` on `/home/vscode/.cache/uv`, the
-volume's contents are owned by the wrong user. Fix the ownership in place:
-
-```bash
-docker run --rm --user root -v cc-protocol-uv-cache:/home/vscode/.cache/uv \
-    cc-protocol-sandbox chown -R 1000:1000 /home/vscode/.cache/uv
-```
-
 ### Using pre-commit Locally to run Github Workflow checks
 
 Install pre-commit hooks into your local repository:
