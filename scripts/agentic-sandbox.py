@@ -15,7 +15,11 @@ IMAGE_NAME = "cc-protocol-sandbox"
 
 # Docker named volumes persisting each tool's cache across container instances.
 # The devcontainer is long-lived and does not use these, it keeps its cache locally.
-CACHE_VOLUMES: dict[str, str] = {"cc-protocol-uv-cache": "/home/vscode/.cache/uv"}
+CACHE_VOLUMES: dict[str, str] = {
+    "cc-protocol-uv-cache": "/home/vscode/.cache/uv",
+    "cc-protocol-bazel-cache": "/home/vscode/.cache/bazel-repo",
+    "cc-protocol-pre-commit-cache": "/home/vscode/.cache/pre-commit",
+}
 
 
 class AgentCli(TypedDict):
@@ -127,7 +131,7 @@ def main() -> None:
         "--cache-volumes",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Mount the persistent uv cache volumes.",
+        help="Mount the persistent cache volumes.",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging."
