@@ -2650,6 +2650,8 @@ TEST(ReflectionProtocolTest, ProtocolCastCopies) {
 
   protocol<Interface> p(Conforming{copies});
 
+  // NOLINTBEGIN(clang-analyzer-deadcode.DeadStores): The test intentionally
+  // creates unused copies.
   auto& _ = protocol_cast<Conforming&>(p);
   EXPECT_EQ(copies, 0);
 
@@ -2661,6 +2663,7 @@ TEST(ReflectionProtocolTest, ProtocolCastCopies) {
 
   auto _ = protocol_cast<Conforming&&>(std::move(p));
   EXPECT_EQ(copies, 2);
+  // NOLINTEND(clang-analyzer-deadcode.DeadStores)
 }
 
 }  // namespace
