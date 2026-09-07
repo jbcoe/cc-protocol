@@ -698,9 +698,10 @@ consteval bool is_protocol_conformant() {
   static_assert(std::is_same_v<Interface, std::remove_cvref_t<Interface>>,
                 "Interface must not be cv/ref-qualified: strip qualifiers at "
                 "the call site with std::remove_cvref_t.");
-  static_assert(std::is_same_v<Candidate, std::remove_cvref_t<Candidate>>,
-                "Candidate must not be cv/ref-qualified: strip qualifiers at "
-                "the call site with std::remove_cvref_t.");
+
+  if constexpr (!std::is_same_v<Candidate, std::remove_cvref_t<Candidate>>) {
+    return false;
+  }
 
   // Checking for protocol interface conformance is O(N*M) over member counts,
   // assumed to be negligible at compile time.
