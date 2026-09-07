@@ -914,6 +914,8 @@ TEST(ReflectionProtocolTest, IsConstructibleFromMoveOnlyType) {
 
     Interface& operator=(const Interface&) = delete;
     Interface& operator=(Interface&&) = delete;
+
+    ~Interface() = default;
   };
 
   static_assert(!std::is_move_constructible_v<protocol<Interface>>);
