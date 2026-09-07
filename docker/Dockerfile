@@ -1,8 +1,3 @@
-# Two build stages sharing a common base:
-#   base    - C++ toolchain and language tools; the devcontainer builds this.
-#   sandbox - base plus the agent CLIs and a persistent uv cache; built by
-#             scripts/agentic-sandbox.py for ephemeral agent containers.
-# The devcontainer container is long-lived and keeps cache locally.
 FROM ubuntu:26.04 AS base
 
 # Install base tools and C++ development tools.
@@ -87,6 +82,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
+# Create non-root user.
+#
 # Ubuntu 24.04+ base images ship a default `ubuntu` user at UID/GID 1000, so
 # a plain `useradd vscode` would land on 1001. Host config directories that
 # are bind-mounted at runtime (~/.claude, ~/.gemini, ~/.ssh, ...) are almost
