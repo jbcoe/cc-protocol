@@ -2618,11 +2618,13 @@ TEST(ReflectionProtocolViewTest, ConstProtocolCast) {
   // NOLINTEND(readability-qualified-auto)
   static_assert(std::same_as<decltype(underlying), const Conforming&>);
 
-  // NOLINTBEGIN(readability-qualified-auto,
-  // clang-analyzer-deadcode.DeadStores): the test demonstrates that the type of
-  // auto is indeed const; adding const would not exercise the behavior.
+  // NOLINTBEGIN(readability-qualified-auto)
+  // NOLINTBEGIN(clang-analyzer-deadcode.DeadStores): the test demonstrates that
+  // the type of auto is indeed const; adding const would not exercise the
+  // behavior.
   auto* underlying_ptr = protocol_cast<Conforming>(&cv);
-  // NOLINTEND(readability-qualified-auto, clang-analyzer-deadcode.DeadStores)
+  // NOLINTEND(readability-qualified-auto)
+  // NOLINTEND(clang-analyzer-deadcode.DeadStores)
   static_assert(std::same_as<decltype(underlying_ptr), const Conforming*>);
 }
 
