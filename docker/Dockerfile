@@ -98,9 +98,7 @@ RUN userdel -r ubuntu \
 USER vscode
 WORKDIR /workspace
 
-ENV PATH="/home/vscode/.local/bin:/usr/local/bin:${PATH}"
-
-# Configure npm for user-local global installs, then install the agent CLIs.
+# Configure npm for user-local global installs.
 ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
 ENV PATH="/home/vscode/.npm-global/bin:/home/vscode/.local/bin:/usr/local/bin:${PATH}"
 RUN mkdir -p /home/vscode/.npm-global
