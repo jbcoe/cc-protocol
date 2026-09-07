@@ -593,6 +593,14 @@ TEST(ConformsToTest, RefQualifiedInterfaceMembersAreRejected) {
     void f();
   };
 
+  struct RefQualifiedOperatorInterface {
+    int operator+(int) &;
+  };
+
+  struct MatchingRefQualifiedOperatorCandidate {
+    int operator+(int) &;
+  };
+
 #ifdef __cpp_constexpr_exceptions
   static_assert(conformance_check_rejects<LvalueRefInterface,
                                           MatchingLvalueRefCandidate>());
@@ -602,6 +610,9 @@ TEST(ConformsToTest, RefQualifiedInterfaceMembersAreRejected) {
                                           MatchingRvalueRefCandidate>());
   static_assert(
       conformance_check_rejects<RvalueRefInterface, UnqualifiedCandidate>());
+  static_assert(
+      conformance_check_rejects<RefQualifiedOperatorInterface,
+                                MatchingRefQualifiedOperatorCandidate>());
 #endif  // __cpp_constexpr_exceptions
 }
 
@@ -2354,12 +2365,6 @@ TEST(ReflectionProtocolTest, SubscriptOperator) {
   protocol<Interface> p(Conforming{});
   EXPECT_EQ(p[21], 42);
 }
-
-// Other operator tests for protocol. These exercise the operator table: a
-// representative operator from each call shape is dispatched through the vtable
-// like the call and subscript operators. Overload resolution, const
-// propagation and noexcept are shared wrapper machinery covered by the
-// operator() and named-member tests, so they are not re-tested per operator.
 
 TEST(ReflectionProtocolTest, UnaryOperator) {
   struct Interface {

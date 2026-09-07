@@ -28,9 +28,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ownership. Vtable entries are named by mangling the interface member
 // function's signature (see "name_mangling.h"), so an entry can be found by
 // the signature it implements rather than by declaration order.
-//
-// Both implementations dispatch a named member function and any of the
-// overloadable operators listed in "operators.h" the same way.
 
 #include <algorithm>
 #include <cassert>
@@ -113,10 +110,10 @@ consteval bool is_supported_operator(std::meta::info function) {
   if (!is_operator_function(function)) return false;
   switch (operator_of(function)) {
 #define XYZ_REFLECTION_SUPPORTED_OPERATOR_CASE(name, token, code) \
-  case std::meta::operators::op_##name:
+  case std::meta::operators::op_##name:                           \
+    return true;
     XYZ_REFLECTION_FOR_EACH_OPERATOR(XYZ_REFLECTION_SUPPORTED_OPERATOR_CASE)
 #undef XYZ_REFLECTION_SUPPORTED_OPERATOR_CASE
-    return true;
     default:
       return false;
   }
@@ -286,8 +283,9 @@ consteval std::meta::info find_vtable_entry() {
 
 // Which operator a thunk exposes for its call syntax. A named interface member
 // is reached through its enclosing `member_base`'s named data member and so is
-// dispatched through `operator()`; an operator interface member is reached
-// directly and uses the operator it declares.
+// dispatched through `operator()`; an operator interface member's thunk is
+// instead a base of the protocol object itself (see `operator_base`) and uses
+// the operator it declares.
 enum class thunk_operator {
 #define XYZ_REFLECTION_THUNK_OPERATOR_ENUMERATOR(name, token, code) name,
   XYZ_REFLECTION_FOR_EACH_OPERATOR(XYZ_REFLECTION_THUNK_OPERATOR_ENUMERATOR)
@@ -344,10 +342,10 @@ struct thunk_base<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   }
 
  protected:
-  // Widens the EnclosingType pointer to the enclosing protocol/protocol_view
-  // object, then calls through its stored vtable pointer's matching function
-  // pointer, passing the viewed/owned object.
-  R dispatch(Args... args) noexcept(IsNoexcept)
+  // Recovers the enclosing protocol/protocol_view object from the
+  // EnclosingType pointer, then calls through its stored vtable pointer's
+  // matching function pointer, passing the viewed/owned object.
+  R operator()(Args... args) noexcept(IsNoexcept)
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(enclosing(this));
@@ -362,7 +360,7 @@ struct thunk_base<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
                              std::forward<Args>(args)...);
   }
 
-  R dispatch(Args... args) const noexcept(IsNoexcept)
+  R operator()(Args... args) const noexcept(IsNoexcept)
     requires(IsConst)
   {
     const auto* protocol_object =
@@ -404,15 +402,20 @@ struct method_thunk;
                       Member, IsConst, IsNoexcept, thunk_operator::name>    \
       : thunk_base<R (*)(Args...), EnclosingType, ProtocolType, Vtable,     \
                    Member, IsConst, IsNoexcept> {                           \
+   private:                                                                 \
+    using Base = thunk_base<R (*)(Args...), EnclosingType, ProtocolType,    \
+                            Vtable, Member, IsConst, IsNoexcept>;           \
+                                                                            \
+   public:                                                                  \
     R operator token(Args... args) noexcept(IsNoexcept)                     \
       requires(!IsConst)                                                    \
     {                                                                       \
-      return this->dispatch(std::forward<Args>(args)...);                   \
+      return this->Base::operator()(std::forward<Args>(args)...);           \
     }                                                                       \
     R operator token(Args... args) const noexcept(IsNoexcept)               \
       requires(IsConst)                                                     \
     {                                                                       \
-      return this->dispatch(std::forward<Args>(args)...);                   \
+      return this->Base::operator()(std::forward<Args>(args)...);           \
     }                                                                       \
                                                                             \
    protected:                                                               \
@@ -434,15 +437,20 @@ XYZ_REFLECTION_FOR_EACH_GENERAL_OPERATOR(XYZ_REFLECTION_DEFINE_GENERAL_THUNK)
                       IsConst, IsNoexcept, thunk_operator::name>            \
       : thunk_base<R (*)(), EnclosingType, ProtocolType, Vtable, Member,    \
                    IsConst, IsNoexcept> {                                   \
+   private:                                                                 \
+    using Base = thunk_base<R (*)(), EnclosingType, ProtocolType, Vtable,   \
+                            Member, IsConst, IsNoexcept>;                   \
+                                                                            \
+   public:                                                                  \
     R operator token() noexcept(IsNoexcept)                                 \
       requires(!IsConst)                                                    \
     {                                                                       \
-      return this->dispatch();                                              \
+      return this->Base::operator()();                                      \
     }                                                                       \
     R operator token() const noexcept(IsNoexcept)                           \
       requires(IsConst)                                                     \
     {                                                                       \
-      return this->dispatch();                                              \
+      return this->Base::operator()();                                      \
     }                                                                       \
                                                                             \
    protected:                                                               \

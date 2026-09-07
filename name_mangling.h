@@ -240,8 +240,8 @@ consteval std::string mangle_type(std::meta::info type) {
 
 // Returns the mangled function-name atom for `function`: the Itanium
 // <operator-name> for a supported operator function, or a length-prefixed
-// <source-name> for its identifier otherwise. `identifier_of` throws for an
-// operator function, which has no identifier.
+// <source-name> for its identifier. An operator function has no identifier,
+// so it is handled separately rather than through `identifier_of`.
 consteval std::string base_name_of(std::meta::info function) {
   if (is_operator_function(function)) {
     switch (operator_of(function)) {

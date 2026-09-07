@@ -24,21 +24,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // functions and have dispatched through the vtable, as a single X-macro table
 // consumed by both the protocol machinery and the name mangler. Each entry is
 // X(name, token, mangling_code): `name` is the operator's identifier here and
-// the suffix of the std::meta::operators::op_<name> enumerator that reflection
+// the suffix of the std::meta::operators::op_<name> enumerator reflection
 // reports for it; `token` spells it in source; `mangling_code` is its Itanium
 // ABI <operator-name>, used to name the operator's vtable entry.
 //
-// The table is split by call shape. A general operator's thunk mirrors the
-// interface member's own parameter list, so one variadic thunk covers its unary
-// and binary forms and, for `++`/`--`, its prefix and postfix forms. A nullary
-// operator (`->`, `~`, `!`) must take no parameters, which the compiler checks
-// against the thunk's declared parameter list, so its thunk is generated
-// without a parameter pack.
-//
-// operator=, operator new/delete (and array forms), operator co_await and the
-// conversion operators are absent. A protocol's own assignment operators hide
-// any inherited operator=; new/delete are static allocation functions rather
-// than value operations; co_await and conversions are out of scope.
+// The table is split by call shape: a general operator's thunk mirrors the
+// interface member's own parameter list, while a nullary operator (`->`, `~`,
+// `!`) takes none. operator=, operator new/delete (and array forms),
+// operator co_await and the conversion operators are absent: a protocol's own
+// assignment operators hide any inherited operator=; new/delete are static
+// allocation functions rather than value operations; co_await and
+// conversions are out of scope.
 
 // Passing a comma as a macro argument needs an indirection: spelled directly it
 // would separate arguments.
