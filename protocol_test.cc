@@ -2526,11 +2526,13 @@ TEST(ReflectionProtocolViewTest, ConstProtocolCast) {
   Conforming c{.value = 20};
   protocol_view<const Interface> cv(c);
 
-  auto& underlying = protocol_cast<Conforming>(cv);
+  const auto& underlying = protocol_cast<Conforming>(cv);
   static_assert(std::same_as<decltype(underlying), const Conforming&>);
+  EXPECT_EQ(underlying.value, 20);
 
-  auto* underlying_ptr = protocol_cast<Conforming>(&cv);
+  const auto* underlying_ptr = protocol_cast<Conforming>(&cv);
   static_assert(std::same_as<decltype(underlying_ptr), const Conforming*>);
+  EXPECT_EQ(underlying_ptr->value, 20);
 }
 
 TEST(ReflectionProtocolTest, ProtocolCastValueCategory) {
@@ -2543,16 +2545,17 @@ TEST(ReflectionProtocolTest, ProtocolCastValueCategory) {
   decltype(auto) a = protocol_cast<Conforming>(p);
   static_assert(std::same_as<decltype(a), Conforming&>);
 
-  decltype(auto) b = protocol_cast<Conforming>(std::move(p));
-  static_assert(std::same_as<decltype(b), Conforming&&>);
-
   const protocol p2(p);
 
   decltype(auto) c = protocol_cast<Conforming>(p2);
   static_assert(std::same_as<decltype(c), const Conforming&>);
 
-  decltype(auto) d = protocol_cast<Conforming>(std::move(p2));
+  decltype(auto) d =
+      protocol_cast<Conforming>(static_cast<const protocol<Interface>&&>(p2));
   static_assert(std::same_as<decltype(d), const Conforming&&>);
+
+  decltype(auto) b = protocol_cast<Conforming>(std::move(p));
+  static_assert(std::same_as<decltype(b), Conforming&&>);
 }
 
 }  // namespace
