@@ -2611,10 +2611,18 @@ TEST(ReflectionProtocolViewTest, ConstProtocolCast) {
   Conforming c{.value = 20};
   protocol_view<const Interface> cv(c);
 
+  // NOLINTBEGIN(readability-qualified-auto): the test demonstrates that
+  // the type of auto is indeed const; adding const would not exercise the
+  // behavior.
   auto& underlying = protocol_cast<Conforming>(cv);
+  // NOLINTEND(readability-qualified-auto)
   static_assert(std::same_as<decltype(underlying), const Conforming&>);
 
+  // NOLINTBEGIN(readability-qualified-auto): the test demonstrates that
+  // the type of auto is indeed const; adding const would not exercise the
+  // behavior.
   auto* underlying_ptr = protocol_cast<Conforming>(&cv);
+  // NOLINTEND(readability-qualified-auto)
   static_assert(std::same_as<decltype(underlying_ptr), const Conforming*>);
 }
 
