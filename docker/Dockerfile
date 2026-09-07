@@ -115,6 +115,7 @@ RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
 # Set up uv and Python environment.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
+ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
 
 # Agent config dirs (~/.gemini / ~/.claude) are mounted from the host at runtime
 # to persist auth state between sessions. Default config files are seeded by the launch
