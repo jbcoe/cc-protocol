@@ -123,6 +123,14 @@ ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
 # https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory
 RUN git config --global --add safe.directory /workspace
 
+# Pre-warm bazelisk's download and install of the pinned Bazel binary to avoid
+# fetching and installing it on every run.
+# https://github.com/bazelbuild/bazelisk#how-does-bazelisk-know-which-bazel-version-to-run
+# We use .bazelversion to avoid hard-coding the bazel version number in multiple places.
+COPY .bazelversion .bazelversion
+RUN USE_BAZEL_VERSION="$(cat .bazelversion)" bazel version \
+    && rm .bazelversion
+
 # The sandbox image needs additional setup to use the Docker volumes for persistent cache.
 FROM base AS sandbox
 
