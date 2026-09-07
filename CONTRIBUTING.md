@@ -209,14 +209,17 @@ This library is an active proof of concept and is subject to change.
 The repository includes a Docker-based sandbox script for AI coding
 assistants. It mounts the project into a container with all build dependencies
 pre-installed, providing an isolated environment for AI-assisted development.
+The instructions the assistants read are in [AGENTS.md](AGENTS.md);
+`CLAUDE.md` and `GEMINI.md` are symbolic links to it.
 
 ### Usage
 
 ```bash
-./scripts/agentic-sandbox.sh <agent> [options]
+./scripts/agentic-sandbox.sh [agent] [options]
 ```
 
-where `<agent>` is either `claude` or `gemini`.
+where `agent` is `claude`, `gemini`, or `agy` (Antigravity). Omit it for a
+plain shell in the container.
 
 ### Options
 
@@ -248,4 +251,4 @@ uv run pre-commit run --all-files
 
 ---
 
-_Last updated: August 30, 2026_
+_Last updated: September 7, 2026_
