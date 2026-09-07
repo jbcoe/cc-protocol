@@ -38,13 +38,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # find its libstdc++ at runtime without any PATH or LD_LIBRARY_PATH changes.
 RUN ARCH=$(dpkg --print-architecture) && \
     case "$ARCH" in \
-    amd64) \
-    wget -nv https://kayari.org/gcc-latest/gcc-latest.deb -O /tmp/gcc-latest.deb \
-    && apt-get update && apt-get install -y --no-install-recommends /tmp/gcc-latest.deb \
-    && rm -f /tmp/gcc-latest.deb \
-    && rm -rf /var/lib/apt/lists/* \
-    ;; \
-    *) echo "gcc-latest is x86_64-only; the reflection build will fall back to gcc-16 on $ARCH" ;; \
+        amd64) \
+            wget -nv https://kayari.org/gcc-latest/gcc-latest.deb -O /tmp/gcc-latest.deb \
+            && apt-get update && apt-get install -y --no-install-recommends /tmp/gcc-latest.deb \
+            && rm -f /tmp/gcc-latest.deb \
+            && rm -rf /var/lib/apt/lists/* \
+            ;; \
+        *) echo "gcc-latest is x86_64-only; the reflection build will fall back to gcc-16 on $ARCH" ;; \
     esac
 
 # Install bazelisk.
@@ -68,9 +68,9 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
 # reaches Debian testing/unstable and Ubuntu's current development release.
 RUN ARCH=$(dpkg --print-architecture) && \
     case "$ARCH" in \
-    amd64) JJ_ARCH=x86_64 ;; \
-    arm64) JJ_ARCH=aarch64 ;; \
-    *) echo "Unsupported architecture for jj: $ARCH" >&2; exit 1 ;; \
+        amd64) JJ_ARCH=x86_64 ;; \
+        arm64) JJ_ARCH=aarch64 ;; \
+        *) echo "Unsupported architecture for jj: $ARCH" >&2; exit 1 ;; \
     esac && \
     wget https://github.com/jj-vcs/jj/releases/download/v0.43.0/jj-v0.43.0-${JJ_ARCH}-unknown-linux-musl.tar.gz -O /tmp/jj.tar.gz \
     && tar -xzf /tmp/jj.tar.gz -C /usr/local/bin ./jj \
@@ -116,9 +116,8 @@ ENV UV_PROJECT_ENVIRONMENT="/home/vscode/.venv"
 ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
 
 # Agent config dirs (~/.gemini / ~/.claude) are mounted from the host at runtime
-# to persist auth state between sessions. Default config files are seeded by the
-# launch script before the mount, so image-side preconfiguration is not needed
-# here.
+# to persist auth state between sessions. Default config files are seeded by the launch
+# script before the mount, so image-side preconfiguration is not needed here.
 
 # Avoid dubious ownership issues flagged by recent versions of git by trusting `/workspace`.
 # https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory
