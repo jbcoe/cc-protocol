@@ -76,12 +76,6 @@ RUN ARCH=$(dpkg --print-architecture) && \
     && tar -xzf /tmp/jj.tar.gz -C /usr/local/bin ./jj \
     && rm /tmp/jj.tar.gz
 
-# Install Node.js. The devcontainer's Claude Code VS Code extension needs it,
-# and the sandbox stage installs the agent CLIs on top of it.
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
 # Create non-root user.
 #
 # Ubuntu 24.04+ base images ship a default `ubuntu` user at UID/GID 1000, so
@@ -94,6 +88,12 @@ RUN userdel -r ubuntu \
     && useradd -m -s /bin/bash --uid 1000 vscode \
     && mkdir -p /workspace \
     && chown vscode:vscode /workspace
+
+# Install Node.js. The devcontainer's Claude Code VS Code extension needs it,
+# and the sandbox stage installs the agent CLIs on top of it.
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
 USER vscode
 WORKDIR /workspace
