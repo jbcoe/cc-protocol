@@ -709,19 +709,23 @@ consteval bool is_protocol_conformant() {
   // `protocol_interface_functions_of` so that the rejection of a
   // ref-qualified interface member is thrown from this function, where a
   // caller can catch it, instead of escaping a variable initializer.
-  auto interface_member_functions =
-      detail::protocol_interface_function_infos<^^Interface>();
-  auto candidate_member_functions =
-      detail::conformance_candidates_of<^^Candidate>;
+  if constexpr (std::is_class_v<Candidate>) {
+    auto interface_member_functions =
+        detail::protocol_interface_function_infos<^^Interface>();
+    auto candidate_member_functions =
+        detail::conformance_candidates_of<^^Candidate>;
 
-  return std::ranges::all_of(
-      interface_member_functions, [&](std::meta::info interface_member) {
-        return std::ranges::any_of(candidate_member_functions,
-                                   [&](std::meta::info candidate_member) {
-                                     return detail::member_function_conforms_to(
-                                         candidate_member, interface_member);
-                                   });
-      });
+    return std::ranges::all_of(
+        interface_member_functions, [&](std::meta::info interface_member) {
+          return std::ranges::any_of(
+              candidate_member_functions,
+              [&](std::meta::info candidate_member) {
+                return detail::member_function_conforms_to(candidate_member,
+                                                           interface_member);
+              });
+        });
+  }
+  return false;
 }
 
 // Variable template for use in requires clauses.
@@ -740,6 +744,12 @@ template <typename Interface, typename Allocator, typename Candidate>
 inline constexpr bool
     is_protocol_conformant_v<protocol<Interface, Allocator>, Candidate> =
         is_protocol_conformant<Interface, Candidate>();
+
+struct bad_protocol_cast : std::exception {
+  constexpr const char* what() const noexcept override {
+    return "bad protocol_cast";
+  }
+};
 
 // ---------------------------------------------------------------------------
 // protocol<I, Allocator>
@@ -871,18 +881,39 @@ class protocol
   friend class protocol_view;
 
   template <typename T, typename Protocol>
-    requires(is_protocol_v<std::decay_t<Protocol>> &&
-             is_protocol_conformant_v<std::decay_t<Protocol>, std::decay_t<T>>)
-  friend constexpr T protocol_cast(Protocol&& operand);
+    requires(std::same_as<std::decay_t<Protocol>, protocol> &&
+             is_protocol_conformant_v<I, std::decay_t<T>>)
+  friend constexpr T protocol_cast(Protocol&& operand) {
+    if (*operand.vtable_->xyz_protocol_typeid != typeid(T)) {
+      throw bad_protocol_cast{};
+    }
 
-  template <typename T, typename Interface>
-    requires(is_protocol_conformant_v<Interface, T>)
-  friend constexpr T* protocol_cast(protocol<Interface>* operand) noexcept;
+    using pointer_type =
+        std::conditional_t<std::is_const_v<std::remove_reference_t<Protocol>>,
+                           const std::decay_t<T>*, std::decay_t<T>*>;
+    return std::forward_like<Protocol>(
+        *static_cast<pointer_type>(operand.object_));
+  }
 
-  template <typename T, typename Interface>
-    requires(is_protocol_conformant_v<Interface, T>)
-  friend constexpr const T* protocol_cast(
-      const protocol<Interface>* operand) noexcept;
+  template <typename T>
+    requires(is_protocol_conformant_v<I, T>)
+  friend constexpr T* protocol_cast(protocol* operand) noexcept {
+    if (*operand->vtable_->xyz_protocol_typeid != typeid(T)) {
+      return nullptr;
+    }
+
+    return static_cast<T*>(operand->object_);
+  }
+
+  template <typename T>
+    requires(is_protocol_conformant_v<I, T>)
+  friend constexpr const T* protocol_cast(const protocol* operand) noexcept {
+    if (*operand->vtable_->xyz_protocol_typeid != typeid(T)) {
+      return nullptr;
+    }
+
+    return static_cast<const T*>(operand->object_);
+  }
 
   [[no_unique_address]] Alloc alloc_;
 
@@ -1085,47 +1116,6 @@ class protocol
   }
 };
 
-struct bad_protocol_cast : std::exception {
-  constexpr const char* what() const noexcept override {
-    return "bad protocol_cast";
-  }
-};
-
-template <typename T, typename Protocol>
-  requires(is_protocol_v<std::decay_t<Protocol>> &&
-           is_protocol_conformant_v<std::decay_t<Protocol>, std::decay_t<T>>)
-constexpr T protocol_cast(Protocol&& operand) {
-  if (*operand.vtable_->xyz_protocol_typeid != typeid(T)) {
-    throw bad_protocol_cast{};
-  }
-
-  using pointer_type =
-      std::conditional_t<std::is_const_v<std::remove_reference_t<Protocol>>,
-                         const std::decay_t<T>*, std::decay_t<T>*>;
-  return std::forward_like<Protocol>(
-      *static_cast<pointer_type>(operand.object_));
-}
-
-template <typename T, typename Interface>
-  requires(is_protocol_conformant_v<Interface, T>)
-constexpr T* protocol_cast(protocol<Interface>* operand) noexcept {
-  if (*operand->vtable_->xyz_protocol_typeid != typeid(T)) {
-    return nullptr;
-  }
-
-  return static_cast<T*>(operand->object_);
-}
-
-template <typename T, typename Interface>
-  requires(is_protocol_conformant_v<Interface, T>)
-constexpr const T* protocol_cast(const protocol<Interface>* operand) noexcept {
-  if (*operand->vtable_->xyz_protocol_typeid != typeid(T)) {
-    return nullptr;
-  }
-
-  return static_cast<const T*>(operand->object_);
-}
-
 // ---------------------------------------------------------------------------
 // protocol_view<T>
 //
@@ -1192,43 +1182,31 @@ class protocol_view
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
-  template <typename U, typename Interface>
-    requires(!std::is_const_v<Interface> &&
-             is_protocol_conformant_v<Interface, std::decay_t<U>>)
-  friend constexpr U& protocol_cast(protocol_view<Interface> operand);
+  template <typename U>
+    requires(is_protocol_conformant_v<T, std::decay_t<U>>)
+  friend constexpr U& protocol_cast(protocol_view operand) {
+    if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
+      throw bad_protocol_cast{};
+    }
 
-  template <typename U, typename Interface>
-    requires(!std::is_const_v<Interface> &&
-             is_protocol_conformant_v<Interface, U>)
-  friend constexpr U* protocol_cast(protocol_view<Interface>* operand) noexcept;
+    return *static_cast<std::decay_t<U>*>(operand.object_);
+  }
+
+  template <typename U>
+    requires(is_protocol_conformant_v<T, U>)
+  friend constexpr U* protocol_cast(protocol_view* operand) noexcept {
+    if (*operand->vtable_->xyz_protocol_typeid != typeid(U)) {
+      return nullptr;
+    }
+
+    return static_cast<U*>(operand->object_);
+  }
 
   // Non-owning pointer to the viewed object.
   void* object_ = nullptr;
 
   const detail::vtable_generator<T>::vtable* vtable_;
 };
-
-template <typename U, typename Interface>
-  requires(!std::is_const_v<Interface> &&
-           is_protocol_conformant_v<Interface, std::decay_t<U>>)
-constexpr U& protocol_cast(protocol_view<Interface> operand) {
-  if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
-    throw bad_protocol_cast{};
-  }
-
-  return *static_cast<U*>(operand.object_);
-}
-
-template <typename U, typename Interface>
-  requires(!std::is_const_v<Interface> &&
-           is_protocol_conformant_v<Interface, U>)
-constexpr U* protocol_cast(protocol_view<Interface>* operand) noexcept {
-  if (*operand->vtable_->xyz_protocol_typeid != typeid(U)) {
-    return nullptr;
-  }
-
-  return static_cast<U*>(operand->object_);
-}
 
 // ---------------------------------------------------------------------------
 // protocol_view<const T>
@@ -1292,42 +1270,31 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
-  template <typename U, typename Interface>
-    requires(is_protocol_conformant_v<Interface, std::decay_t<U>>)
-  friend constexpr const U& protocol_cast(
-      protocol_view<const Interface> operand);
+  template <typename U>
+    requires(is_protocol_conformant_v<T, std::decay_t<U>>)
+  friend constexpr const U& protocol_cast(protocol_view operand) {
+    if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
+      throw bad_protocol_cast{};
+    }
 
-  template <typename U, typename Interface>
-    requires(is_protocol_conformant_v<Interface, U>)
-  friend constexpr const U* protocol_cast(
-      protocol_view<const Interface>* operand) noexcept;
+    return *static_cast<const std::decay_t<U>*>(operand.object_);
+  }
+
+  template <typename U>
+    requires(is_protocol_conformant_v<T, U>)
+  friend constexpr const U* protocol_cast(protocol_view* operand) noexcept {
+    if (*operand->vtable_->xyz_protocol_typeid != typeid(U)) {
+      return nullptr;
+    }
+
+    return static_cast<const U*>(operand->object_);
+  }
 
   // Non-owning pointer to the viewed object.
   const void* object_ = nullptr;
 
   const detail::vtable_generator<T>::vtable* vtable_;
 };
-
-template <typename U, typename Interface>
-  requires(is_protocol_conformant_v<Interface, std::decay_t<U>>)
-constexpr const U& protocol_cast(protocol_view<const Interface> operand) {
-  if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
-    throw bad_protocol_cast{};
-  }
-
-  return *static_cast<const U*>(operand.object_);
-}
-
-template <typename U, typename Interface>
-  requires(is_protocol_conformant_v<Interface, U>)
-constexpr const U* protocol_cast(
-    protocol_view<const Interface>* operand) noexcept {
-  if (*operand->vtable_->xyz_protocol_typeid != typeid(U)) {
-    return nullptr;
-  }
-
-  return static_cast<const U*>(operand->object_);
-}
 
 }  // namespace xyz::reflection
 #endif  // XYZ_REFLECTION_PROTOCOL_HH_

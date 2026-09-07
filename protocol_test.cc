@@ -2624,7 +2624,7 @@ TEST(ReflectionProtocolViewTest, ConstProtocolCast) {
   // NOLINTBEGIN(clang-analyzer-deadcode.DeadStores): the type of underlying_ptr
   // is checked in the following line.
   auto* underlying_ptr = protocol_cast<Conforming>(&cv);
-  // NOLINTEND(clang-analyzer-deadcode.xDeadStores)
+  // NOLINTEND(clang-analyzer-deadcode.DeadStores)
   // NOLINTEND(readability-qualified-auto)
   static_assert(std::same_as<decltype(underlying_ptr), const Conforming*>);
 }
