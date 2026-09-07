@@ -7,15 +7,18 @@ This document explains how to set up, build, and understand the internals of the
 ### Prerequisites
 
 Before building, ensure you have
-[Bazelisk](https://github.com/bazelbuild/bazelisk) (which fetches a current
-Bazel release on first use), a GCC with C++26 reflection (P2996) support, and
+[Bazelisk](https://github.com/bazelbuild/bazelisk) (which fetches the Bazel
+release pinned in `.bazelversion` on first use), a GCC with C++26 reflection
+(P2996) support, and
 [uv](https://docs.astral.sh/uv/getting-started/installation/) installed. The
 reflection compiler is either the GCC trunk snapshot from
 [jwakely.github.io/pkg-gcc-latest](https://jwakely.github.io/pkg-gcc-latest/)
 or Ubuntu 26.04's `gcc-16` package. The project relies on `uv` to manage
 Python dependencies and execute build scripts. The CMake build, used for
 coverage and clang-tidy, additionally needs
-[CMake](https://cmake.org/download/) 3.25 or later.
+[CMake](https://cmake.org/download/) 3.25 or later. To move to a newer Bazel
+release, bump `.bazelversion` and rebuild the sandbox Docker image so its
+pre-warmed download stays in sync.
 
 ### Building and Testing
 
