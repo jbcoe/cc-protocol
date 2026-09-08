@@ -143,3 +143,5 @@ ENV BAZEL_REPOSITORY_CACHE_DIR="/home/vscode/.cache/bazel-repo"
 # volume's mount point as root on first use, and these tools cannot write
 # into a root-owned directory.
 RUN mkdir -p "$UV_CACHE_DIR" "$BAZEL_REPOSITORY_CACHE_DIR"
+
+RUN echo "common --repository_cache=$BAZEL_REPOSITORY_CACHE_DIR" > /home/vscode/.bazelrc

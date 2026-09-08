@@ -15,6 +15,7 @@ IMAGE_NAME = "cc-protocol-sandbox"
 
 # Docker named volumes persisting each tool's cache across container instances.
 # The devcontainer is long-lived and does not use these, it keeps its cache locally.
+# Note: Cache paths must match those set in docker/Dockerfile.
 CACHE_VOLUMES: dict[str, str] = {
     "cc-protocol-uv-cache": "/home/vscode/.cache/uv",
     "cc-protocol-bazel-repository-cache": "/home/vscode/.cache/bazel-repo",
