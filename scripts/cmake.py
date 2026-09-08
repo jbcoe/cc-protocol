@@ -66,8 +66,10 @@ def main() -> None:
         "mode",
         nargs="?",
         default="test",
-        choices=["build", "test", "b", "t"],
-        help="Target mode: build (b), test (t) (default: test)",
+        choices=["build", "test", "install", "b", "t", "i"],
+        help="Target mode: build (b), test (t), or install (i), which installs "
+        "into <build-dir>/install and builds install_test/ against that "
+        "package (default: test)",
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -142,8 +144,10 @@ def main() -> None:
     mode_map = {
         "b": "build",
         "t": "test",
+        "i": "install",
         "build": "build",
         "test": "test",
+        "install": "install",
     }
     mode = mode_map[args.mode]
 
@@ -233,6 +237,63 @@ def main() -> None:
             log(f"Running: {' '.join(gcovr_args)}")
             subprocess.check_call(gcovr_args)
             print(f"LCOV trace written to {coverage_trace_path}")
+
+    # Install step: a downstream project configured against the installed
+    # package is the only check that the exported target carries everything
+    # a consumer needs (headers, C++ standard, reflection flags).
+    if mode == "install":
+        install_prefix = os.path.join(args.build_dir, "install")
+        install_args = [
+            "cmake",
+            "--install",
+            args.build_dir,
+            "--config",
+            preset,
+            "--prefix",
+            install_prefix,
+        ]
+        log(f"Running: {' '.join(install_args)}")
+        subprocess.check_call(install_args)
+
+        consumer_build_dir = os.path.join(args.build_dir, "install_test")
+        consumer_configure_args = [
+            "cmake",
+            "-S",
+            os.path.join(SOURCE_ROOT, "install_test"),
+            "-B",
+            consumer_build_dir,
+            # The same generator as the presets, so a machine that builds the
+            # project can build the consumer too.
+            "-G",
+            "Ninja",
+            f"-DCMAKE_BUILD_TYPE={preset}",
+            f"-DCMAKE_PREFIX_PATH={install_prefix}",
+        ]
+        if args.clean:
+            consumer_configure_args.append("--fresh")
+        log(f"Running: {' '.join(consumer_configure_args)}")
+        subprocess.check_call(consumer_configure_args, env=configure_env)
+
+        consumer_build_args = [
+            "cmake",
+            "--build",
+            consumer_build_dir,
+            "--config",
+            preset,
+        ]
+        log(f"Running: {' '.join(consumer_build_args)}")
+        subprocess.check_call(consumer_build_args)
+
+        consumer_test_args = [
+            "ctest",
+            "--output-on-failure",
+            "--test-dir",
+            consumer_build_dir,
+            "-C",
+            preset,
+        ]
+        log(f"Running: {' '.join(consumer_test_args)}")
+        subprocess.check_call(consumer_test_args)
 
 
 if __name__ == "__main__":

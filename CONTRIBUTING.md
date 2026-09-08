@@ -47,6 +47,21 @@ build and test with it, execute:
 
 For more detailed CMake options, run `./scripts/cmake.sh --help`.
 
+Passing `install` installs the headers and a CMake package into
+`<build-dir>/install`, then configures, builds and runs the downstream
+project in `install_test/` against that package. This is how the CMake CI
+job checks the package. To install elsewhere, run
+`cmake --install <build-dir> --prefix <prefix>` after a build. Consumers use
+the package with:
+
+```cmake
+find_package(xyz_protocol REQUIRED)
+target_link_libraries(my_target PRIVATE xyz_protocol::protocol)
+```
+
+The imported target carries the C++26 standard and the reflection flags for
+the consumer's compiler.
+
 Both scripts select a reflection-capable compiler and pass it to their
 underlying build system; a bare `bazel`/`cmake` invocation skips that and
 fails on stock GCC.
