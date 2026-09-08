@@ -2523,4 +2523,47 @@ TEST(ReflectionProtocolViewTest, ViewOfProtocolPassedByValue) {
   EXPECT_EQ(read(p), 5);
 }
 
+TEST(ReflectionProtocolViewTest, MutableViewOfProtocolPassedByValue) {
+  struct Interface {
+    int get() const;
+    void update(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void update(int new_value) { value = new_value; }
+  };
+
+  auto write = [](protocol_view<Interface> view) { view.update(9); };
+
+  protocol<Interface> p(Conforming{});
+  write(p);
+  EXPECT_EQ(p.get(), 9);
+}
+
+TEST(ReflectionProtocolViewTest, ViewOfConformingObjectPassedByValue) {
+  struct Interface {
+    int get() const;
+    void update(int value);
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    int get() const { return value; }
+
+    void update(int new_value) { value = new_value; }
+  };
+
+  auto read = [](protocol_view<const Interface> view) { return view.get(); };
+  auto write = [](protocol_view<Interface> view) { view.update(4); };
+
+  Conforming c{};
+  write(c);
+  EXPECT_EQ(read(c), 4);
+}
+
 }  // namespace
