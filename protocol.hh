@@ -559,15 +559,9 @@ template <std::meta::info interface_type>
 consteval std::vector<std::meta::info> generate_vtable_specs() {
   std::vector<std::meta::info> function_pointer_specs;
 
-  // The type of the vtable's `xyz_protocol_typeid` entry. Reflected through an
-  // alias rather than spelled inline due to a bug in clang-tidy
-  // (bloomberg/clang-p2996#349). maybe_unused is applied because clang does not
-  // recognize it being reflected in the following line.
-  using type_info_pointer [[maybe_unused]] = const std::type_info*;
-
   function_pointer_specs.push_back(data_member_spec(
-      ^^type_info_pointer, {
-                               .name = "xyz_protocol_typeid"}));
+      ^^const std::type_info*, {
+                                   .name = "xyz_protocol_typeid"}));
 
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<interface_type>) {
