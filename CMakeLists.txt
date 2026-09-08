@@ -35,12 +35,17 @@ option(ENABLE_COVERAGE "Enable gcov coverage instrumentation" OFF)
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-# The reflection flags themselves are usage requirements of the protocol
-# target (below), not directory-wide options, so that the installed package
-# carries them to consumers. Only the compiler probe needs them here.
+# The reflection flags are usage requirements of the protocol target (below)
+# rather than directory-wide options, so that the installed package carries
+# them to consumers; only the compiler probe needs them here. Clang's
+# -stdlib=libc++ is directory-wide as well: every target in the tree,
+# googletest included, must link the same standard library as the targets
+# that use protocol.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   set(CMAKE_REQUIRED_FLAGS "-freflection")
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  add_compile_options(-stdlib=libc++)
+  add_link_options(-stdlib=libc++)
   set(CMAKE_REQUIRED_FLAGS
       "-freflection-latest -fexpansion-statements -stdlib=libc++")
 endif()
