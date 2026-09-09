@@ -233,7 +233,7 @@ plain shell in the container.
 | `--cache-volumes`, `--no-cache-volumes` | Mount the persistent cache volumes (default: on). |
 | `-v`, `--verbose` | Enable verbose logging. |
 
-These persist across sandbox runs in Docker named volumes:
+Caches persist across sandbox runs in Docker named volumes:
 
 - `cc-protocol-uv-cache`: the `uv` package cache.
 - `cc-protocol-bazel-repository-cache`: Bazel's downloaded dependency archives.
