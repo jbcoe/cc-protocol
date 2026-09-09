@@ -148,9 +148,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
     # that clang-tidy and compiler warnings do not report on third-party code.
     FetchContent_Declare(
       googletest
-      URL https://github.com/google/googletest/archive/refs/tags/v1.18.0.tar.gz
-      URL_HASH
-        SHA256=6e3191c1455468b3fc35a417fb565c1c5071aee1b7e7f85e30cf48a98d37d8b5
+      GIT_REPOSITORY https://github.com/google/googletest.git
+      GIT_TAG v1.18.0
       SYSTEM)
     # For Windows: Prevent overriding the parent project's compiler/linker
     # settings
