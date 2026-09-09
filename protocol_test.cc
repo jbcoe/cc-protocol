@@ -2718,10 +2718,10 @@ TEST(ReflectionProtocolTest, TargetType) {
   EXPECT_EQ(target_type(p), typeid(OtherType));
 
   auto _ = std::move(p);
-  // NOLINTBEGIN(bugprone-use-after-move): the test exercises the moved-from
-  // state on purpose.
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // exercises the moved-from state on purpose.
   EXPECT_EQ(target_type(p), typeid(void));
-  // NOLINTEND(bugprone-use-after-move)
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 TEST(ReflectionProtocolViewTest, MutableTargetType) {
@@ -2766,11 +2766,11 @@ TEST(ReflectionProtocolViewTest, MovedFromTargetType) {
   protocol<Interface> movedFrom{Conforming{}};
   auto _ = std::move(movedFrom);
 
-  // NOLINTBEGIN(bugprone-use-after-move): the test exercises the moved-from
-  // state on purpose.
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // exercises the moved-from state on purpose.
   protocol_view<Interface> pv(movedFrom);
   EXPECT_EQ(target_type(pv), typeid(void));
-  // NOLINTEND(bugprone-use-after-move)
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 }  // namespace
