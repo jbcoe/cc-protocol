@@ -2566,4 +2566,142 @@ TEST(ReflectionProtocolViewTest, ViewOfConformingObjectPassedByValue) {
   EXPECT_EQ(read(c), 4);
 }
 
+TEST(ReflectionProtocolTest, ProtocolCast) {
+  struct Interface {};
+
+  struct Conforming {
+    int value;
+  };
+
+  protocol<Interface> p(Conforming{.value = 25});
+  EXPECT_EQ(protocol_cast<Conforming>(p).value, 25);
+  EXPECT_EQ(protocol_cast<Conforming>(&p)->value, 25);
+
+  protocol_view<Interface> pv(p);
+  EXPECT_EQ(protocol_cast<Conforming>(pv).value, 25);
+  EXPECT_EQ(protocol_cast<Conforming>(&pv)->value, 25);
+}
+
+TEST(ReflectionProtocolTest, FailedProtocolCast) {
+  struct Interface {};
+
+  struct Conforming {
+    int value;
+  };
+
+  struct OtherType {};
+
+  protocol<Interface> p(Conforming{.value = 25});
+  EXPECT_THROW(protocol_cast<OtherType>(p), xyz::reflection::bad_protocol_cast);
+  EXPECT_EQ(protocol_cast<OtherType>(&p), nullptr);
+
+  protocol_view<Interface> pv(p);
+  EXPECT_THROW(protocol_cast<OtherType>(pv),
+               xyz::reflection::bad_protocol_cast);
+  EXPECT_EQ(protocol_cast<OtherType>(&pv), nullptr);
+}
+
+TEST(ReflectionProtocolViewTest, ConstProtocolCast) {
+  struct Interface {};
+
+  struct Conforming {
+    int value;
+  };
+
+  Conforming c{.value = 20};
+  protocol_view<const Interface> cv(c);
+
+  // NOLINTBEGIN(readability-qualified-auto): the test demonstrates that
+  // the type of auto is indeed const; adding const would not exercise the
+  // behavior.
+  auto& underlying = protocol_cast<Conforming>(cv);
+  // NOLINTEND(readability-qualified-auto)
+  static_assert(std::same_as<decltype(underlying), const Conforming&>);
+
+  // NOLINTBEGIN(readability-qualified-auto): the test demonstrates that
+  // the type of auto is indeed const; adding const would not exercise the
+  // behavior.
+  // NOLINTBEGIN(clang-analyzer-deadcode.DeadStores): the type of underlying_ptr
+  // is checked in the following line.
+  auto* underlying_ptr = protocol_cast<Conforming>(&cv);
+  // NOLINTEND(clang-analyzer-deadcode.DeadStores)
+  // NOLINTEND(readability-qualified-auto)
+  static_assert(std::same_as<decltype(underlying_ptr), const Conforming*>);
+}
+
+TEST(ReflectionProtocolViewTest, FailedConstProtocolCast) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  Conforming c;
+  protocol_view<const Interface> pv(c);
+
+  EXPECT_THROW(protocol_cast<OtherType>(pv),
+               xyz::reflection::bad_protocol_cast);
+  EXPECT_EQ(protocol_cast<OtherType>(&pv), nullptr);
+}
+
+TEST(ReflectionProtocolTest, ProtocolCastCopies) {
+  struct Interface {
+    Interface(const Interface&) = delete;
+    Interface(Interface&&) = default;
+    Interface& operator=(const Interface&) = delete;
+    Interface& operator=(Interface&&) = delete;
+    ~Interface() = default;
+  };
+
+  struct Conforming {
+    int* copies = nullptr;
+
+    Conforming(int& copyCounter) : copies(&copyCounter) {}
+
+    Conforming(const Conforming& other) : copies(other.copies) { ++(*copies); }
+
+    Conforming& operator=(const Conforming&) = default;
+
+    Conforming(Conforming&&) = default;
+    Conforming& operator=(Conforming&&) = default;
+
+    ~Conforming() = default;
+  };
+
+  int copies{};
+
+  protocol<Interface> p(Conforming{copies});
+
+  // NOLINTBEGIN(clang-analyzer-deadcode.DeadStores): The test intentionally
+  // creates unused copies.
+  auto& _ = protocol_cast<Conforming&>(p);
+  EXPECT_EQ(copies, 0);
+
+  auto _ = protocol_cast<Conforming&>(p);
+  EXPECT_EQ(copies, 1);
+
+  auto _ = protocol_cast<Conforming>(p);
+  EXPECT_EQ(copies, 2);
+
+  auto _ = protocol_cast<Conforming&&>(std::move(p));
+  EXPECT_EQ(copies, 2);
+  // NOLINTEND(clang-analyzer-deadcode.DeadStores)
+}
+
+TEST(ReflectionProtocolTest, CatchingBadProtocolCast) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  protocol<Interface> p(Conforming{});
+
+  try {
+    protocol_cast<OtherType>(p);
+  } catch (const std::exception& e) {
+    EXPECT_EQ(std::string{e.what()}, "bad protocol_cast");
+  }
+}
+
 }  // namespace
