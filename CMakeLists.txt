@@ -131,10 +131,6 @@ target_sources(
 if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
   if(${BUILD_TESTING})
-    # Caches FetchContent's populated dependencies outside the build
-    # directory, so a fresh build directory reuses them instead of
-    # re-fetching. Empty by default, so FetchContent keeps its own default
-    # location under the build directory.
     set(XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR
         "$ENV{XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR}"
         CACHE PATH "Persistent FetchContent cache directory")
@@ -143,11 +139,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       set(FETCHCONTENT_BASE_DIR
           "${XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR}")
 
-      # A shared cache directory needs serializing: FetchContent deletes and
-      # re-populates an entry that doesn't match, so two concurrent
-      # configures can each delete the other's in-progress populate and both
-      # fail.
       file(MAKE_DIRECTORY "${FETCHCONTENT_BASE_DIR}")
+      # LOCK stops concurrent configures deleting each other's in-progress fetch.
       file(LOCK "${FETCHCONTENT_BASE_DIR}/.lock" GUARD PROCESS)
     endif()
 
