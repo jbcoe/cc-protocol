@@ -131,13 +131,24 @@ target_sources(
 if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
   if(${BUILD_TESTING})
-    # Caches downloaded archives outside the build directory, so a fresh build
-    # directory doesn't re-fetch. Left empty when $HOME is unset (e.g. on
-    # Windows), which FetchContent treats as no persistent cache.
-    set(XYZ_PROTOCOL_FETCHCONTENT_DOWNLOAD_CACHE_DIRECTORY "")
-    if(DEFINED ENV{HOME})
-      set(XYZ_PROTOCOL_FETCHCONTENT_DOWNLOAD_CACHE_DIRECTORY
-          "$ENV{HOME}/.cache/cmake-fetchcontent")
+    # Caches FetchContent's populated dependencies outside the build
+    # directory, so a fresh build directory reuses them instead of
+    # re-fetching. Empty by default, so FetchContent keeps its own default
+    # location under the build directory.
+    set(XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR
+        "$ENV{XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR}"
+        CACHE PATH "Persistent FetchContent cache directory")
+
+    if(XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR)
+      set(FETCHCONTENT_BASE_DIR
+          "${XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR}")
+
+      # A shared cache directory needs serializing: FetchContent deletes and
+      # re-populates an entry that doesn't match, so two concurrent
+      # configures can each delete the other's in-progress populate and both
+      # fail.
+      file(MAKE_DIRECTORY "${FETCHCONTENT_BASE_DIR}")
+      file(LOCK "${FETCHCONTENT_BASE_DIR}/.lock" GUARD PROCESS)
     endif()
 
     # SYSTEM marks the dependencies' include directories as system headers so
@@ -147,7 +158,6 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       URL https://github.com/google/googletest/archive/refs/tags/v1.18.0.tar.gz
       URL_HASH
         SHA256=6e3191c1455468b3fc35a417fb565c1c5071aee1b7e7f85e30cf48a98d37d8b5
-      DOWNLOAD_DIR "${XYZ_PROTOCOL_FETCHCONTENT_DOWNLOAD_CACHE_DIRECTORY}"
       SYSTEM)
     # For Windows: Prevent overriding the parent project's compiler/linker
     # settings
