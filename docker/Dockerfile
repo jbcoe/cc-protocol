@@ -144,4 +144,6 @@ ENV XYZ_BAZEL_REPOSITORY_CACHE_DIR="/home/vscode/.cache/bazel-repo"
 # into a root-owned directory.
 RUN mkdir -p "$UV_CACHE_DIR" "$XYZ_BAZEL_REPOSITORY_CACHE_DIR"
 
-RUN echo "common --repository_cache=$XYZ_BAZEL_REPOSITORY_CACHE_DIR" > /home/vscode/.bazelrc
+# repository_cache is defined in the sandbox user-directory config, not workspace config so only
+# the sandbox uses the respository cache.
+RUN echo "common --repository_cache=$XYZ_BAZEL_REPOSITORY_CACHE_DIR" >> /home/vscode/.bazelrc
