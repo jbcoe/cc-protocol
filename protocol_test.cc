@@ -33,7 +33,7 @@ concept has_update = requires(P& p) { p.update(0); };
 template <typename P>
 concept has_get_value = requires(P& p) { p.get_value(); };
 
-// Concepts for overloaded `get`/`get(int)` negative tests.
+// Concepts for overloaded `g et`/`get(int)` negative tests.
 template <typename P>
 concept has_get_int = requires(P& p) { p.get(0); };
 
@@ -2702,6 +2702,69 @@ TEST(ReflectionProtocolTest, CatchingBadProtocolCast) {
   } catch (const std::exception& e) {
     EXPECT_EQ(std::string{e.what()}, "bad protocol_cast");
   }
+}
+
+TEST(ReflectionProtocolTest, TargetType) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(target_type(p), typeid(Conforming));
+
+  p = protocol<Interface>(OtherType{});
+  EXPECT_EQ(target_type(p), typeid(OtherType));
+
+  auto _ = std::move(p);
+  EXPECT_EQ(target_type(p), typeid(void));
+}
+
+TEST(ReflectionProtocolViewTest, MutableTargetType) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  Conforming c{};
+  protocol_view<Interface> p(c);
+  EXPECT_EQ(target_type(p), typeid(Conforming));
+
+  OtherType o{};
+  p = o;
+  EXPECT_EQ(target_type(p), typeid(OtherType));
+}
+
+TEST(ReflectionProtocolViewTest, ConstTargetType) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  Conforming c{};
+  protocol_view<const Interface> p(c);
+  EXPECT_EQ(target_type(p), typeid(Conforming));
+
+  OtherType o{};
+  p = o;
+  EXPECT_EQ(target_type(p), typeid(OtherType));
+}
+
+TEST(ReflectionProtocolViewTest, MovedFromTargetType) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  protocol<Interface> movedFrom{Conforming{}};
+  auto _ = std::move(movedFrom);
+
+  protocol_view<Interface> pv(movedFrom);
+  EXPECT_EQ(target_type(pv), typeid(void));
 }
 
 }  // namespace
