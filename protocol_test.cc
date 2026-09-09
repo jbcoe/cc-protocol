@@ -33,7 +33,7 @@ concept has_update = requires(P& p) { p.update(0); };
 template <typename P>
 concept has_get_value = requires(P& p) { p.get_value(); };
 
-// Concepts for overloaded `g et`/`get(int)` negative tests.
+// Concepts for overloaded `get`/`get(int)` negative tests.
 template <typename P>
 concept has_get_int = requires(P& p) { p.get(0); };
 
