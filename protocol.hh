@@ -44,6 +44,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <typeinfo>
 #include <utility>
 #include <vector>
 
@@ -558,6 +559,10 @@ template <std::meta::info interface_type>
 consteval std::vector<std::meta::info> generate_vtable_specs() {
   std::vector<std::meta::info> function_pointer_specs;
 
+  function_pointer_specs.push_back(data_member_spec(
+      ^^const std::type_info*, {
+                                   .name = "xyz_protocol_typeid"}));
+
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<interface_type>) {
     // Build the function-pointer type R(*)(void*, Args...) noexcept(...)
@@ -650,6 +655,8 @@ consteval typename vtable_generator<T>::vtable make_view_vtable() {
   using Vtable = typename vtable_generator<T>::vtable;
   Vtable result{};
 
+  result.xyz_protocol_typeid = &typeid(U);
+
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<^^T>) {
     constexpr std::meta::info vtable_member =
@@ -685,9 +692,10 @@ consteval bool is_protocol_conformant() {
   static_assert(std::is_same_v<Interface, std::remove_cvref_t<Interface>>,
                 "Interface must not be cv/ref-qualified: strip qualifiers at "
                 "the call site with std::remove_cvref_t.");
-  static_assert(std::is_same_v<Candidate, std::remove_cvref_t<Candidate>>,
-                "Candidate must not be cv/ref-qualified: strip qualifiers at "
-                "the call site with std::remove_cvref_t.");
+
+  if constexpr (!std::is_same_v<Candidate, std::remove_cvref_t<Candidate>>) {
+    return false;
+  }
 
   // Checking for protocol interface conformance is O(N*M) over member counts,
   // assumed to be negligible at compile time.
@@ -696,19 +704,23 @@ consteval bool is_protocol_conformant() {
   // `protocol_interface_functions_of` so that the rejection of a
   // ref-qualified interface member is thrown from this function, where a
   // caller can catch it, instead of escaping a variable initializer.
-  auto interface_member_functions =
-      detail::protocol_interface_function_infos<^^Interface>();
-  auto candidate_member_functions =
-      detail::conformance_candidates_of<^^Candidate>;
+  if constexpr (std::is_class_v<Candidate>) {
+    auto interface_member_functions =
+        detail::protocol_interface_function_infos<^^Interface>();
+    auto candidate_member_functions =
+        detail::conformance_candidates_of<^^Candidate>;
 
-  return std::ranges::all_of(
-      interface_member_functions, [&](std::meta::info interface_member) {
-        return std::ranges::any_of(candidate_member_functions,
-                                   [&](std::meta::info candidate_member) {
-                                     return detail::member_function_conforms_to(
-                                         candidate_member, interface_member);
-                                   });
-      });
+    return std::ranges::all_of(
+        interface_member_functions, [&](std::meta::info interface_member) {
+          return std::ranges::any_of(
+              candidate_member_functions,
+              [&](std::meta::info candidate_member) {
+                return detail::member_function_conforms_to(candidate_member,
+                                                           interface_member);
+              });
+        });
+  }
+  return false;
 }
 
 // Variable template for use in requires clauses.
@@ -722,6 +734,17 @@ inline constexpr bool has_conformant_special_members_v =
      std::is_copy_constructible_v<Candidate>) &&
     (!std::is_move_constructible_v<Interface> ||
      std::is_move_constructible_v<Candidate>);
+
+template <typename Interface, typename Allocator, typename Candidate>
+inline constexpr bool
+    is_protocol_conformant_v<protocol<Interface, Allocator>, Candidate> =
+        is_protocol_conformant<Interface, Candidate>();
+
+struct bad_protocol_cast : std::exception {
+  constexpr const char* what() const noexcept override {
+    return "bad protocol_cast";
+  }
+};
 
 // ---------------------------------------------------------------------------
 // protocol<I, Allocator>
@@ -832,6 +855,7 @@ class protocol
   // valueless protocol is a precondition violation.
   static consteval vtable make_null_vtable() {
     vtable result{};
+    result.xyz_protocol_typeid = &typeid(void);
     result.destroy = +[](const Alloc&, void*) -> void {};
     result.copy = +[](const Alloc&, const void*) -> void* { return nullptr; };
     result.move = +[](const Alloc&, void*) -> void* { return nullptr; };
@@ -851,6 +875,46 @@ class protocol
   // vtable.
   template <is_valid_view_interface>
   friend class protocol_view;
+
+  template <typename T, typename Protocol>
+    requires(std::same_as<std::decay_t<Protocol>, protocol> &&
+             is_protocol_conformant_v<I, std::decay_t<T>>)
+  friend constexpr T protocol_cast(Protocol&& operand) {
+    if (*operand.vtable_->xyz_protocol_typeid != typeid(T)) {
+      throw bad_protocol_cast{};
+    }
+
+    using pointer_type =
+        std::conditional_t<std::is_const_v<std::remove_reference_t<Protocol>>,
+                           const std::decay_t<T>*, std::decay_t<T>*>;
+    return std::forward_like<Protocol>(
+        *static_cast<pointer_type>(operand.object_));
+  }
+
+  template <typename T>
+    requires(is_protocol_conformant_v<I, T>)
+  friend constexpr T* protocol_cast(protocol* operand) noexcept {
+    if (*operand->vtable_->xyz_protocol_typeid != typeid(T)) {
+      return nullptr;
+    }
+
+    return static_cast<T*>(operand->object_);
+  }
+
+  template <typename T>
+    requires(is_protocol_conformant_v<I, T>)
+  friend constexpr const T* protocol_cast(const protocol* operand) noexcept {
+    if (*operand->vtable_->xyz_protocol_typeid != typeid(T)) {
+      return nullptr;
+    }
+
+    return static_cast<const T*>(operand->object_);
+  }
+
+  friend constexpr const std::type_info& target_type(
+      const protocol& p) noexcept {
+    return *p.vtable_->xyz_protocol_typeid;
+  }
 
   [[no_unique_address]] Alloc alloc_;
 
@@ -1119,6 +1183,30 @@ class protocol_view
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
+  template <typename U>
+    requires(is_protocol_conformant_v<T, std::decay_t<U>>)
+  friend constexpr U& protocol_cast(protocol_view operand) {
+    if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
+      throw bad_protocol_cast{};
+    }
+
+    return *static_cast<std::decay_t<U>*>(operand.object_);
+  }
+
+  template <typename U>
+    requires(is_protocol_conformant_v<T, U>)
+  friend constexpr U* protocol_cast(protocol_view* operand) noexcept {
+    if (*operand->vtable_->xyz_protocol_typeid != typeid(U)) {
+      return nullptr;
+    }
+
+    return static_cast<U*>(operand->object_);
+  }
+
+  friend constexpr const std::type_info& target_type(protocol_view p) noexcept {
+    return *p.vtable_->xyz_protocol_typeid;
+  }
+
   // Non-owning pointer to the viewed object.
   void* object_ = nullptr;
 
@@ -1186,6 +1274,30 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
             typename Vtable, std::meta::info Member, bool IsConst,
             bool IsNoexcept>
   friend struct detail::method_thunk;
+
+  template <typename U>
+    requires(is_protocol_conformant_v<T, std::decay_t<U>>)
+  friend constexpr const U& protocol_cast(protocol_view operand) {
+    if (*operand.vtable_->xyz_protocol_typeid != typeid(U)) {
+      throw bad_protocol_cast{};
+    }
+
+    return *static_cast<const std::decay_t<U>*>(operand.object_);
+  }
+
+  template <typename U>
+    requires(is_protocol_conformant_v<T, U>)
+  friend constexpr const U* protocol_cast(protocol_view* operand) noexcept {
+    if (*operand->vtable_->xyz_protocol_typeid != typeid(U)) {
+      return nullptr;
+    }
+
+    return static_cast<const U*>(operand->object_);
+  }
+
+  friend constexpr const std::type_info& target_type(protocol_view p) noexcept {
+    return *p.vtable_->xyz_protocol_typeid;
+  }
 
   // Non-owning pointer to the viewed object.
   const void* object_ = nullptr;
