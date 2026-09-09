@@ -27,9 +27,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // An exploration of adding allocator support to an owning type.
 
-// Owner is a class that simply holds an object of type T. It
-// does not support anything besides the rule-of-five member functions
-// and swap. This class is for demonstration purposes only.
+// Owner is a class that holds an object of type T, implementing only the
+// rule-of-five member functions and swap.
 namespace xyz::tutorials::owning_type {
 
 template <typename T>
@@ -53,8 +52,6 @@ class Owner {
   explicit Owner(const T& obj) : obj_(new T(obj)) {}
 
   explicit Owner(T&& obj) : obj_(new T(std::move(obj))) {}
-
-  // Rule-of-five implementation below.
 
   ~Owner() { destroy(obj_); }
 
@@ -116,16 +113,15 @@ TEST(TutorialsAllocators, OwningType) {
 
 }  // namespace xyz::tutorials::owning_type
 
-// Next, we add very rudimentary support for allocators. We begin by
+// Next, we add rudimentary support for allocators. We begin by
 // implementing the private functions and constructors. Some member
 // functions have been deleted and will be discussed in further steps.
 namespace xyz::tutorials::constructors {
 
 template <typename T, typename Alloc = std::allocator<T>>
 class Owner {
-  // The allocator_traits struct provides a useful wrapper
-  // around the provided allocator type. It gives us an easy
-  // way to allocate, copy, etc.
+  // allocator_traits forwards allocate and deallocate to Alloc, and
+  // supplies construct and destroy when Alloc does not define its own.
   using traits = std::allocator_traits<Alloc>;
 
   // In some exotic cases, users may define a different pointer
@@ -141,9 +137,8 @@ class Owner {
 
   // We use auto&& so this works for both lvalue and rvalue construction.
   static pointer create(auto&& source, Alloc& alloc) {
-    pointer obj = traits::allocate(alloc, 1);  // Allocate room for one T.
-    // We must make sure to reclaim the memory from
-    // the previous line in case the constructor throws.
+    pointer obj = traits::allocate(alloc, 1);
+    // Reclaims the allocation above if construction throws.
     try {
       traits::construct(alloc, obj, std::forward<decltype(source)>(source));
     } catch (...) {
@@ -206,7 +201,6 @@ class Owner {
       : alloc_(traits::select_on_container_copy_construction(other.alloc_)),
         obj_(copy(other.obj_, alloc_)) {}
 
-  // Allocator-aware copy construction.
   Owner(std::allocator_arg_t, const Alloc& a, const Owner& other)
       : alloc_(a), obj_(copy(other.obj_, alloc_)) {}
 
@@ -257,8 +251,6 @@ TEST(TutorialsAllocators, SimpleAllocatorOwner) {
   EXPECT_FALSE(o2.has_value());
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_EQ(o3.get(), 10);
-
-  // All of the memory gets cleaned up at the end of scope.
 }
 
 // To demonstrate that our new Owner works, we will make a simple stateful
@@ -289,18 +281,17 @@ TEST(TutorialsAllocators, StatefulAllocator) {
   TestOwner o1;
   EXPECT_EQ(o1.get_allocator().tag, 0);
 
-  // Default constructs the allocator.
   TestOwner o2{42};
   EXPECT_EQ(o2.get(), 42);
   EXPECT_EQ(o2.get_allocator().tag, 0);
 
   // Provides an explicit allocator.
   TestOwner o3{std::allocator_arg, TestAlloc<int>{5}, 10};
-  EXPECT_EQ(o3.get(), 10);               // 10 is the value stored in Owner.
-  EXPECT_EQ(o3.get_allocator().tag, 5);  // 5 is the value stored in TestAlloc.
+  EXPECT_EQ(o3.get(), 10);
+  EXPECT_EQ(o3.get_allocator().tag, 5);
 
-  // Copy construction copies the allocator; the copy is what this example
-  // demonstrates.
+  // Copy construction copies the allocator, since TestAlloc does not define
+  // select_on_container_copy_construction.
   // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
   TestOwner o4{o3};
   EXPECT_EQ(o4.get(), 10);
@@ -310,8 +301,8 @@ TEST(TutorialsAllocators, StatefulAllocator) {
 
   // Allocator-aware copy construction uses the new allocator.
   TestOwner o5{std::allocator_arg, TestAlloc<int>{20}, o3};
-  EXPECT_EQ(o5.get(), 10);                // Take o3's value.
-  EXPECT_EQ(o5.get_allocator().tag, 20);  // Use the new allocator.
+  EXPECT_EQ(o5.get(), 10);
+  EXPECT_EQ(o5.get_allocator().tag, 20);
 
   // Move construction takes the allocator.
   TestOwner o6{std::move(o5)};
@@ -337,7 +328,7 @@ class Owner {
   [[no_unique_address]] Alloc alloc_;
   pointer obj_ = nullptr;
 
-  // Some useful shortenings for common properties of our allocator.
+  // Cached allocator-trait values used throughout the class.
   constexpr static bool pocca =
       traits::propagate_on_container_copy_assignment::value;
   constexpr static bool pocma =
@@ -374,10 +365,9 @@ class Owner {
     return create(*obj, alloc);
   }
 
-  // We may have to actually perform a move
-  // for some cases now. This move constructs
-  // a new T using our allocator (NOT a simple
-  // pointer swap).
+  // Constructs a new T from *obj using alloc, for use when the caller's
+  // allocator differs from the one that allocated obj and the existing
+  // allocation cannot be reused.
   static pointer move(pointer obj, Alloc& alloc) {
     if (obj == nullptr) {
       return nullptr;
@@ -458,7 +448,6 @@ class Owner {
     return *this;
   }
 
-  // See the code below for a justification of the noexcept specification.
   // NOLINTBEGIN(bugprone-exception-escape): conditionally noexcept, modelled
   // on allocator-aware standard containers; the potentially throwing copy
   // path is taken only when the noexcept condition is false.
@@ -488,11 +477,10 @@ class Owner {
     return *this;
   }
 
-  // See the code below for a justification of the noexcept specification.
   void swap(Owner& other) noexcept(always_equal || pocs) {
-    // Unlike move assignment, swap will NOT attempt to reallocate if the
-    // allocators are not equal. Instead, we require that the allocators
-    // are equivalent - if they are not, swaping is undefined behavior.
+    // Swap does not reallocate when the allocators differ; it requires the
+    // allocators to be equivalent, since otherwise swapping obj_ pointers
+    // is undefined behavior.
     if constexpr (!always_equal && !pocs) {
       assert(alloc_ == other.alloc_);
     }
@@ -543,7 +531,7 @@ TEST(TutorialsAllocators, CopyAssignment) {
 
   TestOwner o1{std::allocator_arg, TestAlloc<int>{0}, 10};
   TestOwner o2{20};
-  // Copy assignment does NOT take the allocator by default.
+  // Copy assignment keeps its own allocator by default.
   // If our allocator set propagate_on_container_copy_assignment to true,
   // it would take o2's allocator.
   o1 = o2;
@@ -720,9 +708,10 @@ class Owner {
     if (this != &other) {
       // We split into two cases: propagating and non-propagating.
       if constexpr (pocca) {
-        // Use other's allocator, which we are about to take.
-        // We do this BEFORE calling destroy() since it is a
-        // potentially throwing operation.
+        // Copies with other's allocator, which we are about to take, before
+        // calling destroy(): copy() is a potentially throwing operation, so
+        // the allocation must succeed before the existing object is
+        // destroyed.
         pointer new_obj = copy(other.obj_, other.alloc_);
 
         // Everything hereafter will not throw.
@@ -730,7 +719,7 @@ class Owner {
         obj_ = new_obj;
         alloc_ = other.alloc_;
       } else {
-        // Here, we just need to allocate before destroy().
+        // Here, we only need to allocate before destroy().
         pointer new_obj = copy(other.obj_, alloc_);
         destroy(obj_, alloc_);
         obj_ = new_obj;
@@ -754,12 +743,12 @@ class Owner {
       destroy(obj_, alloc_);
       obj_ = std::exchange(other.obj_, nullptr);
 
-      // Still propagate when POCMA is true.
+      // Still propagate when pocma is true.
       if constexpr (pocma) {
         alloc_ = other.alloc_;
       }
     } else {  // Slow path.
-      // The allocating line - potentially throws.
+      // This line performs the allocation and can throw.
       pointer new_obj = move(other.obj_, alloc_);
       // After we know the allocation was safe, we destroy the existing
       // object.
