@@ -855,6 +855,7 @@ class protocol
   // valueless protocol is a precondition violation.
   static consteval vtable make_null_vtable() {
     vtable result{};
+    result.xyz_protocol_typeid = &typeid(void);
     result.destroy = +[](const Alloc&, void*) -> void {};
     result.copy = +[](const Alloc&, const void*) -> void* { return nullptr; };
     result.move = +[](const Alloc&, void*) -> void* { return nullptr; };
@@ -908,6 +909,11 @@ class protocol
     }
 
     return static_cast<const T*>(operand->object_);
+  }
+
+  friend constexpr const std::type_info& target_type(
+      const protocol& p) noexcept {
+    return *p.vtable_->xyz_protocol_typeid;
   }
 
   [[no_unique_address]] Alloc alloc_;
@@ -1197,6 +1203,10 @@ class protocol_view
     return static_cast<U*>(operand->object_);
   }
 
+  friend constexpr const std::type_info& target_type(protocol_view p) noexcept {
+    return *p.vtable_->xyz_protocol_typeid;
+  }
+
   // Non-owning pointer to the viewed object.
   void* object_ = nullptr;
 
@@ -1283,6 +1293,10 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
     }
 
     return static_cast<const U*>(operand->object_);
+  }
+
+  friend constexpr const std::type_info& target_type(protocol_view p) noexcept {
+    return *p.vtable_->xyz_protocol_typeid;
   }
 
   // Non-owning pointer to the viewed object.

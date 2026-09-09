@@ -2704,4 +2704,73 @@ TEST(ReflectionProtocolTest, CatchingBadProtocolCast) {
   }
 }
 
+TEST(ReflectionProtocolTest, TargetType) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(target_type(p), typeid(Conforming));
+
+  p = protocol<Interface>(OtherType{});
+  EXPECT_EQ(target_type(p), typeid(OtherType));
+
+  auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // exercises the moved-from state on purpose.
+  EXPECT_EQ(target_type(p), typeid(void));
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolViewTest, MutableTargetType) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  Conforming c{};
+  protocol_view<Interface> p(c);
+  EXPECT_EQ(target_type(p), typeid(Conforming));
+
+  OtherType o{};
+  p = o;
+  EXPECT_EQ(target_type(p), typeid(OtherType));
+}
+
+TEST(ReflectionProtocolViewTest, ConstTargetType) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  Conforming c{};
+  protocol_view<const Interface> p(c);
+  EXPECT_EQ(target_type(p), typeid(Conforming));
+
+  OtherType o{};
+  p = o;
+  EXPECT_EQ(target_type(p), typeid(OtherType));
+}
+
+TEST(ReflectionProtocolViewTest, MovedFromTargetType) {
+  struct Interface {};
+
+  struct Conforming {};
+
+  struct OtherType {};
+
+  protocol<Interface> movedFrom{Conforming{}};
+  auto _ = std::move(movedFrom);
+
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // exercises the moved-from state on purpose.
+  protocol_view<Interface> pv(movedFrom);
+  EXPECT_EQ(target_type(pv), typeid(void));
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
 }  // namespace
