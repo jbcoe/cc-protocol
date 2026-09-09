@@ -245,12 +245,13 @@ plain shell in the container.
 |------|-------------|
 | `--rebuild-docker` | Rebuild the Docker image before starting. |
 | `--update` | Update the agent CLI to the latest version before running. |
-| `--cache-volumes`, `--no-cache-volumes` | Mount the persistent `uv` cache volume (default: on). |
+| `--cache-volumes`, `--no-cache-volumes` | Mount the persistent cache volumes (default: on). |
 | `-v`, `--verbose` | Enable verbose logging. |
 
-The `uv` cache persists across sandbox runs in a Docker named volume,
-`cc-protocol-uv-cache`. The cache grows without bound since `uv` never prunes
-it; to reset it, run `docker volume rm cc-protocol-uv-cache`.
+The `uv` package cache and Bazel's repository cache persist across sandbox runs
+in Docker named volumes, `cc-protocol-uv-cache` and
+`cc-protocol-bazel-repository-cache`. To reset either volume, run `docker volume
+rm <name>`.
 
 ### Using pre-commit Locally to run Github Workflow checks
 
