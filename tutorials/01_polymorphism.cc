@@ -121,7 +121,6 @@ TEST(TutorialsPolymorphism, PolymorphismWithInheritance) {
   Cat cat;
   Dog dog;
 
-  // We can store pointers to `Cat` and `Dog` as pointers to `Animal`.
   std::vector<Animal*> animals;
   animals.reserve(2);
   animals.push_back(&cat);
@@ -180,7 +179,6 @@ TEST(TutorialsPolymorphism, PolymorphismWithTypeErasure) {
   Cat cat;
   Dog dog;
 
-  // We can store pointers to `Cat` and `Dog` using our wide-pointer type.
   std::vector<AnimalPtr> animals;
   animals.reserve(2);
   animals.emplace_back(&cat);
@@ -250,7 +248,6 @@ TEST(TutorialsPolymorphism, PolymorphismWithTypeErasureAndVtable) {
   Cat cat;
   Dog dog;
 
-  // We can store pointers to `Cat` and `Dog` using our wide-pointer type.
   std::vector<AnimalPtr> animals;
   animals.reserve(2);
   animals.emplace_back(&cat);
@@ -266,11 +263,10 @@ TEST(TutorialsPolymorphism, PolymorphismWithTypeErasureAndVtable) {
 }  // namespace xyz::tutorials::polymorphism_with_type_erasure_vtable
 
 // We can implement inheritance-like, intrusive polymorphism manually.
-// This is just an exercise, not recommended practice.
+// This is an exercise, not recommended practice.
 // Note that the vtable pointer is now part of the class, whereas our
 // type-erased wide pointer stores the vtable pointer alongside a pointer to
-// the class: intrusive polymorphism affects class design and requires the class
-// to store an additional pointer for the vtable.
+// the class.
 
 namespace xyz::tutorials::manual_intrusive_vtable {
 
@@ -322,7 +318,6 @@ TEST(TutorialsPolymorphism, PolymorphismWithManualInheritance) {
   Cat cat;
   Dog dog;
 
-  // We can store pointers to `Cat` and `Dog` as pointers to `Animal`.
   std::vector<Animal*> animals;
   animals.reserve(2);
   animals.push_back(&cat);

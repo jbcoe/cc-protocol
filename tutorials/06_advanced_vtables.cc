@@ -36,8 +36,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "consteval_check.h"
 
 // A study of using vtables for overloaded member functions and `operator()`.
-// This tutorial follows on from the work in `tutorials/polymorphism.cc` and
-// `tutorials/reflection.cc`
+// This tutorial follows on from the work in `tutorials/01_polymorphism.cc`
+// and `tutorials/03_reflection.cc`.
 
 namespace xyz::tutorials::simple_vtable {
 
@@ -103,8 +103,7 @@ class AnimalPtr {
  public:
   template <typename T>
   AnimalPtr(T* t) : data_(t) {
-    // Making the vtable `constexpr` avoids runtime cost (synchronization
-    // between threads) when accessing static variables.
+    // Same as `simple_vtable::AnimalPtr` above.
     constexpr static vtable vtable_for_type = {
         .noise_void_func_ =
             +[](const void* data) {
@@ -144,7 +143,8 @@ struct Cat {
 };
 
 struct vtable {
-  // `operator()` is an invalid identifier so we must use a mangled name.
+  // `operator()` is an invalid identifier, so this field uses an arbitrary
+  // name instead.
   std::string_view (*operator_call_fn)(const void* data);
 };
 
@@ -155,8 +155,7 @@ class AnimalPtr {
  public:
   template <typename T>
   AnimalPtr(T* t) : data_(t) {
-    // Making the vtable `constexpr` avoids runtime cost (synchronization
-    // between threads) when accessing static variables.
+    // Same as `simple_vtable::AnimalPtr` above.
     constexpr static vtable vtable_for_type = {
         .operator_call_fn =
             +[](const void* data) {

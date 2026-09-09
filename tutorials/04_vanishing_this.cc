@@ -153,8 +153,6 @@ int Multiply::operator()(int x) const {
 TEST(TutorialsVanishingThis, ParentClassAccessFromMultipleMemberDataCalls) {
   // [[no_unique_address]] and the empty base class optimisation ensure that
   // inheriting from `AddBase` and `MultiplyBase` has no effect on size.
-  // Calling `operator()` for `add` or `multiply` has the same syntax as
-  // a member function call.
   static_assert(sizeof(A) == sizeof(int));
 
   A a(3);

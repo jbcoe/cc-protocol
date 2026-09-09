@@ -48,8 +48,7 @@ class Dog {
 struct vtable {
   std::string_view (*noise_func_)(const void* data);
 
-  // To manage Animal's lifecycle, we need two new functions:
-  // destroy and copy.
+  // NEW: destroy_ and copy_ manage Animal's lifecycle.
   void (*destroy_)(void* data);
   void* (*copy_)(const void* data);
 };
@@ -62,26 +61,21 @@ constexpr inline vtable vtable_for = {
     .noise_func_ = +[](const void* data) -> std::string_view {
       return static_cast<const T*>(data)->noise();
     },
-    // NEW: simply destroys whatever type we originally had.
+    // NEW: destroys whatever type we originally had.
     .destroy_ = +[](void* data) -> void { delete static_cast<T*>(data); },
-    // NEW: copies from src, and returns a pointer to the newly-allocated
-    // object.
+    // NEW: allocates a copy of the erased object.
     .copy_ = +[](const void* src) -> void* {
       return new T(*static_cast<const T*>(src));
     }};
 
-// To simplify Animal's implementation and enhance its performance, we can
-// use a no-op "null_vtable" for the empty state of Animal. This prevents
-// us from needing to null-check everywhere; instead, we can use this as
-// the canonical null state for our vtable instead of nullptr.
+// null_vtable is a no-op vtable for Animal's empty state, so Animal's
+// methods can dispatch through vtable_ unconditionally instead of
+// null-checking it.
 constexpr inline vtable null_vtable = {
-    // Calling .noise() with a null vtable is an error.
     .noise_func_ = +[](const void* data) -> std::string_view {
       throw std::bad_function_call{};
     },
-    // Destroying an object with a null vtable does nothing.
     .destroy_ = +[](void* data) -> void {},
-    // Copying an object with a null vtable does nothing.
     .copy_ = +[](const void* src) -> void* { return nullptr; }};
 
 class Animal {
@@ -91,22 +85,22 @@ class Animal {
  public:
   // TNorm is the decayed version of T. If T is int&&, then TNorm will be int.
   // The requires clause prevents copy and move construction from mistakenly
-  // selecting this constructor.
+  // selecting this constructor. Unlike AnimalPtr's constructor in tutorial
+  // 01, this one takes a forwarding reference and allocates a new TNorm,
+  // move-constructing it from t when t is an rvalue and copy-constructing it
+  // otherwise.
   template <typename T, typename TNorm = std::decay_t<T>>
     requires(!std::same_as<TNorm, Animal>)
-  // Instead of taking a T*, we take a forwarding reference to T. regardless of
-  // whether t is an lvalue or rvalue, we construct a new object for Animal to
-  // manage.
   Animal(T&& t)
       : data_(new TNorm(std::forward<T>(t))), vtable_(&vtable_for<TNorm>) {}
 
-  // Copy constructor: dispatch to the vtable's copy function. This is safe even
-  // if other is moved-from.
+  // Copy constructor. Safe if other is moved-from, since null_vtable's copy_
+  // returns nullptr and other.vtable_ is null_vtable in that state.
   Animal(const Animal& other)
       : data_(other.vtable_->copy_(other.data_)), vtable_(other.vtable_) {}
 
-  // Move constructor: perform a simple pointer swap. The moved-from
-  // other will now be reset to the default state, with a null_vtable.
+  // Move constructor: a pointer swap. The moved-from other is reset to the
+  // null_vtable state.
   Animal(Animal&& other) noexcept
       : data_(std::exchange(other.data_, nullptr)),
         vtable_(std::exchange(other.vtable_, &null_vtable)) {}
@@ -117,10 +111,8 @@ class Animal {
       // Allocate new data first in case copy construction throws.
       void* new_data = other.vtable_->copy_(other.data_);
 
-      // Destroy existing data.
       vtable_->destroy_(data_);
 
-      // Take the new data and vtable.
       data_ = new_data;
       vtable_ = other.vtable_;
     }
@@ -130,10 +122,8 @@ class Animal {
   // Move assignment.
   Animal& operator=(Animal&& other) noexcept {
     if (this != &other) {
-      // Destroy whatever we have currently.
       vtable_->destroy_(data_);
 
-      // Perform a pointer swap.
       data_ = std::exchange(other.data_, nullptr);
       vtable_ = std::exchange(other.vtable_, &null_vtable);
     }
@@ -143,8 +133,8 @@ class Animal {
   // Destructor.
   ~Animal() { vtable_->destroy_(data_); }
 
-  // Dispatch to our vtable's noise_func. If the object is currently empty,
-  // this will throw an exception.
+  // Throws std::bad_function_call if the object is in the moved-from
+  // (null_vtable) state.
   std::string_view noise() const { return vtable_->noise_func_(data_); }
 };
 
