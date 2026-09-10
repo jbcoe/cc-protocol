@@ -5,6 +5,12 @@
 		"context": "..",
 		"target": "base"
 	},
+	// A Docker daemon inside the container, so the agentic sandbox image can be
+	// built and run from the devcontainer, including in Codespaces, which has
+	// no host Docker socket to share.
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {}
+	},
 	"remoteUser": "vscode",
 	// Host credentials are shared with the container by bind-mounting them into
 	// the `vscode` home directory. Only `~/.ssh` is mounted by default. To reuse
