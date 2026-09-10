@@ -138,7 +138,7 @@ FROM base AS sandbox
 ENV UV_LINK_MODE="copy"
 
 ENV XYZ_BAZEL_REPOSITORY_CACHE_DIR="/home/vscode/.cache/bazel-repo"
-ENV XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR="/home/vscode/.cache/cmake-fetchcontent"
+ENV XYZ_CMAKE_FETCHCONTENT_CACHE_DIR="/home/vscode/.cache/cmake-fetchcontent"
 
 # Pre-create the cache dirs owned by vscode: Docker otherwise creates a
 # volume's mount point as root on first use, and these tools cannot write
@@ -146,7 +146,7 @@ ENV XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR="/home/vscode/.cache/cmake-fetchco
 RUN mkdir -p \
     "$UV_CACHE_DIR" \
     "$XYZ_BAZEL_REPOSITORY_CACHE_DIR" \
-    "$XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR"
+    "$XYZ_CMAKE_FETCHCONTENT_CACHE_DIR"
 
 # repository_cache is defined in the sandbox user-directory config, not workspace config so only
 # the sandbox uses the repository cache.

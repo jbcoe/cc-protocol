@@ -161,6 +161,8 @@ def main() -> None:
         f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",
         f"-DENABLE_COVERAGE={'ON' if args.coverage else 'OFF'}",
         f"-DCLANG_TIDY_ENABLE={'ON' if args.clang_tidy else 'OFF'}",
+        "-DXYZ_CMAKE_FETCHCONTENT_CACHE_DIR="
+        + os.environ.get("XYZ_CMAKE_FETCHCONTENT_CACHE_DIR", ""),
         "-B",
         args.build_dir,
     ]

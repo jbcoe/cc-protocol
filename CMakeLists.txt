@@ -117,6 +117,7 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${PROJECT_SOURCE_DIR}/
 include(xyz_add_library)
 include(xyz_add_test)
 include(xyz_add_object_library)
+include(xyz_fetchcontent_declare_cached)
 
 find_package(ClangTidy)
 
@@ -131,23 +132,10 @@ target_sources(
 if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
 
   if(${BUILD_TESTING})
-    set(XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR
-        "$ENV{XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR}"
-        CACHE PATH "Persistent FetchContent cache directory")
-
-    if(XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR)
-      set(FETCHCONTENT_BASE_DIR
-          "${XYZ_CMAKE_FETCHCONTENT_DOWNLOAD_CACHE_DIR}")
-
-      file(MAKE_DIRECTORY "${FETCHCONTENT_BASE_DIR}")
-      # LOCK stops concurrent configures deleting each other's in-progress fetch.
-      file(LOCK "${FETCHCONTENT_BASE_DIR}/.lock" GUARD PROCESS)
-    endif()
-
     # SYSTEM marks the dependencies' include directories as system headers so
     # that clang-tidy and compiler warnings do not report on third-party code.
-    FetchContent_Declare(
-      googletest
+    xyz_fetchcontent_declare_cached(
+      NAME googletest
       GIT_REPOSITORY https://github.com/google/googletest.git
       GIT_TAG v1.18.0
       SYSTEM)
