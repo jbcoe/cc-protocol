@@ -209,9 +209,10 @@ This library is an active proof of concept and is subject to change.
 
 ## AI Coding Sandboxes
 
-The repository includes a Docker-based sandbox script for AI coding
-assistants. It mounts the project into a container with all build dependencies
-pre-installed, providing an isolated environment for AI-assisted development.
+The repository includes a sandbox script for AI coding assistants, using
+Docker or Podman. It mounts the project into a container with all build
+dependencies pre-installed, providing an isolated environment for
+AI-assisted development.
 The instructions the assistants read are in [AGENTS.md](AGENTS.md);
 `CLAUDE.md` and `GEMINI.md` are symbolic links to it.
 
@@ -228,15 +229,17 @@ plain shell in the container.
 
 | Flag | Description |
 |------|-------------|
-| `--rebuild-docker` | Rebuild the Docker image before starting. |
+| `--container-engine` | `docker` or `podman` (default: `docker`). |
+| `--rebuild-image` | Rebuild the sandbox image before starting. |
 | `--update` | Update the agent CLI to the latest version before running. |
 | `--cache-volumes`, `--no-cache-volumes` | Mount the persistent cache volumes (default: on). |
 | `-v`, `--verbose` | Enable verbose logging. |
 
 The `uv` package cache and Bazel's repository cache persist across sandbox runs
-in Docker named volumes, `cc-protocol-uv-cache` and
-`cc-protocol-bazel-repository-cache`. To reset either volume, run `docker volume
-rm <name>`.
+in named volumes, `cc-protocol-uv-cache` and
+`cc-protocol-bazel-repository-cache`. To reset either volume, run `docker
+volume rm <name>` or `podman volume rm <name>`, matching whichever engine
+created it.
 
 ### Using pre-commit Locally to run Github Workflow checks
 

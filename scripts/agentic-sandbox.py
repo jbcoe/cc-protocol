@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to run an AI agent, or a plain shell, in a Docker sandbox.
+Script to run an AI agent, or a plain shell, in a container sandbox.
 
 Supported agents: Gemini CLI, Claude Code, Antigravity CLI.
 """
@@ -13,7 +13,7 @@ from typing import TypedDict
 
 IMAGE_NAME = "cc-protocol-sandbox"
 
-# Docker named volumes persisting each tool's cache across container instances.
+# Named volumes persisting each tool's cache across container instances.
 # The devcontainer is long-lived and does not use these, it keeps its cache locally.
 # Note: Cache paths must match those set in docker/Dockerfile.
 CACHE_VOLUMES: dict[str, str] = {
@@ -109,8 +109,8 @@ def _agent_mount_args(agent: str | None) -> list[str]:
 def main() -> None:
     """Provide the main entry point for the agentic sandbox script."""
     parser = argparse.ArgumentParser(
-        description="Run an AI agent (gemini, claude, or agy) in a Docker "
-        "sandbox, or a plain shell if no agent is given."
+        description="Run an AI agent (gemini, claude, or agy) in a container"
+        " (Docker or Podman) sandbox, or a plain shell if no agent is given."
     )
     parser.add_argument(
         "agent",
@@ -125,7 +125,13 @@ def main() -> None:
         "Requires an agent.",
     )
     parser.add_argument(
-        "--rebuild-docker", action="store_true", help="Rebuild the Docker image."
+        "--container-engine",
+        choices=["docker", "podman"],
+        default="docker",
+        help="Container engine to run the sandbox with (default: docker).",
+    )
+    parser.add_argument(
+        "--rebuild-image", action="store_true", help="Rebuild the sandbox image."
     )
     parser.add_argument(
         "--cache-volumes",
@@ -151,15 +157,17 @@ def main() -> None:
 
     image_exists = (
         subprocess.run(
-            ["docker", "image", "inspect", IMAGE_NAME], capture_output=True
+            [args.container_engine, "image", "inspect", IMAGE_NAME],
+            capture_output=True,
         ).returncode
         == 0
     )
-    if args.rebuild_docker or not image_exists:
-        log(f"--- Building Docker Sandbox: {IMAGE_NAME} ---")
+    if args.rebuild_image or not image_exists:
+        engine = args.container_engine.capitalize()
+        log(f"--- Building {engine} Sandbox: {IMAGE_NAME} ---")
         subprocess.check_call(
             [
-                "docker",
+                args.container_engine,
                 "build",
                 "--target",
                 "sandbox",
@@ -193,7 +201,7 @@ def main() -> None:
             cache_mounts.extend(["-v", f"{volume}:{target}"])
 
     run_args = [
-        "docker",
+        args.container_engine,
         "run",
         "-it",
         "--rm",
