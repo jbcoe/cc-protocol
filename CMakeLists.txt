@@ -40,11 +40,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # them to consumers; only the compiler probe needs them here. Clang's
 # -stdlib=libc++ is directory-wide as well: every target in the tree,
 # googletest included, must link the same standard library as the targets
-# that use protocol.
+# that use protocol. The tutorials use data_member_options::no_unique_address,
+# which the fork deprecates (see protocol.hh); the suppression is in-tree only
+# so that consumers keep their own deprecation diagnostics.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   set(CMAKE_REQUIRED_FLAGS "-freflection")
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  add_compile_options(-stdlib=libc++)
+  add_compile_options(-stdlib=libc++ -Wno-deprecated-declarations)
   add_link_options(-stdlib=libc++)
   set(CMAKE_REQUIRED_FLAGS
       "-freflection-latest -fexpansion-statements -stdlib=libc++")
