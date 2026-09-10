@@ -241,7 +241,7 @@ Caches persist across sandbox runs in Docker named volumes:
   dependencies (currently just googletest), shared read-only across build
   trees; each tree compiles its own copy.
 
- To reset either volume, run `docker volume rm <name>`.
+ To reset any volume, run `docker volume rm <name>`.
 
 ### Using pre-commit Locally to run Github Workflow checks
 
