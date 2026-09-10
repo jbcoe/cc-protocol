@@ -5,6 +5,8 @@ _build
 _deps
 bazel-*
 build*/
+# CMakePresets.json's install prefix for a bare `cmake --install`.
+/install/
 out/
 .cache
 __pycache__/

@@ -30,6 +30,18 @@ def find_reflection_compilers(
     return None, None
 
 
+def find_runtime_library_directory(cxx_compiler_path: str) -> Optional[str]:
+    """
+    Resolve the C++ runtime library directory for cxx_compiler_path.
+
+    libc++ for Clang (the clang-p2996 fork keeps it in its own build tree),
+    libstdc++ otherwise.
+    """
+    if "clang" in os.path.basename(cxx_compiler_path):
+        return _find_library_directory(cxx_compiler_path, "libc++.so")
+    return find_libstdcxx_directory(cxx_compiler_path)
+
+
 def find_libstdcxx_directory(cxx_compiler_path: str) -> Optional[str]:
     """
     Resolve the libstdc++.so directory for cxx_compiler_path.
@@ -39,9 +51,25 @@ def find_libstdcxx_directory(cxx_compiler_path: str) -> Optional[str]:
     linking against it need this directory to run the result without
     LD_LIBRARY_PATH set.
     """
+    library_directory = _find_library_directory(cxx_compiler_path, "libstdc++.so")
+    if library_directory is not None:
+        return library_directory
+
+    gcc_latest_root = os.path.dirname(_GCC_LATEST_BIN_DIRECTORY)
+    if cxx_compiler_path.startswith(gcc_latest_root):
+        for candidate_subpath in ("lib64", "lib"):
+            candidate_directory = os.path.join(gcc_latest_root, candidate_subpath)
+            if os.path.isdir(candidate_directory):
+                return candidate_directory
+
+    return None
+
+
+def _find_library_directory(cxx_compiler_path: str, library_name: str) -> Optional[str]:
+    """Ask the compiler where it keeps library_name; None if it does not know."""
     try:
         compiler_output = subprocess.check_output(
-            [cxx_compiler_path, "-print-file-name=libstdc++.so"],
+            [cxx_compiler_path, f"-print-file-name={library_name}"],
             text=True,
             stderr=subprocess.DEVNULL,
         ).strip()
@@ -50,12 +78,5 @@ def find_libstdcxx_directory(cxx_compiler_path: str) -> Optional[str]:
             return os.path.dirname(canonical_path)
     except (OSError, subprocess.CalledProcessError):
         pass
-
-    gcc_latest_root = os.path.dirname(_GCC_LATEST_BIN_DIRECTORY)
-    if cxx_compiler_path.startswith(gcc_latest_root):
-        for candidate_subpath in ("lib64", "lib"):
-            candidate_directory = os.path.join(gcc_latest_root, candidate_subpath)
-            if os.path.isdir(candidate_directory):
-                return candidate_directory
 
     return None

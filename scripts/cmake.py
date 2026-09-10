@@ -5,10 +5,12 @@ import argparse
 import os
 import platform
 import re
+import shutil
 import subprocess
 from typing import Any
 
 from compiler_discovery import find_reflection_compilers
+from compiler_discovery import find_runtime_library_directory
 
 # Root of a clang-p2996 toolchain (https://github.com/bloomberg/clang-p2996),
 # the only Clang that can parse the reflection sources. --clang-tidy builds
@@ -69,7 +71,8 @@ def main() -> None:
         choices=["build", "test", "install", "b", "t", "i"],
         help="Target mode: build (b), test (t), or install (i), which installs "
         "into <build-dir>/install and builds install_test/ against that "
-        "package (default: test)",
+        "package (default: test). Unrecognised arguments are passed to every "
+        "cmake configure step.",
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -243,6 +246,11 @@ def main() -> None:
     # a consumer needs (headers, C++ standard, reflection flags).
     if mode == "install":
         install_prefix = os.path.join(args.build_dir, "install")
+        # `cmake --install` only adds and overwrites, so a stale prefix would
+        # let the consumer build against a header the install rules no longer
+        # ship.
+        if args.clean:
+            shutil.rmtree(install_prefix, ignore_errors=True)
         install_args = [
             "cmake",
             "--install",
@@ -269,8 +277,21 @@ def main() -> None:
             f"-DCMAKE_BUILD_TYPE={preset}",
             f"-DCMAKE_PREFIX_PATH={install_prefix}",
         ]
+        # The imported target cannot carry an rpath, and install_test is a
+        # plain consumer with none of its own, so a non-distro compiler's
+        # runtime library is located the same way the main build does it.
+        consumer_cxx_path = configure_env.get("CXX")
+        if consumer_cxx_path is not None:
+            runtime_library_directory = find_runtime_library_directory(
+                consumer_cxx_path
+            )
+            if runtime_library_directory is not None:
+                consumer_configure_args.append(
+                    f"-DCMAKE_BUILD_RPATH={runtime_library_directory}"
+                )
         if args.clean:
             consumer_configure_args.append("--fresh")
+        consumer_configure_args.extend(extra)
         log(f"Running: {' '.join(consumer_configure_args)}")
         subprocess.check_call(consumer_configure_args, env=configure_env)
 
@@ -281,6 +302,8 @@ def main() -> None:
             "--config",
             preset,
         ]
+        if args.clean:
+            consumer_build_args.append("--clean-first")
         log(f"Running: {' '.join(consumer_build_args)}")
         subprocess.check_call(consumer_build_args)
 

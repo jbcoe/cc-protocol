@@ -14,6 +14,7 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "**/*.cmake"
+      - "**/*.cmake.in"
       - "**/.clang-tidy"
       - "scripts/cmake.py"
       - "scripts/cmake.sh"
@@ -31,6 +32,7 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "**/*.cmake"
+      - "**/*.cmake.in"
       - "**/.clang-tidy"
       - "scripts/cmake.py"
       - "scripts/cmake.sh"
@@ -128,6 +130,11 @@ jobs:
         shell: bash
         run: |
           ./scripts/cmake.sh --debug --clang-tidy build 2>&1 | tee build.log
+
+      # The only build of the installed package with Clang: cmake.yml's
+      # matrix is GCC-only.
+      - name: Install and build against the installed package
+        run: ./scripts/cmake.sh --debug --clang-tidy install
 
       - name: Report findings with reviewdog
         # Runs even when the build failed so that the findings are annotated.
