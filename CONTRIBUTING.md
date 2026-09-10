@@ -241,9 +241,7 @@ Caches persist across sandbox runs in Docker named volumes:
   dependencies (currently just googletest), shared read-only across build
   trees; each tree compiles its own copy.
 
-Neither the `uv` nor the Bazel cache is pruned, so both grow without bound;
-to reset one, run `docker volume rm <name>`. Removing the FetchContent cache
-just triggers a re-clone on the next build.
+ To reset either volume, run `docker volume rm <name>`.
 
 ### Using pre-commit Locally to run Github Workflow checks
 
