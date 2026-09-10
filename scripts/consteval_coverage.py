@@ -329,9 +329,16 @@ class Instrumenter:
 
 
 def find_googletest_include_directories() -> list[str]:
-    """Locate googletest headers under an existing CMake build directory."""
+    """
+    Locate googletest headers in the checkout CMake used.
+
+    The sandbox image points FETCHCONTENT_SOURCE_DIR_GOOGLETEST at a baked-in
+    checkout; elsewhere FetchContent clones under the build directory.
+    """
     pattern = os.path.join(SOURCE_ROOT, "build", "*", "_deps", "googletest-src")
-    for googletest_source in sorted(glob.glob(pattern)):
+    candidates = [os.environ.get("FETCHCONTENT_SOURCE_DIR_GOOGLETEST", "")]
+    candidates += sorted(glob.glob(pattern))
+    for googletest_source in filter(None, candidates):
         include_directories = [
             os.path.join(googletest_source, "googletest", "include"),
             os.path.join(googletest_source, "googlemock", "include"),

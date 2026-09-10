@@ -168,6 +168,12 @@ def main() -> None:
         f"-DENABLE_TSAN={'ON' if args.tsan else 'OFF'}",
         f"-DENABLE_COVERAGE={'ON' if args.coverage else 'OFF'}",
         f"-DCLANG_TIDY_ENABLE={'ON' if args.clang_tidy else 'OFF'}",
+        # The sandbox image sets this to its baked-in googletest checkout.
+        # Passed on every configure, empty elsewhere, so a build directory
+        # shared between the sandbox and the devcontainer never keeps a
+        # stale value.
+        "-DFETCHCONTENT_SOURCE_DIR_GOOGLETEST="
+        + os.environ.get("FETCHCONTENT_SOURCE_DIR_GOOGLETEST", ""),
         "-B",
         args.build_dir,
     ]

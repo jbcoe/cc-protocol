@@ -253,6 +253,10 @@ in Docker named volumes, `cc-protocol-uv-cache` and
 `cc-protocol-bazel-repository-cache`. To reset either volume, run `docker volume
 rm <name>`.
 
+The sandbox image also carries a googletest checkout at the tag pinned in
+`CMakeLists.txt`, so CMake builds need no network. Bumping that tag needs
+`--rebuild-docker`, as for `.bazelversion`.
+
 ### Using pre-commit Locally to run Github Workflow checks
 
 Install pre-commit hooks into your local repository:

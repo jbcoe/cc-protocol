@@ -147,3 +147,11 @@ RUN mkdir -p "$UV_CACHE_DIR" "$XYZ_BAZEL_REPOSITORY_CACHE_DIR"
 # repository_cache is defined in the sandbox user-directory config, not workspace config so only
 # the sandbox uses the respository cache.
 RUN echo "common --repository_cache=$XYZ_BAZEL_REPOSITORY_CACHE_DIR" >> /home/vscode/.bazelrc
+
+# Bake the googletest checkout into the image so CMake builds need no network.
+# With FETCHCONTENT_SOURCE_DIR_GOOGLETEST set, FetchContent performs no download
+# or update step and each build tree still compiles its own copy. The tag must
+# match GIT_TAG in CMakeLists.txt; bumping it needs --rebuild-docker.
+ENV FETCHCONTENT_SOURCE_DIR_GOOGLETEST="/home/vscode/.cache/googletest-src"
+RUN git clone --depth 1 --branch v1.18.0 https://github.com/google/googletest.git \
+    "$FETCHCONTENT_SOURCE_DIR_GOOGLETEST"
