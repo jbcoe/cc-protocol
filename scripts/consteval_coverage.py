@@ -44,6 +44,7 @@ import concurrent.futures
 import dataclasses
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -329,9 +330,25 @@ class Instrumenter:
 
 
 def find_googletest_include_directories() -> list[str]:
-    """Locate googletest headers under an existing CMake build directory."""
-    pattern = os.path.join(SOURCE_ROOT, "build", "*", "_deps", "googletest-src")
-    for googletest_source in sorted(glob.glob(pattern)):
+    """
+    Locate googletest headers via an existing CMake build's CMakeCache.txt.
+
+    googletest's source directory is not always under the build tree's own
+    _deps: XYZ_CMAKE_FETCHCONTENT_CACHE_DIR redirects it to a shared cache
+    directory instead. googletest-distribution_SOURCE_DIR (its project name
+    is googletest-distribution) is a CMake cache entry either way.
+    """
+    pattern = os.path.join(SOURCE_ROOT, "build", "*", "CMakeCache.txt")
+    for cmake_cache_path in sorted(glob.glob(pattern)):
+        with open(cmake_cache_path) as cmake_cache_file:
+            match = re.search(
+                r"^googletest-distribution_SOURCE_DIR:\w+=(.*)$",
+                cmake_cache_file.read(),
+                re.MULTILINE,
+            )
+        if match is None:
+            continue
+        googletest_source = match.group(1)
         include_directories = [
             os.path.join(googletest_source, "googletest", "include"),
             os.path.join(googletest_source, "googlemock", "include"),
@@ -339,7 +356,7 @@ def find_googletest_include_directories() -> list[str]:
         if all(os.path.isdir(directory) for directory in include_directories):
             return include_directories
     sys.exit(
-        "googletest headers not found under build/*/_deps; run "
+        "googletest headers not found via build/*/CMakeCache.txt; run "
         "./scripts/cmake.sh build first"
     )
 
