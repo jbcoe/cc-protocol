@@ -50,6 +50,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "name_mangling.h"
 
+// clang-p2996 deprecates data_member_options::no_unique_address in favour of
+// a fork-specific attributes member that GCC does not have, so the warning is
+// silenced for this file rather than moving off the standard field.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 namespace xyz::reflection {
 
 template <typename I>
@@ -1306,4 +1312,6 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
 };
 
 }  // namespace xyz::reflection
+
+#pragma GCC diagnostic pop
 #endif  // XYZ_REFLECTION_PROTOCOL_HH_

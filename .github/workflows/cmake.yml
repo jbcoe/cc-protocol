@@ -14,6 +14,7 @@ on:
       - "**/CMakeLists.txt"
       - "CMakePresets.json"
       - "**/*.cmake"
+      - "**/*.cmake.in"
       - "scripts/cmake.py"
       - "scripts/cmake.sh"
       - "scripts/compiler_discovery.py"
@@ -54,6 +55,7 @@ jobs:
               - "**/CMakeLists.txt"
               - "CMakePresets.json"
               - "**/*.cmake"
+              - "**/*.cmake.in"
               - "scripts/cmake.py"
               - "scripts/cmake.sh"
               - "scripts/compiler_discovery.py"
@@ -132,6 +134,9 @@ jobs:
       - name: Run CMake
         if: needs.detect-changes.outputs.relevant != 'false'
         run: ./scripts/cmake.sh --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }}
+      - name: Install and build against the installed package
+        if: needs.detect-changes.outputs.relevant != 'false'
+        run: ./scripts/cmake.sh install --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }}
 
   # This non-matrix job reports under a fixed name whatever the matrix above
   # did, so the ruleset can require one check per workflow instead of every
