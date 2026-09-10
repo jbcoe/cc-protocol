@@ -49,11 +49,10 @@ For more detailed CMake options, run `./scripts/cmake.sh --help`.
 
 Passing `install` installs the headers and a CMake package into
 `<build-dir>/install`, then configures, builds and runs the downstream
-project in `install_test/` against that package. This is how the CMake CI
-job checks the package. Arguments the script does not recognise, such as
-`-DCMAKE_TOOLCHAIN_FILE=...`, reach both configure steps. To install
-elsewhere, run `cmake --install <build-dir> --prefix <prefix>` after a
-build. Consumers use the package with:
+project in `install_test/` against that package. Arguments the script does
+not recognise, such as `-DCMAKE_TOOLCHAIN_FILE=...`, reach both configure
+steps. To install elsewhere, run `cmake --install <build-dir> --prefix
+<prefix>` after a build. Consumers use the package with:
 
 ```cmake
 find_package(xyz_protocol REQUIRED)
