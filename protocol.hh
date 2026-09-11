@@ -272,6 +272,23 @@ consteval std::meta::info find_vtable_entry() {
                            std::string(name) + "'");
 }
 
+enum class member_options {
+  none = 1 << 0,
+  is_noexcept = 1 << 1,
+  is_const = 1 << 2,
+  is_lvalue = 1 << 3,
+  is_rvalue = 1 << 4
+};
+
+constexpr member_options operator|(member_options lhs, member_options rhs) {
+  return static_cast<member_options>(std::to_underlying(lhs) |
+                                     std::to_underlying(rhs));
+}
+
+constexpr bool operator&(member_options lhs, member_options rhs) {
+  return static_cast<bool>(std::to_underlying(lhs) & std::to_underlying(rhs));
+}
+
 // Vanishing-this-pointer thunk for one overload of a synthesised member
 // function.
 //
@@ -279,20 +296,19 @@ consteval std::meta::info find_vtable_entry() {
 // of the Interface type. `member_thunk` combines the thunks for all
 // overloads of a name into one overload set.
 template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst,
-          bool IsNoexcept>
+          typename Vtable, std::meta::info Member, member_options Options>
 struct method_thunk;
 
-// TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers;
-// until then `protocol_interface_function_infos` rejects ref-qualified
-// interface members.
 template <typename R, typename... Args, typename EnclosingType,
           typename ProtocolType, typename Vtable, std::meta::info Member,
-          bool IsConst, bool IsNoexcept>
+          member_options Options>
 struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
-                    IsConst, IsNoexcept> {
+                    Options> {
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
+
+  static constexpr bool is_noexcept = (Options & member_options::is_noexcept);
+  static constexpr bool is_const = (Options & member_options::is_const);
 
   // Recovers the EnclosingType pointer: `call_operator_base` derives from
   // this thunk, while a generated `member_base` holds it as its sole data
@@ -312,8 +328,8 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   // to the enclosing protocol/protocol_view object, then calls through its
   // stored vtable pointer's matching function pointer, passing the
   // viewed/owned object.
-  R operator()(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+  R operator()(Args... args) & noexcept(is_noexcept)
+    requires(!is_const)
   {
     auto* protocol_object = static_cast<ProtocolType*>(enclosing(this));
     if constexpr (is_protocol_v<ProtocolType>) {
@@ -327,8 +343,39 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
                              std::forward<Args>(args)...);
   }
 
-  R operator()(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+  R operator()(Args... args) && noexcept(is_noexcept)
+    requires(!is_const)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(enclosing(this));
+    if constexpr (is_protocol_v<ProtocolType>) {
+      assert(!protocol_object->valueless_after_move() &&
+             "cannot call member function of valueless protocol");
+    }
+
+    const Vtable* vtable = protocol_object->vtable_;
+    constexpr std::meta::info entry = vtable_entry;
+    return vtable->[:entry:](protocol_object->object_,
+                             std::forward<Args>(args)...);
+  }
+
+  R operator()(Args... args) const& noexcept(is_noexcept)
+    requires(is_const)
+  {
+    const auto* protocol_object =
+        static_cast<const ProtocolType*>(enclosing(this));
+    if constexpr (is_protocol_v<ProtocolType>) {
+      assert(!protocol_object->valueless_after_move() &&
+             "cannot call member function of valueless protocol");
+    }
+
+    const Vtable* vtable = protocol_object->vtable_;
+    constexpr std::meta::info entry = vtable_entry;
+    return vtable->[:entry:](protocol_object->object_,
+                             std::forward<Args>(args)...);
+  }
+
+  R operator()(Args... args) const&& noexcept(is_noexcept)
+    requires(is_const)
   {
     const auto* protocol_object =
         static_cast<const ProtocolType*>(enclosing(this));
@@ -381,12 +428,16 @@ struct method_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
     return substitute(^^fn_ptr_t, fn_args);
   }
 
+  static constexpr auto options =
+      (IsConst ? member_options::is_const : member_options::none) |
+      (is_noexcept(Member) ? member_options::is_noexcept
+                           : member_options::none);
+
   // clang-format off
   using type = typename[:substitute(
       ^^method_thunk, {fn_ptr_type(), ^^EnclosingType, ^^ProtocolType, ^^Vtable,
                        std::meta::reflect_constant(Member),
-                       std::meta::reflect_constant(IsConst),
-                       std::meta::reflect_constant(is_noexcept(Member))}):];
+                       std::meta::reflect_constant(options)}):];
   // clang-format on
 };
 
@@ -873,8 +924,8 @@ class protocol
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst,
-            bool IsNoexcept>
+            typename Vtable, std::meta::info Member,
+            detail::member_options Options>
   friend struct detail::method_thunk;
 
   // Grants `protocol_view` access so that a view of a protocol can share its
@@ -1185,8 +1236,8 @@ class protocol_view
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst,
-            bool IsNoexcept>
+            typename Vtable, std::meta::info Member,
+            detail::member_options Options>
   friend struct detail::method_thunk;
 
   template <typename U>
@@ -1277,8 +1328,8 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst,
-            bool IsNoexcept>
+            typename Vtable, std::meta::info Member,
+            detail::member_options Options>
   friend struct detail::method_thunk;
 
   template <typename U>
