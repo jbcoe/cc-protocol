@@ -235,14 +235,6 @@ consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   std::vector<std::meta::info> result;
   for (std::meta::info member : conformance_candidates_of<Type>) {
     if (is_static_member(member)) continue;
-    if (is_lvalue_reference_qualified(member) ||
-        is_rvalue_reference_qualified(member)) {
-      std::string name = has_identifier(member)
-                             ? std::string(identifier_of(member))
-                             : "operator()";
-      throw std::runtime_error("ref-qualified member function '" + name +
-                               "' is not supported in a protocol interface");
-    }
     result.push_back(member);
   }
   return result;
@@ -412,7 +404,7 @@ using fn_ptr_t = R (*)(Args...) noexcept(Noexcept);
 // One overload of a synthesised member function: the interface member (which
 // names its vtable entry) and the const-qualification of the generated
 // wrapper.
-template <std::meta::info Member, bool IsConst>
+template <std::meta::info Member, member_options Options>
 struct overload_spec {};
 
 // The `method_thunk` specialisation for an `overload_spec`.
@@ -420,45 +412,22 @@ template <typename Spec, typename EnclosingType, typename ProtocolType,
           typename Vtable>
 struct method_thunk_for;
 
-template <std::meta::info Member, bool IsConst, typename EnclosingType,
-          typename ProtocolType, typename Vtable>
-struct method_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
+template <std::meta::info Member, member_options Options,
+          typename EnclosingType, typename ProtocolType, typename Vtable>
+struct method_thunk_for<overload_spec<Member, Options>, EnclosingType,
                         ProtocolType, Vtable> {
   // Build the function-pointer type R(*)(Args...) from the method's return
   // type and parameter types.
-  static consteval std::meta::info fn_ptr_type() {
+  using fn_ptr_type = [:[] {
     std::vector<std::meta::info> fn_args{std::meta::reflect_constant(false),
                                          dealias(return_type_of(Member))};
     fn_args.append_range(parameters_of(Member) |
                          std::views::transform(std::meta::type_of));
     return substitute(^^fn_ptr_t, fn_args);
-  }
-
-  static consteval member_options options() {
-    auto result = member_options::none;
-    if (IsConst) {
-      result |= member_options::is_const;
-    }
-    if (is_noexcept(Member)) {
-      result |= member_options::is_noexcept;
-    }
-
-    const bool lvalue = is_lvalue_reference_qualified(Member);
-    const bool rvalue = is_rvalue_reference_qualified(Member);
-    if (lvalue || !rvalue) {
-      result |= member_options::is_lvalue;
-    }
-    if (rvalue || !lvalue) {
-      result |= member_options::is_rvalue;
-    }
-    return result;
-  }
+  }():];
 
   // clang-format off
-  using type = typename[:substitute(
-      ^^method_thunk, {fn_ptr_type(), ^^EnclosingType, ^^ProtocolType, ^^Vtable,
-                       std::meta::reflect_constant(Member),
-                       std::meta::reflect_constant(options())}):];
+  using type = method_thunk<fn_ptr_type, EnclosingType, ProtocolType, Vtable, Member, Options>;
   // clang-format on
 };
 
@@ -571,6 +540,33 @@ using member_base_generator_t =
 template <typename... MemberBases>
 struct wrapper_bases : MemberBases... {};
 
+// Returns the appropriate const, noexcept, and reference qualification for the
+// member based on the const policy.
+consteval member_options options_for(std::meta::info member,
+                                     const_policy policy) {
+  auto result = member_options::none;
+
+  const bool wrapper_is_const =
+      policy == const_policy::propagate ? is_const(member) : true;
+  if (wrapper_is_const) {
+    result |= member_options::is_const;
+  }
+
+  if (is_noexcept(member)) {
+    result |= member_options::is_noexcept;
+  }
+
+  const bool lvalue = is_lvalue_reference_qualified(member);
+  const bool rvalue = is_rvalue_reference_qualified(member);
+  if (lvalue || !rvalue) {
+    result |= member_options::is_lvalue;
+  }
+  if (rvalue || !lvalue) {
+    result |= member_options::is_rvalue;
+  }
+  return result;
+}
+
 // Returns a `wrapper_bases` specialisation with one base per public,
 // non-special, member function name of `interface_type`, giving named members
 // with an `operator()` for each overload selected by `ConstPolicy`, plus a
@@ -594,12 +590,11 @@ consteval std::meta::info generate_wrapper_bases() {
       if (!same_name(member, first) ||
           !generates_wrapper_for<ConstPolicy>(member, members))
         continue;
-      const bool wrapper_is_const =
-          ConstPolicy == const_policy::propagate ? is_const(member) : true;
+
       // clang-format off
       specs.push_back(substitute(
           ^^overload_spec, {reflect_constant(member),
-                            std::meta::reflect_constant(wrapper_is_const)}));
+                            std::meta::reflect_constant(options_for(member, ConstPolicy))}));
       // clang-format on
     }
     if (specs.empty()) continue;
