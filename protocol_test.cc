@@ -2796,4 +2796,51 @@ TEST(ReflectionProtocolTest, OperatorSquareBrackets) {
   EXPECT_EQ(pcv[0], 0);
 }
 
+TEST(ReflectionProtocolTest, OperatorStar) {
+  struct Interface {
+    int operator*() const noexcept;
+    int operator*() noexcept;
+  };
+
+  struct Conforming {
+    int operator*() const noexcept { return 0; }
+
+    int operator*() noexcept { return 42; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(*p, 42);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_EQ(*pv, 42);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_EQ(*pcv, 0);
+}
+
+TEST(ReflectionProtocolTest, OperatorArrow) {
+  struct Interface {
+    int operator->() const noexcept;
+    int operator->() noexcept;
+  };
+
+  struct Conforming {
+    int operator->() const noexcept { return 0; }
+
+    int operator->() noexcept { return 42; }
+  };
+
+  Conforming c;
+
+  protocol<Interface> p(c);
+  EXPECT_EQ(p.operator->(), 42);
+
+  protocol_view<Interface> pv(c);
+  EXPECT_EQ(pv.operator->(), 42);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_EQ(pcv.operator->(), 0);
+}
+
 }  // namespace

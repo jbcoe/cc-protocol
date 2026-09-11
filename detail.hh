@@ -161,6 +161,8 @@ consteval auto conformance_candidate_infos() {
       std::views::filter(std::meta::is_function) |
       std::views::filter([](std::meta::info member) consteval {
         return has_identifier(member) ||
+               is_operator<std::meta::operators::op_star>(member) ||
+               is_operator<std::meta::operators::op_arrow>(member) ||
                is_operator<std::meta::operators::op_parentheses>(member) ||
                is_operator<std::meta::operators::op_square_brackets>(member);
       });
@@ -353,7 +355,10 @@ struct member_function_overload_set
 template <std::meta::operators Operator, typename FnPtrType,
           typename ProtocolType, typename Vtable, std::meta::info Member,
           bool IsConst, bool IsNoexcept>
-struct operator_thunk;
+struct operator_thunk {
+  operator_thunk() =
+      delete ("Unspecialized operator thunk cannot be instantiated");
+};
 
 // operator()
 template <typename R, typename... Args, typename ProtocolType, typename Vtable,
@@ -419,6 +424,56 @@ struct operator_thunk<std::meta::operators::op_square_brackets, R (*)(Args...),
   }
 };
 
+// operator ->
+template <typename R, typename... Args, typename ProtocolType, typename Vtable,
+          std::meta::info Member, bool IsConst, bool IsNoexcept>
+struct operator_thunk<std::meta::operators::op_arrow, R (*)(Args...),
+                      ProtocolType, Vtable, Member, IsConst, IsNoexcept> {
+  static constexpr std::meta::info vtable_entry =
+      find_vtable_entry<^^Vtable, Member>();
+
+  R operator->() noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    const Vtable* vtable = protocol_object->vtable_;
+    return vtable->[:vtable_entry:](protocol_object->object_);
+  }
+
+  R operator->() const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    const Vtable* vtable = protocol_object->vtable_;
+    return vtable->[:vtable_entry:](protocol_object->object_);
+  }
+};
+
+// operator *
+template <typename R, typename... Args, typename ProtocolType, typename Vtable,
+          std::meta::info Member, bool IsConst, bool IsNoexcept>
+struct operator_thunk<std::meta::operators::op_star, R (*)(Args...),
+                      ProtocolType, Vtable, Member, IsConst, IsNoexcept> {
+  static constexpr std::meta::info vtable_entry =
+      find_vtable_entry<^^Vtable, Member>();
+
+  R operator*() noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    const Vtable* vtable = protocol_object->vtable_;
+    return vtable->[:vtable_entry:](protocol_object->object_);
+  }
+
+  R operator*() const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    const Vtable* vtable = protocol_object->vtable_;
+    return vtable->[:vtable_entry:](protocol_object->object_);
+  }
+};
+
 // The `operator_thunk` specialisation for an `overload_spec`.
 template <typename OverloadSpec, typename ProtocolType, typename Vtable>
 struct operator_thunk_for;
@@ -460,7 +515,10 @@ using operator_thunk_t =
 // OverloadSpec.
 template <std::meta::operators Operator, typename ProtocolType, typename Vtable,
           typename... OverloadSpecs>
-struct operator_overload_set;
+struct operator_overload_set {
+  operator_overload_set() =
+      delete ("Unspecialized operator overload set cannot be instantiated");
+};
 
 // operator()
 template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
@@ -476,6 +534,22 @@ struct operator_overload_set<std::meta::operators::op_square_brackets,
                              ProtocolType, Vtable, OverloadSpecs...>
     : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
   using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator[]...;
+};
+
+// operator->
+template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
+struct operator_overload_set<std::meta::operators::op_arrow, ProtocolType,
+                             Vtable, OverloadSpecs...>
+    : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
+  using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator->...;
+};
+
+// operator*
+template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
+struct operator_overload_set<std::meta::operators::op_star, ProtocolType,
+                             Vtable, OverloadSpecs...>
+    : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
+  using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator*...;
 };
 
 // How generated wrappers treat the const-qualification of interface members.
@@ -600,6 +674,12 @@ consteval std::meta::info generate_member_bases_wrapper() {
     } else if (is_operator<std::meta::operators::op_square_brackets>(member)) {
       member_base_args.push_back(
           reflect_constant(std::meta::operators::op_square_brackets));
+    } else if (is_operator<std::meta::operators::op_star>(member)) {
+      member_base_args.push_back(
+          reflect_constant(std::meta::operators::op_star));
+    } else if (is_operator<std::meta::operators::op_arrow>(member)) {
+      member_base_args.push_back(
+          reflect_constant(std::meta::operators::op_arrow));
     }
     member_base_args.push_back(^^ProtocolType);
     member_base_args.push_back(^^Vtable);
