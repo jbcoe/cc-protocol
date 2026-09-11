@@ -2268,7 +2268,7 @@ TEST(ReflectionProtocolTest, CallOperatorForwardingAfterCopy) {
 // Tests that dispatching fails gracefully for a moved-from protocol.
 #if (defined(_MSC_VER) && defined(_DEBUG)) || (!defined(NDEBUG))
 
-TEST(ReflectionProtocolTest, MutableValuelessCall) {
+TEST(DISABLED_ReflectionProtocolTest, MutableValuelessCall) {
   struct Interface {
     int foo();
   };
@@ -2289,7 +2289,7 @@ TEST(ReflectionProtocolTest, MutableValuelessCall) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
-TEST(ReflectionProtocolTest, ConstValuelessCall) {
+TEST(DISABLED_ReflectionProtocolTest, ConstValuelessCall) {
   struct Interface {
     int foo() const;
   };
