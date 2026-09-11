@@ -398,13 +398,13 @@ struct member_thunk
 };
 
 // Thunk for one overload of a synthesised call operator. `operator()` can't
-// be reached through a named member, so `call_operator_overload_set`
+// be reached through a named member, so `operator_overload_set`
 // derives from this thunk directly instead of holding it as a data member,
 // letting `ProtocolType` be recovered with a plain static_cast.
-template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst,
-          bool IsNoexcept>
-struct call_operator_thunk;
+template <std::meta::operators Operator, typename FnPtrType,
+          typename EnclosingType, typename ProtocolType, typename Vtable,
+          std::meta::info Member, bool IsConst, bool IsNoexcept>
+struct operator_thunk;
 
 // TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers;
 // until then `protocol_interface_function_infos` rejects ref-qualified
@@ -412,8 +412,9 @@ struct call_operator_thunk;
 template <typename R, typename... Args, typename EnclosingType,
           typename ProtocolType, typename Vtable, std::meta::info Member,
           bool IsConst, bool IsNoexcept>
-struct call_operator_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable,
-                           Member, IsConst, IsNoexcept> {
+struct operator_thunk<std::meta::operators::op_parentheses, R (*)(Args...),
+                      EnclosingType, ProtocolType, Vtable, Member, IsConst,
+                      IsNoexcept> {
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
 
@@ -444,26 +445,17 @@ struct call_operator_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable,
     return vtable->[:vtable_entry:](protocol_object->object_,
                                     std::forward<Args>(args)...);
   }
-
- protected:
-  // Only `call_operator_overload_set` may create or copy a thunk.
-  call_operator_thunk() = default;
-  ~call_operator_thunk() = default;
-  call_operator_thunk(const call_operator_thunk&) = default;
-  call_operator_thunk(call_operator_thunk&&) = default;
-  call_operator_thunk& operator=(const call_operator_thunk&) = default;
-  call_operator_thunk& operator=(call_operator_thunk&&) = default;
 };
 
-// The `call_operator_thunk` specialisation for an `overload_spec`.
+// The `operator_thunk` specialisation for an `overload_spec`.
 template <typename Spec, typename EnclosingType, typename ProtocolType,
           typename Vtable>
-struct call_operator_thunk_for;
+struct operator_thunk_for;
 
 template <std::meta::info Member, bool IsConst, typename EnclosingType,
           typename ProtocolType, typename Vtable>
-struct call_operator_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
-                               ProtocolType, Vtable> {
+struct operator_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
+                          ProtocolType, Vtable> {
   // Build the function-pointer type R(*)(Args...) from the method's return
   // type and parameter types.
   static consteval std::meta::info fn_ptr_type() {
@@ -475,44 +467,38 @@ struct call_operator_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
   }
 
   // clang-format off
-  using type = typename[:substitute(
-      ^^call_operator_thunk, {fn_ptr_type(), ^^EnclosingType, ^^ProtocolType,
-                              ^^Vtable, std::meta::reflect_constant(Member),
-                              std::meta::reflect_constant(IsConst),
-                              std::meta::reflect_constant(is_noexcept(Member))}):];
+  using type =
+      typename[:substitute(^^operator_thunk,
+                    {
+                        std::meta::reflect_constant(operator_of(Member)),
+                        fn_ptr_type(),
+                        ^^EnclosingType, ^^ProtocolType, ^^Vtable,
+                        std::meta::reflect_constant(Member),
+                        std::meta::reflect_constant(IsConst),
+                        std::meta::reflect_constant(is_noexcept(Member))
+                    }):];
   // clang-format on
 };
 
-template <typename Spec, typename EnclosingType, typename ProtocolType,
+template <typename OverloadSpec, typename EnclosingType, typename ProtocolType,
           typename Vtable>
-using call_operator_thunk_t =
-    call_operator_thunk_for<Spec, EnclosingType, ProtocolType, Vtable>::type;
+using operator_thunk_t =
+    operator_thunk_for<OverloadSpec, EnclosingType, ProtocolType, Vtable>::type;
 
-// The overload set for a synthesised call operator: a `call_operator_thunk`
-// per overload, with every operator() brought into scope so that overload
-// resolution among them works as for a member function of the interface.
-// Deriving from the overload set gives `p(args)` call syntax directly, since
-// `operator()` has no name to expose the way `member_base` exposes a named
-// method; the set derives from thunks of itself, so `EnclosingType` is
-// always `call_operator_overload_set`. Protected special members let a
-// protocol/protocol_view copy this base but stop it being sliced off.
-template <typename ProtocolType, typename Vtable, typename... Specs>
-struct call_operator_overload_set
-    : call_operator_thunk_t<
-          Specs, call_operator_overload_set<ProtocolType, Vtable, Specs...>,
+// The overload set for a synthesised operator X inheriting from an
+// `operator_thunk` for each overload.
+// `std::meta::operators` is not specified as it can be derived from
+// OverloadSpec.
+template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
+struct operator_overload_set
+    : operator_thunk_t<
+          OverloadSpecs,
+          operator_overload_set<ProtocolType, Vtable, OverloadSpecs...>,
           ProtocolType, Vtable>... {
-  using call_operator_thunk_t<
-      Specs, call_operator_overload_set<ProtocolType, Vtable, Specs...>,
+  using operator_thunk_t<
+      OverloadSpecs,
+      operator_overload_set<ProtocolType, Vtable, OverloadSpecs...>,
       ProtocolType, Vtable>::operator()...;
-
- protected:
-  call_operator_overload_set() = default;
-  ~call_operator_overload_set() = default;
-  call_operator_overload_set(const call_operator_overload_set&) = default;
-  call_operator_overload_set(call_operator_overload_set&&) = default;
-  call_operator_overload_set& operator=(const call_operator_overload_set&) =
-      default;
-  call_operator_overload_set& operator=(call_operator_overload_set&&) = default;
 };
 
 // How generated wrappers treat the const-qualification of interface members.
@@ -560,8 +546,7 @@ consteval bool is_forwarded_member_function(
 
 // A single-member base wrapping the overload set for one interface member
 // function name, named after that method (giving the `p.method_name(args)`
-// call syntax). `Member` is the first overload and supplies the name; `Specs`
-// are the `overload_spec`s of the overloads exposed by the `const_policy`.
+// call syntax).
 template <std::meta::info Member, typename ProtocolType, typename Vtable,
           typename... OverloadSpecs>
 struct member_base_generator {
@@ -595,7 +580,7 @@ struct member_bases_wrapper : MemberBases... {};
 // Returns a `member_bases_wrapper` specialisation with one base per public,
 // non-special, member function name of `interface_type`, giving named members
 // with an `operator()` for each overload selected by `ConstPolicy`, plus a
-// `call_operator_overload_set` if `interface_type` has call operators.
+// `operator_overload_set` if `interface_type` has call operators.
 // TODO: Rewrite this hard-to-read function.
 template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable,
           const_policy ConstPolicy>
@@ -641,7 +626,7 @@ consteval std::meta::info generate_member_bases_wrapper() {
           substitute(^^member_base_t, member_base_args));
     } else if (is_operator<std::meta::operators::op_parentheses>(member)) {
       member_base_types.push_back(
-          substitute(^^call_operator_overload_set, member_base_args));
+          substitute(^^operator_overload_set, member_base_args));
     } else {
       std::unreachable();
     }
@@ -973,10 +958,10 @@ class protocol
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
-  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst,
-            bool IsNoexcept>
-  friend struct detail::call_operator_thunk;
+  template <std::meta::operators Operator, typename FnPtrType,
+            typename EnclosingType, typename ProtocolType, typename Vtable,
+            std::meta::info Member, bool IsConst, bool IsNoexcept>
+  friend struct detail::operator_thunk;
 
   // Grants `protocol_view` access so that a view of a protocol can share its
   // vtable.
@@ -1289,10 +1274,10 @@ class protocol_view
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
-  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst,
-            bool IsNoexcept>
-  friend struct detail::call_operator_thunk;
+  template <std::meta::operators Operator, typename FnPtrType,
+            typename EnclosingType, typename ProtocolType, typename Vtable,
+            std::meta::info Member, bool IsConst, bool IsNoexcept>
+  friend struct detail::operator_thunk;
 
   template <typename U>
     requires(is_protocol_conformant_v<T, std::decay_t<U>>)
@@ -1385,10 +1370,10 @@ class protocol_view<const T>
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
-  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst,
-            bool IsNoexcept>
-  friend struct detail::call_operator_thunk;
+  template <std::meta::operators Operator, typename FnPtrType,
+            typename EnclosingType, typename ProtocolType, typename Vtable,
+            std::meta::info Member, bool IsConst, bool IsNoexcept>
+  friend struct detail::operator_thunk;
 
   template <typename U>
     requires(is_protocol_conformant_v<T, std::decay_t<U>>)
