@@ -2,6 +2,21 @@
 build --cxxopt=-std=c++26
 build --cxxopt=-freflection
 
+# Apply the build:macos/build:linux/build:windows blocks below automatically
+# based on the host OS, rather than requiring an explicit --config.
+common --enable_platform_specific_config
+
+# Bazel's macOS cc_configure toolchain assumes Apple's clang. It always
+# passes clang/Objective-C-only flags (-ffile-compilation-dir=.,
+# -fobjc-link-runtime) that GCC does not recognise, so disable the features
+# that add them. It also links every C++ target with plain `gcc`, not `g++`,
+# so it never gets GCC's implicit libstdc++, and passes `-lc++` (libc++)
+# instead; add libstdc++ explicitly so the GNU ABI symbols our objects were
+# compiled against are actually resolved.
+build:macos --features=-macos_reproducible
+build:macos --features=-macos_default_link_flags
+build:macos --linkopt=-lstdc++
+
 # Treat external repositories' headers (e.g. googletest) as system headers,
 # matching CMake's SYSTEM FetchContent_Declare, so -Werror below only holds
 # our own code to account and not warnings from vendored dependencies.
