@@ -95,23 +95,6 @@ inline constexpr bool is_protocol_view_v = is_protocol_view<T>::value;
 
 namespace detail {
 
-// Per ISO C++ ([expr.prim.lambda.closure]), closure types are unique, unnamed,
-// non-union class types.
-// The closure type is not an aggregate type.
-// This concept will also match an unnamed class type with a single
-// `operator()`.
-//
-// In practice a lambda has no base classes and no template arguments, although
-// there is no wording in the standard to guarantee this.
-//
-// TODO(jbcoe): Refine this concept to match only lambdas.
-template <typename T>
-concept is_maybe_lambda =
-    is_class_type(dealias(^^T)) && !has_identifier(dealias(^^T)) &&
-    !is_aggregate_type(dealias(^^T)) && !has_template_arguments(dealias(^^T)) &&
-    bases_of(dealias(^^T), std::meta::access_context::unprivileged()).empty() &&
-    requires { &T::operator(); };
-
 consteval bool is_call_operator(std::meta::info function) {
   return is_operator_function(function) &&
          operator_of(function) == std::meta::operators::op_parentheses;
@@ -197,6 +180,23 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
   return !is_noexcept(interface) || is_noexcept(candidate);
 }
 
+// Per ISO C++ ([expr.prim.lambda.closure]), closure types are unique, unnamed,
+// non-union class types.
+// The closure type is not an aggregate type.
+// This concept will also match an unnamed class type with a single
+// `operator()`.
+//
+// In practice a lambda has no base classes and no template arguments, although
+// there is no wording in the standard to guarantee this.
+//
+// TODO(jbcoe): Refine this concept to match only lambdas.
+template <typename T>
+concept is_maybe_lambda =
+    is_class_type(dealias(^^T)) && !has_identifier(dealias(^^T)) &&
+    !is_aggregate_type(dealias(^^T)) && !has_template_arguments(dealias(^^T)) &&
+    bases_of(dealias(^^T), std::meta::access_context::unprivileged()).empty() &&
+    requires { &T::operator(); };
+
 // The named, non-special member functions and call operators of `Type`,
 // static or not, in declaration order: the members that can satisfy an
 // interface member function.
@@ -229,7 +229,7 @@ constexpr inline auto conformance_candidates_of =
 // entries, each naming its own vtable entry (see
 // `xyz::name_mangling::mangle`). Ref-qualified members are rejected: the
 // synthesised thunks call the target on an lvalue and cannot forward the
-// protocol object's value category (see the TODO on `method_thunk`).
+// protocol object's value category (see the TODO on `member_function_thunk`).
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   std::vector<std::meta::info> result;
@@ -252,8 +252,7 @@ template <std::meta::info Type>
 constexpr inline auto protocol_interface_functions_of =
     std::define_static_array(protocol_interface_function_infos<Type>());
 
-// The mangled name of `Member`, computed once per distinct `Member` and
-// reused by every vtable this member is looked up against.
+// The mangled name of `Member`, computed once per distinct `Member`.
 template <std::meta::info Member>
 constexpr inline auto mangled_name_of =
     std::define_static_string(xyz::name_mangling::mangle(Member));
@@ -557,13 +556,13 @@ consteval bool generates_wrapper_for(std::meta::info member,
 // call syntax). `Member` is the first overload and supplies the name; `Specs`
 // are the `overload_spec`s of the overloads exposed by the `const_policy`.
 template <std::meta::info Member, typename ProtocolType, typename Vtable,
-          typename... Specs>
+          typename... OverloadSpecs>
 struct member_base_generator {
   struct type;
   consteval {
     // clang-format off
     std::meta::info thunk_type = substitute(
-        ^^member_thunk, {^^type, ^^ProtocolType, ^^Vtable, ^^Specs...});
+        ^^member_thunk, {^^type, ^^ProtocolType, ^^Vtable, ^^OverloadSpecs...});
 
     define_aggregate(
       ^^type, {data_member_spec(thunk_type,
@@ -576,9 +575,9 @@ struct member_base_generator {
 };
 
 template <std::meta::info Member, typename ProtocolType, typename Vtable,
-          typename... Specs>
+          typename... OverloadSpecs>
 using member_base_t =
-    member_base_generator<Member, ProtocolType, Vtable, Specs...>::type;
+    member_base_generator<Member, ProtocolType, Vtable, OverloadSpecs...>::type;
 
 // Combines the single-member base types produced by `member_base_generator`
 // into one type via multiple inheritance.
@@ -589,45 +588,49 @@ struct wrapper_bases : MemberBases... {};
 // non-special, member function name of `interface_type`, giving named members
 // with an `operator()` for each overload selected by `ConstPolicy`, plus a
 // `call_operator_overload_set` if `interface_type` has call operators.
+// TODO: Rewrite this hard-to-read function.
 template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable,
           const_policy ConstPolicy>
 consteval std::meta::info generate_wrapper_bases() {
   std::span<const std::meta::info> members =
       protocol_interface_functions_of<InterfaceType>;
   std::vector<std::meta::info> member_base_types;
-  std::vector<std::meta::info> names_generated;
-  for (std::meta::info first : members) {
-    if (std::ranges::any_of(names_generated, [&](std::meta::info generated) {
-          return same_name(first, generated);
+  std::vector<std::meta::info> member_generated;
+  for (std::meta::info member : members) {
+    //
+    if (std::ranges::any_of(member_generated, [&](std::meta::info generated) {
+          return same_name(member, generated);
         }))
       continue;
-    names_generated.push_back(first);
+    member_generated.push_back(member);
 
-    std::vector<std::meta::info> specs;
-    for (std::meta::info member : members) {
-      if (!same_name(member, first) ||
-          !generates_wrapper_for<ConstPolicy>(member, members))
+    // Collect overloads.
+    std::vector<std::meta::info> overload_specs;
+    for (std::meta::info overload : members) {
+      if (!same_name(overload, member) ||
+          !generates_wrapper_for<ConstPolicy>(overload, members))
         continue;
       const bool wrapper_is_const =
-          ConstPolicy == const_policy::propagate ? is_const(member) : true;
+          ConstPolicy == const_policy::propagate ? is_const(overload) : true;
       // clang-format off
-      specs.push_back(substitute(
-          ^^overload_spec, {reflect_constant(member),
+      overload_specs.push_back(substitute(
+          ^^overload_spec, {reflect_constant(overload),
                             std::meta::reflect_constant(wrapper_is_const)}));
       // clang-format on
     }
-    if (specs.empty()) continue;
+    // END: Encapsulate this function.
+    if (overload_specs.empty()) continue;
 
     std::vector<std::meta::info> generator_args;
-    if (has_identifier(first)) {
-      generator_args.push_back(reflect_constant(first));
+    if (has_identifier(member)) {
+      generator_args.push_back(reflect_constant(member));
     }
     generator_args.push_back(^^ProtocolType);
     generator_args.push_back(^^Vtable);
-    generator_args.append_range(specs);
-    if (has_identifier(first)) {
+    generator_args.append_range(overload_specs);
+    if (has_identifier(member)) {
       member_base_types.push_back(substitute(^^member_base_t, generator_args));
-    } else if (is_call_operator(first)) {
+    } else if (is_call_operator(member)) {
       member_base_types.push_back(
           substitute(^^call_operator_overload_set, generator_args));
     } else {
@@ -675,6 +678,7 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
     }
     std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
 
+    // Workaround for GCC UBSAN issue.
     // `std::string`'s pointer-taking constructors have a null check GCC
     // trunk can't constant-fold under `-fsanitize=undefined`, even though
     // `mangled_name_of<member>` is never null. The iterator-pair
