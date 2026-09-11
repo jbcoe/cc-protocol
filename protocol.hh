@@ -285,6 +285,10 @@ constexpr member_options operator|(member_options lhs, member_options rhs) {
                                      std::to_underlying(rhs));
 }
 
+constexpr member_options& operator|=(member_options& lhs, member_options rhs) {
+  return lhs = (lhs | rhs);
+}
+
 constexpr bool operator&(member_options lhs, member_options rhs) {
   return static_cast<bool>(std::to_underlying(lhs) & std::to_underlying(rhs));
 }
@@ -309,6 +313,8 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
 
   static constexpr bool is_noexcept = (Options & member_options::is_noexcept);
   static constexpr bool is_const = (Options & member_options::is_const);
+  static constexpr bool is_lvalue = (Options & member_options::is_lvalue);
+  static constexpr bool is_rvalue = (Options & member_options::is_rvalue);
 
   // Recovers the EnclosingType pointer: `call_operator_base` derives from
   // this thunk, while a generated `member_base` holds it as its sole data
@@ -329,7 +335,7 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   // stored vtable pointer's matching function pointer, passing the
   // viewed/owned object.
   R operator()(Args... args) & noexcept(is_noexcept)
-    requires(!is_const)
+    requires(!is_const && is_lvalue)
   {
     auto* protocol_object = static_cast<ProtocolType*>(enclosing(this));
     if constexpr (is_protocol_v<ProtocolType>) {
@@ -344,7 +350,7 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   }
 
   R operator()(Args... args) && noexcept(is_noexcept)
-    requires(!is_const)
+    requires(!is_const && is_rvalue)
   {
     auto* protocol_object = static_cast<ProtocolType*>(enclosing(this));
     if constexpr (is_protocol_v<ProtocolType>) {
@@ -359,7 +365,7 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   }
 
   R operator()(Args... args) const& noexcept(is_noexcept)
-    requires(is_const)
+    requires(is_const && is_lvalue)
   {
     const auto* protocol_object =
         static_cast<const ProtocolType*>(enclosing(this));
@@ -375,7 +381,7 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   }
 
   R operator()(Args... args) const&& noexcept(is_noexcept)
-    requires(is_const)
+    requires(is_const && is_rvalue)
   {
     const auto* protocol_object =
         static_cast<const ProtocolType*>(enclosing(this));
@@ -428,16 +434,31 @@ struct method_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
     return substitute(^^fn_ptr_t, fn_args);
   }
 
-  static constexpr auto options =
-      (IsConst ? member_options::is_const : member_options::none) |
-      (is_noexcept(Member) ? member_options::is_noexcept
-                           : member_options::none);
+  static consteval member_options options() {
+    auto result = member_options::none;
+    if (IsConst) {
+      result |= member_options::is_const;
+    }
+    if (is_noexcept(Member)) {
+      result |= member_options::is_noexcept;
+    }
+
+    const bool lvalue = is_lvalue_reference_qualified(Member);
+    const bool rvalue = is_rvalue_reference_qualified(Member);
+    if (lvalue || !rvalue) {
+      result |= member_options::is_lvalue;
+    }
+    if (rvalue || !lvalue) {
+      result |= member_options::is_rvalue;
+    }
+    return result;
+  }
 
   // clang-format off
   using type = typename[:substitute(
       ^^method_thunk, {fn_ptr_type(), ^^EnclosingType, ^^ProtocolType, ^^Vtable,
                        std::meta::reflect_constant(Member),
-                       std::meta::reflect_constant(options)}):];
+                       std::meta::reflect_constant(options())}):];
   // clang-format on
 };
 
