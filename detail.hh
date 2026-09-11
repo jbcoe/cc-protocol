@@ -47,7 +47,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace xyz::detail {
 
-template <std::meta::operators Operator = std::meta::operators::op_parentheses>
+template <std::meta::operators Operator>
 consteval bool is_operator(std::meta::info function) {
   return is_operator_function(function) && operator_of(function) == Operator;
 }
@@ -161,7 +161,8 @@ consteval auto conformance_candidate_infos() {
       std::views::filter(std::meta::is_function) |
       std::views::filter([](std::meta::info member) consteval {
         return has_identifier(member) ||
-               is_operator<std::meta::operators::op_parentheses>(member);
+               is_operator<std::meta::operators::op_parentheses>(member) ||
+               is_operator<std::meta::operators::op_square_brackets>(member);
       });
   std::vector<std::meta::info> result(std::ranges::begin(named),
                                       std::ranges::end(named));
@@ -192,7 +193,7 @@ consteval std::vector<std::meta::info> protocol_interface_function_infos() {
         is_rvalue_reference_qualified(member)) {
       std::string name = has_identifier(member)
                              ? std::string(identifier_of(member))
-                             : "operator()";
+                             : std::string(display_string_of(member));
       throw std::runtime_error("ref-qualified member function '" + name +
                                "' is not supported in a protocol interface");
     }
@@ -354,9 +355,7 @@ template <std::meta::operators Operator, typename FnPtrType,
           bool IsConst, bool IsNoexcept>
 struct operator_thunk;
 
-// TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers;
-// until then `protocol_interface_function_infos` rejects ref-qualified
-// interface members.
+// operator()
 template <typename R, typename... Args, typename ProtocolType, typename Vtable,
           std::meta::info Member, bool IsConst, bool IsNoexcept>
 struct operator_thunk<std::meta::operators::op_parentheses, R (*)(Args...),
@@ -387,6 +386,33 @@ struct operator_thunk<std::meta::operators::op_parentheses, R (*)(Args...),
              "cannot call member function of valueless protocol");
     }
 
+    const Vtable* vtable = protocol_object->vtable_;
+    return vtable->[:vtable_entry:](protocol_object->object_,
+                                    std::forward<Args>(args)...);
+  }
+};
+
+// operator []
+template <typename R, typename... Args, typename ProtocolType, typename Vtable,
+          std::meta::info Member, bool IsConst, bool IsNoexcept>
+struct operator_thunk<std::meta::operators::op_square_brackets, R (*)(Args...),
+                      ProtocolType, Vtable, Member, IsConst, IsNoexcept> {
+  static constexpr std::meta::info vtable_entry =
+      find_vtable_entry<^^Vtable, Member>();
+
+  R operator[](Args... args) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    const Vtable* vtable = protocol_object->vtable_;
+    return vtable->[:vtable_entry:](protocol_object->object_,
+                                    std::forward<Args>(args)...);
+  }
+
+  R operator[](Args... args) const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
     const Vtable* vtable = protocol_object->vtable_;
     return vtable->[:vtable_entry:](protocol_object->object_,
                                     std::forward<Args>(args)...);
@@ -436,11 +462,20 @@ template <std::meta::operators Operator, typename ProtocolType, typename Vtable,
           typename... OverloadSpecs>
 struct operator_overload_set;
 
+// operator()
 template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
 struct operator_overload_set<std::meta::operators::op_parentheses, ProtocolType,
                              Vtable, OverloadSpecs...>
     : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
   using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator()...;
+};
+
+// operator[]
+template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
+struct operator_overload_set<std::meta::operators::op_square_brackets,
+                             ProtocolType, Vtable, OverloadSpecs...>
+    : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
+  using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator[]...;
 };
 
 // How generated wrappers treat the const-qualification of interface members.
@@ -562,6 +597,9 @@ consteval std::meta::info generate_member_bases_wrapper() {
     } else if (is_operator<std::meta::operators::op_parentheses>(member)) {
       member_base_args.push_back(
           reflect_constant(std::meta::operators::op_parentheses));
+    } else if (is_operator<std::meta::operators::op_square_brackets>(member)) {
+      member_base_args.push_back(
+          reflect_constant(std::meta::operators::op_square_brackets));
     }
     member_base_args.push_back(^^ProtocolType);
     member_base_args.push_back(^^Vtable);
@@ -569,7 +607,7 @@ consteval std::meta::info generate_member_bases_wrapper() {
     if (has_identifier(member)) {
       member_base_types.push_back(
           substitute(^^member_base_t, member_base_args));
-    } else if (is_operator<std::meta::operators::op_parentheses>(member)) {
+    } else if (is_operator_function(member)) {
       member_base_types.push_back(
           substitute(^^operator_overload_set, member_base_args));
     } else {
