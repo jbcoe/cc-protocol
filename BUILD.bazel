@@ -3,11 +3,14 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "name_mangling",
+    hdrs = ["name_mangling.h"],
+)
+
+cc_library(
     name = "protocol",
-    hdrs = [
-        "name_mangling.h",
-        "protocol.hh",
-    ],
+    hdrs = ["protocol.hh"],
+    deps = [":name_mangling"],
 )
 
 cc_library(
