@@ -100,13 +100,16 @@ consteval bool is_call_operator(std::meta::info function) {
          operator_of(function) == std::meta::operators::op_parentheses;
 }
 
-// Returns `true` if `a` and `b` are both call operators or share an
-// identifier.
+// Returns `true` if `a` and `b` are the same operators or have the same
+// identifier. Otherwise returns false.
 consteval bool same_name(std::meta::info a, std::meta::info b) {
-  if (is_call_operator(a) || is_call_operator(b))
-    return is_call_operator(a) && is_call_operator(b);
-  return has_identifier(a) && has_identifier(b) &&
-         identifier_of(a) == identifier_of(b);
+  if (has_identifier(a) && has_identifier(b)) {
+    return identifier_of(a) == identifier_of(b);
+  }
+  if (is_operator_function(a) && is_operator_function(b)) {
+    return operator_of(a) == operator_of(b);
+  }
+  return false;
 }
 
 // Returns `true` if the member functions `candidate` and `interface` have
