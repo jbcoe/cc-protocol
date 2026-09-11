@@ -2773,4 +2773,27 @@ TEST(ReflectionProtocolViewTest, MovedFromTargetType) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
+TEST(ReflectionProtocolTest, OperatorSquareBrackets) {
+  struct Interface {
+    int operator[](int) const noexcept;
+    int operator[](int) noexcept;
+  };
+
+  struct Conforming {
+    int operator[](int) const noexcept { return 0; }
+
+    int operator[](int) noexcept { return 42; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p[0], 42);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_EQ(pv[0], 42);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_EQ(pcv[0], 0);
+}
+
 }  // namespace
