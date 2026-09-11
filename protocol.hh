@@ -95,9 +95,9 @@ inline constexpr bool is_protocol_view_v = is_protocol_view<T>::value;
 
 namespace detail {
 
-consteval bool is_call_operator(std::meta::info function) {
-  return is_operator_function(function) &&
-         operator_of(function) == std::meta::operators::op_parentheses;
+template <std::meta::operators Operator = std::meta::operators::op_parentheses>
+consteval bool is_operator(std::meta::info function) {
+  return is_operator_function(function) && operator_of(function) == Operator;
 }
 
 // Returns `true` if `a` and `b` are the same operators or have the same
@@ -205,11 +205,13 @@ concept is_maybe_lambda =
 // interface member function.
 template <std::meta::info Type>
 consteval auto conformance_candidate_infos() {
-  auto named = members_of(Type, std::meta::access_context::unprivileged()) |
-               std::views::filter(std::meta::is_function) |
-               std::views::filter([](std::meta::info member) consteval {
-                 return has_identifier(member) || is_call_operator(member);
-               });
+  auto named =
+      members_of(Type, std::meta::access_context::unprivileged()) |
+      std::views::filter(std::meta::is_function) |
+      std::views::filter([](std::meta::info member) consteval {
+        return has_identifier(member) ||
+               is_operator<std::meta::operators::op_parentheses>(member);
+      });
   std::vector<std::meta::info> result(std::ranges::begin(named),
                                       std::ranges::end(named));
   // Per [meta.reflection.member.queries], a closure type's function call
@@ -637,7 +639,7 @@ consteval std::meta::info generate_member_bases_wrapper() {
     if (has_identifier(member)) {
       member_base_types.push_back(
           substitute(^^member_base_t, member_base_args));
-    } else if (is_call_operator(member)) {
+    } else if (is_operator<std::meta::operators::op_parentheses>(member)) {
       member_base_types.push_back(
           substitute(^^call_operator_overload_set, member_base_args));
     } else {
