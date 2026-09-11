@@ -425,10 +425,10 @@ struct operator_thunk<std::meta::operators::op_square_brackets, R (*)(Args...),
 };
 
 // operator ->
-template <typename R, typename... Args, typename ProtocolType, typename Vtable,
+template <typename R, typename ProtocolType, typename Vtable,
           std::meta::info Member, bool IsConst, bool IsNoexcept>
-struct operator_thunk<std::meta::operators::op_arrow, R (*)(Args...),
-                      ProtocolType, Vtable, Member, IsConst, IsNoexcept> {
+struct operator_thunk<std::meta::operators::op_arrow, R (*)(), ProtocolType,
+                      Vtable, Member, IsConst, IsNoexcept> {
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
 
@@ -450,10 +450,10 @@ struct operator_thunk<std::meta::operators::op_arrow, R (*)(Args...),
 };
 
 // operator *
-template <typename R, typename... Args, typename ProtocolType, typename Vtable,
+template <typename R, typename ProtocolType, typename Vtable,
           std::meta::info Member, bool IsConst, bool IsNoexcept>
-struct operator_thunk<std::meta::operators::op_star, R (*)(Args...),
-                      ProtocolType, Vtable, Member, IsConst, IsNoexcept> {
+struct operator_thunk<std::meta::operators::op_star, R (*)(), ProtocolType,
+                      Vtable, Member, IsConst, IsNoexcept> {
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
 
