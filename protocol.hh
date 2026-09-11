@@ -276,12 +276,12 @@ consteval std::meta::info find_vtable_entry() {
 
 // Vanishing-this-pointer thunk for one overload of a synthesised named
 // member function. A generated `member_base` holds it as its sole data
-// member, named after the interface method, giving `p.method_name(args)`
-// call syntax.
+// member, named after the interface method, giving
+// `p.member_function_name(args)` call syntax.
 template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
           typename Vtable, std::meta::info Member, bool IsConst,
           bool IsNoexcept>
-struct method_thunk;
+struct member_function_thunk;
 
 // TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers;
 // until then `protocol_interface_function_infos` rejects ref-qualified
@@ -289,8 +289,8 @@ struct method_thunk;
 template <typename R, typename... Args, typename EnclosingType,
           typename ProtocolType, typename Vtable, std::meta::info Member,
           bool IsConst, bool IsNoexcept>
-struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
-                    IsConst, IsNoexcept> {
+struct member_function_thunk<R (*)(Args...), EnclosingType, ProtocolType,
+                             Vtable, Member, IsConst, IsNoexcept> {
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
 
@@ -325,13 +325,13 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   }
 
  protected:
-  // Only `member_thunk` may create or copy a thunk.
-  method_thunk() = default;
-  ~method_thunk() = default;
-  method_thunk(const method_thunk&) = default;
-  method_thunk(method_thunk&&) = default;
-  method_thunk& operator=(const method_thunk&) = default;
-  method_thunk& operator=(method_thunk&&) = default;
+  // Only `member_function_overload_set` may create or copy a thunk.
+  member_function_thunk() = default;
+  ~member_function_thunk() = default;
+  member_function_thunk(const member_function_thunk&) = default;
+  member_function_thunk(member_function_thunk&&) = default;
+  member_function_thunk& operator=(const member_function_thunk&) = default;
+  member_function_thunk& operator=(member_function_thunk&&) = default;
 };
 
 template <bool Noexcept, typename R, typename... Args>
@@ -343,15 +343,15 @@ using fn_ptr_t = R (*)(Args...) noexcept(Noexcept);
 template <std::meta::info Member, bool IsConst>
 struct overload_spec {};
 
-// The `method_thunk` specialisation for an `overload_spec`.
+// The `member_function_thunk` specialisation for an `overload_spec`.
 template <typename Spec, typename EnclosingType, typename ProtocolType,
           typename Vtable>
-struct method_thunk_for;
+struct member_function_thunk_for;
 
 template <std::meta::info Member, bool IsConst, typename EnclosingType,
           typename ProtocolType, typename Vtable>
-struct method_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
-                        ProtocolType, Vtable> {
+struct member_function_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
+                                 ProtocolType, Vtable> {
   // Build the function-pointer type R(*)(Args...) from the method's return
   // type and parameter types.
   static consteval std::meta::info fn_ptr_type() {
@@ -364,7 +364,7 @@ struct method_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
 
   // clang-format off
   using type = typename[:substitute(
-      ^^method_thunk, {fn_ptr_type(), ^^EnclosingType, ^^ProtocolType, ^^Vtable,
+      ^^member_function_thunk, {fn_ptr_type(), ^^EnclosingType, ^^ProtocolType, ^^Vtable,
                        std::meta::reflect_constant(Member),
                        std::meta::reflect_constant(IsConst),
                        std::meta::reflect_constant(is_noexcept(Member))}):];
@@ -373,28 +373,30 @@ struct method_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
 
 template <typename Spec, typename EnclosingType, typename ProtocolType,
           typename Vtable>
-using method_thunk_t =
-    method_thunk_for<Spec, EnclosingType, ProtocolType, Vtable>::type;
+using member_function_thunk_t =
+    member_function_thunk_for<Spec, EnclosingType, ProtocolType, Vtable>::type;
 
 // The overload set for one synthesised named member function: a
-// `method_thunk` per overload, with every operator() brought into scope so
-// that overload resolution among them works as for a member function of the
-// interface.
+// `member_function_thunk` per overload, with every operator() brought into
+// scope so that overload resolution among them works as for a member function
+// of the interface.
 template <typename EnclosingType, typename ProtocolType, typename Vtable,
           typename... Specs>
-struct member_thunk
-    : method_thunk_t<Specs, EnclosingType, ProtocolType, Vtable>... {
-  using method_thunk_t<Specs, EnclosingType, ProtocolType,
-                       Vtable>::operator()...;
+struct member_function_overload_set
+    : member_function_thunk_t<Specs, EnclosingType, ProtocolType, Vtable>... {
+  using member_function_thunk_t<Specs, EnclosingType, ProtocolType,
+                                Vtable>::operator()...;
 
  private:
   friend EnclosingType;
-  member_thunk() = default;
-  ~member_thunk() = default;
-  member_thunk(const member_thunk&) = default;
-  member_thunk(member_thunk&&) = default;
-  member_thunk& operator=(const member_thunk&) = default;
-  member_thunk& operator=(member_thunk&&) = default;
+  member_function_overload_set() = default;
+  ~member_function_overload_set() = default;
+  member_function_overload_set(const member_function_overload_set&) = default;
+  member_function_overload_set(member_function_overload_set&&) = default;
+  member_function_overload_set& operator=(const member_function_overload_set&) =
+      default;
+  member_function_overload_set& operator=(member_function_overload_set&&) =
+      default;
 };
 
 // Thunk for one overload of a synthesised call operator. `operator()` can't
@@ -540,8 +542,8 @@ consteval bool is_forwarded_member_function(
 }
 
 // A single-member base wrapping the overload set for one interface member
-// function name, named after that method (giving the `p.method_name(args)`
-// call syntax).
+// function name, named after that method (giving the
+// `p.member_function_name(args)` call syntax).
 template <std::meta::info Member, typename ProtocolType, typename Vtable,
           typename... OverloadSpecs>
 struct member_base_generator {
@@ -549,7 +551,7 @@ struct member_base_generator {
   consteval {
     // clang-format off
     std::meta::info thunk_type = substitute(
-        ^^member_thunk, {^^type, ^^ProtocolType, ^^Vtable, ^^OverloadSpecs...});
+        ^^member_function_overload_set, {^^type, ^^ProtocolType, ^^Vtable, ^^OverloadSpecs...});
 
     define_aggregate(
       ^^type, {data_member_spec(thunk_type,
@@ -954,7 +956,7 @@ class protocol
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
             typename Vtable, std::meta::info Member, bool IsConst,
             bool IsNoexcept>
-  friend struct detail::method_thunk;
+  friend struct detail::member_function_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
             typename ProtocolType, typename Vtable, std::meta::info Member,
@@ -1270,7 +1272,7 @@ class protocol_view
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
             typename Vtable, std::meta::info Member, bool IsConst,
             bool IsNoexcept>
-  friend struct detail::method_thunk;
+  friend struct detail::member_function_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
             typename ProtocolType, typename Vtable, std::meta::info Member,
@@ -1366,7 +1368,7 @@ class protocol_view<const T>
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
             typename Vtable, std::meta::info Member, bool IsConst,
             bool IsNoexcept>
-  friend struct detail::method_thunk;
+  friend struct detail::member_function_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
             typename ProtocolType, typename Vtable, std::meta::info Member,
