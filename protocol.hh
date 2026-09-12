@@ -472,27 +472,31 @@ struct call_operator_base
   call_operator_base& operator=(call_operator_base&&) = default;
 };
 
-// How generated wrappers treat the const-qualification of interface members.
+// How generated wrappers treat the const- and ref-qualification of interface
+// members.
 enum class member_policy {
   // `protocol<I>`: as declared in `I`, so `const protocol<I>` exposes only the
-  // const member functions of `I` (const propagates).
+  // const member functions of `I` (const propagates). Reference qualification
+  // propagates similarly.
   propagate,
   // `protocol_view<I>`: every wrapper is const-qualified regardless of `I`
-  // (shallow const, as for `std::span`).
+  // (shallow const, as for `std::span`). Any rvalue qualified interface
+  // member function is ignored.
   all_const,
-  // `protocol_view<const I>`: only the const member functions of `I`.
+  // `protocol_view<const I>`: only the const member functions of `I`. Rvalue
+  // qualified member functions are ignored.
   const_only,
 };
 
-// Returns `true` if `ConstPolicy` generates a wrapper for `member`.
+// Returns `true` if `MemberPolicy` generates a wrapper for `member`.
 //
 // Under `all_const` every wrapper is const, so a const/non-const overload
 // pair `R f() const; R f();` would collide; the const overload is dropped as
 // a non-const reference to `I` would also resolve `f()` to `R f()`.
-template <member_policy ConstPolicy>
+template <member_policy MemberPolicy>
 consteval bool generates_wrapper_for(std::meta::info member,
                                      std::span<const std::meta::info> members) {
-  switch (ConstPolicy) {
+  switch (MemberPolicy) {
     case member_policy::propagate:
       return true;
     case member_policy::const_only:
@@ -558,10 +562,10 @@ consteval member_options options_for(std::meta::info member,
 
   const bool lvalue = is_lvalue_reference_qualified(member);
   const bool rvalue = is_rvalue_reference_qualified(member);
-  if (policy == member_policy::propagate || lvalue || !rvalue) {
+  if (policy != member_policy::propagate || lvalue || !rvalue) {
     result |= member_options::is_lvalue;
   }
-  if (policy == member_policy::propagate || rvalue || !lvalue) {
+  if (policy != member_policy::propagate || rvalue || !lvalue) {
     result |= member_options::is_rvalue;
   }
 
@@ -570,10 +574,10 @@ consteval member_options options_for(std::meta::info member,
 
 // Returns a `wrapper_bases` specialisation with one base per public,
 // non-special, member function name of `interface_type`, giving named members
-// with an `operator()` for each overload selected by `ConstPolicy`, plus a
+// with an `operator()` for each overload selected by `MemberPolicy`, plus a
 // `call_operator_base` if `interface_type` has call operators.
 template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable,
-          member_policy ConstPolicy>
+          member_policy MemberPolicy>
 consteval std::meta::info generate_wrapper_bases() {
   std::span<const std::meta::info> members =
       protocol_interface_functions_of<InterfaceType>;
@@ -589,13 +593,18 @@ consteval std::meta::info generate_wrapper_bases() {
     std::vector<std::meta::info> specs;
     for (std::meta::info member : members) {
       if (!same_name(member, first) ||
-          !generates_wrapper_for<ConstPolicy>(member, members))
+          !generates_wrapper_for<MemberPolicy>(member, members))
+        continue;
+
+      // protocol_view cannot hold rvalue qualified methods.
+      if (MemberPolicy != member_policy::propagate &&
+          is_rvalue_reference_qualified(member))
         continue;
 
       // clang-format off
       specs.push_back(substitute(
           ^^overload_spec, {reflect_constant(member),
-                            std::meta::reflect_constant(options_for(member, ConstPolicy))}));
+                            std::meta::reflect_constant(options_for(member, MemberPolicy))}));
       // clang-format on
     }
     if (specs.empty()) continue;
@@ -617,12 +626,12 @@ consteval std::meta::info generate_wrapper_bases() {
 
 // The generated wrapper type for `T`: a `wrapper_bases` specialisation with
 // named members with `operator()` for each public, non-special, member
-// function from `T` selected by `ConstPolicy`.
+// function from `T` selected by `MemberPolicy`.
 template <typename T, typename ProtocolType, typename Vtable,
-          member_policy ConstPolicy>
+          member_policy MemberPolicy>
 using protocol_wrappers_t =
     typename[:generate_wrapper_bases<^^T, ProtocolType, Vtable,
-                                     ConstPolicy>():];
+                                     MemberPolicy>():];
 
 // Returns a list of data_member_spec values, one for each member function
 // implemented by `protocol`, each describing a vtable function pointer with
@@ -734,7 +743,7 @@ struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
 // For `member_policy::const_only` (`protocol_view<const T>`) only the entries
 // for const members of `T` are populated; the view generates no wrapper for
 // the others, so they are never called.
-template <typename T, typename U, member_policy ConstPolicy>
+template <typename T, typename U, member_policy MemberPolicy>
 consteval typename vtable_generator<T>::vtable make_view_vtable() {
   using Vtable = typename vtable_generator<T>::vtable;
   Vtable result{};
@@ -749,13 +758,13 @@ consteval typename vtable_generator<T>::vtable make_view_vtable() {
 
     // View vtables cannot use rvalue member functions.
     if constexpr (!is_rvalue_reference_qualified(member) ||
-                  ConstPolicy == member_policy::propagate) {
+                  MemberPolicy == member_policy::propagate) {
       if constexpr (is_const(member)) {
         constexpr std::meta::info candidate =
             find_conforming_member<member, ^^U>();
         result.[:vtable_member:] = &const_view_trampoline<FnPtrType, U,
                                                           candidate>::call;
-      } else if constexpr (ConstPolicy != member_policy::const_only) {
+      } else if constexpr (MemberPolicy != member_policy::const_only) {
         constexpr std::meta::info candidate =
             find_conforming_member<member, ^^U>();
         result.[:vtable_member:] = &mutable_view_trampoline<FnPtrType, U,
@@ -767,10 +776,10 @@ consteval typename vtable_generator<T>::vtable make_view_vtable() {
 }
 
 // The shared, compile-time vtable every protocol_view<T> (or
-// protocol_view<const T>, per `ConstPolicy`) that views a `U` points to.
-template <typename T, typename U, member_policy ConstPolicy>
+// protocol_view<const T>, per `MemberPolicy`) that views a `U` points to.
+template <typename T, typename U, member_policy MemberPolicy>
 inline constexpr typename vtable_generator<T>::vtable view_vtable_for =
-    make_view_vtable<T, U, ConstPolicy>();
+    make_view_vtable<T, U, MemberPolicy>();
 
 }  // namespace detail
 
