@@ -55,7 +55,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
 
 # Install the GitHub CLI (gh) from its own apt repository, per
 # https://github.com/cli/cli/blob/trunk/docs/install_linux.md (not reliably
-# available via Ubuntu 24.04's default repos).
+# available via Ubuntu 26.04's default repos).
 RUN mkdir -p -m 755 /etc/apt/keyrings \
     && wget -nv -O /etc/apt/keyrings/githubcli-archive-keyring.gpg https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
@@ -64,7 +64,7 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/*
 
 # Install jj (Jujutsu VCS) from its GitHub release binary. The jujutsu apt
-# package isn't built for Ubuntu 24.04 (noble) or Debian stable; it only
+# package isn't built for Ubuntu 26.04 (resolute) or Debian stable; it only
 # reaches Debian testing/unstable and Ubuntu's current development release.
 RUN ARCH=$(dpkg --print-architecture) && \
     case "$ARCH" in \
@@ -89,7 +89,7 @@ RUN userdel -r ubuntu \
     && mkdir -p /workspace \
     && chown vscode:vscode /workspace
 
-# Install Node.js (required for both Gemini CLI and Claude Code).
+# Install Node.js (required for Claude Code).
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -103,9 +103,8 @@ ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
 ENV PATH="/home/vscode/.npm-global/bin:/home/vscode/.local/bin:/usr/local/bin:${PATH}"
 RUN mkdir -p /home/vscode/.npm-global
 
-# Install both AI agent CLIs for compatibility with existing tooling that
-# may invoke either `gemini` or `claude`.
-RUN npm install -g @google/gemini-cli @anthropic-ai/claude-code
+# Install Claude Code CLI.
+RUN npm install -g @anthropic-ai/claude-code
 
 # Install Antigravity CLI (installs binary as `agy` into ~/.local/bin).
 RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
