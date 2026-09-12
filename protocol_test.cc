@@ -40,6 +40,10 @@ concept has_get_int = requires(P& p) { p.get(0); };
 template <typename P>
 concept has_get = requires(P& p) { p.get(); };
 
+// Concept for testing a reference-qualified get().
+template <typename P>
+concept has_ref_get = requires(P p) { std::forward<P>(p).get(); };
+
 // Concepts for call operator tests.
 template <typename P>
 concept is_callable = requires(P& p) { p(); };
@@ -503,6 +507,37 @@ TEST(ConformsToTest, WrongParameterTypeDoesNotConform) {
   static_assert(!is_protocol_conformant<Interface, WrongParam>());
 }
 
+TEST(ConformsToTest, RefQualifiersMatchExactly) {
+  struct Interface {
+    int foo() &;
+    int foo() &&;
+  };
+
+  struct BadOverload {
+    int foo();
+  };
+
+  static_assert(!is_protocol_conformant<Interface, BadOverload>());
+}
+
+TEST(ConformsToTest, ExplicitObject) {
+  struct Interface {
+    int foo();
+  };
+
+  struct Conforming {
+    int foo(this Conforming&);
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+
+  struct NonConforming {
+    int foo(this NonConforming&&);
+  };
+
+  static_assert(!is_protocol_conformant<Interface, NonConforming>());
+}
+
 TEST(ConformsToTest, WrongParameterCountDoesNotConform) {
   struct Interface {
     void process(int a, int b);
@@ -572,40 +607,7 @@ TEST(ConformsToTest, NonNoexceptInterfaceAcceptsNoexceptCandidate) {
   static_assert(is_protocol_conformant<Interface, NoexceptCandidate>());
 }
 
-TEST(ConformsToTest, RefQualifiedInterfaceMembersAreRejected) {
-  struct LvalueRefInterface {
-    void f() &;
-  };
-
-  struct RvalueRefInterface {
-    void f() &&;
-  };
-
-  struct MatchingLvalueRefCandidate {
-    void f() &;
-  };
-
-  struct MatchingRvalueRefCandidate {
-    void f() &&;
-  };
-
-  struct UnqualifiedCandidate {
-    void f();
-  };
-
-#ifdef __cpp_constexpr_exceptions
-  static_assert(conformance_check_rejects<LvalueRefInterface,
-                                          MatchingLvalueRefCandidate>());
-  static_assert(
-      conformance_check_rejects<LvalueRefInterface, UnqualifiedCandidate>());
-  static_assert(conformance_check_rejects<RvalueRefInterface,
-                                          MatchingRvalueRefCandidate>());
-  static_assert(
-      conformance_check_rejects<RvalueRefInterface, UnqualifiedCandidate>());
-#endif  // __cpp_constexpr_exceptions
-}
-
-TEST(ConformsToTest, UnqualifiedInterfaceDoesNotMatchRefQualifiedCandidate) {
+TEST(ConformsToTest, UnqualifiedInterfaceRefQualifiedCandidate) {
   struct Interface {
     void f();
   };
@@ -618,7 +620,7 @@ TEST(ConformsToTest, UnqualifiedInterfaceDoesNotMatchRefQualifiedCandidate) {
     void f() &&;
   };
 
-  static_assert(!is_protocol_conformant<Interface, LvalueRefCandidate>());
+  static_assert(is_protocol_conformant<Interface, LvalueRefCandidate>());
   static_assert(!is_protocol_conformant<Interface, RvalueRefCandidate>());
 }
 
@@ -798,20 +800,6 @@ TEST(ConformsToTest, StaticCandidateConformsToNonConstMember) {
   };
 
   static_assert(is_protocol_conformant<Interface, Conforming>());
-}
-
-TEST(ConformsToTest, RefQualifiedInterfaceMemberRejectedForStaticCandidate) {
-  struct Interface {
-    int take() &&;
-  };
-
-  struct Conforming {
-    static int take();
-  };
-
-#ifdef __cpp_constexpr_exceptions
-  static_assert(conformance_check_rejects<Interface, Conforming>());
-#endif  // __cpp_constexpr_exceptions
 }
 
 TEST(ConformsToTest, StaticCandidateWithWrongSignatureDoesNotConform) {
@@ -1647,6 +1635,36 @@ TEST(ReflectionProtocolTest, NonConstMemberFunctionNotInvocableFromConst) {
           decltype((std::declval<const protocol<Interface>&>().update)), int>);
   static_assert(has_update<protocol<Interface>>);
   static_assert(!has_update<const protocol<Interface>>);
+}
+
+TEST(ReflectionProtocolTest, LvalueInterface) {
+  struct Interface {
+    int get() &;
+  };
+
+  static_assert(has_ref_get<protocol<Interface>&>);
+  static_assert(!has_ref_get<protocol<Interface>&&>);
+
+  static_assert(has_ref_get<protocol_view<Interface>&>);
+  static_assert(has_ref_get<protocol_view<Interface>&&>);
+
+  static_assert(!has_ref_get<protocol_view<const Interface>&>);
+  static_assert(!has_ref_get<protocol_view<const Interface>&&>);
+}
+
+TEST(ReflectionProtocolTest, RvalueInterface) {
+  struct Interface {
+    int get() &&;
+  };
+
+  static_assert(!has_ref_get<protocol<Interface>&>);
+  static_assert(has_ref_get<protocol<Interface>&&>);
+
+  static_assert(!has_ref_get<protocol_view<Interface>&>);
+  static_assert(!has_ref_get<protocol_view<Interface>&&>);
+
+  static_assert(!has_ref_get<protocol_view<const Interface>&>);
+  static_assert(!has_ref_get<protocol_view<const Interface>&&>);
 }
 
 TEST(ReflectionProtocolTest, SingleParameterMemberFunction) {
@@ -2771,6 +2789,150 @@ TEST(ReflectionProtocolViewTest, MovedFromTargetType) {
   protocol_view<Interface> pv(movedFrom);
   EXPECT_EQ(target_type(pv), typeid(void));
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolTest, RefQualifiers) {
+  struct LvalueInterface {
+    int foo() &;
+  };
+
+  struct RvalueInterface {
+    int foo() &&;
+  };
+
+  struct Conforming {
+    int foo() & { return 5; }
+
+    int foo() && { return 10; }
+  };
+
+  protocol<LvalueInterface> p1(Conforming{});
+  EXPECT_EQ(p1.foo(), 5);
+
+  protocol<RvalueInterface> p2(Conforming{});
+  EXPECT_EQ(std::move(p2).foo(), 10);
+}
+
+TEST(ReflectionProtocolViewTest, LvalueRefQualifier) {
+  struct LvalueInterface {
+    int foo() &;
+  };
+
+  struct Conforming {
+    int foo() & { return 5; }
+  };
+
+  Conforming c{};
+  protocol_view<LvalueInterface> p(c);
+  EXPECT_EQ(p.foo(), 5);
+}
+
+TEST(ReflectionProtocolTest, OverloadedQualifiers) {
+  struct Interface {
+    int foo() &;
+    int foo() &&;
+    int foo() const;
+  };
+
+  struct Conforming {
+    int foo() & { return 5; }
+
+    int foo() && { return 10; }
+
+    int foo() const { return 20; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.foo(), 5);
+  EXPECT_EQ(std::move(p).foo(), 10);
+
+  const protocol<Interface> p2(Conforming{});
+  EXPECT_EQ(p2.foo(), 20);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates dispatch through a const rvalue reference.
+  EXPECT_EQ(std::move(p2).foo(), 20);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
+
+  Conforming c{};
+  protocol_view<Interface> p3(c);
+  EXPECT_EQ(p3.foo(), 5);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates moving protocol_view on purpose.
+  EXPECT_EQ(std::move(p3).foo(), 5);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
+
+  protocol_view<const Interface> p4(c);
+  EXPECT_EQ(p4.foo(), 20);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates moving protocol_view on purpose.
+  EXPECT_EQ(std::move(p4).foo(), 20);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
+}
+
+TEST(ReflectionProtocolTest, ConstRefQualifiers) {
+  struct Interface {
+    int foo() &;
+    int foo() &&;
+    int foo() const&;
+    int foo() const&&;
+  };
+
+  struct Conforming {
+    int foo() & { return 1; }
+
+    int foo() && { return 2; }
+
+    int foo() const& { return 3; }
+
+    int foo() const&& { return 4; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.foo(), 1);
+  EXPECT_EQ(std::move(p).foo(), 2);
+
+  const protocol<Interface> p2(Conforming{});
+  EXPECT_EQ(p2.foo(), 3);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates dispatch through a const rvalue reference.
+  EXPECT_EQ(std::move(p2).foo(), 4);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
+
+  Conforming c{};
+  protocol_view<Interface> p3(c);
+  EXPECT_EQ(p3.foo(), 1);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates moving protocol_view on purpose.
+  EXPECT_EQ(std::move(p3).foo(), 1);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
+
+  protocol_view<const Interface> p4(c);
+  EXPECT_EQ(p4.foo(), 3);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates moving protocol_view on purpose.
+  EXPECT_EQ(std::move(p4).foo(), 3);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
+}
+
+TEST(ReflectionProtocolTest, RefQualifiersExplicitObject) {
+  struct Interface {
+    int foo() &;
+    int foo() &&;
+  };
+
+  struct Conforming {
+    int foo(this Conforming&) { return 5; }
+
+    // NOLINTBEGIN(cppcoreguidelines-rvalue-reference-param-not-moved): The
+    // parameter is unused.
+    int foo(this Conforming&&) { return 10; }
+
+    // NOLINTEND(cppcoreguidelines-rvalue-reference-param-not-moved)
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.foo(), 5);
+  EXPECT_EQ(std::move(p).foo(), 10);
 }
 
 }  // namespace
