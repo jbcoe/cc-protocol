@@ -236,7 +236,7 @@ The instructions the assistants read are in [AGENTS.md](AGENTS.md);
 ./scripts/agentic-sandbox.sh [agent] [options]
 ```
 
-where `agent` is `claude`, `gemini`, or `agy` (Antigravity). Omit it for a
+where `agent` is `claude` or `agy` (Antigravity). Omit it for a
 plain shell in the container.
 
 ### Options

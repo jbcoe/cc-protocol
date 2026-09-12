@@ -2,7 +2,7 @@
 """
 Script to run an AI agent, or a plain shell, in a Docker sandbox.
 
-Supported agents: Gemini CLI, Claude Code, Antigravity CLI.
+Supported agents: Claude Code, Antigravity CLI.
 """
 
 import argparse
@@ -30,7 +30,6 @@ class AgentCli(TypedDict):
 
 
 AGENT_CLIS: dict[str, AgentCli] = {
-    "gemini": {"npm_package": "@google/gemini-cli", "cmd": "gemini"},
     "claude": {
         "npm_package": "@anthropic-ai/claude-code",
         "cmd": "claude --dangerously-skip-permissions",
@@ -69,7 +68,7 @@ def _agent_mount_args(agent: str | None) -> list[str]:
     """Seed and mount host config so an agent CLI keeps its auth state."""
     # Use os.open with restrictive permissions in _seed_config_file to avoid
     # exposing credentials to other local users on multi-user systems.
-    if agent in ("gemini", "agy"):
+    if agent == "agy":
         gemini_config_dir = os.path.expanduser("~/.gemini")
         os.makedirs(gemini_config_dir, mode=0o700, exist_ok=True)
         _seed_config_file(
@@ -109,7 +108,7 @@ def _agent_mount_args(agent: str | None) -> list[str]:
 def main() -> None:
     """Provide the main entry point for the agentic sandbox script."""
     parser = argparse.ArgumentParser(
-        description="Run an AI agent (gemini, claude, or agy) in a Docker "
+        description="Run an AI agent (claude or agy) in a Docker "
         "sandbox, or a plain shell if no agent is given."
     )
     parser.add_argument(
