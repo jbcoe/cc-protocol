@@ -73,6 +73,7 @@ jobs:
     if: ${{ !cancelled() }}
     name: ${{ matrix.settings.name }} ${{ matrix.configuration }}
     runs-on: ${{ matrix.settings.os }}
+    continue-on-error: ${{ matrix.settings.compiler.type == 'GCC16_MACOS' }}
     strategy:
       fail-fast: false
       matrix:
@@ -107,6 +108,21 @@ jobs:
                   std: 26,
                 },
             }
+          # Neither the GCC trunk snapshot (a .deb) nor Ubuntu's gcc-16
+          # package is available on macOS, so this job gets its reflection
+          # compiler from the gcc@16 Homebrew formula instead.
+          - {
+              name: "GCC-16 (macOS)",
+              os: macos-15,
+              compiler:
+                {
+                  type: GCC16_MACOS,
+                  version: 16,
+                  cc: "gcc-16",
+                  cxx: "g++-16",
+                  std: 26,
+                },
+            }
     steps:
       - uses: actions/checkout@v5
         if: needs.detect-changes.outputs.relevant != 'false'
@@ -125,6 +141,12 @@ jobs:
           sudo apt-get install -y --no-install-recommends gcc-16 g++-16
           echo "CXX=${{ matrix.settings.compiler.cxx }}" >> "$GITHUB_ENV"
           echo "CC=${{ matrix.settings.compiler.cc }}" >> "$GITHUB_ENV"
+      - name: Install GCC 16 (macOS)
+        if: needs.detect-changes.outputs.relevant != 'false' && matrix.settings.compiler.type == 'GCC16_MACOS'
+        run: |
+          brew install gcc@16
+          echo "CXX=$(brew --prefix gcc@16)/bin/${{ matrix.settings.compiler.cxx }}" >> "$GITHUB_ENV"
+          echo "CC=$(brew --prefix gcc@16)/bin/${{ matrix.settings.compiler.cc }}" >> "$GITHUB_ENV"
       - name: Install uv
         if: needs.detect-changes.outputs.relevant != 'false'
         uses: astral-sh/setup-uv@v10.0.1

@@ -12,8 +12,9 @@ release pinned in `.bazelversion` on first use), a GCC with C++26 reflection
 (P2996) support, and
 [uv](https://docs.astral.sh/uv/getting-started/installation/) installed. The
 reflection compiler is either the GCC trunk snapshot from
-[jwakely.github.io/pkg-gcc-latest](https://jwakely.github.io/pkg-gcc-latest/)
-or Ubuntu 26.04's `gcc-16` package. The project relies on `uv` to manage
+[jwakely.github.io/pkg-gcc-latest](https://jwakely.github.io/pkg-gcc-latest/),
+Ubuntu 26.04's `gcc-16` package, or Homebrew's `gcc@16` formula on macOS
+(`brew install gcc@16`). The project relies on `uv` to manage
 Python dependencies and execute build scripts. The CMake build, used for
 coverage and clang-tidy, additionally needs
 [CMake](https://cmake.org/download/) 3.25 or later. To move to a newer Bazel
@@ -71,6 +72,8 @@ fails on stock GCC.
 Pull requests run the workflows in `.github/workflows`. The following checks
 are required for merging to `main`: `GCC trunk Release`, `GCC trunk Debug`,
 `GCC-16 Release`, `GCC-16 Debug`, `asan`, `tsan`, `uv-lock`, `pre-commit`.
+The workflows also run advisory macOS jobs (`GCC-16 (macOS)` in Bazel, and
+`GCC-16 (macOS) Release` and `GCC-16 (macOS) Debug` in CMake).
 
 On pull requests that touch no C++, CMake, Bazel, or build-script sources,
 a change-detection job makes the build and sanitizer jobs skip their steps,
