@@ -165,9 +165,21 @@ template <std::meta::info Type>
 constexpr inline auto conformance_candidates_of =
     std::define_static_array(conformance_candidate_infos<Type>());
 
+// The number of parameters `member` declares beyond its object parameter:
+// `parameters_of` includes an explicit object parameter (from "deducing
+// this"), so that one is excluded to count only the operands a caller
+// supplies.
+consteval size_t declared_argument_count(std::meta::info member) {
+  auto params = parameters_of(member);
+  if (!params.empty() && is_explicit_object_parameter(params.front())) {
+    return params.size() - 1;
+  }
+  return params.size();
+}
+
 // The named, non-static, non-special member functions and call operators of
-// `Type`, static or not, in declaration order. Ref-qualified functions are
-// unsupported on protocol interfaces.
+// `Type`, static or not, in declaration order. Ref-qualified functions and
+// binary `operator*` are unsupported on protocol interfaces.
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   std::vector<std::meta::info> result;
@@ -180,6 +192,11 @@ consteval std::vector<std::meta::info> protocol_interface_function_infos() {
                              : std::string(display_string_of(member));
       throw std::runtime_error("ref-qualified member function '" + name +
                                "' is not supported in a protocol interface");
+    }
+    if (is_operator<std::meta::operators::op_star>(member) &&
+        declared_argument_count(member) != 0) {
+      throw std::runtime_error(
+          "binary operator* is not supported in a protocol interface");
     }
     result.push_back(member);
   }
