@@ -544,25 +544,33 @@ enum class const_policy {
   const_only,
 };
 
-// Returns `true` if `ConstPolicy` generates a wrapper for `member`.
-//
-// Under `all_const` every wrapper is const, so a const/non-const overload
-// pair `R f() const; R f();` would collide; the const overload is dropped as
-// a non-const reference to `I` would also resolve `f()` to `R f()`.
+// Returns `true` if `member` if forwarded under `ConstPolicy`.
 template <const_policy ConstPolicy>
-consteval bool generates_wrapper_for(std::meta::info member,
-                                     std::span<const std::meta::info> members) {
+consteval bool is_forwarded_member_function(
+    std::meta::info member, std::span<const std::meta::info> members) {
   switch (ConstPolicy) {
     case const_policy::propagate:
+      // `protocol<T>` propagates const through forwarded member function calls
+      // so supports const and non-const qualified member functions.
       return true;
     case const_policy::const_only:
+      // `protocol_view<const T>` forwards only const-qualified member
+      // functions.
       return is_const(member);
     case const_policy::all_const:
-      return !is_const(member) ||
-             std::ranges::none_of(members, [&](std::meta::info other) {
-               return !is_const(other) &&
-                      same_signature_ignoring_const(other, member);
-             });
+      // `protocol_view<T>` is a view type: overload resolution through
+      // a const and non-const access path must yield the same result.
+      // A const-qualified member function is only given a forwarding wrapper if
+      // no non-const-qualified with an otherwise identical signature exists.
+      // (Aside: Oh the double negatives! If only `mutable` was the keyword.)
+      if (!is_const(member)) {
+        return true;
+      } else {
+        return std::ranges::none_of(members, [&](std::meta::info other) {
+          return member != other &&
+                 same_signature_ignoring_const(member, other);
+        });
+      }
   }
   std::unreachable();
 }
@@ -595,8 +603,9 @@ template <std::meta::info Member, typename ProtocolType, typename Vtable,
 using member_base_t =
     member_base_generator<Member, ProtocolType, Vtable, OverloadSpecs...>::type;
 
-// Combines the single-member base types produced by `member_base_generator`
-// into one type via multiple inheritance.
+// Combines the single-member base types and overload sets produced by
+// `member_base_generator` and `X_operator_overload_set` into one type via
+// multiple inheritance.
 template <typename... MemberBases>
 struct wrapper_bases : MemberBases... {};
 
@@ -611,20 +620,21 @@ consteval std::meta::info generate_wrapper_bases() {
   std::span<const std::meta::info> members =
       protocol_interface_functions_of<InterfaceType>;
   std::vector<std::meta::info> member_base_types;
-  std::vector<std::meta::info> member_generated;
+  std::vector<std::meta::info> matched_members;
   for (std::meta::info member : members) {
-    //
-    if (std::ranges::any_of(member_generated, [&](std::meta::info generated) {
-          return same_name(member, generated);
-        }))
+    // Find unique names/operators.
+    if (std::ranges::any_of(matched_members,
+                            [&](std::meta::info matched_member) {
+                              return same_name(member, matched_member);
+                            }))
       continue;
-    member_generated.push_back(member);
+    matched_members.push_back(member);
 
     // Collect overloads.
     std::vector<std::meta::info> overload_specs;
     for (std::meta::info overload : members) {
       if (!same_name(overload, member) ||
-          !generates_wrapper_for<ConstPolicy>(overload, members))
+          !is_forwarded_member_function<ConstPolicy>(overload, members))
         continue;
       const bool wrapper_is_const =
           ConstPolicy == const_policy::propagate ? is_const(overload) : true;
@@ -634,21 +644,21 @@ consteval std::meta::info generate_wrapper_bases() {
                             std::meta::reflect_constant(wrapper_is_const)}));
       // clang-format on
     }
-    // END: Encapsulate this function.
     if (overload_specs.empty()) continue;
 
-    std::vector<std::meta::info> generator_args;
+    std::vector<std::meta::info> member_base_args;
     if (has_identifier(member)) {
-      generator_args.push_back(reflect_constant(member));
+      member_base_args.push_back(reflect_constant(member));
     }
-    generator_args.push_back(^^ProtocolType);
-    generator_args.push_back(^^Vtable);
-    generator_args.append_range(overload_specs);
+    member_base_args.push_back(^^ProtocolType);
+    member_base_args.push_back(^^Vtable);
+    member_base_args.append_range(overload_specs);
     if (has_identifier(member)) {
-      member_base_types.push_back(substitute(^^member_base_t, generator_args));
+      member_base_types.push_back(
+          substitute(^^member_base_t, member_base_args));
     } else if (is_call_operator(member)) {
       member_base_types.push_back(
-          substitute(^^call_operator_overload_set, generator_args));
+          substitute(^^call_operator_overload_set, member_base_args));
     } else {
       std::unreachable();
     }
@@ -759,12 +769,6 @@ struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
 
 // Builds a vtable for `T` whose entries call through to the corresponding
 // member of `U`.
-//
-// For `const_policy::propagate` (`protocol<I>`) and `const_policy::all_const`
-// (`protocol_view<T>`) every entry is populated: `protocol` stores a decayed,
-// non-const `TNorm`, and the view's constructor only accepts a non-const U
-// (see its `!std::is_const_v<U>` constraint), so a sound pointer to call any
-// member, const or mutating, through is always available.
 //
 // For `const_policy::const_only` (`protocol_view<const T>`) only the entries
 // for const members of `T` are populated; the view generates no wrapper for
