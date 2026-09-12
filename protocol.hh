@@ -272,8 +272,10 @@ consteval std::meta::info find_vtable_entry() {
                            std::string(name) + "'");
 }
 
-// Vanishing-this-pointer thunk for one overload of a synthesised member
-// function.
+// Vanishing-this-pointer thunk for one overload of a synthesised named
+// member function. A generated `member_base` holds it as its sole data
+// member, named after the interface method, giving `p.method_name(args)`
+// call syntax.
 //
 // The thunk carries a single operator() whose signature mirrors one method
 // of the Interface type. `member_thunk` combines the thunks for all
@@ -322,9 +324,8 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
     }
 
     const Vtable* vtable = protocol_object->vtable_;
-    constexpr std::meta::info entry = vtable_entry;
-    return vtable->[:entry:](protocol_object->object_,
-                             std::forward<Args>(args)...);
+    return vtable->[:vtable_entry:](protocol_object->object_,
+                                    std::forward<Args>(args)...);
   }
 
   R operator()(Args... args) const noexcept(IsNoexcept)
@@ -338,9 +339,8 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
     }
 
     const Vtable* vtable = protocol_object->vtable_;
-    constexpr std::meta::info entry = vtable_entry;
-    return vtable->[:entry:](protocol_object->object_,
-                             std::forward<Args>(args)...);
+    return vtable->[:vtable_entry:](protocol_object->object_,
+                                    std::forward<Args>(args)...);
   }
 
  protected:
@@ -395,9 +395,10 @@ template <typename Spec, typename EnclosingType, typename ProtocolType,
 using method_thunk_t =
     method_thunk_for<Spec, EnclosingType, ProtocolType, Vtable>::type;
 
-// The overload set for one synthesised member function: a `method_thunk` per
-// overload, with every operator() brought into scope so that overload
-// resolution among them works as for a member function of the interface.
+// The overload set for one synthesised named member function: a
+// `method_thunk` per overload, with every operator() brought into scope so
+// that overload resolution among them works as for a member function of the
+// interface.
 template <typename EnclosingType, typename ProtocolType, typename Vtable,
           typename... Specs>
 struct member_thunk
@@ -473,14 +474,14 @@ consteval bool generates_wrapper_for(std::meta::info member,
 template <std::meta::info Member, typename ProtocolType, typename Vtable,
           typename... Specs>
 struct member_base_generator {
-  struct member_base;
+  struct type;
   consteval {
     // clang-format off
     std::meta::info thunk_type = substitute(
-        ^^member_thunk, {^^member_base, ^^ProtocolType, ^^Vtable, ^^Specs...});
+        ^^member_thunk, {^^type, ^^ProtocolType, ^^Vtable, ^^Specs...});
 
     define_aggregate(
-      ^^member_base, {data_member_spec(thunk_type,
+      ^^type, {data_member_spec(thunk_type,
                              std::meta::data_member_options{
                               .name = identifier_of(Member),
                               .no_unique_address = true
@@ -491,8 +492,8 @@ struct member_base_generator {
 
 template <std::meta::info Member, typename ProtocolType, typename Vtable,
           typename... Specs>
-using member_base_generator_t =
-    member_base_generator<Member, ProtocolType, Vtable, Specs...>::member_base;
+using member_base_t =
+    member_base_generator<Member, ProtocolType, Vtable, Specs...>::type;
 
 // Combines the single-member base types produced by `member_base_generator`
 // into one type via multiple inheritance.
@@ -542,7 +543,7 @@ consteval std::meta::info generate_wrapper_bases() {
     member_base_types.push_back(
         is_call_operator(first)
             ? substitute(^^call_operator_base, generator_args)
-            : dealias(substitute(^^member_base_generator_t, generator_args)));
+            : dealias(substitute(^^member_base_t, generator_args)));
   }
   return substitute(^^wrapper_bases, member_base_types);
 }
@@ -602,9 +603,12 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
 // non-special, member function from `T`.
 template <typename T>
 struct vtable_generator {
-  struct vtable;
-  consteval { define_aggregate(^^vtable, generate_vtable_specs<^^T>()); }
+  struct type;
+  consteval { define_aggregate(^^type, generate_vtable_specs<^^T>()); }
 };
+
+template <typename T>
+using vtable_t = typename vtable_generator<T>::type;
 
 // Finds the member of `CandidateType` that structurally conforms to
 // `Member`, using the same matching rule as is_protocol_conformant.
@@ -625,7 +629,7 @@ template <typename R, typename... Args, bool Noexcept, typename U,
           std::meta::info CandidateMember>
 struct mutable_view_trampoline<R (*)(void*, Args...) noexcept(Noexcept), U,
                                CandidateMember> {
-  static R call(void* ptr, Args... args) noexcept(Noexcept) {
+  static R operator()(void* ptr, Args... args) noexcept(Noexcept) {
     return static_cast<U*>(ptr)->[:CandidateMember:](
         std::forward<Args>(args)...);
   }
@@ -638,7 +642,7 @@ template <typename R, typename... Args, bool Noexcept, typename U,
           std::meta::info CandidateMember>
 struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
                              CandidateMember> {
-  static R call(const void* ptr, Args... args) noexcept(Noexcept) {
+  static R operator()(const void* ptr, Args... args) noexcept(Noexcept) {
     return static_cast<const U*>(ptr)->[:CandidateMember:](
         std::forward<Args>(args)...);
   }
@@ -657,36 +661,35 @@ struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
 // for const members of `T` are populated; the view generates no wrapper for
 // the others, so they are never called.
 template <typename T, typename U, const_policy ConstPolicy>
-consteval typename vtable_generator<T>::vtable make_view_vtable() {
-  using Vtable = typename vtable_generator<T>::vtable;
-  Vtable result{};
+consteval vtable_t<T> make_view_vtable() {
+  vtable_t<T> vtable{};
 
-  result.xyz_protocol_typeid = &typeid(U);
+  vtable.xyz_protocol_typeid = &typeid(U);
 
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<^^T>) {
     constexpr std::meta::info vtable_member =
-        find_vtable_entry<^^Vtable, member>();
+        find_vtable_entry<^^vtable_t<T>, member>();
     using FnPtrType = typename[:type_of(vtable_member):];
     if constexpr (is_const(member)) {
       constexpr std::meta::info candidate =
           find_conforming_member<member, ^^U>();
-      result.[:vtable_member:] = &const_view_trampoline<FnPtrType, U,
-                                                        candidate>::call;
+      vtable.[:vtable_member:] = &const_view_trampoline<FnPtrType, U,
+                                                        candidate>::operator();
     } else if constexpr (ConstPolicy != const_policy::const_only) {
       constexpr std::meta::info candidate =
           find_conforming_member<member, ^^U>();
-      result.[:vtable_member:] = &mutable_view_trampoline<FnPtrType, U,
-                                                          candidate>::call;
+      vtable.[:vtable_member:] = &mutable_view_trampoline<
+                                   FnPtrType, U, candidate>::operator();
     }
   }
-  return result;
+  return vtable;
 }
 
 // The shared, compile-time vtable every protocol_view<T> (or
 // protocol_view<const T>, per `ConstPolicy`) that views a `U` points to.
 template <typename T, typename U, const_policy ConstPolicy>
-inline constexpr typename vtable_generator<T>::vtable view_vtable_for =
+inline constexpr vtable_t<T> view_vtable_for =
     make_view_vtable<T, U, ConstPolicy>();
 
 }  // namespace detail
@@ -761,9 +764,9 @@ struct bad_protocol_cast : std::exception {
 // ---------------------------------------------------------------------------
 template <is_valid_interface I, typename Alloc = std::allocator<std::byte>>
 class protocol
-    : public detail::protocol_wrappers_t<
-          I, protocol<I, Alloc>, typename detail::vtable_generator<I>::vtable,
-          detail::const_policy::propagate> {
+    : public detail::protocol_wrappers_t<I, protocol<I, Alloc>,
+                                         detail::vtable_t<I>,
+                                         detail::const_policy::propagate> {
   using traits = std::allocator_traits<Alloc>;
 
   // When using allocators in a type-erased context, we must rebind
@@ -800,7 +803,7 @@ class protocol
     return obj;
   }
 
-  using view_vtable = detail::vtable_generator<I>::vtable;
+  using view_vtable = detail::vtable_t<I>;
 
   // Extends the generated per-member-function vtable with the entries needed
   // for ownership. Because it derives from `view_vtable`, the synthesised
@@ -1133,9 +1136,9 @@ class protocol
 // ---------------------------------------------------------------------------
 template <is_valid_view_interface T>
 class protocol_view
-    : public detail::protocol_wrappers_t<
-          T, protocol_view<T>, typename detail::vtable_generator<T>::vtable,
-          detail::const_policy::all_const> {
+    : public detail::protocol_wrappers_t<T, protocol_view<T>,
+                                         detail::vtable_t<T>,
+                                         detail::const_policy::all_const> {
  public:
   // The default constructor is deleted as a default constructed
   // `protocol_view` would be empty.
@@ -1216,7 +1219,7 @@ class protocol_view
   // Non-owning pointer to the viewed object.
   void* object_ = nullptr;
 
-  const detail::vtable_generator<T>::vtable* vtable_;
+  const detail::vtable_t<T>* vtable_;
 };
 
 // ---------------------------------------------------------------------------
@@ -1225,10 +1228,10 @@ class protocol_view
 // Views a const object `T` and exposes the const member functions.
 // ---------------------------------------------------------------------------
 template <is_valid_interface T>
-class protocol_view<const T> : public detail::protocol_wrappers_t<
-                                   T, protocol_view<const T>,
-                                   typename detail::vtable_generator<T>::vtable,
-                                   detail::const_policy::const_only> {
+class protocol_view<const T>
+    : public detail::protocol_wrappers_t<T, protocol_view<const T>,
+                                         detail::vtable_t<T>,
+                                         detail::const_policy::const_only> {
  public:
   // The default constructor is deleted as a default constructed
   // `protocol_view` would be empty.
@@ -1308,7 +1311,7 @@ class protocol_view<const T> : public detail::protocol_wrappers_t<
   // Non-owning pointer to the viewed object.
   const void* object_ = nullptr;
 
-  const detail::vtable_generator<T>::vtable* vtable_;
+  const detail::vtable_t<T>* vtable_;
 };
 
 }  // namespace xyz::reflection
