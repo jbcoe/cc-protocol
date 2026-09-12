@@ -607,7 +607,7 @@ TEST(ConformsToTest, NonNoexceptInterfaceAcceptsNoexceptCandidate) {
   static_assert(is_protocol_conformant<Interface, NoexceptCandidate>());
 }
 
-TEST(ConformsToTest, UnqualifiedInterfaceDoesNotMatchRefQualifiedCandidate) {
+TEST(ConformsToTest, UnqualifiedInterfaceRefQualifiedCandidate) {
   struct Interface {
     void f();
   };
@@ -620,7 +620,7 @@ TEST(ConformsToTest, UnqualifiedInterfaceDoesNotMatchRefQualifiedCandidate) {
     void f() &&;
   };
 
-  static_assert(!is_protocol_conformant<Interface, LvalueRefCandidate>());
+  static_assert(is_protocol_conformant<Interface, LvalueRefCandidate>());
   static_assert(!is_protocol_conformant<Interface, RvalueRefCandidate>());
 }
 

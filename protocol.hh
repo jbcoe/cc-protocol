@@ -145,9 +145,6 @@ consteval bool same_name_and_parameters(std::meta::info candidate,
 // parameter types; noexcept is not compared.
 consteval bool same_signature(std::meta::info candidate,
                               std::meta::info interface) {
-  if (is_lvalue_reference_qualified(interface) !=
-      is_lvalue_reference_qualified(candidate))
-    return false;
   if (is_rvalue_reference_qualified(interface) !=
       is_rvalue_reference_qualified(candidate))
     return false;
