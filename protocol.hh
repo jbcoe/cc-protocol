@@ -141,16 +141,17 @@ consteval bool same_name_and_parameters(std::meta::info candidate,
 }
 
 // Returns `true` if the member functions `candidate` and `interface` have
-// the same name, reference qualifiers, de-aliased return type and de-aliased
-// parameter types; const and noexcept are not compared.
-consteval bool same_signature_ignoring_const(std::meta::info candidate,
-                                             std::meta::info interface) {
+// the same name, cvref qualifiers, de-aliased return type and de-aliased
+// parameter types; noexcept is not compared.
+consteval bool same_signature(std::meta::info candidate,
+                              std::meta::info interface) {
   if (is_lvalue_reference_qualified(interface) !=
       is_lvalue_reference_qualified(candidate))
     return false;
   if (is_rvalue_reference_qualified(interface) !=
       is_rvalue_reference_qualified(candidate))
     return false;
+  if (is_const(interface) != is_const(candidate)) return false;
   return same_name_and_parameters(candidate, interface);
 }
 
@@ -186,12 +187,8 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
     // A static candidate has no object parameter, so it satisfies any const
     // or reference qualification of `interface`.
     if (!same_name_and_parameters(candidate, interface)) return false;
-  } else if (same_function_with_explicit_object(candidate, interface)) {
-    // No additional conditions.
-  } else {
-    if (!same_signature_ignoring_const(candidate, interface)) return false;
-    // `const` qualifiers must match.
-    if (is_const(interface) != is_const(candidate)) return false;
+  } else if (!same_function_with_explicit_object(candidate, interface)) {
+    if (!same_signature(candidate, interface)) return false;
   }
   // If interface is `noexcept`, `candidate` must be noexcept.
   return !is_noexcept(interface) || is_noexcept(candidate);
@@ -265,11 +262,11 @@ consteval std::meta::info find_vtable_entry() {
 }
 
 enum class member_options {
-  none = 1 << 0,
-  is_noexcept = 1 << 1,
-  is_const = 1 << 2,
-  is_lvalue = 1 << 3,
-  is_rvalue = 1 << 4
+  none = 0,
+  is_noexcept = 1 << 0,
+  is_const = 1 << 1,
+  is_lvalue = 1 << 2,
+  is_rvalue = 1 << 3
 };
 
 constexpr member_options operator|(member_options lhs, member_options rhs) {
@@ -500,13 +497,15 @@ consteval bool generates_wrapper_for(std::meta::info member,
     case member_policy::propagate:
       return true;
     case member_policy::const_only:
-      return is_const(member);
+      return !is_rvalue_reference_qualified(member) && is_const(member);
     case member_policy::all_const:
-      return !is_const(member) ||
-             std::ranges::none_of(members, [&](std::meta::info other) {
-               return !is_const(other) &&
-                      same_signature_ignoring_const(other, member);
-             });
+      return !is_rvalue_reference_qualified(member) &&
+             (!is_const(member) ||
+              std::ranges::none_of(members, [&](std::meta::info other) {
+                return !is_rvalue_reference_qualified(other) &&
+                       !is_const(other) &&
+                       same_name_and_parameters(other, member);
+              }));
   }
   std::unreachable();
 }
@@ -594,11 +593,6 @@ consteval std::meta::info generate_wrapper_bases() {
     for (std::meta::info member : members) {
       if (!same_name(member, first) ||
           !generates_wrapper_for<MemberPolicy>(member, members))
-        continue;
-
-      // protocol_view cannot hold rvalue qualified methods.
-      if (MemberPolicy != member_policy::propagate &&
-          is_rvalue_reference_qualified(member))
         continue;
 
       // clang-format off

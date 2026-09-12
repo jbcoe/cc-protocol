@@ -2795,4 +2795,74 @@ TEST(ReflectionProtocolViewTest, LvalueRefQualifier) {
   protocol_view<LvalueInterface> p(c);
   EXPECT_EQ(p.foo(), 5);
 }
+
+TEST(ReflectionProtocolTest, OverloadedQualifiers) {
+  struct Interface {
+    int foo() &;
+    int foo() &&;
+    int foo() const;
+  };
+
+  struct Conforming {
+    int foo() & { return 5; }
+
+    int foo() && { return 10; }
+
+    int foo() const { return 20; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.foo(), 5);
+  EXPECT_EQ(std::move(p).foo(), 10);
+
+  const protocol<Interface> p2(Conforming{});
+  EXPECT_EQ(p2.foo(), 20);
+  EXPECT_EQ(std::move(p2).foo(), 20);
+
+  Conforming c{};
+  protocol_view<Interface> p3(c);
+  EXPECT_EQ(p3.foo(), 5);
+  EXPECT_EQ(std::move(p3).foo(), 5);
+
+  protocol_view<const Interface> p4(c);
+  EXPECT_EQ(p4.foo(), 20);
+  EXPECT_EQ(std::move(p4).foo(), 20);
+}
+
+TEST(ReflectionProtocolTest, ConstRefQualifiers) {
+  struct Interface {
+    int foo() &;
+    int foo() &&;
+    int foo() const&;
+    int foo() const&&;
+  };
+
+  struct Conforming {
+    int foo() & { return 1; }
+
+    int foo() && { return 2; }
+
+    int foo() const& { return 3; }
+
+    int foo() const&& { return 4; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.foo(), 1);
+  EXPECT_EQ(std::move(p).foo(), 2);
+
+  const protocol<Interface> p2(Conforming{});
+  EXPECT_EQ(p2.foo(), 3);
+  EXPECT_EQ(std::move(p2).foo(), 4);
+
+  Conforming c{};
+  protocol_view<Interface> p3(c);
+  EXPECT_EQ(p3.foo(), 1);
+  EXPECT_EQ(std::move(p3).foo(), 1);
+
+  protocol_view<const Interface> p4(c);
+  EXPECT_EQ(p4.foo(), 3);
+  EXPECT_EQ(std::move(p4).foo(), 3);
+}
+
 }  // namespace
