@@ -2726,4 +2726,25 @@ TEST(ReflectionProtocolViewTest, MovedFromTargetType) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
+TEST(ReflectionProtocolTest, LvalueInterface) {
+  struct LvalueInterface {
+    int foo() &;
+  };
+
+  struct RvalueInterface {
+    int foo() &&;
+  };
+
+  struct Conforming {
+    int foo() & { return 5; }
+
+    int foo() && { return 10; }
+  };
+
+  protocol<LvalueInterface> p1(Conforming{});
+  EXPECT_EQ(p1.foo(), 5);
+
+  protocol<RvalueInterface> p2(Conforming{});
+  EXPECT_EQ(p2.foo(), 10);
+}
 }  // namespace
