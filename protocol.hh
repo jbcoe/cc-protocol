@@ -169,13 +169,25 @@ consteval bool same_function_with_explicit_object(std::meta::info candidate,
   if (params.empty() || !is_explicit_object_parameter(params.front()))
     return false;
 
-  if (is_const(interface) !=
-      is_const(remove_reference(type_of(params.front()))))
+  const auto obj_type = type_of(params.front());
+  if (is_const(interface) != is_const(remove_reference(obj_type))) return false;
+
+  if (is_rvalue_reference_qualified(interface) !=
+      is_rvalue_reference_type(obj_type))
     return false;
 
   return std::ranges::equal(parameters_of(interface),
                             params | std::views::drop(1), {},
                             std::meta::type_of, std::meta::type_of);
+}
+
+// Returns `tru` if the `candidate` member function is rvalue reference
+// qualified OR if it has an explicit object parameter that is rvalue reference
+// qualified.
+consteval bool is_called_with_rvalue(std::meta::info candidate) {
+  const auto params = parameters_of(candidate);
+  return is_rvalue_reference_qualified(candidate) ||
+         (!params.empty() && is_rvalue_reference_type(type_of(params.front())));
 }
 
 // Returns `true` if the `candidate` member function is consistent with the
@@ -697,7 +709,7 @@ template <typename R, typename... Args, bool Noexcept, typename U,
 struct mutable_view_trampoline<R (*)(void*, Args...) noexcept(Noexcept), U,
                                CandidateMember> {
   static R call(void* ptr, Args... args) noexcept(Noexcept) {
-    if constexpr (is_rvalue_reference_qualified(CandidateMember)) {
+    if constexpr (is_called_with_rvalue(CandidateMember)) {
       return std::move(*static_cast<U*>(ptr)).[:CandidateMember:](
           std::forward<Args>(args)...);
     } else {
@@ -715,7 +727,7 @@ template <typename R, typename... Args, bool Noexcept, typename U,
 struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
                              CandidateMember> {
   static R call(const void* ptr, Args... args) noexcept(Noexcept) {
-    if constexpr (is_rvalue_reference_qualified(CandidateMember)) {
+    if constexpr (is_called_with_rvalue(CandidateMember)) {
       return std::move(*static_cast<const U*>(ptr)).[:CandidateMember:](
           std::forward<Args>(args)...);
     } else {

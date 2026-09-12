@@ -520,6 +520,24 @@ TEST(ConformsToTest, RefQualifiersMatchExactly) {
   static_assert(!is_protocol_conformant<Interface, BadOverload>());
 }
 
+TEST(ConformsToTest, ExplicitObject) {
+  struct Interface {
+    int foo();
+  };
+
+  struct Conforming {
+    int foo(this Conforming&);
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+
+  struct NonConforming {
+    int foo(this NonConforming&&);
+  };
+
+  static_assert(!is_protocol_conformant<Interface, NonConforming>());
+}
+
 TEST(ConformsToTest, WrongParameterCountDoesNotConform) {
   struct Interface {
     void process(int a, int b);
@@ -2876,6 +2894,23 @@ TEST(ReflectionProtocolTest, ConstRefQualifiers) {
   protocol_view<const Interface> p4(c);
   EXPECT_EQ(p4.foo(), 3);
   EXPECT_EQ(std::move(p4).foo(), 3);
+}
+
+TEST(ReflectionProtocolTest, RefQualifiersExplicitObject) {
+  struct Interface {
+    int foo() &;
+    int foo() &&;
+  };
+
+  struct Conforming {
+    int foo(this Conforming&) { return 5; }
+
+    int foo(this Conforming&&) { return 10; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.foo(), 5);
+  EXPECT_EQ(std::move(p).foo(), 10);
 }
 
 }  // namespace
