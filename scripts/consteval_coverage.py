@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Measure which consteval code in protocol.hh the test suite evaluates.
+Measure which consteval code in the protocol headers the test suite evaluates.
 
 `consteval` code executes inside the compiler's constant evaluator, never at
 runtime, so runtime coverage tools cannot see it: GCC's `--coverage`
@@ -15,16 +15,21 @@ This tool measures consteval coverage by compile-time trap probing. A
 constant evaluation is isolated - no side effect escapes it - but it can
 abort compilation, and that one bit per compile is enough:
 
-1. Instrument a copy of protocol.hh, inserting a call to a `trap` function at
-   the start of every block and before every `return` and `throw` statement
-   inside consteval code. Insertions stay on the original line, so line
-   numbers are unchanged. A trap is a no-op unless its line number matches
-   the XYZ_CONSTEVAL_COVERAGE_ARMED_LINE macro, in which case it throws
-   during constant evaluation, failing the build with a recognisable error.
-2. Compile the probe translation units once per trap line with
-   `-fsyntax-only` (constant evaluation happens during semantic analysis),
-   arming one line at a time. A failed compile means the test suite
-   evaluated that line.
+1. Instrument a copy of each header in INSTRUMENTED_HEADERS, inserting a
+   call to a `trap` function at the start of every block and before every
+   `return` and `throw` statement inside consteval code. Insertions stay on
+   the original line, so line numbers are unchanged. A trap is a no-op
+   unless its line number matches the XYZ_CONSTEVAL_COVERAGE_ARMED_LINE
+   macro, in which case it throws during constant evaluation, failing the
+   build with a recognisable error.
+2. Probe one header at a time, with only that header instrumented; every
+   other instrumented header is copied in its plain, uninstrumented form
+   so a quote-include reaches it locally instead of falling back to its
+   original in SOURCE_ROOT, keeping a bare line number a unique probe.
+   Compile the probe translation units once per trap line with
+   `-fsyntax-only` (constant evaluation happens during semantic
+   analysis), arming one line at a time. A failed compile means the test
+   suite evaluated that line.
 3. Report evaluated and unevaluated probe points, optionally as an LCOV
    trace file that merges cleanly with runtime gcov data (the two are
    disjoint: gcov reports nothing for consteval lines).
@@ -32,8 +37,8 @@ abort compilation, and that one bit per compile is enough:
 Limitations: probe points sit at block and return/throw granularity, not on
 every line; a branch of `if constexpr` that no instantiation includes is
 reported unevaluated (correctly so); and a `catch (...)` that swallowed the
-trap exception without rethrowing would mask probes beneath it (protocol.hh
-has none).
+trap exception without rethrowing would mask probes beneath it (none of the
+instrumented headers do).
 
 Requires a reflection-capable GCC (found via compiler_discovery) and a prior
 `./scripts/cmake.sh build` to provide the googletest headers.
@@ -52,7 +57,17 @@ from compiler_discovery import find_reflection_compilers
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-INSTRUMENTED_HEADER = "protocol.hh"
+# Headers that carry consteval machinery for protocol/protocol_view, split
+# out of the former monolithic protocol.hh.
+INSTRUMENTED_HEADERS = [
+    "protocol.hh",
+    "conformance.hh",
+    "vtable.hh",
+    "member_function_thunks.hh",
+    "operator_thunks.hh",
+    "protocol_wrappers.hh",
+    "name_mangling.h",
+]
 
 TRAP_HEADER = "consteval_coverage_probe.h"
 
@@ -61,7 +76,7 @@ TRAP_CALL = "::xyz::consteval_coverage_probe::trap(__LINE__);"
 TRAP_ERROR_MARKER = "consteval_coverage_probe"
 
 # Translation units that instantiate protocols and so drive the consteval
-# machinery in protocol.hh.
+# machinery in the instrumented headers.
 DEFAULT_TRANSLATION_UNITS = [
     "protocol_test.cc",
     "forwarding_test.cc",
@@ -105,6 +120,7 @@ STATEMENT_START_TOKENS = {";", "{", "}", ")", ":", "else", "do"}
 class ProbePoint:
     """One instrumented location in the original source."""
 
+    header: str
     line_number: int
     enclosing_function: str
     source_text: str
@@ -123,8 +139,9 @@ class Instrumenter:
     file still compiles before probing.
     """
 
-    def __init__(self) -> None:
-        """Initialise scanner state."""
+    def __init__(self, header: str) -> None:
+        """Initialise scanner state for instrumenting `header`."""
+        self.header = header
         self.brace_depth = 0
         self.paren_depth = 0
         # Brace depths at which enclosing consteval regions opened, and the
@@ -171,7 +188,7 @@ class Instrumenter:
             enclosing = self.pending_function_name
         if not self.probe_points or self.probe_points[-1].line_number != line_number:
             self.probe_points.append(
-                ProbePoint(line_number, enclosing, original_line.strip())
+                ProbePoint(self.header, line_number, enclosing, original_line.strip())
             )
 
     def _instrument_line(self, line: str, line_number: int) -> str:
@@ -383,19 +400,20 @@ def compile_command(
     return command
 
 
-def run_probe(configuration: ProbeConfiguration, armed_line: int) -> bool:
-    """Return whether arming `armed_line` makes any translation unit fail."""
+def run_probe(configuration: ProbeConfiguration, probe_point: ProbePoint) -> bool:
+    """Return whether arming `probe_point` makes any translation unit fail."""
     for translation_unit in configuration.translation_units:
         completed = subprocess.run(
-            compile_command(configuration, translation_unit, armed_line),
+            compile_command(configuration, translation_unit, probe_point.line_number),
             capture_output=True,
             text=True,
         )
         if completed.returncode != 0:
             if TRAP_ERROR_MARKER not in completed.stderr:
                 raise RuntimeError(
-                    f"probe for line {armed_line} failed for a reason other "
-                    f"than the armed trap:\n{completed.stderr}"
+                    f"probe for {probe_point.header}:{probe_point.line_number} "
+                    f"failed for a reason other than the armed trap:\n"
+                    f"{completed.stderr}"
                 )
             return True
     return False
@@ -416,51 +434,67 @@ def verify_unarmed_compile(configuration: ProbeConfiguration) -> None:
             )
 
 
+def _is_covered(probe_point: ProbePoint, covered: set[tuple[str, int]]) -> bool:
+    return (probe_point.header, probe_point.line_number) in covered
+
+
 def write_lcov(
-    path: str, probe_points: list[ProbePoint], covered_lines: set[int]
+    path: str, probe_points: list[ProbePoint], covered: set[tuple[str, int]]
 ) -> None:
-    """Write an LCOV trace with one DA record per probe point."""
-    # Repository-relative SF path, matching how Codecov maps files.
-    records = ["TN:consteval", f"SF:{INSTRUMENTED_HEADER}"]
+    """Write an LCOV trace with one SF/DA block per instrumented header."""
+    by_header: dict[str, list[ProbePoint]] = {}
     for probe_point in probe_points:
-        hit = 1 if probe_point.line_number in covered_lines else 0
-        records.append(f"DA:{probe_point.line_number},{hit}")
-    records.append(f"LH:{len(covered_lines)}")
-    records.append(f"LF:{len(probe_points)}")
-    records.append("end_of_record")
+        by_header.setdefault(probe_point.header, []).append(probe_point)
+
+    records = ["TN:consteval"]
+    for header in INSTRUMENTED_HEADERS:
+        header_probes = by_header.get(header, [])
+        if not header_probes:
+            continue
+        # Repository-relative SF path, matching how Codecov maps files.
+        records.append(f"SF:{header}")
+        header_hits = 0
+        for probe_point in header_probes:
+            hit = 1 if _is_covered(probe_point, covered) else 0
+            header_hits += hit
+            records.append(f"DA:{probe_point.line_number},{hit}")
+        records.append(f"LH:{header_hits}")
+        records.append(f"LF:{len(header_probes)}")
+        records.append("end_of_record")
     with open(path, "w") as trace_file:
         trace_file.write("\n".join(records) + "\n")
 
 
-def report(probe_points: list[ProbePoint], covered_lines: set[int]) -> None:
+def report(probe_points: list[ProbePoint], covered: set[tuple[str, int]]) -> None:
     """Print a per-function summary and the unevaluated probe points."""
-    by_function: dict[str, list[ProbePoint]] = {}
+    by_function: dict[tuple[str, str], list[ProbePoint]] = {}
     for probe_point in probe_points:
-        by_function.setdefault(probe_point.enclosing_function, []).append(probe_point)
+        key = (probe_point.header, probe_point.enclosing_function)
+        by_function.setdefault(key, []).append(probe_point)
 
-    print(f"\nconsteval coverage of {INSTRUMENTED_HEADER}, by function:")
-    for function_name, function_probes in by_function.items():
-        hits = sum(1 for p in function_probes if p.line_number in covered_lines)
-        print(f"  {hits:3}/{len(function_probes):<3} {function_name}")
+    print("\nconsteval coverage by header and function:")
+    for (header, function_name), function_probes in by_function.items():
+        hits = sum(1 for p in function_probes if _is_covered(p, covered))
+        print(f"  {hits:3}/{len(function_probes):<3} {header}: {function_name}")
 
-    uncovered = [p for p in probe_points if p.line_number not in covered_lines]
+    uncovered = [p for p in probe_points if not _is_covered(p, covered)]
     if uncovered:
         print("\nprobe points never evaluated by the test suite:")
         for probe_point in uncovered:
             print(
-                f"  {INSTRUMENTED_HEADER}:{probe_point.line_number:<4} "
+                f"  {probe_point.header}:{probe_point.line_number:<4} "
                 f"[{probe_point.enclosing_function}] {probe_point.source_text}"
             )
 
     total = len(probe_points)
     print(
-        f"\nconsteval coverage: {len(covered_lines)}/{total} probe points "
-        f"evaluated ({100.0 * len(covered_lines) / total:.1f}%)"
+        f"\nconsteval coverage: {len(covered)}/{total} probe points "
+        f"evaluated ({100.0 * len(covered) / total:.1f}%)"
     )
 
 
 def main() -> None:
-    """Instrument protocol.hh, probe every trap line and print a report."""
+    """Instrument each header in INSTRUMENTED_HEADERS and print a report."""
     parser = argparse.ArgumentParser(
         description="Measure consteval test coverage by compile-time trap probing."
     )
@@ -491,20 +525,55 @@ def main() -> None:
         action="store_true",
         help="List the probe points without compiling anything",
     )
+    parser.add_argument(
+        "--shard-count",
+        type=int,
+        default=1,
+        help="Split probe points across this many shards (default: 1)",
+    )
+    parser.add_argument(
+        "--shard-index",
+        type=int,
+        default=0,
+        help="Which shard to probe, 0-based (default: 0)",
+    )
     arguments = parser.parse_args()
+    if not 0 <= arguments.shard_index < arguments.shard_count:
+        sys.exit("--shard-index must be in [0, --shard-count)")
 
-    with open(os.path.join(SOURCE_ROOT, INSTRUMENTED_HEADER)) as header_file:
-        source_lines = header_file.read().splitlines()
-    instrumenter = Instrumenter()
-    instrumented_lines = instrumenter.instrument(source_lines)
-    probe_points = instrumenter.probe_points
+    all_probe_points: list[ProbePoint] = []
+    source_by_header: dict[str, list[str]] = {}
+    instrumented_by_header: dict[str, list[str]] = {}
+    for header in INSTRUMENTED_HEADERS:
+        with open(os.path.join(SOURCE_ROOT, header)) as header_file:
+            source_by_header[header] = header_file.read().splitlines()
+        instrumenter = Instrumenter(header)
+        instrumented_by_header[header] = instrumenter.instrument(
+            source_by_header[header]
+        )
+        all_probe_points.extend(instrumenter.probe_points)
+    if not all_probe_points:
+        sys.exit(f"no consteval probe points found in {INSTRUMENTED_HEADERS}")
+
+    # Probe points are round-robined across shards rather than whole headers
+    # being assigned to shards, because probe counts per header are far from
+    # even (name_mangling.h alone accounts for roughly two fifths of them).
+    probe_points = [
+        probe_point
+        for index, probe_point in enumerate(all_probe_points)
+        if index % arguments.shard_count == arguments.shard_index
+    ]
     if not probe_points:
-        sys.exit(f"no consteval probe points found in {INSTRUMENTED_HEADER}")
+        sys.exit(f"shard {arguments.shard_index} has no probe points to run")
+    shard_headers = sorted(
+        {probe_point.header for probe_point in probe_points},
+        key=INSTRUMENTED_HEADERS.index,
+    )
 
     if arguments.list:
         for probe_point in probe_points:
             print(
-                f"{INSTRUMENTED_HEADER}:{probe_point.line_number:<4} "
+                f"{probe_point.header}:{probe_point.line_number:<4} "
                 f"[{probe_point.enclosing_function}] {probe_point.source_text}"
             )
         return
@@ -516,45 +585,68 @@ def main() -> None:
         )
 
     translation_units = arguments.translation_unit or DEFAULT_TRANSLATION_UNITS
-    os.makedirs(arguments.work_dir, exist_ok=True)
-    with open(os.path.join(arguments.work_dir, INSTRUMENTED_HEADER), "w") as out:
-        out.write("\n".join(instrumented_lines) + "\n")
-    with open(os.path.join(arguments.work_dir, TRAP_HEADER), "w") as out:
-        out.write(TRAP_HEADER_CONTENT)
-    # The translation units are copied next to the instrumented header so
-    # that their `#include "protocol.hh"` finds the instrumented copy first;
-    # every other quote-include falls through to -I SOURCE_ROOT.
-    for translation_unit in translation_units:
-        shutil.copy(
-            os.path.join(SOURCE_ROOT, translation_unit),
-            os.path.join(arguments.work_dir, translation_unit),
+    include_directories = find_googletest_include_directories()
+
+    # Each header is probed in its own work-dir subdirectory with only that
+    # header instrumented, so a bare line number identifies a unique probe.
+    # Every instrumented header is also written there in its plain,
+    # uninstrumented form: quote-include resolution is relative to the
+    # including file's own directory, so an instrumented header reached only
+    # transitively (e.g. name_mangling.h via protocol.hh) would otherwise
+    # resolve back to SOURCE_ROOT before reaching the target header's
+    # directory. Headers outside INSTRUMENTED_HEADERS still fall through to
+    # -I SOURCE_ROOT.
+    probe_jobs: list[tuple[ProbeConfiguration, ProbePoint]] = []
+    for header in shard_headers:
+        header_work_dir = os.path.join(arguments.work_dir, header)
+        os.makedirs(header_work_dir, exist_ok=True)
+        for other_header in INSTRUMENTED_HEADERS:
+            lines = (
+                instrumented_by_header[other_header]
+                if other_header == header
+                else source_by_header[other_header]
+            )
+            with open(os.path.join(header_work_dir, other_header), "w") as out:
+                out.write("\n".join(lines) + "\n")
+        with open(os.path.join(header_work_dir, TRAP_HEADER), "w") as out:
+            out.write(TRAP_HEADER_CONTENT)
+        for translation_unit in translation_units:
+            shutil.copy(
+                os.path.join(SOURCE_ROOT, translation_unit),
+                os.path.join(header_work_dir, translation_unit),
+            )
+        configuration = ProbeConfiguration(
+            compiler=compiler,
+            work_dir=header_work_dir,
+            translation_units=translation_units,
+            include_directories=include_directories,
+        )
+        verify_unarmed_compile(configuration)
+        probe_jobs.extend(
+            (configuration, probe_point)
+            for probe_point in probe_points
+            if probe_point.header == header
         )
 
-    configuration = ProbeConfiguration(
-        compiler=compiler,
-        work_dir=arguments.work_dir,
-        translation_units=translation_units,
-        include_directories=find_googletest_include_directories(),
-    )
-    verify_unarmed_compile(configuration)
-
     print(
-        f"probing {len(probe_points)} consteval probe points against "
-        f"{len(translation_units)} translation units with {arguments.jobs} jobs"
+        f"probing {len(probe_points)} consteval probe points across "
+        f"{len(shard_headers)} headers against {len(translation_units)} "
+        f"translation units with {arguments.jobs} jobs"
     )
-    covered_lines: set[int] = set()
+    covered: set[tuple[str, int]] = set()
     with concurrent.futures.ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
         futures = {
-            pool.submit(run_probe, configuration, probe_point.line_number): probe_point
-            for probe_point in probe_points
+            pool.submit(run_probe, configuration, probe_point): probe_point
+            for configuration, probe_point in probe_jobs
         }
         for future in concurrent.futures.as_completed(futures):
             if future.result():
-                covered_lines.add(futures[future].line_number)
+                probe_point = futures[future]
+                covered.add((probe_point.header, probe_point.line_number))
 
-    report(probe_points, covered_lines)
+    report(probe_points, covered)
     if arguments.lcov_output:
-        write_lcov(arguments.lcov_output, probe_points, covered_lines)
+        write_lcov(arguments.lcov_output, probe_points, covered)
         print(f"LCOV trace written to {arguments.lcov_output}")
 
 
