@@ -507,6 +507,19 @@ TEST(ConformsToTest, WrongParameterTypeDoesNotConform) {
   static_assert(!is_protocol_conformant<Interface, WrongParam>());
 }
 
+TEST(ConformsToTest, RefQualifiersMatchExactly) {
+  struct Interface {
+    int foo() &;
+    int foo() &&;
+  };
+
+  struct BadOverload {
+    int foo();
+  };
+
+  static_assert(!is_protocol_conformant<Interface, BadOverload>());
+}
+
 TEST(ConformsToTest, WrongParameterCountDoesNotConform) {
   struct Interface {
     void process(int a, int b);
