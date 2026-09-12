@@ -9,7 +9,15 @@ cc_library(
 
 cc_library(
     name = "protocol",
-    srcs = ["detail.hh"],
+    srcs = [
+        "conformance.hh",
+        "member_function_thunks.hh",
+        "operator_thunks.hh",
+        "overload_spec.hh",
+        "protocol_traits.hh",
+        "protocol_wrappers.hh",
+        "vtable.hh",
+    ],
     hdrs = ["protocol.hh"],
     deps = [
         ":name_mangling",
