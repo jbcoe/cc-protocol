@@ -201,8 +201,7 @@ concept is_maybe_lambda =
     requires { &T::operator(); };
 
 // The named, non-special member functions and call operators of `Type`,
-// static or not, in declaration order: the members that can satisfy an
-// interface member function.
+// static or not, in declaration order.
 template <std::meta::info Type>
 consteval auto conformance_candidate_infos() {
   auto named =
@@ -214,10 +213,10 @@ consteval auto conformance_candidate_infos() {
       });
   std::vector<std::meta::info> result(std::ranges::begin(named),
                                       std::ranges::end(named));
-  // Per [meta.reflection.member.queries], a closure type's function call
-  // operator is members-of-eligible, but GCC16's `members_of` does not yet
-  // enumerate it, leaving `result` empty for lambdas; name the operator
-  // directly as a fallback.
+  // GCC Workaround: Per [meta.reflection.member.queries], a closure type's
+  // function call operator is members-of-eligible, but GCC16's `members_of`
+  // does not yet enumerate it, leaving `result` empty for lambdas; name the
+  // operator directly as a fallback.
   using T = typename[:Type:];
   if constexpr (is_maybe_lambda<T>) {
     if (result.empty()) result.push_back(^^T::operator());
@@ -229,11 +228,9 @@ template <std::meta::info Type>
 constexpr inline auto conformance_candidates_of =
     std::define_static_array(conformance_candidate_infos<Type>());
 
-// The non-static members of `conformance_candidates_of<Type>`: the member
-// functions an interface `Type` requires.
-// Ref-qualified members are currently rejected as the synthesised thunks call
-// the target on an lvalue and cannot forward the protocol object's value
-// category.
+// The named, non-static, non-special member functions and call operators of
+// `Type`, static or not, in declaration order. Ref-qualified functions are
+// unsupported on protocol interfaces.
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   std::vector<std::meta::info> result;
@@ -283,9 +280,6 @@ template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
           bool IsNoexcept>
 struct member_function_thunk;
 
-// TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers;
-// until then `protocol_interface_function_infos` rejects ref-qualified
-// interface members.
 template <typename R, typename... Args, typename EnclosingType,
           typename ProtocolType, typename Vtable, std::meta::info Member,
           bool IsConst, bool IsNoexcept>
@@ -334,8 +328,8 @@ struct member_function_thunk<R (*)(Args...), EnclosingType, ProtocolType,
   member_function_thunk& operator=(member_function_thunk&&) = default;
 };
 
-template <bool Noexcept, typename R, typename... Args>
-using fn_ptr_t = R (*)(Args...) noexcept(Noexcept);
+template <typename R, typename... Args>
+using fn_ptr_t = R (*)(Args...);
 
 // One overload of a synthesised member function: the interface member (which
 // names its vtable entry) and the const-qualification of the generated
@@ -344,7 +338,7 @@ template <std::meta::info Member, bool IsConst>
 struct overload_spec {};
 
 // The `member_function_thunk` specialisation for an `overload_spec`.
-template <typename Spec, typename EnclosingType, typename ProtocolType,
+template <typename OverloadSpec, typename EnclosingType, typename ProtocolType,
           typename Vtable>
 struct member_function_thunk_for;
 
@@ -355,8 +349,7 @@ struct member_function_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
   // Build the function-pointer type R(*)(Args...) from the method's return
   // type and parameter types.
   static consteval std::meta::info fn_ptr_type() {
-    std::vector<std::meta::info> fn_args{std::meta::reflect_constant(false),
-                                         dealias(return_type_of(Member))};
+    std::vector<std::meta::info> fn_args{dealias(return_type_of(Member))};
     fn_args.append_range(parameters_of(Member) |
                          std::views::transform(std::meta::type_of));
     return substitute(^^fn_ptr_t, fn_args);
@@ -381,10 +374,11 @@ using member_function_thunk_t =
 // scope so that overload resolution among them works as for a member function
 // of the interface.
 template <typename EnclosingType, typename ProtocolType, typename Vtable,
-          typename... Specs>
+          typename... OverloadSpecs>
 struct member_function_overload_set
-    : member_function_thunk_t<Specs, EnclosingType, ProtocolType, Vtable>... {
-  using member_function_thunk_t<Specs, EnclosingType, ProtocolType,
+    : member_function_thunk_t<OverloadSpecs, EnclosingType, ProtocolType,
+                              Vtable>... {
+  using member_function_thunk_t<OverloadSpecs, EnclosingType, ProtocolType,
                                 Vtable>::operator()...;
 
  private:
@@ -458,8 +452,7 @@ struct operator_thunk_for<overload_spec<Member, IsConst>, ProtocolType,
   // Build the function-pointer type R(*)(Args...) from the method's return
   // type and parameter types.
   static consteval std::meta::info fn_ptr_type() {
-    std::vector<std::meta::info> fn_args{std::meta::reflect_constant(false),
-                                         dealias(return_type_of(Member))};
+    std::vector<std::meta::info> fn_args{dealias(return_type_of(Member))};
     fn_args.append_range(parameters_of(Member) |
                          std::views::transform(std::meta::type_of));
     return substitute(^^fn_ptr_t, fn_args);
@@ -662,9 +655,7 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
     // from the method's return type, parameter types and noexcept-ness; a
     // const method takes `const void*` instead, matching the constness of
     // the access path it's called through.
-    std::vector<std::meta::info> fn_args{
-        std::meta::reflect_constant(is_noexcept(member)),
-        dealias(return_type_of(member))};
+    std::vector<std::meta::info> fn_args{dealias(return_type_of(member))};
     fn_args.push_back(is_const(member) ? ^^const void* : ^^void*);
     std::vector<std::meta::info> member_parameters = parameters_of(member);
     for (std::meta::info parameter : member_parameters) {
@@ -672,10 +663,9 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
     }
     std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
 
-    // Workaround for GCC UBSAN issue.
-    // `std::string`'s pointer-taking constructors have a null check GCC
-    // trunk can't constant-fold under `-fsanitize=undefined`, even though
-    // `mangled_name_of<member>` is never null. The iterator-pair
+    // GCC UBSAN workaround: `std::string`'s pointer-taking constructors have a
+    // null check GCC trunk can't constant-fold under `-fsanitize=undefined`,
+    // even though `mangled_name_of<member>` is never null. The iterator-pair
     // constructor has no such check.
     std::string_view cached_name = mangled_name_of<member>;
     function_pointer_specs.push_back(data_member_spec(
@@ -687,7 +677,8 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
 }
 
 // Generates a vtable with named function pointers for each public,
-// non-special, member function from `T`.
+// non-special, member function from `T`. Name mangling ensures that
+// names for overloads are unique.
 template <typename T>
 struct vtable_generator {
   struct type;
@@ -698,7 +689,7 @@ template <typename T>
 using vtable_t = typename vtable_generator<T>::type;
 
 // Finds the member of `CandidateType` that structurally conforms to
-// `Member`, using the same matching rule as is_protocol_conformant.
+// `Member`.
 template <std::meta::info Member, std::meta::info CandidateType>
 consteval std::meta::info find_conforming_member() {
   for (std::meta::info candidate : conformance_candidates_of<CandidateType>) {
@@ -707,8 +698,8 @@ consteval std::meta::info find_conforming_member() {
   std::unreachable();
 }
 
-// Recovers a `U*`/`const U*` from the type-erased pointer a vtable entry is
-// called with, then calls the matching member of `U`.
+// Trampolines translate type-erased calls to vtable functions to member
+// function calls on the underlying (owned or viewed) object.
 template <typename FnPtrType, typename U, std::meta::info CandidateMember>
 struct mutable_view_trampoline;
 
@@ -811,7 +802,6 @@ consteval bool is_protocol_conformant() {
   return false;
 }
 
-// Variable template for use in requires clauses.
 template <typename Interface, typename Candidate>
 inline constexpr bool is_protocol_conformant_v =
     is_protocol_conformant<Interface, Candidate>();
@@ -899,10 +889,10 @@ class protocol
   // ownership entries use the (rebound) allocator.
   template <typename T, typename TNorm = std::decay_t<T>>
   static consteval vtable make_vtable_for() {
-    vtable result{};
-    static_cast<view_vtable&>(result) = detail::make_view_vtable<I, TNorm>();
+    vtable vtable{};
+    static_cast<view_vtable&>(vtable) = detail::make_view_vtable<I, TNorm>();
 
-    result.destroy = +[](const Alloc& alloc, void* data) -> void {
+    vtable.destroy = +[](const Alloc& alloc, void* data) -> void {
       rebound<TNorm> new_alloc{alloc};
       auto* typed = static_cast<TNorm*>(data);
       rebound_traits<TNorm>::destroy(new_alloc, typed);
@@ -911,7 +901,7 @@ class protocol
 
     // Copy construction and assignment should only reach this
     // if the interface is copy constructible.
-    result.copy = +[](const Alloc& alloc, const void* data) -> void* {
+    vtable.copy = +[](const Alloc& alloc, const void* data) -> void* {
       if constexpr (std::is_copy_constructible_v<I>) {
         return create<TNorm>(alloc, *static_cast<const TNorm*>(data));
       } else {
@@ -921,7 +911,7 @@ class protocol
 
     // Move construction and assignment should only reach this
     // if the interface is move constructible.
-    result.move = +[](const Alloc& alloc, void* data) -> void* {
+    vtable.move = +[](const Alloc& alloc, void* data) -> void* {
       if constexpr (std::is_move_constructible_v<I>) {
         return create<TNorm>(alloc, std::move(*static_cast<TNorm*>(data)));
       } else {
@@ -929,7 +919,7 @@ class protocol
       }
     };
 
-    return result;
+    return vtable;
   }
 
   // Creates a vtable for the type T.
