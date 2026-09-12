@@ -132,6 +132,7 @@ target_sources(
             "${CMAKE_CURRENT_SOURCE_DIR}"
             FILES
             protocol.hh
+            detail.hh
             name_mangling.h)
 # Consumers need the reflection flags of whichever compiler they build with,
 # so the options are generator expressions evaluated at their configure time

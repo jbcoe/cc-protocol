@@ -9,8 +9,11 @@ cc_library(
 
 cc_library(
     name = "protocol",
+    srcs = ["detail.hh"],
     hdrs = ["protocol.hh"],
-    deps = [":name_mangling"],
+    deps = [
+        ":name_mangling",
+    ],
 )
 
 cc_library(
