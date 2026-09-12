@@ -48,8 +48,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <utility>
 #include <vector>
 
-#include "detail.hh"
+#include "conformance.hh"
+#include "member_function_thunks.hh"
 #include "name_mangling.h"
+#include "operator_thunks.hh"
+#include "protocol_traits.hh"
+#include "protocol_wrappers.hh"
+#include "vtable.hh"
 
 // clang-p2996 deprecates data_member_options::no_unique_address in favour of
 // a fork-specific attributes member that GCC does not have, so the warning is
@@ -58,41 +63,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 namespace xyz::reflection {
-
-template <typename I>
-concept is_valid_interface =
-    is_class_type(^^I) && std::same_as<I, std::remove_cvref_t<I>> &&
-    std::ranges::none_of(
-        members_of(^^I, std::meta::access_context::unprivileged()),
-        std::meta::is_volatile);
-
-template <typename I>
-concept is_valid_view_interface =
-    is_valid_interface<I> || is_valid_interface<std::remove_const_t<I>>;
-
-template <is_valid_interface T, typename Allocator>
-class protocol;
-
-template <is_valid_view_interface T>
-class protocol_view;
-
-template <typename T>
-struct is_protocol : std::false_type {};
-
-template <is_valid_interface T, typename Allocator>
-struct is_protocol<protocol<T, Allocator>> : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_protocol_v = is_protocol<T>::value;
-
-template <typename T>
-struct is_protocol_view : std::false_type {};
-
-template <is_valid_view_interface T>
-struct is_protocol_view<protocol_view<T>> : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_protocol_view_v = is_protocol_view<T>::value;
 
 // Returns `true` if `Candidate` is a structural subtype of `Interface`;
 // otherwise returns `false`.

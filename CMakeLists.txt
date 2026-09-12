@@ -132,7 +132,13 @@ target_sources(
             "${CMAKE_CURRENT_SOURCE_DIR}"
             FILES
             protocol.hh
-            detail.hh
+            conformance.hh
+            member_function_thunks.hh
+            operator_thunks.hh
+            overload_spec.hh
+            protocol_traits.hh
+            protocol_wrappers.hh
+            vtable.hh
             name_mangling.h)
 # Consumers need the reflection flags of whichever compiler they build with,
 # so the options are generator expressions evaluated at their configure time
