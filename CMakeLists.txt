@@ -76,26 +76,32 @@ endif()
 # LD_LIBRARY_PATH set.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   execute_process(
-    COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libstdc++.so
+    COMMAND ${CMAKE_CXX_COMPILER}
+            -print-file-name=libstdc++${CMAKE_SHARED_LIBRARY_SUFFIX}
     OUTPUT_VARIABLE XYZ_PROTOCOL_LIBSTDCXX_PATH
     OUTPUT_STRIP_TRAILING_WHITESPACE)
-  get_filename_component(XYZ_PROTOCOL_LIBSTDCXX_PATH
-                          "${XYZ_PROTOCOL_LIBSTDCXX_PATH}" REALPATH)
-  get_filename_component(XYZ_PROTOCOL_LIBSTDCXX_DIRECTORY
-                          "${XYZ_PROTOCOL_LIBSTDCXX_PATH}" DIRECTORY)
-  list(APPEND CMAKE_BUILD_RPATH "${XYZ_PROTOCOL_LIBSTDCXX_DIRECTORY}")
+  if(EXISTS "${XYZ_PROTOCOL_LIBSTDCXX_PATH}")
+    get_filename_component(XYZ_PROTOCOL_LIBSTDCXX_PATH
+                           "${XYZ_PROTOCOL_LIBSTDCXX_PATH}" REALPATH)
+    get_filename_component(XYZ_PROTOCOL_LIBSTDCXX_DIRECTORY
+                           "${XYZ_PROTOCOL_LIBSTDCXX_PATH}" DIRECTORY)
+    list(APPEND CMAKE_BUILD_RPATH "${XYZ_PROTOCOL_LIBSTDCXX_DIRECTORY}")
+  endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   # Same for the clang-p2996 fork's libc++, which lives in the fork's build
   # tree rather than a directory ld.so searches.
   execute_process(
-    COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libc++.so
+    COMMAND ${CMAKE_CXX_COMPILER}
+            -print-file-name=libc++${CMAKE_SHARED_LIBRARY_SUFFIX}
     OUTPUT_VARIABLE XYZ_PROTOCOL_LIBCXX_PATH
     OUTPUT_STRIP_TRAILING_WHITESPACE)
-  get_filename_component(XYZ_PROTOCOL_LIBCXX_PATH
-                          "${XYZ_PROTOCOL_LIBCXX_PATH}" REALPATH)
-  get_filename_component(XYZ_PROTOCOL_LIBCXX_DIRECTORY
-                          "${XYZ_PROTOCOL_LIBCXX_PATH}" DIRECTORY)
-  list(APPEND CMAKE_BUILD_RPATH "${XYZ_PROTOCOL_LIBCXX_DIRECTORY}")
+  if(EXISTS "${XYZ_PROTOCOL_LIBCXX_PATH}")
+    get_filename_component(XYZ_PROTOCOL_LIBCXX_PATH
+                           "${XYZ_PROTOCOL_LIBCXX_PATH}" REALPATH)
+    get_filename_component(XYZ_PROTOCOL_LIBCXX_DIRECTORY
+                           "${XYZ_PROTOCOL_LIBCXX_PATH}" DIRECTORY)
+    list(APPEND CMAKE_BUILD_RPATH "${XYZ_PROTOCOL_LIBCXX_DIRECTORY}")
+  endif()
 endif()
 
 if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN)

@@ -3,6 +3,7 @@
 import os
 import shutil
 import subprocess
+import sys
 from typing import Mapping
 from typing import Optional
 from typing import Tuple
@@ -37,21 +38,27 @@ def find_runtime_library_directory(cxx_compiler_path: str) -> Optional[str]:
     libc++ for Clang (the clang-p2996 fork keeps it in its own build tree),
     libstdc++ otherwise.
     """
+    shared_library_suffix = ".dylib" if sys.platform == "darwin" else ".so"
     if "clang" in os.path.basename(cxx_compiler_path):
-        return _find_library_directory(cxx_compiler_path, "libc++.so")
+        return _find_library_directory(
+            cxx_compiler_path, f"libc++{shared_library_suffix}"
+        )
     return find_libstdcxx_directory(cxx_compiler_path)
 
 
 def find_libstdcxx_directory(cxx_compiler_path: str) -> Optional[str]:
     """
-    Resolve the libstdc++.so directory for cxx_compiler_path.
+    Resolve the libstdc++ shared library directory for cxx_compiler_path.
 
     Mirrors the rpath lookup in CMakeLists.txt: a non-distro GCC keeps its
     libstdc++ in a directory ld.so does not search by default, so callers
     linking against it need this directory to run the result without
     LD_LIBRARY_PATH set.
     """
-    library_directory = _find_library_directory(cxx_compiler_path, "libstdc++.so")
+    shared_library_suffix = ".dylib" if sys.platform == "darwin" else ".so"
+    library_directory = _find_library_directory(
+        cxx_compiler_path, f"libstdc++{shared_library_suffix}"
+    )
     if library_directory is not None:
         return library_directory
 

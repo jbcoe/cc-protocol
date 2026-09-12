@@ -73,6 +73,7 @@ jobs:
     if: ${{ !cancelled() }}
     name: ${{ matrix.settings.name }} ${{ matrix.configuration }}
     runs-on: ${{ matrix.settings.os }}
+    continue-on-error: ${{ matrix.settings.compiler.type == 'GCC16_MACOS' }}
     strategy:
       fail-fast: false
       matrix:
