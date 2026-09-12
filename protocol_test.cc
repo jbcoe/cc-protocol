@@ -2848,16 +2848,25 @@ TEST(ReflectionProtocolTest, OverloadedQualifiers) {
 
   const protocol<Interface> p2(Conforming{});
   EXPECT_EQ(p2.foo(), 20);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates dispatch through a const rvalue reference.
   EXPECT_EQ(std::move(p2).foo(), 20);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
 
   Conforming c{};
   protocol_view<Interface> p3(c);
   EXPECT_EQ(p3.foo(), 5);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates moving protocol_view on purpose.
   EXPECT_EQ(std::move(p3).foo(), 5);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
 
   protocol_view<const Interface> p4(c);
   EXPECT_EQ(p4.foo(), 20);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates moving protocol_view on purpose.
   EXPECT_EQ(std::move(p4).foo(), 20);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
 }
 
 TEST(ReflectionProtocolTest, ConstRefQualifiers) {
@@ -2884,16 +2893,25 @@ TEST(ReflectionProtocolTest, ConstRefQualifiers) {
 
   const protocol<Interface> p2(Conforming{});
   EXPECT_EQ(p2.foo(), 3);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates dispatch through a const rvalue reference.
   EXPECT_EQ(std::move(p2).foo(), 4);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
 
   Conforming c{};
   protocol_view<Interface> p3(c);
   EXPECT_EQ(p3.foo(), 1);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates moving protocol_view on purpose.
   EXPECT_EQ(std::move(p3).foo(), 1);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
 
   protocol_view<const Interface> p4(c);
   EXPECT_EQ(p4.foo(), 3);
+  // NOLINTBEGIN(hicpp-move-const-arg,performance-move-const-arg): The test
+  // demonstrates moving protocol_view on purpose.
   EXPECT_EQ(std::move(p4).foo(), 3);
+  // NOLINTEND(hicpp-move-const-arg,performance-move-const-arg)
 }
 
 TEST(ReflectionProtocolTest, RefQualifiersExplicitObject) {
@@ -2905,7 +2923,11 @@ TEST(ReflectionProtocolTest, RefQualifiersExplicitObject) {
   struct Conforming {
     int foo(this Conforming&) { return 5; }
 
+    // NOLINTBEGIN(cppcoreguidelines-rvalue-reference-param-not-moved): The
+    // parameter is unused.
     int foo(this Conforming&&) { return 10; }
+
+    // NOLINTEND(cppcoreguidelines-rvalue-reference-param-not-moved)
   };
 
   protocol<Interface> p(Conforming{});

@@ -178,7 +178,7 @@ consteval bool same_function_with_explicit_object(std::meta::info candidate,
                             std::meta::type_of, std::meta::type_of);
 }
 
-// Returns `tru` if the `candidate` member function is rvalue reference
+// Returns `true` if the `candidate` member function is rvalue reference
 // qualified OR if it has an explicit object parameter that is rvalue reference
 // qualified.
 consteval bool is_called_with_rvalue(std::meta::info candidate) {
@@ -558,9 +558,7 @@ consteval member_options options_for(std::meta::info member,
                                      member_policy policy) {
   auto result = member_options::none;
 
-  const bool wrapper_is_const =
-      policy == member_policy::propagate ? is_const(member) : true;
-  if (wrapper_is_const) {
+  if (policy != member_policy::propagate || is_const(member)) {
     result |= member_options::is_const;
   }
 
