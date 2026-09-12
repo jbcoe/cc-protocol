@@ -139,8 +139,9 @@ Consteval coverage is instead measured by compile-time trap probing:
 ./scripts/consteval_coverage.sh
 ```
 
-The tool instruments a copy of `protocol.hh` with trap calls at every block
-entry and `return`/`throw` statement in consteval code, then recompiles the
+The tool instruments a copy of each header that carries consteval machinery
+for `protocol`/`protocol_view` with trap calls at every block entry and
+`return`/`throw` statement in consteval code, then recompiles the
 protocol-instantiating test translation units once per trap with
 `-fsyntax-only`, arming one trap at a time; a compile failure proves the
 test suite evaluated that line, because a constant evaluation has no other
