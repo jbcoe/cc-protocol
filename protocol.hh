@@ -446,7 +446,7 @@ struct operator_thunk<std::meta::operators::op_parentheses, R (*)(Args...),
 };
 
 // The `operator_thunk` specialisation for an `overload_spec`.
-template <typename Spec, typename ProtocolType, typename Vtable>
+template <typename OverloadSpec, typename ProtocolType, typename Vtable>
 struct operator_thunk_for;
 
 template <std::meta::info Member, bool IsConst, typename ProtocolType,
@@ -485,8 +485,13 @@ using operator_thunk_t =
 // `operator_thunk` for each overload.
 // `std::meta::operators` is not specified as it can be derived from
 // OverloadSpec.
+template <std::meta::operators Operator, typename ProtocolType, typename Vtable,
+          typename... OverloadSpecs>
+struct operator_overload_set;
+
 template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
-struct operator_overload_set
+struct operator_overload_set<std::meta::operators::op_parentheses, ProtocolType,
+                             Vtable, OverloadSpecs...>
     : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
   using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator()...;
 };
@@ -607,6 +612,9 @@ consteval std::meta::info generate_member_bases_wrapper() {
     std::vector<std::meta::info> member_base_args;
     if (has_identifier(member)) {
       member_base_args.push_back(reflect_constant(member));
+    } else if (is_operator<std::meta::operators::op_parentheses>(member)) {
+      member_base_args.push_back(
+          reflect_constant(std::meta::operators::op_parentheses));
     }
     member_base_args.push_back(^^ProtocolType);
     member_base_args.push_back(^^Vtable);
