@@ -5,6 +5,7 @@ name: "Copilot Setup Steps"
 on:
     workflow_dispatch:
     push:
+        branches: [main]
         paths:
             - .github/workflows/copilot-setup-steps.yml
             - .github/actions/install-gcc-trunk/action.yml
