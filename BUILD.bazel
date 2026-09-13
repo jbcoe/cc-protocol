@@ -4,7 +4,7 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "name_mangling",
-    hdrs = ["name_mangling.h"],
+    hdrs = ["name_mangling.hh"],
 )
 
 cc_library(
