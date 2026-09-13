@@ -41,6 +41,7 @@ cc_test(
         "tagged_allocator.h",
         "test_helpers.h",
         "tracking_allocator.h",
+        "vtable_tests.cc",
     ],
     deps = [
         ":consteval_check",

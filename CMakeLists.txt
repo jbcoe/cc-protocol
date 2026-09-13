@@ -187,7 +187,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       allocator_tests.cc
       consteval_check_test.cc
       forwarding_test.cc
-      name_mangling_tests.cc)
+      name_mangling_tests.cc
+      vtable_tests.cc)
 
     add_subdirectory(tutorials)
   endif(${BUILD_TESTING})

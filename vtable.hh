@@ -54,9 +54,10 @@ consteval std::meta::info find_vtable_entry() {
 
 // Returns a list of data_member_spec values, one for each member function
 // implemented by `protocol`, each describing a vtable function pointer with
-// signature R(*)(void*, Args...) for a mutable interface method, or
-// R(*)(const void*, Args...) for a const one, named by the member function's
-// mangled signature (see `xyz::name_mangling::mangle`).
+// signature R(*)(void*, Args...) noexcept(...) for a mutable interface
+// method, or R(*)(const void*, Args...) noexcept(...) for a const one, named
+// by the member function's mangled signature (see
+// `xyz::name_mangling::mangle`).
 template <std::meta::info interface_type>
 consteval std::vector<std::meta::info> generate_vtable_specs() {
   std::vector<std::meta::info> function_pointer_specs;
@@ -71,7 +72,9 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
     // from the method's return type, parameter types and noexcept-ness; a
     // const method takes `const void*` instead, matching the constness of
     // the access path it's called through.
-    std::vector<std::meta::info> fn_args{dealias(return_type_of(member))};
+    std::vector<std::meta::info> fn_args{
+        std::meta::reflect_constant(is_noexcept(member)),
+        dealias(return_type_of(member))};
     fn_args.push_back(is_const(member) ? ^^const void* : ^^void*);
     std::vector<std::meta::info> member_parameters = parameters_of(member);
     for (std::meta::info parameter : member_parameters) {
