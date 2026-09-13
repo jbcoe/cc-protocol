@@ -1,0 +1,18 @@
+name: Install GCC 16 (macOS)
+description: >-
+  Install Homebrew's gcc@16 formula and export CXX/CC. Homebrew's linked
+  `gcc`/`g++` on PATH only points at gcc@16 while it is the default `gcc`
+  formula; once Homebrew moves the default past 16, gcc@16 becomes keg-only
+  and drops off PATH, so this resolves the binaries via `brew --prefix`
+  rather than assuming they are already reachable.
+
+runs:
+  using: composite
+  steps:
+    - name: Install gcc@16
+      shell: bash
+      run: |
+        brew install gcc@16
+        prefix=$(brew --prefix gcc@16)
+        echo "CXX=$prefix/bin/g++-16" >> "$GITHUB_ENV"
+        echo "CC=$prefix/bin/gcc-16" >> "$GITHUB_ENV"

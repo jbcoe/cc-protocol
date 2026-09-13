@@ -72,8 +72,8 @@ fails on stock GCC.
 Pull requests run the workflows in `.github/workflows`. The following checks
 are required for merging to `main`: `GCC trunk Release`, `GCC trunk Debug`,
 `GCC-16 Release`, `GCC-16 Debug`, `asan`, `tsan`, `uv-lock`, `pre-commit`.
-The workflows also run advisory macOS jobs (`GCC-16 (macOS)` in Bazel, and
-`GCC-16 (macOS) Release` and `GCC-16 (macOS) Debug` in CMake).
+The workflows also run advisory macOS jobs (`GCC-16 (macOS)` in Bazel and
+`GCC-16 (macOS) Release` in CMake).
 
 On pull requests that touch no C++, CMake, Bazel, or build-script sources,
 a change-detection job makes the build and sanitizer jobs skip their steps,

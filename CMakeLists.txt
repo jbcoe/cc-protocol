@@ -20,10 +20,6 @@ include(GNUInstallDirs)
 include(CMakeDependentOption)
 include(CMakePackageConfigHelpers)
 
-option(ENABLE_SANITIZERS
-       "Enable Address Sanitizer and Undefined Behaviour Sanitizer if available"
-       OFF)
-
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
 option(ENABLE_UBSAN "Enable Undefined Behaviour Sanitizer" OFF)
 option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
@@ -70,42 +66,34 @@ if(NOT XYZ_PROTOCOL_REFLECTION_SUPPORTED)
 endif()
 
 # A non-distro GCC (e.g. the gcc-latest trunk snapshot installed to
-# /opt/gcc-latest, see docker/Dockerfile) keeps its libstdc++ in a
+# /opt/gcc-latest, see docker/Dockerfile) keeps its libstdc++/libc++ in a
 # directory ld.so does not search by default. Embed that directory as a
 # build rpath so test executables linked against it run without needing
-# LD_LIBRARY_PATH set.
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  execute_process(
-    COMMAND ${CMAKE_CXX_COMPILER}
-            -print-file-name=libstdc++${CMAKE_SHARED_LIBRARY_SUFFIX}
-    OUTPUT_VARIABLE XYZ_PROTOCOL_LIBSTDCXX_PATH
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-  if(EXISTS "${XYZ_PROTOCOL_LIBSTDCXX_PATH}")
-    get_filename_component(XYZ_PROTOCOL_LIBSTDCXX_PATH
-                           "${XYZ_PROTOCOL_LIBSTDCXX_PATH}" REALPATH)
-    get_filename_component(XYZ_PROTOCOL_LIBSTDCXX_DIRECTORY
-                           "${XYZ_PROTOCOL_LIBSTDCXX_PATH}" DIRECTORY)
-    list(APPEND CMAKE_BUILD_RPATH "${XYZ_PROTOCOL_LIBSTDCXX_DIRECTORY}")
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  # Same for the clang-p2996 fork's libc++, which lives in the fork's build
-  # tree rather than a directory ld.so searches.
-  execute_process(
-    COMMAND ${CMAKE_CXX_COMPILER}
-            -print-file-name=libc++${CMAKE_SHARED_LIBRARY_SUFFIX}
-    OUTPUT_VARIABLE XYZ_PROTOCOL_LIBCXX_PATH
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-  if(EXISTS "${XYZ_PROTOCOL_LIBCXX_PATH}")
-    get_filename_component(XYZ_PROTOCOL_LIBCXX_PATH
-                           "${XYZ_PROTOCOL_LIBCXX_PATH}" REALPATH)
-    get_filename_component(XYZ_PROTOCOL_LIBCXX_DIRECTORY
-                           "${XYZ_PROTOCOL_LIBCXX_PATH}" DIRECTORY)
-    list(APPEND CMAKE_BUILD_RPATH "${XYZ_PROTOCOL_LIBCXX_DIRECTORY}")
-  endif()
-endif()
+# LD_LIBRARY_PATH set. Linux-only: Homebrew's GCC on macOS already embeds
+# its own rpath, and adding a second, identical one just prints
+# "ld: warning: duplicate -rpath ... ignored" on every link.
+if(NOT APPLE)
+  function(xyz_protocol_append_runtime_library_rpath library_stem)
+    execute_process(
+      COMMAND ${CMAKE_CXX_COMPILER}
+              -print-file-name=${library_stem}${CMAKE_SHARED_LIBRARY_SUFFIX}
+      OUTPUT_VARIABLE library_path
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(EXISTS "${library_path}")
+      get_filename_component(library_path "${library_path}" REALPATH)
+      get_filename_component(library_directory "${library_path}" DIRECTORY)
+      list(APPEND CMAKE_BUILD_RPATH "${library_directory}")
+      set(CMAKE_BUILD_RPATH "${CMAKE_BUILD_RPATH}" PARENT_SCOPE)
+    endif()
+  endfunction()
 
-if(ENABLE_ASAN OR ENABLE_UBSAN OR ENABLE_TSAN)
-  set(ENABLE_SANITIZERS ON)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    xyz_protocol_append_runtime_library_rpath(libstdc++)
+  elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # The clang-p2996 fork's libc++ lives in the fork's build tree rather
+    # than a directory ld.so searches.
+    xyz_protocol_append_runtime_library_rpath(libc++)
+  endif()
 endif()
 
 # Runtime coverage only: consteval code never reaches the gcov

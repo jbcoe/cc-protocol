@@ -138,15 +138,14 @@ jobs:
         if: needs.detect-changes.outputs.relevant != 'false'
         run: ./scripts/cmake.sh install --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }}
 
+  # Release only. Debug's one difference, enabled assertions, is already
+  # covered on macOS by the Bazel job's fastbuild config; a Debug leg here
+  # would just use more of GitHub's limited macOS runner capacity.
   build-macos:
     needs: detect-changes
     if: ${{ !cancelled() }}
-    name: GCC-16 (macOS) ${{ matrix.configuration }}
+    name: GCC-16 (macOS) Release
     runs-on: macos-15
-    strategy:
-      fail-fast: false
-      matrix:
-        configuration: ["Release", "Debug"]
     steps:
       - uses: actions/checkout@v5
         if: needs.detect-changes.outputs.relevant != 'false'
@@ -154,10 +153,7 @@ jobs:
         if: needs.detect-changes.outputs.relevant != 'false'
       - name: Install GCC 16 (macOS)
         if: needs.detect-changes.outputs.relevant != 'false'
-        run: |
-          brew install gcc@16
-          echo "CXX=$(brew --prefix gcc@16)/bin/g++-16" >> "$GITHUB_ENV"
-          echo "CC=$(brew --prefix gcc@16)/bin/gcc-16" >> "$GITHUB_ENV"
+        uses: ./.github/actions/install-gcc16-macos
       - name: Install uv
         if: needs.detect-changes.outputs.relevant != 'false'
         uses: astral-sh/setup-uv@v10.0.1
@@ -166,10 +162,10 @@ jobs:
         run: uv sync
       - name: Run CMake
         if: needs.detect-changes.outputs.relevant != 'false'
-        run: ./scripts/cmake.sh --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }}
+        run: ./scripts/cmake.sh --release
       - name: Install and build against the installed package
         if: needs.detect-changes.outputs.relevant != 'false'
-        run: ./scripts/cmake.sh install --${{ matrix.configuration == 'Debug' && 'debug' || 'release' }}
+        run: ./scripts/cmake.sh install --release
 
   # This non-matrix job reports under a fixed name whatever the matrix above
   # did, so the ruleset can require one check per workflow instead of every

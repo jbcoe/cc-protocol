@@ -192,10 +192,7 @@ jobs:
         if: needs.detect-changes.outputs.relevant != 'false'
       - name: Install GCC 16 (macOS)
         if: needs.detect-changes.outputs.relevant != 'false'
-        run: |
-          brew install gcc@16
-          echo "CXX=$(brew --prefix gcc@16)/bin/g++-16" >> "$GITHUB_ENV"
-          echo "CC=$(brew --prefix gcc@16)/bin/gcc-16" >> "$GITHUB_ENV"
+        uses: ./.github/actions/install-gcc16-macos
       - name: Install uv
         if: needs.detect-changes.outputs.relevant != 'false'
         uses: astral-sh/setup-uv@v10.0.1
