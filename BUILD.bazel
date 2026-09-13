@@ -1,3 +1,4 @@
+load("@apple_support//xcode:xcode_config.bzl", "xcode_config")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -48,3 +49,9 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+# An xcode_config with no Xcode versions. build:macos in .bazelrc selects it
+# so the C++ toolchain does not fetch @local_config_xcode, which compiles and
+# runs xcode-locator and then xcodebuild for every installed Xcode on each
+# fresh output base.
+xcode_config(name = "empty_xcode_config")

@@ -5,3 +5,6 @@ module(
 
 bazel_dep(name = "rules_cc", version = "0.2.22")
 bazel_dep(name = "googletest", version = "1.18.0")
+
+# Only for the empty xcode_config in BUILD.bazel that build:macos selects.
+bazel_dep(name = "apple_support", version = "1.24.2")
