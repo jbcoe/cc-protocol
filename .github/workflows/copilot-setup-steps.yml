@@ -5,6 +5,7 @@ name: "Copilot Setup Steps"
 on:
     workflow_dispatch:
     push:
+        branches: [main]
         paths:
             - .github/workflows/copilot-setup-steps.yml
             - .github/actions/install-gcc-trunk/action.yml
@@ -12,6 +13,12 @@ on:
         paths:
             - .github/workflows/copilot-setup-steps.yml
             - .github/actions/install-gcc-trunk/action.yml
+
+# One group per PR, or per ref for pushes and scheduled runs. A new push to a
+# PR cancels the runs for its previous head; main and scheduled runs only queue.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
     # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.

@@ -12,6 +12,12 @@ on:
   pull_request:
     branches: [main]
 
+# One group per PR, or per ref for pushes and scheduled runs. A new push to a
+# PR cancels the runs for its previous head; main and scheduled runs only queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   UV_FROZEN: 1
 

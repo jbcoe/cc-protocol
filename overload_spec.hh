@@ -24,8 +24,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace xyz::detail {
 
-template <typename R, typename... Args>
-using fn_ptr_t = R (*)(Args...);
+template <bool IsNoexcept, typename R, typename... Args>
+using fn_ptr_t = R (*)(Args...) noexcept(IsNoexcept);
 
 // One overload of a synthesised member function or operator: the interface
 // member (which names its vtable entry) and the const-qualification of the

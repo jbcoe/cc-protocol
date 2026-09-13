@@ -42,6 +42,12 @@ on:
       - "scripts/consteval_coverage.py"
       - "scripts/consteval_coverage.sh"
 
+# One group per PR, or per ref for pushes and scheduled runs. A new push to a
+# PR cancels the runs for its previous head; main and scheduled runs only queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   UV_FROZEN: 1
 
@@ -74,12 +80,13 @@ jobs:
           flags: runtime
           disable_search: true
 
-  # Compile-time trap probing of the consteval code in protocol.hh: one
-  # -fsyntax-only compile per probe point, see scripts/consteval_coverage.py.
+  # Compile-time trap probing of the consteval code in the library headers:
+  # batched -fsyntax-only compiles of the test translation units, see
+  # scripts/consteval_coverage.py.
   consteval-coverage:
     name: consteval coverage
     runs-on: ubuntu-26.04
-    timeout-minutes: 90
+    timeout-minutes: 30
     permissions:
       id-token: write # Tokenless Codecov upload via OIDC.
     steps:

@@ -30,6 +30,12 @@ on:
   # the summary job reports a passing check when the build was skipped.
   pull_request:
 
+# One group per PR, or per ref for pushes and scheduled runs. A new push to a
+# PR cancels the runs for its previous head; main and scheduled runs only queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   UV_FROZEN: 1
 
@@ -176,6 +182,53 @@ jobs:
       - name: Save the Bazel disk cache
         # Save after a failed build too: its objects are as good as any. Skip
         # when the exact key already existed, which happens on a rerun.
+        if: ${{ !cancelled() && needs.detect-changes.outputs.relevant != 'false' && steps.disk-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/bazel-disk
+          key: ${{ steps.disk-cache.outputs.cache-primary-key }}
+
+  build-macos:
+    needs: detect-changes
+    if: ${{ !cancelled() }}
+    name: GCC-16 (macOS)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+        if: needs.detect-changes.outputs.relevant != 'false'
+      - name: Install GCC 16 (macOS)
+        if: needs.detect-changes.outputs.relevant != 'false'
+        uses: ./.github/actions/install-gcc16-macos
+      - name: Install uv
+        if: needs.detect-changes.outputs.relevant != 'false'
+        uses: astral-sh/setup-uv@v10.0.1
+      - name: Set up Python
+        if: needs.detect-changes.outputs.relevant != 'false'
+        run: uv sync
+      - name: Set up Bazel
+        if: needs.detect-changes.outputs.relevant != 'false'
+        uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          bazelrc: |
+            build --disk_cache=~/.cache/bazel-disk
+            build --experimental_disk_cache_gc_max_size=512M
+            build --experimental_disk_cache_gc_idle_delay=0
+      - name: Restore the Bazel disk cache
+        if: needs.detect-changes.outputs.relevant != 'false'
+        id: disk-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/bazel-disk
+          key: bazel-disk-cache-${{ runner.os }}-GCC16_MACOS-${{ github.sha }}
+          restore-keys: bazel-disk-cache-${{ runner.os }}-GCC16_MACOS-
+      - name: Run Bazel
+        if: needs.detect-changes.outputs.relevant != 'false'
+        run: ./scripts/bazel.sh
+      - name: Wait for the disk-cache garbage collector
+        if: ${{ !cancelled() && needs.detect-changes.outputs.relevant != 'false' }}
+        run: bazel shutdown
+      - name: Save the Bazel disk cache
         if: ${{ !cancelled() && needs.detect-changes.outputs.relevant != 'false' && steps.disk-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:

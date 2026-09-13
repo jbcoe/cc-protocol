@@ -6,7 +6,7 @@
 #include <array>
 #include <cstdint>
 
-#include "name_mangling.h"
+#include "name_mangling.hh"
 
 using xyz::name_mangling::mangle;
 
