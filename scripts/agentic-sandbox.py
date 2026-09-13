@@ -202,6 +202,9 @@ def main() -> None:
 
     run_args.extend(cache_mounts)
     run_args.extend(_agent_mount_args(args.agent))
+    host_gitconfig = os.path.expanduser("~/.gitconfig")
+    if os.path.isfile(host_gitconfig):
+        run_args.extend(["-v", f"{host_gitconfig}:/home/vscode/.gitconfig:ro"])
 
     if "TERM" in os.environ:
         run_args.extend(["-e", f"TERM={os.environ['TERM']}"])
