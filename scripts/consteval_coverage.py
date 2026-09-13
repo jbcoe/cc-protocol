@@ -142,9 +142,15 @@ class ProbePoint:
     """One instrumented location in the original source."""
 
     header: str
+    header_index: int
     line_number: int
     enclosing_function: str
     source_text: str
+
+    @property
+    def key(self) -> ProbeKey:
+        """Return the trap key the instrumented line carries."""
+        return (self.header_index, self.line_number)
 
 
 class Instrumenter:
@@ -163,6 +169,7 @@ class Instrumenter:
     def __init__(self, header: str, header_index: int) -> None:
         """Initialise scanner state for instrumenting `header`."""
         self.header = header
+        self.header_index = header_index
         self.trap_call = trap_call(header_index)
         self.brace_depth = 0
         self.paren_depth = 0
@@ -210,7 +217,13 @@ class Instrumenter:
             enclosing = self.pending_function_name
         if not self.probe_points or self.probe_points[-1].line_number != line_number:
             self.probe_points.append(
-                ProbePoint(self.header, line_number, enclosing, original_line.strip())
+                ProbePoint(
+                    self.header,
+                    self.header_index,
+                    line_number,
+                    enclosing,
+                    original_line.strip(),
+                )
             )
 
     def _instrument_line(self, line: str, line_number: int) -> str:
@@ -488,10 +501,28 @@ def probe_translation_unit(
     """
     Return the subset of `candidates` that compiling `translation_unit` evaluates.
 
-    Each round arms every candidate not yet found, split into interleaved
-    batches so that every worker has a compile; a probe point masked by an
-    earlier one on its path surfaces once that one is disarmed. Rounds stop
-    when one finds nothing new.
+    Arming many traps in one compile is sound because of two properties.
+    A trap throws only when the evaluator executes it, and the diagnostic
+    names the trap that threw, so every reported key was evaluated whatever
+    else was armed: no false positives. A throw aborts only its own
+    top-level constant evaluation, and GCC goes on to report every other
+    evaluation that fails, so one compile yields the first armed trap on
+    each evaluation's path; the traps after it on that path are masked for
+    this round only. The next round disarms everything found so far, so
+    each evaluation runs further and reports the next armed trap on its
+    path. A trap the test suite evaluates is preceded on its path only by
+    traps the suite also evaluates, so it is reported once those are
+    disarmed: no permanent false negatives. The armed set shrinks every
+    productive round, and a round with no new hits proves no remaining
+    armed trap lies on any evaluation path.
+
+    Errors cascading from an aborted evaluation (an incomplete class, a
+    missing member) are not trap diagnostics and are ignored; the
+    evaluations they suppressed run in a later round once the trap is
+    disarmed. A compile that fails with no trap firing raises instead.
+
+    Each round's armed set is split into interleaved batches so that every
+    worker has a compile and neighbouring traps do not mask each other.
     """
     covered: set[ProbeKey] = set()
     round_number = 0
@@ -520,7 +551,7 @@ def write_lcov(
 ) -> None:
     """Write an LCOV trace with one SF/DA block per instrumented header."""
     records = ["TN:consteval"]
-    for header_index, header in enumerate(INSTRUMENTED_HEADERS):
+    for header in INSTRUMENTED_HEADERS:
         header_probes = [p for p in probe_points if p.header == header]
         if not header_probes:
             continue
@@ -528,7 +559,7 @@ def write_lcov(
         records.append(f"SF:{header}")
         hits = 0
         for probe_point in header_probes:
-            hit = int((header_index, probe_point.line_number) in covered)
+            hit = int(probe_point.key in covered)
             hits += hit
             records.append(f"DA:{probe_point.line_number},{hit}")
         records.append(f"LH:{hits}")
@@ -536,11 +567,6 @@ def write_lcov(
         records.append("end_of_record")
     with open(path, "w") as trace_file:
         trace_file.write("\n".join(records) + "\n")
-
-
-def probe_key(probe_point: ProbePoint) -> ProbeKey:
-    """Return the trap key of `probe_point`."""
-    return (INSTRUMENTED_HEADERS.index(probe_point.header), probe_point.line_number)
 
 
 def describe(probe_point: ProbePoint) -> str:
@@ -560,10 +586,10 @@ def report(probe_points: list[ProbePoint], covered: set[ProbeKey]) -> None:
 
     print("\nconsteval coverage by header and function:")
     for (header, function_name), function_probes in by_function.items():
-        hits = sum(1 for p in function_probes if probe_key(p) in covered)
+        hits = sum(1 for p in function_probes if p.key in covered)
         print(f"  {hits:3}/{len(function_probes):<3} {header}: {function_name}")
 
-    uncovered = [p for p in probe_points if probe_key(p) not in covered]
+    uncovered = [p for p in probe_points if p.key not in covered]
     if uncovered:
         print("\nprobe points never evaluated by the test suite:")
         for probe_point in uncovered:
@@ -646,7 +672,7 @@ def main() -> None:
         f"{len(instrumented_by_header)} headers against {len(translation_units)} "
         f"translation units with {arguments.jobs} jobs"
     )
-    candidates = {probe_key(probe_point) for probe_point in probe_points}
+    candidates = {probe_point.key for probe_point in probe_points}
     covered: set[ProbeKey] = set()
     for translation_unit in translation_units:
         covered |= probe_translation_unit(
