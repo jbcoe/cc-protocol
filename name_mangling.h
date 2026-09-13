@@ -248,6 +248,12 @@ consteval std::string base_name_of(std::meta::info function) {
     if (operator_of(function) == std::meta::operators::op_square_brackets) {
       return "ix";
     }
+    if (operator_of(function) == std::meta::operators::op_arrow) {
+      return "pt";
+    }
+    if (operator_of(function) == std::meta::operators::op_star) {
+      return "de";
+    }
     throw std::runtime_error("name mangling: unsupported operator");
   }
   return mangle_atom(identifier_of(function));
