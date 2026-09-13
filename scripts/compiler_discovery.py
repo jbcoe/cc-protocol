@@ -3,6 +3,7 @@
 import os
 import shutil
 import subprocess
+import sys
 from typing import Mapping
 from typing import Optional
 from typing import Tuple
@@ -27,6 +28,22 @@ def find_reflection_compilers(
     if system_gxx_path and system_gcc_path:
         return system_gcc_path, system_gxx_path
 
+    if sys.platform == "darwin":
+        # gcc@16 is keg-only once it is no longer Homebrew's default `gcc`,
+        # so it drops off PATH and the shutil.which check above stops
+        # finding it; ask Homebrew directly instead.
+        try:
+            gcc16_prefix = subprocess.check_output(
+                ["brew", "--prefix", "gcc@16"], text=True, stderr=subprocess.DEVNULL
+            ).strip()
+        except (OSError, subprocess.CalledProcessError):
+            gcc16_prefix = None
+        if gcc16_prefix:
+            homebrew_cxx_path = os.path.join(gcc16_prefix, "bin", "g++-16")
+            homebrew_cc_path = os.path.join(gcc16_prefix, "bin", "gcc-16")
+            if os.path.exists(homebrew_cxx_path) and os.path.exists(homebrew_cc_path):
+                return homebrew_cc_path, homebrew_cxx_path
+
     return None, None
 
 
@@ -35,8 +52,12 @@ def find_runtime_library_directory(cxx_compiler_path: str) -> Optional[str]:
     Resolve the C++ runtime library directory for cxx_compiler_path.
 
     libc++ for Clang (the clang-p2996 fork keeps it in its own build tree),
-    libstdc++ otherwise.
+    libstdc++ otherwise. Linux only: on macOS, Homebrew's GCC already embeds
+    its own rpath, and ld.so's search-path gap this exists to work around
+    (see find_libstdcxx_directory) has no macOS/dyld equivalent.
     """
+    if sys.platform == "darwin":
+        return None
     if "clang" in os.path.basename(cxx_compiler_path):
         return _find_library_directory(cxx_compiler_path, "libc++.so")
     return find_libstdcxx_directory(cxx_compiler_path)
@@ -49,8 +70,10 @@ def find_libstdcxx_directory(cxx_compiler_path: str) -> Optional[str]:
     Mirrors the rpath lookup in CMakeLists.txt: a non-distro GCC keeps its
     libstdc++ in a directory ld.so does not search by default, so callers
     linking against it need this directory to run the result without
-    LD_LIBRARY_PATH set.
+    LD_LIBRARY_PATH set. Linux only, see find_runtime_library_directory.
     """
+    if sys.platform == "darwin":
+        return None
     library_directory = _find_library_directory(cxx_compiler_path, "libstdc++.so")
     if library_directory is not None:
         return library_directory
