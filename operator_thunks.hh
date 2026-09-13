@@ -79,6 +79,15 @@ struct operator_thunk<std::meta::operators::op_parentheses, R (*)(Args...),
     return vtable->[:vtable_entry:](protocol_object->object_,
                                     std::forward<Args>(args)...);
   }
+
+ protected:
+  // Only `operator_overload_set` may create or copy a thunk.
+  operator_thunk() = default;
+  ~operator_thunk() = default;
+  operator_thunk(const operator_thunk&) = default;
+  operator_thunk(operator_thunk&&) = default;
+  operator_thunk& operator=(const operator_thunk&) = default;
+  operator_thunk& operator=(operator_thunk&&) = default;
 };
 
 // operator []
@@ -116,6 +125,15 @@ struct operator_thunk<std::meta::operators::op_square_brackets, R (*)(Args...),
     return vtable->[:vtable_entry:](protocol_object->object_,
                                     std::forward<Args>(args)...);
   }
+
+ protected:
+  // Only `operator_overload_set` may create or copy a thunk.
+  operator_thunk() = default;
+  ~operator_thunk() = default;
+  operator_thunk(const operator_thunk&) = default;
+  operator_thunk(operator_thunk&&) = default;
+  operator_thunk& operator=(const operator_thunk&) = default;
+  operator_thunk& operator=(operator_thunk&&) = default;
 };
 
 // operator ->
@@ -151,6 +169,15 @@ struct operator_thunk<std::meta::operators::op_arrow, R (*)(), ProtocolType,
     const Vtable* vtable = protocol_object->vtable_;
     return vtable->[:vtable_entry:](protocol_object->object_);
   }
+
+ protected:
+  // Only `operator_overload_set` may create or copy a thunk.
+  operator_thunk() = default;
+  ~operator_thunk() = default;
+  operator_thunk(const operator_thunk&) = default;
+  operator_thunk(operator_thunk&&) = default;
+  operator_thunk& operator=(const operator_thunk&) = default;
+  operator_thunk& operator=(operator_thunk&&) = default;
 };
 
 // operator *
@@ -186,6 +213,15 @@ struct operator_thunk<std::meta::operators::op_star, R (*)(), ProtocolType,
     const Vtable* vtable = protocol_object->vtable_;
     return vtable->[:vtable_entry:](protocol_object->object_);
   }
+
+ protected:
+  // Only `operator_overload_set` may create or copy a thunk.
+  operator_thunk() = default;
+  ~operator_thunk() = default;
+  operator_thunk(const operator_thunk&) = default;
+  operator_thunk(operator_thunk&&) = default;
+  operator_thunk& operator=(const operator_thunk&) = default;
+  operator_thunk& operator=(operator_thunk&&) = default;
 };
 
 // The `operator_thunk` specialisation for an `overload_spec`.
@@ -238,6 +274,14 @@ struct operator_overload_set<std::meta::operators::op_parentheses, ProtocolType,
                              Vtable, OverloadSpecs...>
     : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
   using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator()...;
+
+ protected:
+  operator_overload_set() = default;
+  ~operator_overload_set() = default;
+  operator_overload_set(const operator_overload_set&) = default;
+  operator_overload_set(operator_overload_set&&) = default;
+  operator_overload_set& operator=(const operator_overload_set&) = default;
+  operator_overload_set& operator=(operator_overload_set&&) = default;
 };
 
 // operator[]
@@ -246,6 +290,14 @@ struct operator_overload_set<std::meta::operators::op_square_brackets,
                              ProtocolType, Vtable, OverloadSpecs...>
     : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
   using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator[]...;
+
+ protected:
+  operator_overload_set() = default;
+  ~operator_overload_set() = default;
+  operator_overload_set(const operator_overload_set&) = default;
+  operator_overload_set(operator_overload_set&&) = default;
+  operator_overload_set& operator=(const operator_overload_set&) = default;
+  operator_overload_set& operator=(operator_overload_set&&) = default;
 };
 
 // operator->
@@ -254,6 +306,14 @@ struct operator_overload_set<std::meta::operators::op_arrow, ProtocolType,
                              Vtable, OverloadSpecs...>
     : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
   using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator->...;
+
+ protected:
+  operator_overload_set() = default;
+  ~operator_overload_set() = default;
+  operator_overload_set(const operator_overload_set&) = default;
+  operator_overload_set(operator_overload_set&&) = default;
+  operator_overload_set& operator=(const operator_overload_set&) = default;
+  operator_overload_set& operator=(operator_overload_set&&) = default;
 };
 
 // operator*
@@ -262,6 +322,14 @@ struct operator_overload_set<std::meta::operators::op_star, ProtocolType,
                              Vtable, OverloadSpecs...>
     : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
   using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator*...;
+
+ protected:
+  operator_overload_set() = default;
+  ~operator_overload_set() = default;
+  operator_overload_set(const operator_overload_set&) = default;
+  operator_overload_set(operator_overload_set&&) = default;
+  operator_overload_set& operator=(const operator_overload_set&) = default;
+  operator_overload_set& operator=(operator_overload_set&&) = default;
 };
 
 }  // namespace xyz::detail
