@@ -2313,7 +2313,8 @@ TEST(ReflectionProtocolTest, CallOperatorForwardingAfterCopy) {
   EXPECT_EQ(copy(21), 42);
 }
 
-// Tests that dispatching fails gracefully for a moved-from protocol.
+// Tests that dispatching fails gracefully for a moved-from protocol, for
+// named member functions and for each operator.
 #if (defined(_MSC_VER) && defined(_DEBUG)) || (!defined(NDEBUG))
 
 TEST(ReflectionProtocolTest, MutableValuelessCall) {
@@ -2355,6 +2356,176 @@ TEST(ReflectionProtocolTest, ConstValuelessCall) {
   EXPECT_TRUE(p.valueless_after_move());
 
   EXPECT_DEATH(p.foo(), "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolTest, MutableCallOperatorValuelessCall) {
+  struct Interface {
+    int operator()(int x);
+  };
+
+  struct TypeA {
+    int operator()(int x) { return x * 2; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  EXPECT_EQ(p(21), 42);
+
+  auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  EXPECT_TRUE(p.valueless_after_move());
+
+  EXPECT_DEATH(p(21), "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolTest, ConstCallOperatorValuelessCall) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  struct TypeA {
+    int operator()(int x) const { return x * 2; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  EXPECT_EQ(p(21), 42);
+
+  auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  EXPECT_TRUE(p.valueless_after_move());
+
+  EXPECT_DEATH(p(21), "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolTest, MutableOperatorSquareBracketsValuelessCall) {
+  struct Interface {
+    int operator[](int);
+  };
+
+  struct TypeA {
+    int operator[](int) { return 42; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  EXPECT_EQ(p[0], 42);
+
+  auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  EXPECT_TRUE(p.valueless_after_move());
+
+  EXPECT_DEATH(p[0], "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolTest, ConstOperatorSquareBracketsValuelessCall) {
+  struct Interface {
+    int operator[](int) const;
+  };
+
+  struct TypeA {
+    int operator[](int) const { return 42; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  EXPECT_EQ(p[0], 42);
+
+  auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  EXPECT_TRUE(p.valueless_after_move());
+
+  EXPECT_DEATH(p[0], "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolTest, MutableOperatorStarValuelessCall) {
+  struct Interface {
+    int operator*();
+  };
+
+  struct TypeA {
+    int operator*() { return 42; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  EXPECT_EQ(*p, 42);
+
+  auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  EXPECT_TRUE(p.valueless_after_move());
+
+  EXPECT_DEATH(*p, "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolTest, ConstOperatorStarValuelessCall) {
+  struct Interface {
+    int operator*() const;
+  };
+
+  struct TypeA {
+    int operator*() const { return 42; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  EXPECT_EQ(*p, 42);
+
+  auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  EXPECT_TRUE(p.valueless_after_move());
+
+  EXPECT_DEATH(*p, "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolTest, MutableOperatorArrowValuelessCall) {
+  struct Interface {
+    int operator->();
+  };
+
+  struct TypeA {
+    int operator->() { return 42; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  EXPECT_EQ(p.operator->(), 42);
+
+  auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  EXPECT_TRUE(p.valueless_after_move());
+
+  EXPECT_DEATH(p.operator->(),
+               "cannot call member function of valueless protocol");
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolTest, ConstOperatorArrowValuelessCall) {
+  struct Interface {
+    int operator->() const;
+  };
+
+  struct TypeA {
+    int operator->() const { return 42; }
+  };
+
+  protocol<Interface> p(TypeA{});
+  EXPECT_EQ(p.operator->(), 42);
+
+  auto _ = std::move(p);
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+  EXPECT_TRUE(p.valueless_after_move());
+
+  EXPECT_DEATH(p.operator->(),
+               "cannot call member function of valueless protocol");
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
