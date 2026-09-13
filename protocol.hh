@@ -296,20 +296,11 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
 
-  // Recovers the EnclosingType pointer: `call_operator_base` derives from
-  // this thunk, while a generated `member_base` holds it as its sole data
-  // member (the vanishing-this-pointer cast).
-  template <typename Self>
-  static auto* enclosing(Self* self) {
-    using Enclosing = std::conditional_t<std::is_const_v<Self>,
-                                         const EnclosingType, EnclosingType>;
-    if constexpr (std::derived_from<EnclosingType, method_thunk>) {
-      return static_cast<Enclosing*>(self);
-    } else {
-      return reinterpret_cast<Enclosing*>(self);
-    }
-  }
-
+  // Recovers the EnclosingType pointer from the thunk's own address: the
+  // thunk is a `[[no_unique_address]]` data member of `EnclosingType`, not a
+  // base class, so there is no base-to-derived conversion to make this a
+  // `static_cast`.
+  //
   // Provides member-function call syntax. Widens the EnclosingType pointer
   // to the enclosing protocol/protocol_view object, then calls through its
   // stored vtable pointer's matching function pointer, passing the
@@ -317,7 +308,8 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   R operator()(Args... args) noexcept(IsNoexcept)
     requires(!IsConst)
   {
-    auto* protocol_object = static_cast<ProtocolType*>(enclosing(this));
+    auto* enclosing = reinterpret_cast<EnclosingType*>(this);
+    auto* protocol_object = static_cast<ProtocolType*>(enclosing);
     if constexpr (is_protocol_v<ProtocolType>) {
       assert(!protocol_object->valueless_after_move() &&
              "cannot call member function of valueless protocol");
@@ -331,8 +323,8 @@ struct method_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable, Member,
   R operator()(Args... args) const noexcept(IsNoexcept)
     requires(IsConst)
   {
-    const auto* protocol_object =
-        static_cast<const ProtocolType*>(enclosing(this));
+    const auto* enclosing = reinterpret_cast<const EnclosingType*>(this);
+    const auto* protocol_object = static_cast<const ProtocolType*>(enclosing);
     if constexpr (is_protocol_v<ProtocolType>) {
       assert(!protocol_object->valueless_after_move() &&
              "cannot call member function of valueless protocol");
@@ -416,20 +408,129 @@ struct member_thunk
   member_thunk& operator=(member_thunk&&) = default;
 };
 
-// The wrapper base for an interface's call operators. Deriving from the
-// overload set gives `p(args)` call syntax; protected special members let a
-// protocol/protocol_view copy the base but stop it being sliced off.
-template <typename ProtocolType, typename Vtable, typename... Specs>
-struct call_operator_base
-    : member_thunk<call_operator_base<ProtocolType, Vtable, Specs...>,
-                   ProtocolType, Vtable, Specs...> {
+// Thunk for one overload of a synthesised call operator. `operator()` can't
+// be reached through a named member, so `call_operator_overload_set`
+// derives from this thunk directly instead of holding it as a data member,
+// letting `ProtocolType` be recovered with a plain static_cast.
+template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
+          typename Vtable, std::meta::info Member, bool IsConst,
+          bool IsNoexcept>
+struct call_operator_thunk;
+
+// TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers;
+// until then `protocol_interface_function_infos` rejects ref-qualified
+// interface members.
+template <typename R, typename... Args, typename EnclosingType,
+          typename ProtocolType, typename Vtable, std::meta::info Member,
+          bool IsConst, bool IsNoexcept>
+struct call_operator_thunk<R (*)(Args...), EnclosingType, ProtocolType, Vtable,
+                           Member, IsConst, IsNoexcept> {
+  static constexpr std::meta::info vtable_entry =
+      find_vtable_entry<^^Vtable, Member>();
+
+  // Recovers the ProtocolType pointer with a single static_cast as
+  // `ProtocolType` itself derives (through `call_operator_overload_set`) from
+  // this thunk.
+  //
+  // Provides call-operator syntax: calls through the recovered object's
+  // stored vtable pointer's matching function pointer, passing the
+  // viewed/owned object.
+  R operator()(Args... args) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    if constexpr (is_protocol_v<ProtocolType>) {
+      assert(!protocol_object->valueless_after_move() &&
+             "cannot call member function of valueless protocol");
+    }
+
+    const Vtable* vtable = protocol_object->vtable_;
+    return vtable->[:vtable_entry:](protocol_object->object_,
+                                    std::forward<Args>(args)...);
+  }
+
+  R operator()(Args... args) const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    if constexpr (is_protocol_v<ProtocolType>) {
+      assert(!protocol_object->valueless_after_move() &&
+             "cannot call member function of valueless protocol");
+    }
+
+    const Vtable* vtable = protocol_object->vtable_;
+    return vtable->[:vtable_entry:](protocol_object->object_,
+                                    std::forward<Args>(args)...);
+  }
+
  protected:
-  call_operator_base() = default;
-  ~call_operator_base() = default;
-  call_operator_base(const call_operator_base&) = default;
-  call_operator_base(call_operator_base&&) = default;
-  call_operator_base& operator=(const call_operator_base&) = default;
-  call_operator_base& operator=(call_operator_base&&) = default;
+  // Only `call_operator_overload_set` may create or copy a thunk.
+  call_operator_thunk() = default;
+  ~call_operator_thunk() = default;
+  call_operator_thunk(const call_operator_thunk&) = default;
+  call_operator_thunk(call_operator_thunk&&) = default;
+  call_operator_thunk& operator=(const call_operator_thunk&) = default;
+  call_operator_thunk& operator=(call_operator_thunk&&) = default;
+};
+
+// The `call_operator_thunk` specialisation for an `overload_spec`.
+template <typename Spec, typename EnclosingType, typename ProtocolType,
+          typename Vtable>
+struct call_operator_thunk_for;
+
+template <std::meta::info Member, bool IsConst, typename EnclosingType,
+          typename ProtocolType, typename Vtable>
+struct call_operator_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
+                               ProtocolType, Vtable> {
+  // Build the function-pointer type R(*)(Args...) from the method's return
+  // type and parameter types.
+  static consteval std::meta::info fn_ptr_type() {
+    std::vector<std::meta::info> fn_args{std::meta::reflect_constant(false),
+                                         dealias(return_type_of(Member))};
+    fn_args.append_range(parameters_of(Member) |
+                         std::views::transform(std::meta::type_of));
+    return substitute(^^fn_ptr_t, fn_args);
+  }
+
+  // clang-format off
+  using type = typename[:substitute(
+      ^^call_operator_thunk, {fn_ptr_type(), ^^EnclosingType, ^^ProtocolType,
+                              ^^Vtable, std::meta::reflect_constant(Member),
+                              std::meta::reflect_constant(IsConst),
+                              std::meta::reflect_constant(is_noexcept(Member))}):];
+  // clang-format on
+};
+
+template <typename Spec, typename EnclosingType, typename ProtocolType,
+          typename Vtable>
+using call_operator_thunk_t =
+    call_operator_thunk_for<Spec, EnclosingType, ProtocolType, Vtable>::type;
+
+// The overload set for a synthesised call operator: a `call_operator_thunk`
+// per overload, with every operator() brought into scope so that overload
+// resolution among them works as for a member function of the interface.
+// Deriving from the overload set gives `p(args)` call syntax directly, since
+// `operator()` has no name to expose the way `member_base` exposes a named
+// method; the set derives from thunks of itself, so `EnclosingType` is
+// always `call_operator_overload_set`. Protected special members let a
+// protocol/protocol_view copy this base but stop it being sliced off.
+template <typename ProtocolType, typename Vtable, typename... Specs>
+struct call_operator_overload_set
+    : call_operator_thunk_t<
+          Specs, call_operator_overload_set<ProtocolType, Vtable, Specs...>,
+          ProtocolType, Vtable>... {
+  using call_operator_thunk_t<
+      Specs, call_operator_overload_set<ProtocolType, Vtable, Specs...>,
+      ProtocolType, Vtable>::operator()...;
+
+ protected:
+  call_operator_overload_set() = default;
+  ~call_operator_overload_set() = default;
+  call_operator_overload_set(const call_operator_overload_set&) = default;
+  call_operator_overload_set(call_operator_overload_set&&) = default;
+  call_operator_overload_set& operator=(const call_operator_overload_set&) =
+      default;
+  call_operator_overload_set& operator=(call_operator_overload_set&&) = default;
 };
 
 // How generated wrappers treat the const-qualification of interface members.
@@ -503,7 +604,7 @@ struct wrapper_bases : MemberBases... {};
 // Returns a `wrapper_bases` specialisation with one base per public,
 // non-special, member function name of `interface_type`, giving named members
 // with an `operator()` for each overload selected by `ConstPolicy`, plus a
-// `call_operator_base` if `interface_type` has call operators.
+// `call_operator_overload_set` if `interface_type` has call operators.
 template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable,
           const_policy ConstPolicy>
 consteval std::meta::info generate_wrapper_bases() {
@@ -534,16 +635,20 @@ consteval std::meta::info generate_wrapper_bases() {
     if (specs.empty()) continue;
 
     std::vector<std::meta::info> generator_args;
-    if (!is_call_operator(first)) {
+    if (has_identifier(first)) {
       generator_args.push_back(reflect_constant(first));
     }
     generator_args.push_back(^^ProtocolType);
     generator_args.push_back(^^Vtable);
     generator_args.append_range(specs);
-    member_base_types.push_back(
-        is_call_operator(first)
-            ? substitute(^^call_operator_base, generator_args)
-            : dealias(substitute(^^member_base_t, generator_args)));
+    if (has_identifier(first)) {
+      member_base_types.push_back(substitute(^^member_base_t, generator_args));
+    } else if (is_call_operator(first)) {
+      member_base_types.push_back(
+          substitute(^^call_operator_overload_set, generator_args));
+    } else {
+      std::unreachable();
+    }
   }
   return substitute(^^wrapper_bases, member_base_types);
 }
@@ -880,6 +985,11 @@ class protocol
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
+  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
+            typename Vtable, std::meta::info Member, bool IsConst,
+            bool IsNoexcept>
+  friend struct detail::call_operator_thunk;
+
   // Grants `protocol_view` access so that a view of a protocol can share its
   // vtable.
   template <is_valid_view_interface>
@@ -1192,6 +1302,11 @@ class protocol_view
             bool IsNoexcept>
   friend struct detail::method_thunk;
 
+  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
+            typename Vtable, std::meta::info Member, bool IsConst,
+            bool IsNoexcept>
+  friend struct detail::call_operator_thunk;
+
   template <typename U>
     requires(is_protocol_conformant_v<T, std::decay_t<U>>)
   friend constexpr U& protocol_cast(protocol_view operand) {
@@ -1283,6 +1398,11 @@ class protocol_view<const T>
             typename Vtable, std::meta::info Member, bool IsConst,
             bool IsNoexcept>
   friend struct detail::method_thunk;
+
+  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
+            typename Vtable, std::meta::info Member, bool IsConst,
+            bool IsNoexcept>
+  friend struct detail::call_operator_thunk;
 
   template <typename U>
     requires(is_protocol_conformant_v<T, std::decay_t<U>>)
