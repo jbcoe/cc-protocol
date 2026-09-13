@@ -26,7 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // runtime through a generated vtable; `protocol`'s vtable extends
 // `protocol_view`'s with destroy/copy/move entries used for allocator-aware
 // ownership. Vtable entries are named by mangling the interface member
-// function's signature (see "name_mangling.h"), so an entry can be found by
+// function's signature (see "name_mangling.hh"), so an entry can be found by
 // the signature it implements rather than by declaration order.
 //
 // Neither implementation currently supports operators other than operator().
@@ -50,7 +50,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "conformance.hh"
 #include "member_function_thunks.hh"
-#include "name_mangling.h"
+#include "name_mangling.hh"
 #include "operator_thunks.hh"
 #include "protocol_traits.hh"
 #include "protocol_wrappers.hh"
@@ -239,13 +239,12 @@ class protocol
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst,
-            bool IsNoexcept>
+            typename Vtable, std::meta::info Member, bool IsConst>
   friend struct detail::member_function_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
             typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst, bool IsNoexcept>
+            bool IsConst>
   friend struct detail::operator_thunk;
 
   // Grants `protocol_view` access so that a view of a protocol can share its
@@ -555,13 +554,12 @@ class protocol_view
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst,
-            bool IsNoexcept>
+            typename Vtable, std::meta::info Member, bool IsConst>
   friend struct detail::member_function_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
             typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst, bool IsNoexcept>
+            bool IsConst>
   friend struct detail::operator_thunk;
 
   template <typename U>
@@ -651,13 +649,12 @@ class protocol_view<const T>
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst,
-            bool IsNoexcept>
+            typename Vtable, std::meta::info Member, bool IsConst>
   friend struct detail::member_function_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
             typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst, bool IsNoexcept>
+            bool IsConst>
   friend struct detail::operator_thunk;
 
   template <typename U>

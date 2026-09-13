@@ -1,50 +1,36 @@
 include_guard(GLOBAL)
 
-if(ENABLE_SANITIZERS)
-  set(SANITIZER_FLAGS_ASAN "-fsanitize=address" "-fno-omit-frame-pointer")
-  set(SANITIZER_FLAGS_UBSAN "-fsanitize=undefined")
-  set(SANITIZER_FLAGS_TSAN "-fsanitize=thread")
+include(CheckCXXCompilerFlag)
 
-  include(CheckCXXCompilerFlag)
+set(SANITIZER_FLAGS_ASAN "-fsanitize=address" "-fno-omit-frame-pointer")
+set(SANITIZER_FLAGS_UBSAN "-fsanitize=undefined")
+set(SANITIZER_FLAGS_TSAN "-fsanitize=thread")
+set(SANITIZER_LABEL_ASAN "AddressSanitizer")
+set(SANITIZER_LABEL_UBSAN "UndefinedBehaviorSanitizer")
+set(SANITIZER_LABEL_TSAN "ThreadSanitizer")
 
-  # Check ASAN
-  set(CMAKE_REQUIRED_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
-  set(CMAKE_REQUIRED_LINK_OPTIONS "-fsanitize=address")
-  check_cxx_compiler_flag("-fsanitize=address" COMPILER_SUPPORTS_ASAN)
-
-  # Check UBSAN
-  set(CMAKE_REQUIRED_FLAGS "-fsanitize=undefined")
-  set(CMAKE_REQUIRED_LINK_OPTIONS "-fsanitize=undefined")
-  check_cxx_compiler_flag("-fsanitize=undefined" COMPILER_SUPPORTS_UBSAN)
-
-  # Check TSAN
-  set(CMAKE_REQUIRED_FLAGS "-fsanitize=thread")
-  set(CMAKE_REQUIRED_LINK_OPTIONS "-fsanitize=thread")
-  check_cxx_compiler_flag("-fsanitize=thread" COMPILER_SUPPORTS_TSAN)
-
-
-  # Reset required flags
-  unset(CMAKE_REQUIRED_FLAGS)
-  unset(CMAKE_REQUIRED_LINK_OPTIONS)
-
-  if(COMPILER_SUPPORTS_ASAN)
-    add_library(asan INTERFACE IMPORTED)
+foreach(sanitizer ASAN UBSAN TSAN)
+  if(ENABLE_${sanitizer})
+    list(JOIN SANITIZER_FLAGS_${sanitizer} " " sanitizer_probe_flags)
+    set(CMAKE_REQUIRED_FLAGS "${sanitizer_probe_flags}")
+    set(CMAKE_REQUIRED_LINK_OPTIONS "${SANITIZER_FLAGS_${sanitizer}}")
+    check_cxx_compiler_flag("${sanitizer_probe_flags}" COMPILER_SUPPORTS_${sanitizer})
+    unset(CMAKE_REQUIRED_FLAGS)
+    unset(CMAKE_REQUIRED_LINK_OPTIONS)
+    if(NOT COMPILER_SUPPORTS_${sanitizer})
+      message(
+        FATAL_ERROR
+          "${SANITIZER_LABEL_${sanitizer}} is requested (ENABLE_${sanitizer}=ON) but not supported by the compiler (${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION})."
+      )
+    endif()
+    string(TOLOWER "${sanitizer}" sanitizer_target)
+    # GLOBAL: xyz_add_test() calls include(sanitizers) from whichever
+    # directory adds the first test target, and a non-GLOBAL IMPORTED
+    # target is only visible in that directory and its children.
+    add_library(${sanitizer_target} INTERFACE IMPORTED GLOBAL)
     set_target_properties(
-      asan PROPERTIES INTERFACE_COMPILE_OPTIONS "${SANITIZER_FLAGS_ASAN}"
-                      INTERFACE_LINK_OPTIONS "${SANITIZER_FLAGS_ASAN}")
-  endif(COMPILER_SUPPORTS_ASAN)
-
-  if(COMPILER_SUPPORTS_UBSAN)
-    add_library(ubsan INTERFACE IMPORTED)
-    set_target_properties(
-      ubsan PROPERTIES INTERFACE_COMPILE_OPTIONS "${SANITIZER_FLAGS_UBSAN}"
-                       INTERFACE_LINK_OPTIONS "${SANITIZER_FLAGS_UBSAN}")
-  endif(COMPILER_SUPPORTS_UBSAN)
-
-  if(COMPILER_SUPPORTS_TSAN)
-    add_library(tsan INTERFACE IMPORTED)
-    set_target_properties(
-      tsan PROPERTIES INTERFACE_COMPILE_OPTIONS "${SANITIZER_FLAGS_TSAN}"
-                      INTERFACE_LINK_OPTIONS "${SANITIZER_FLAGS_TSAN}")
-  endif(COMPILER_SUPPORTS_TSAN)
-endif(ENABLE_SANITIZERS)
+      ${sanitizer_target}
+      PROPERTIES INTERFACE_COMPILE_OPTIONS "${SANITIZER_FLAGS_${sanitizer}}"
+                 INTERFACE_LINK_OPTIONS "${SANITIZER_FLAGS_${sanitizer}}")
+  endif()
+endforeach()

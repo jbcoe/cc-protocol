@@ -195,5 +195,4 @@ using protocol_wrappers_t =
 
 }  // namespace xyz::detail
 
-#pragma GCC diagnostic pop
 #endif  // XYZ_PROTOCOL_PROTOCOL_WRAPPERS_HH_

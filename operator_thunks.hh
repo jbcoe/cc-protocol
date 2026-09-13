@@ -38,17 +38,17 @@ namespace xyz::detail {
 // letting `ProtocolType` be recovered with a plain static_cast.
 template <std::meta::operators Operator, typename FnPtrType,
           typename ProtocolType, typename Vtable, std::meta::info Member,
-          bool IsConst, bool IsNoexcept>
+          bool IsConst>
 struct operator_thunk {
-  operator_thunk() =
-      delete ("Unspecialized operator thunk cannot be instantiated");
+  static_assert(false, "Unspecialized operator_thunk cannot be instantiated.");
 };
 
 // operator()
-template <typename R, typename... Args, typename ProtocolType, typename Vtable,
-          std::meta::info Member, bool IsConst, bool IsNoexcept>
-struct operator_thunk<std::meta::operators::op_parentheses, R (*)(Args...),
-                      ProtocolType, Vtable, Member, IsConst, IsNoexcept> {
+template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
+          typename Vtable, std::meta::info Member, bool IsConst>
+struct operator_thunk<std::meta::operators::op_parentheses,
+                      R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
+                      Member, IsConst> {
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
 
@@ -91,10 +91,11 @@ struct operator_thunk<std::meta::operators::op_parentheses, R (*)(Args...),
 };
 
 // operator []
-template <typename R, typename... Args, typename ProtocolType, typename Vtable,
-          std::meta::info Member, bool IsConst, bool IsNoexcept>
-struct operator_thunk<std::meta::operators::op_square_brackets, R (*)(Args...),
-                      ProtocolType, Vtable, Member, IsConst, IsNoexcept> {
+template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
+          typename Vtable, std::meta::info Member, bool IsConst>
+struct operator_thunk<std::meta::operators::op_square_brackets,
+                      R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
+                      Member, IsConst> {
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
 
@@ -137,10 +138,11 @@ struct operator_thunk<std::meta::operators::op_square_brackets, R (*)(Args...),
 };
 
 // operator ->
-template <typename R, typename ProtocolType, typename Vtable,
-          std::meta::info Member, bool IsConst, bool IsNoexcept>
-struct operator_thunk<std::meta::operators::op_arrow, R (*)(), ProtocolType,
-                      Vtable, Member, IsConst, IsNoexcept> {
+template <typename R, bool IsNoexcept, typename ProtocolType, typename Vtable,
+          std::meta::info Member, bool IsConst>
+struct operator_thunk<std::meta::operators::op_arrow,
+                      R (*)() noexcept(IsNoexcept), ProtocolType, Vtable,
+                      Member, IsConst> {
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
 
@@ -181,10 +183,11 @@ struct operator_thunk<std::meta::operators::op_arrow, R (*)(), ProtocolType,
 };
 
 // operator *
-template <typename R, typename ProtocolType, typename Vtable,
-          std::meta::info Member, bool IsConst, bool IsNoexcept>
-struct operator_thunk<std::meta::operators::op_star, R (*)(), ProtocolType,
-                      Vtable, Member, IsConst, IsNoexcept> {
+template <typename R, bool IsNoexcept, typename ProtocolType, typename Vtable,
+          std::meta::info Member, bool IsConst>
+struct operator_thunk<std::meta::operators::op_star,
+                      R (*)() noexcept(IsNoexcept), ProtocolType, Vtable,
+                      Member, IsConst> {
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
 
@@ -232,10 +235,12 @@ template <std::meta::info Member, bool IsConst, typename ProtocolType,
           typename Vtable>
 struct operator_thunk_for<overload_spec<Member, IsConst>, ProtocolType,
                           Vtable> {
-  // Build the function-pointer type R(*)(Args...) from the method's return
-  // type and parameter types.
+  // Build the function-pointer type R(*)(Args...) noexcept(...) from the
+  // method's return type, parameter types and noexcept-ness.
   static consteval std::meta::info fn_ptr_type() {
-    std::vector<std::meta::info> fn_args{dealias(return_type_of(Member))};
+    std::vector<std::meta::info> fn_args{
+        std::meta::reflect_constant(is_noexcept(Member)),
+        dealias(return_type_of(Member))};
     fn_args.append_range(parameters_of(Member) |
                          std::views::transform(std::meta::type_of));
     return substitute(^^fn_ptr_t, fn_args);
@@ -249,8 +254,7 @@ struct operator_thunk_for<overload_spec<Member, IsConst>, ProtocolType,
                         fn_ptr_type(),
                          ^^ProtocolType, ^^Vtable,
                         std::meta::reflect_constant(Member),
-                        std::meta::reflect_constant(IsConst),
-                        std::meta::reflect_constant(is_noexcept(Member))
+                        std::meta::reflect_constant(IsConst)
                     }):];
   // clang-format on
 };
@@ -264,8 +268,8 @@ using operator_thunk_t =
 template <std::meta::operators Operator, typename ProtocolType, typename Vtable,
           typename... OverloadSpecs>
 struct operator_overload_set {
-  operator_overload_set() =
-      delete ("Unspecialized operator overload set cannot be instantiated");
+  static_assert(false,
+                "Unspecialized operator_overload_set cannot be instantiated.");
 };
 
 // operator()

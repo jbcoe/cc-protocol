@@ -6,8 +6,9 @@ build --cxxopt=-freflection
 # based on the host OS, rather than requiring an explicit --config.
 common --enable_platform_specific_config
 
-# Bazel's macOS cc_configure toolchain assumes Apple's clang. It always
-# passes clang/Objective-C-only flags (-ffile-compilation-dir=.,
+# Bazel's autoconfigured C++ toolchain (rules_cc's unix_cc_configure, driven
+# by the CC/CXX that scripts/bazel.py exports) assumes Apple's clang on macOS.
+# It always passes clang/Objective-C-only flags (-ffile-compilation-dir=.,
 # -fobjc-link-runtime) that GCC does not recognise, so disable the features
 # that add them. It also links every C++ target with plain `gcc`, not `g++`,
 # so it never gets GCC's implicit libstdc++, and passes `-lc++` (libc++)
@@ -16,6 +17,16 @@ common --enable_platform_specific_config
 build:macos --features=-macos_reproducible
 build:macos --features=-macos_default_link_flags
 build:macos --linkopt=-lstdc++
+
+# The same toolchain reads an xcode_config to derive -mmacosx-version-min. Its
+# default, @local_config_xcode, compiles and runs xcode-locator and then
+# xcodebuild for every installed Xcode on each fresh output base, which is
+# most of the macOS CI job's analysis time. Select an xcode_config with no
+# Xcode versions instead (the stub Bazel generates off macOS) and drop the
+# flag it would derive from that stub, so GCC keeps its own default
+# deployment target.
+build:macos --xcode_version_config=//:empty_xcode_config
+build:macos --features=-macos_minimum_os
 
 # Treat external repositories' headers (e.g. googletest) as system headers,
 # matching CMake's SYSTEM FetchContent_Declare, so -Werror below only holds
