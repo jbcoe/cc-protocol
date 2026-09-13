@@ -2831,7 +2831,7 @@ TEST(ReflectionProtocolTest, OverloadedQualifiers) {
   struct Interface {
     int foo() &;
     int foo() &&;
-    int foo() const;
+    int foo() const&;
   };
 
   struct Conforming {
