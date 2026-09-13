@@ -163,3 +163,44 @@ TEST(TutorialsVanishingThis, ParentClassAccessFromMultipleMemberDataCalls) {
 }
 
 }  // namespace xyz::tutorials::access_parent_from_multiple_callable_members
+
+// Operators have no name so they need no wrapping Base struct to hold the
+// member name. Recovering the owner does not need a zero-offset
+// member-to-base-class cast, just a static_cast from a base class to a derived
+// class.
+
+namespace xyz::tutorials::access_parent_from_operators {
+
+struct CallOperator {
+  int operator()(int x) const;
+};
+
+struct IndexOperator {
+  int operator[](int x) const;
+};
+
+struct A : CallOperator, IndexOperator {
+  int value_;
+
+  A(int value) : value_(value) {}
+};
+
+int CallOperator::operator()(int x) const {
+  const auto* owner = static_cast<const A*>(this);
+  return x + owner->value_;
+}
+
+int IndexOperator::operator[](int x) const {
+  const auto* owner = static_cast<const A*>(this);
+  return x * owner->value_;
+}
+
+TEST(TutorialsVanishingThis, ParentClassAccessFromOperators) {
+  static_assert(sizeof(A) == sizeof(int));
+
+  A a(3);
+  EXPECT_EQ(a(5), 8);
+  EXPECT_EQ(a[5], 15);
+}
+
+}  // namespace xyz::tutorials::access_parent_from_operators
