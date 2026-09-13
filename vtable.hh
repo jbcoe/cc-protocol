@@ -29,7 +29,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <vector>
 
 #include "conformance.hh"
-#include "name_mangling.h"
+#include "name_mangling.hh"
 #include "overload_spec.hh"
 
 namespace xyz::detail {

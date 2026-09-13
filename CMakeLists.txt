@@ -133,7 +133,7 @@ target_sources(
             protocol_traits.hh
             protocol_wrappers.hh
             vtable.hh
-            name_mangling.h)
+            name_mangling.hh)
 # Consumers need the reflection flags of whichever compiler they build with,
 # so the options are generator expressions evaluated at their configure time
 # rather than the flags of the compiler that installed the package.

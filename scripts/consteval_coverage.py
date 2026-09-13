@@ -62,11 +62,10 @@ from compiler_discovery import find_reflection_compilers
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Library headers use the .hh suffix; name_mangling.h predates the
-# convention. Test helpers (.h) are not instrumented.
+# Library headers use the .hh suffix; test helpers (.h) are not instrumented.
 INSTRUMENTED_HEADERS = sorted(
     os.path.basename(path) for path in glob.glob(os.path.join(SOURCE_ROOT, "*.hh"))
-) + ["name_mangling.h"]
+)
 
 TRAP_HEADER = "consteval_coverage_probe.h"
 
