@@ -74,12 +74,16 @@ jobs:
           flags: runtime
           disable_search: true
 
-  # Compile-time trap probing of the consteval code in protocol.hh: one
-  # -fsyntax-only compile per probe point, see scripts/consteval_coverage.py.
+  # Compile-time trap probing of the consteval code in the protocol headers:
+  # one -fsyntax-only compile per probe point, see
+  # scripts/consteval_coverage.py.
   consteval-coverage:
     name: consteval coverage
     runs-on: ubuntu-26.04
-    timeout-minutes: 90
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        shard: [0, 1, 2, 3]
     permissions:
       id-token: write # Tokenless Codecov upload via OIDC.
     steps:
@@ -94,7 +98,13 @@ jobs:
       - name: Build (provides the googletest headers)
         run: ./scripts/cmake.sh build -B coverage
       - name: Probe consteval coverage
-        run: ./scripts/consteval_coverage.sh --lcov-output build/consteval-coverage/coverage.info
+        # Probe points, not whole headers, are split across the matrix:
+        # header sizes are too uneven (name_mangling.h alone is nearly two
+        # fifths of them) for whole-header shards to balance the load.
+        run: |
+          ./scripts/consteval_coverage.sh \
+            --shard-count 4 --shard-index ${{ matrix.shard }} \
+            --lcov-output build/consteval-coverage/coverage.info
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
         with:
