@@ -47,6 +47,17 @@ concept is_callable = requires(P& p) { p(); };
 template <typename P>
 concept is_callable_with_int = requires(P& p) { p(0); };
 
+// A generic lambda's parameter type deduces `Op`, `P`, `V` and `S...` from
+// any `xyz::detail::operator_overload_set` base of `Derived`, so slicing can
+// be probed without naming the protocol's internal vtable/spec types.
+// `requires` treats the resulting inaccessible-special-member error as a
+// substitution failure rather than a hard error.
+template <typename Derived>
+concept operator_overload_set_can_be_sliced_from = requires(Derived d) {
+  []<std::meta::operators Op, typename P, typename V, typename... S>(
+      xyz::detail::operator_overload_set<Op, P, V, S...>) {}(d);
+};
+
 // ---------------------------------------------------------------------------
 // Type trait tests.
 // ---------------------------------------------------------------------------
@@ -1412,6 +1423,25 @@ TEST(ReflectionProtocolViewTest, CallOperator) {
   EXPECT_EQ(view(21), 42);
 }
 
+TEST(ReflectionProtocolViewTest, CallOperatorOverloadSetCannotBeDetached) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  struct Conforming {
+    int operator()(int x) const { return x * 2; }
+  };
+
+  Conforming c;
+  protocol_view<Interface> view(c);
+
+  // Slicing `view` into its `operator_overload_set` base would detach the
+  // rest of `view`'s layout, so the base's own `static_cast<ProtocolType*>`
+  // back to the full object inside `operator()` would be undefined
+  // behaviour.
+  static_assert(!operator_overload_set_can_be_sliced_from<decltype(view)>);
+}
+
 TEST(ReflectionProtocolViewTest, CallOperatorFromLambda) {
   struct Interface {
     int operator()(int x) const;
@@ -2153,6 +2183,24 @@ TEST(ReflectionProtocolTest, CallOperator) {
   EXPECT_EQ(p(21), 42);
 }
 
+TEST(ReflectionProtocolTest, CallOperatorOverloadSetCannotBeDetached) {
+  struct Interface {
+    int operator()(int x) const;
+  };
+
+  struct Conforming {
+    int operator()(int x) const { return x * 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+
+  // Slicing `p` into its `operator_overload_set` base would detach the
+  // rest of `p`'s layout, so the base's own `static_cast<ProtocolType*>`
+  // back to the full object inside `operator()` would be undefined
+  // behaviour.
+  static_assert(!operator_overload_set_can_be_sliced_from<decltype(p)>);
+}
+
 TEST(ReflectionProtocolTest, CallOperatorFromLambda) {
   struct Interface {
     int operator()(int x) const;
@@ -2771,6 +2819,76 @@ TEST(ReflectionProtocolViewTest, MovedFromTargetType) {
   protocol_view<Interface> pv(movedFrom);
   EXPECT_EQ(target_type(pv), typeid(void));
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolTest, OperatorSquareBrackets) {
+  struct Interface {
+    int operator[](int) const noexcept;
+    int operator[](int) noexcept;
+  };
+
+  struct Conforming {
+    int operator[](int) const noexcept { return 0; }
+
+    int operator[](int) noexcept { return 42; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p[0], 42);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_EQ(pv[0], 42);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_EQ(pcv[0], 0);
+}
+
+TEST(ReflectionProtocolTest, OperatorStar) {
+  struct Interface {
+    int operator*() const noexcept;
+    int operator*() noexcept;
+  };
+
+  struct Conforming {
+    int operator*() const noexcept { return 0; }
+
+    int operator*() noexcept { return 42; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(*p, 42);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_EQ(*pv, 42);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_EQ(*pcv, 0);
+}
+
+TEST(ReflectionProtocolTest, OperatorArrow) {
+  struct Interface {
+    int operator->() const noexcept;
+    int operator->() noexcept;
+  };
+
+  struct Conforming {
+    int operator->() const noexcept { return 0; }
+
+    int operator->() noexcept { return 42; }
+  };
+
+  Conforming c;
+
+  protocol<Interface> p(c);
+  EXPECT_EQ(p.operator->(), 42);
+
+  protocol_view<Interface> pv(c);
+  EXPECT_EQ(pv.operator->(), 42);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_EQ(pcv.operator->(), 0);
 }
 
 }  // namespace

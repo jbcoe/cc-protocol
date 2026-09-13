@@ -159,4 +159,16 @@ TEST(NameManglingTest, DistinguishesMembersDifferingOnlyByNoexcept) {
                 mangle(^^NoexceptInterface::get));
 }
 
+TEST(NameManglingTest, ExtraOperators) {
+  struct A {
+    int operator[](int);
+    void* operator*();
+    void* operator->();
+  };
+
+  static_assert(mangle(^^A::operator[]) == "fn_ixii");
+  static_assert(mangle(^^A::operator*) == "fn_dePv");
+  static_assert(mangle(^^A::operator->) == "fn_ptPv");
+}
+
 }  // namespace

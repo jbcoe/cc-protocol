@@ -241,9 +241,20 @@ consteval std::string mangle_type(std::meta::info type) {
 // <source-name> for its identifier otherwise. `identifier_of` throws for
 // `operator()`, which has no identifier.
 consteval std::string base_name_of(std::meta::info function) {
-  if (is_operator_function(function) &&
-      operator_of(function) == std::meta::operators::op_parentheses) {
-    return "cl";
+  if (is_operator_function(function)) {
+    if (operator_of(function) == std::meta::operators::op_parentheses) {
+      return "cl";
+    }
+    if (operator_of(function) == std::meta::operators::op_square_brackets) {
+      return "ix";
+    }
+    if (operator_of(function) == std::meta::operators::op_arrow) {
+      return "pt";
+    }
+    if (operator_of(function) == std::meta::operators::op_star) {
+      return "de";
+    }
+    throw std::runtime_error("name mangling: unsupported operator");
   }
   return mangle_atom(identifier_of(function));
 }
