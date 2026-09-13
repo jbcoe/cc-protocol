@@ -2359,7 +2359,7 @@ TEST(ReflectionProtocolTest, ConstValuelessCall) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
-TEST(ReflectionProtocolTest, MutableCallOperatorValuelessDeath) {
+TEST(ReflectionProtocolTest, MutableCallOperatorValuelessCall) {
   struct Interface {
     int operator()(int x);
   };
@@ -2380,7 +2380,7 @@ TEST(ReflectionProtocolTest, MutableCallOperatorValuelessDeath) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
-TEST(ReflectionProtocolTest, ConstCallOperatorValuelessDeath) {
+TEST(ReflectionProtocolTest, ConstCallOperatorValuelessCall) {
   struct Interface {
     int operator()(int x) const;
   };
@@ -2401,7 +2401,7 @@ TEST(ReflectionProtocolTest, ConstCallOperatorValuelessDeath) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
-TEST(ReflectionProtocolTest, MutableOperatorSquareBracketsValuelessDeath) {
+TEST(ReflectionProtocolTest, MutableOperatorSquareBracketsValuelessCall) {
   struct Interface {
     int operator[](int);
   };
@@ -2422,7 +2422,7 @@ TEST(ReflectionProtocolTest, MutableOperatorSquareBracketsValuelessDeath) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
-TEST(ReflectionProtocolTest, ConstOperatorSquareBracketsValuelessDeath) {
+TEST(ReflectionProtocolTest, ConstOperatorSquareBracketsValuelessCall) {
   struct Interface {
     int operator[](int) const;
   };
@@ -2443,7 +2443,7 @@ TEST(ReflectionProtocolTest, ConstOperatorSquareBracketsValuelessDeath) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
-TEST(ReflectionProtocolTest, MutableOperatorStarValuelessDeath) {
+TEST(ReflectionProtocolTest, MutableOperatorStarValuelessCall) {
   struct Interface {
     int operator*();
   };
@@ -2464,7 +2464,7 @@ TEST(ReflectionProtocolTest, MutableOperatorStarValuelessDeath) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
-TEST(ReflectionProtocolTest, ConstOperatorStarValuelessDeath) {
+TEST(ReflectionProtocolTest, ConstOperatorStarValuelessCall) {
   struct Interface {
     int operator*() const;
   };
@@ -2485,7 +2485,7 @@ TEST(ReflectionProtocolTest, ConstOperatorStarValuelessDeath) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
-TEST(ReflectionProtocolTest, MutableOperatorArrowValuelessDeath) {
+TEST(ReflectionProtocolTest, MutableOperatorArrowValuelessCall) {
   struct Interface {
     int operator->();
   };
@@ -2507,7 +2507,7 @@ TEST(ReflectionProtocolTest, MutableOperatorArrowValuelessDeath) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
-TEST(ReflectionProtocolTest, ConstOperatorArrowValuelessDeath) {
+TEST(ReflectionProtocolTest, ConstOperatorArrowValuelessCall) {
   struct Interface {
     int operator->() const;
   };
