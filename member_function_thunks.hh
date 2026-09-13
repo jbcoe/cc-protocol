@@ -37,15 +37,17 @@ namespace xyz::detail {
 // member, named after the interface method, giving
 // `p.member_function_name(args)` call syntax.
 template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst,
-          bool IsNoexcept>
-struct member_function_thunk;
+          typename Vtable, std::meta::info Member, bool IsConst>
+struct member_function_thunk {
+  static_assert(false,
+                "Unspecialized member_function_thunk cannot be instantiated.");
+};
 
-template <typename R, typename... Args, typename EnclosingType,
+template <typename R, typename... Args, bool IsNoexcept, typename EnclosingType,
           typename ProtocolType, typename Vtable, std::meta::info Member,
-          bool IsConst, bool IsNoexcept>
-struct member_function_thunk<R (*)(Args...), EnclosingType, ProtocolType,
-                             Vtable, Member, IsConst, IsNoexcept> {
+          bool IsConst>
+struct member_function_thunk<R (*)(Args...) noexcept(IsNoexcept), EnclosingType,
+                             ProtocolType, Vtable, Member, IsConst> {
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
 
@@ -98,10 +100,12 @@ template <std::meta::info Member, bool IsConst, typename EnclosingType,
           typename ProtocolType, typename Vtable>
 struct member_function_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
                                  ProtocolType, Vtable> {
-  // Build the function-pointer type R(*)(Args...) from the method's return
-  // type and parameter types.
+  // Build the function-pointer type R(*)(Args...) noexcept(...) from the
+  // method's return type, parameter types and noexcept-ness.
   static consteval std::meta::info fn_ptr_type() {
-    std::vector<std::meta::info> fn_args{dealias(return_type_of(Member))};
+    std::vector<std::meta::info> fn_args{
+        std::meta::reflect_constant(is_noexcept(Member)),
+        dealias(return_type_of(Member))};
     fn_args.append_range(parameters_of(Member) |
                          std::views::transform(std::meta::type_of));
     return substitute(^^fn_ptr_t, fn_args);
@@ -111,8 +115,7 @@ struct member_function_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
   using type = typename[:substitute(
       ^^member_function_thunk, {fn_ptr_type(), ^^EnclosingType, ^^ProtocolType, ^^Vtable,
                        std::meta::reflect_constant(Member),
-                       std::meta::reflect_constant(IsConst),
-                       std::meta::reflect_constant(is_noexcept(Member))}):];
+                       std::meta::reflect_constant(IsConst)}):];
   // clang-format on
 };
 
