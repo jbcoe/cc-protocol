@@ -271,11 +271,18 @@ TEST(TutorialsReflection, DefineAggregate) {
   struct Synthesized;
   // clang-format off
   consteval {
+    // clang-p2996 deprecates data_member_options::no_unique_address in
+    // favour of a fork-specific attributes member that GCC does not have,
+    // so the warning is silenced here rather than moving off the standard
+    // field.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     define_aggregate(^^Synthesized, {
         data_member_spec(^^int, {.name = "value"}),
         data_member_spec(^^Empty,
                           {.name = "empty", .no_unique_address = true}),
     });
+#pragma GCC diagnostic pop
   }
   // clang-format on
 
