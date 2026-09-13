@@ -402,19 +402,17 @@ struct member_thunk
 // derives from this thunk directly instead of holding it as a data member,
 // letting `ProtocolType` be recovered with a plain static_cast.
 template <std::meta::operators Operator, typename FnPtrType,
-          typename EnclosingType, typename ProtocolType, typename Vtable,
-          std::meta::info Member, bool IsConst, bool IsNoexcept>
+          typename ProtocolType, typename Vtable, std::meta::info Member,
+          bool IsConst, bool IsNoexcept>
 struct operator_thunk;
 
 // TODO(jbcoe): Extend this approach to handle lvalue and rvalue qualifiers;
 // until then `protocol_interface_function_infos` rejects ref-qualified
 // interface members.
-template <typename R, typename... Args, typename EnclosingType,
-          typename ProtocolType, typename Vtable, std::meta::info Member,
-          bool IsConst, bool IsNoexcept>
+template <typename R, typename... Args, typename ProtocolType, typename Vtable,
+          std::meta::info Member, bool IsConst, bool IsNoexcept>
 struct operator_thunk<std::meta::operators::op_parentheses, R (*)(Args...),
-                      EnclosingType, ProtocolType, Vtable, Member, IsConst,
-                      IsNoexcept> {
+                      ProtocolType, Vtable, Member, IsConst, IsNoexcept> {
   static constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
 
@@ -448,14 +446,13 @@ struct operator_thunk<std::meta::operators::op_parentheses, R (*)(Args...),
 };
 
 // The `operator_thunk` specialisation for an `overload_spec`.
-template <typename Spec, typename EnclosingType, typename ProtocolType,
-          typename Vtable>
+template <typename Spec, typename ProtocolType, typename Vtable>
 struct operator_thunk_for;
 
-template <std::meta::info Member, bool IsConst, typename EnclosingType,
-          typename ProtocolType, typename Vtable>
-struct operator_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
-                          ProtocolType, Vtable> {
+template <std::meta::info Member, bool IsConst, typename ProtocolType,
+          typename Vtable>
+struct operator_thunk_for<overload_spec<Member, IsConst>, ProtocolType,
+                          Vtable> {
   // Build the function-pointer type R(*)(Args...) from the method's return
   // type and parameter types.
   static consteval std::meta::info fn_ptr_type() {
@@ -472,7 +469,7 @@ struct operator_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
                     {
                         std::meta::reflect_constant(operator_of(Member)),
                         fn_ptr_type(),
-                        ^^EnclosingType, ^^ProtocolType, ^^Vtable,
+                         ^^ProtocolType, ^^Vtable,
                         std::meta::reflect_constant(Member),
                         std::meta::reflect_constant(IsConst),
                         std::meta::reflect_constant(is_noexcept(Member))
@@ -480,10 +477,9 @@ struct operator_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
   // clang-format on
 };
 
-template <typename OverloadSpec, typename EnclosingType, typename ProtocolType,
-          typename Vtable>
+template <typename OverloadSpec, typename ProtocolType, typename Vtable>
 using operator_thunk_t =
-    operator_thunk_for<OverloadSpec, EnclosingType, ProtocolType, Vtable>::type;
+    operator_thunk_for<OverloadSpec, ProtocolType, Vtable>::type;
 
 // The overload set for a synthesised operator X inheriting from an
 // `operator_thunk` for each overload.
@@ -491,14 +487,8 @@ using operator_thunk_t =
 // OverloadSpec.
 template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
 struct operator_overload_set
-    : operator_thunk_t<
-          OverloadSpecs,
-          operator_overload_set<ProtocolType, Vtable, OverloadSpecs...>,
-          ProtocolType, Vtable>... {
-  using operator_thunk_t<
-      OverloadSpecs,
-      operator_overload_set<ProtocolType, Vtable, OverloadSpecs...>,
-      ProtocolType, Vtable>::operator()...;
+    : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
+  using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator()...;
 };
 
 // How generated wrappers treat the const-qualification of interface members.
@@ -959,8 +949,8 @@ class protocol
   friend struct detail::method_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
-            typename EnclosingType, typename ProtocolType, typename Vtable,
-            std::meta::info Member, bool IsConst, bool IsNoexcept>
+            typename ProtocolType, typename Vtable, std::meta::info Member,
+            bool IsConst, bool IsNoexcept>
   friend struct detail::operator_thunk;
 
   // Grants `protocol_view` access so that a view of a protocol can share its
@@ -1275,8 +1265,8 @@ class protocol_view
   friend struct detail::method_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
-            typename EnclosingType, typename ProtocolType, typename Vtable,
-            std::meta::info Member, bool IsConst, bool IsNoexcept>
+            typename ProtocolType, typename Vtable, std::meta::info Member,
+            bool IsConst, bool IsNoexcept>
   friend struct detail::operator_thunk;
 
   template <typename U>
@@ -1371,8 +1361,8 @@ class protocol_view<const T>
   friend struct detail::method_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
-            typename EnclosingType, typename ProtocolType, typename Vtable,
-            std::meta::info Member, bool IsConst, bool IsNoexcept>
+            typename ProtocolType, typename Vtable, std::meta::info Member,
+            bool IsConst, bool IsNoexcept>
   friend struct detail::operator_thunk;
 
   template <typename U>
