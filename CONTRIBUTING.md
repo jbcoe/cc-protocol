@@ -142,14 +142,15 @@ Consteval coverage is instead measured by compile-time trap probing:
 ./scripts/consteval_coverage.sh
 ```
 
-The tool instruments a copy of `protocol.hh` with trap calls at every block
-entry and `return`/`throw` statement in consteval code, then recompiles the
-protocol-instantiating test translation units once per trap with
-`-fsyntax-only`, arming one trap at a time; a compile failure proves the
-test suite evaluated that line, because a constant evaluation has no other
-observable side effect. The design and its limitations are documented in
-`scripts/consteval_coverage.py`. Pass `--lcov-output <path>` for an LCOV
-trace that merges with the runtime one.
+The tool instruments a copy of each library header with trap calls at every
+block entry and `return`/`throw` statement in consteval code, then
+recompiles the test translation units with `-fsyntax-only`, arming every
+trap not yet known to be covered; a trap that fires aborts its constant
+evaluation with a diagnostic naming it, which proves the test suite
+evaluated that line, because a constant evaluation has no other observable
+side effect. Rounds repeat until no new trap fires. The design and its
+limitations are documented in `scripts/consteval_coverage.py`. Pass
+`--lcov-output <path>` for an LCOV trace that merges with the runtime one.
 
 The "Coverage" workflow runs both measurements and uploads them to Codecov
 under the `runtime` and `consteval` flags; it is not a required status

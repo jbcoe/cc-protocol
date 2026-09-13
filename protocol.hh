@@ -26,7 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // runtime through a generated vtable; `protocol`'s vtable extends
 // `protocol_view`'s with destroy/copy/move entries used for allocator-aware
 // ownership. Vtable entries are named by mangling the interface member
-// function's signature (see "name_mangling.h"), so an entry can be found by
+// function's signature (see "name_mangling.hh"), so an entry can be found by
 // the signature it implements rather than by declaration order.
 //
 // Neither implementation currently supports operators other than operator().
@@ -50,7 +50,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "conformance.hh"
 #include "member_function_thunks.hh"
-#include "name_mangling.h"
+#include "name_mangling.hh"
 #include "operator_thunks.hh"
 #include "protocol_traits.hh"
 #include "protocol_wrappers.hh"
