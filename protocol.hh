@@ -184,7 +184,8 @@ consteval bool same_function_with_explicit_object(std::meta::info candidate,
 consteval bool is_called_with_rvalue(std::meta::info candidate) {
   const auto params = parameters_of(candidate);
   return is_rvalue_reference_qualified(candidate) ||
-         (!params.empty() && is_rvalue_reference_type(type_of(params.front())));
+         (!params.empty() && is_explicit_object_parameter(params.front()) &&
+          is_rvalue_reference_type(type_of(params.front())));
 }
 
 // Returns `true` if the `candidate` member function is consistent with the
