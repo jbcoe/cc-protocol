@@ -64,6 +64,41 @@ def _update_command(agent: str, agent_cmd: str, npm_package: str | None) -> str:
     )
 
 
+def _host_git_identity() -> tuple[str | None, str | None]:
+    """Read the host's effective git user.name and user.email, if configured."""
+
+    def _get(key: str) -> str | None:
+        result = subprocess.run(
+            ["git", "config", "--get", key], capture_output=True, text=True
+        )
+        value = result.stdout.strip()
+        return value if result.returncode == 0 and value else None
+
+    return _get("user.name"), _get("user.email")
+
+
+def _identity_args() -> list[str]:
+    """
+    Build env args so git and jj in the sandbox use the host's git identity.
+
+    Name and email are set independently: an unset host value is simply omitted.
+
+    JJ environment variables are undocumented but work as intended.
+    See  https://github.com/jj-vcs/jj/pull/9847.
+    """
+    name, email = _host_git_identity()
+    args = []
+    if name:
+        args.extend(["-e", f"GIT_AUTHOR_NAME={name}"])
+        args.extend(["-e", f"GIT_COMMITTER_NAME={name}"])
+        args.extend(["-e", f"JJ_USER={name}"])
+    if email:
+        args.extend(["-e", f"GIT_AUTHOR_EMAIL={email}"])
+        args.extend(["-e", f"GIT_COMMITTER_EMAIL={email}"])
+        args.extend(["-e", f"JJ_EMAIL={email}"])
+    return args
+
+
 def _agent_mount_args(agent: str | None) -> list[str]:
     """Seed and mount host config so an agent CLI keeps its auth state."""
     # Use os.open with restrictive permissions in _seed_config_file to avoid
@@ -202,6 +237,7 @@ def main() -> None:
 
     run_args.extend(cache_mounts)
     run_args.extend(_agent_mount_args(args.agent))
+    run_args.extend(_identity_args())
 
     if "TERM" in os.environ:
         run_args.extend(["-e", f"TERM={os.environ['TERM']}"])
