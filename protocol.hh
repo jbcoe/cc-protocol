@@ -56,12 +56,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "protocol_wrappers.hh"
 #include "vtable.hh"
 
-// clang-p2996 deprecates data_member_options::no_unique_address in favour of
-// a fork-specific attributes member that GCC does not have, so the warning is
-// silenced for this file rather than moving off the standard field.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
 namespace xyz::reflection {
 
 // Returns `true` if `Candidate` is a structural subtype of `Interface`;
@@ -695,5 +689,4 @@ class protocol_view<const T>
 
 }  // namespace xyz::reflection
 
-#pragma GCC diagnostic pop
 #endif  // XYZ_REFLECTION_PROTOCOL_HH_

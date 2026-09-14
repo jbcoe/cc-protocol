@@ -30,12 +30,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "operator_thunks.hh"
 #include "overload_spec.hh"
 
-// clang-p2996 deprecates data_member_options::no_unique_address in favour of
-// a fork-specific attributes member that GCC does not have, so the warning is
-// silenced for this file rather than moving off the standard field.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
 namespace xyz::detail {
 
 // How generated wrappers treat the const-qualification of interface members.
@@ -93,12 +87,19 @@ struct member_base_generator {
     std::meta::info thunk_type = substitute(
         ^^member_function_overload_set, {^^type, ^^ProtocolType, ^^Vtable, ^^OverloadSpecs...});
 
+    // clang-p2996 deprecates data_member_options::no_unique_address in
+    // favour of a fork-specific attributes member that GCC does not have,
+    // so the warning is silenced here rather than moving off the standard
+    // field.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     define_aggregate(
       ^^type, {data_member_spec(thunk_type,
                              std::meta::data_member_options{
                               .name = identifier_of(Member),
                               .no_unique_address = true
                             })});
+#pragma GCC diagnostic pop
     // clang-format on
   }
 };
@@ -194,5 +195,4 @@ using protocol_wrappers_t =
 
 }  // namespace xyz::detail
 
-#pragma GCC diagnostic pop
 #endif  // XYZ_PROTOCOL_PROTOCOL_WRAPPERS_HH_
