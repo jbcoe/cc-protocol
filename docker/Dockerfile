@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM ubuntu:26.04 AS base
 
 # Install base tools and C++ development tools.
@@ -122,35 +123,37 @@ ENV UV_CACHE_DIR="/home/vscode/.cache/uv"
 # https://git-scm.com/docs/git-config#Documentation/git-config.txt-safedirectory
 RUN git config --global --add safe.directory /workspace
 
+# The sandbox image needs additional setup to pre-warm caches used at runtime.
+FROM base AS sandbox
+
+# repository_cache is defined in the sandbox user-directory config, not
+# workspace config so only the sandbox uses the respository cache.
+ENV XYZ_BAZEL_REPOSITORY_CACHE_DIR="/home/vscode/.cache/bazel-repo"
+RUN echo "common --repository_cache=$XYZ_BAZEL_REPOSITORY_CACHE_DIR" >> /home/vscode/.bazelrc
+
 # Pre-warm bazelisk's download and install of the pinned Bazel binary to avoid
 # fetching and installing it on every run.
 # https://github.com/bazelbuild/bazelisk#how-does-bazelisk-know-which-bazel-version-to-run
-# We use .bazelversion to avoid hard-coding the bazel version number in multiple places.
-COPY .bazelversion .bazelversion
-RUN USE_BAZEL_VERSION="$(cat .bazelversion)" bazel version \
-    && rm .bazelversion
+RUN --mount=type=bind,source=.bazelversion,target=.bazelversion \
+    bazel version
 
-# The sandbox image needs additional setup to use the Docker volumes for persistent cache.
-FROM base AS sandbox
+# Pre-warm Bazel's repository cache from the real target graph so builds
+# inside the sandbox need no network for external dependencies. The repo is
+# bind-mounted rather than COPY'd so the source never becomes part of an
+# image layer; only the populated repository cache needs to persist.
+RUN --mount=type=bind,source=.,target=. \
+    bazel fetch //...
 
-# uv must copy files as the cache volume is on a different filesystem.
-ENV UV_LINK_MODE="copy"
+# Pre-warm uv's package cache and build the venv from the pinned lockfile so
+# `uv run`/`uv sync` inside the sandbox need no network.
+RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    uv sync --locked
 
-ENV XYZ_BAZEL_REPOSITORY_CACHE_DIR="/home/vscode/.cache/bazel-repo"
-
-# Pre-create the cache dirs owned by vscode: Docker otherwise creates a
-# volume's mount point as root on first use, and these tools cannot write
-# into a root-owned directory.
-RUN mkdir -p "$UV_CACHE_DIR" "$XYZ_BAZEL_REPOSITORY_CACHE_DIR"
-
-# repository_cache is defined in the sandbox user-directory config, not workspace config so only
-# the sandbox uses the respository cache.
-RUN echo "common --repository_cache=$XYZ_BAZEL_REPOSITORY_CACHE_DIR" >> /home/vscode/.bazelrc
-
-# Bake the googletest checkout into the image so CMake builds need no network.
+# Clone googletest into the image so CMake builds need no network.
 # With FETCHCONTENT_SOURCE_DIR_GOOGLETEST set, FetchContent performs no download
 # or update step and each build tree still compiles its own copy. The tag must
-# match GIT_TAG in CMakeLists.txt; bumping it needs --rebuild-docker.
+# match GIT_TAG in CMakeLists.txt.
 ENV FETCHCONTENT_SOURCE_DIR_GOOGLETEST="/home/vscode/.cache/googletest-src"
 RUN git clone --depth 1 --branch v1.18.0 https://github.com/google/googletest.git \
     "$FETCHCONTENT_SOURCE_DIR_GOOGLETEST"
