@@ -69,11 +69,15 @@ fails on stock GCC.
 
 ### Continuous Integration
 
-Pull requests run the workflows in `.github/workflows`. The following checks
-are required for merging to `main`: `GCC trunk Release`, `GCC trunk Debug`,
-`GCC-16 Release`, `GCC-16 Debug`, `asan`, `tsan`, `uv-lock`, `pre-commit`.
-The workflows also run advisory macOS jobs (`GCC-16 (macOS)` in Bazel and
-`GCC-16 (macOS) Release` in CMake).
+Pull requests run the workflows in `.github/workflows`. Each build workflow
+ends in a job with a fixed name (`bazel`, `cmake`, `sanitizers`) that reports
+the outcome of its matrix; `uv-lock` and `pre-commit` are single jobs. The
+checks the `main` ruleset requires are drawn from these fixed-name jobs; the
+current list is in the ruleset, not here. The per-configuration legs
+(`GCC trunk Release`, `asan`, and so on) and the macOS jobs (`GCC-16 (macOS)`
+in Bazel, `GCC-16 (macOS) Release` in CMake) are informational: a leg skipped
+by change detection reports under its unexpanded matrix name, so it cannot be
+required.
 
 On pull requests that touch no C++, CMake, Bazel, or build-script sources,
 a change-detection job makes the build and sanitizer jobs skip their steps,
