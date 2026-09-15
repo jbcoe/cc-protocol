@@ -20,14 +20,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef XYZ_PROTOCOL_MEMBER_FUNCTION_THUNKS_HH_
 #define XYZ_PROTOCOL_MEMBER_FUNCTION_THUNKS_HH_
 
-#include <cassert>
 #include <meta>
 #include <ranges>
 #include <utility>
 #include <vector>
 
 #include "overload_spec.hh"
-#include "protocol_traits.hh"
 #include "vtable.hh"
 
 namespace xyz::detail {
@@ -48,22 +46,14 @@ template <typename R, typename... Args, bool IsNoexcept, typename EnclosingType,
           bool IsConst>
 struct member_function_thunk<R (*)(Args...) noexcept(IsNoexcept), EnclosingType,
                              ProtocolType, Vtable, Member, IsConst> {
-  static constexpr std::meta::info vtable_entry =
-      find_vtable_entry<^^Vtable, Member>();
-
   R operator()(Args... args) noexcept(IsNoexcept)
     requires(!IsConst)
   {
     auto* enclosing = reinterpret_cast<EnclosingType*>(this);
     auto* protocol_object = static_cast<ProtocolType*>(enclosing);
-    if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!valueless_after_move(*protocol_object) &&
-             "cannot call member function of valueless protocol");
-    }
-
-    const Vtable* vtable = protocol_object->vtable_;
-    return vtable->[:vtable_entry:](protocol_object->object_,
-                                    std::forward<Args>(args)...);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
   }
 
   R operator()(Args... args) const noexcept(IsNoexcept)
@@ -71,14 +61,9 @@ struct member_function_thunk<R (*)(Args...) noexcept(IsNoexcept), EnclosingType,
   {
     const auto* enclosing = reinterpret_cast<const EnclosingType*>(this);
     const auto* protocol_object = static_cast<const ProtocolType*>(enclosing);
-    if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!valueless_after_move(*protocol_object) &&
-             "cannot call member function of valueless protocol");
-    }
-
-    const Vtable* vtable = protocol_object->vtable_;
-    return vtable->[:vtable_entry:](protocol_object->object_,
-                                    std::forward<Args>(args)...);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
   }
 
  protected:

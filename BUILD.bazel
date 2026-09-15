@@ -38,6 +38,7 @@ cc_test(
         "consteval_check_test.cc",
         "forwarding_test.cc",
         "name_mangling_tests.cc",
+        "protocol_operator_tests.cc",
         "protocol_test.cc",
         "tagged_allocator.h",
         "test_helpers.h",

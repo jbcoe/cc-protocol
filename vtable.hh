@@ -20,10 +20,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef XYZ_PROTOCOL_VTABLE_HH_
 #define XYZ_PROTOCOL_VTABLE_HH_
 
+#include <cassert>
 #include <meta>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <typeinfo>
 #include <utility>
 #include <vector>
@@ -31,6 +33,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "conformance.hh"
 #include "name_mangling.hh"
 #include "overload_spec.hh"
+#include "protocol_traits.hh"
 
 namespace xyz::detail {
 
@@ -50,6 +53,21 @@ consteval std::meta::info find_vtable_entry() {
   }
   throw std::runtime_error("find_vtable_entry: no entry named '" +
                            std::string(name) + "'");
+}
+
+template <std::meta::info Member, typename Vtable, typename ProtocolObject,
+          typename VtablePtr, typename Object, typename... Args>
+decltype(auto) call_through_vtable(ProtocolObject* protocol_object,
+                                   VtablePtr* vtable, Object object,
+                                   Args&&... args) {
+  if constexpr (xyz::reflection::is_protocol_v<
+                    std::remove_cv_t<ProtocolObject>>) {
+    assert(!valueless_after_move(*protocol_object) &&
+           "cannot call member function of valueless protocol");
+  }
+  constexpr std::meta::info vtable_entry =
+      find_vtable_entry<^^Vtable, Member>();
+  return vtable->[:vtable_entry:](object, std::forward<Args>(args)...);
 }
 
 // Returns a list of data_member_spec values, one for each member function
