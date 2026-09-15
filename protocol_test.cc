@@ -359,7 +359,7 @@ TEST(ReflectionProtocolTest, CopiesAreIndependentObjects) {
   protocol<A> move_constructed(std::move(copy_constructed));
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(copy_constructed.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(copy_constructed));
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_EQ(move_constructed.get(), 2);
 
@@ -374,7 +374,7 @@ TEST(ReflectionProtocolTest, CopiesAreIndependentObjects) {
   EXPECT_EQ(move_assigned.get(), 3);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(copy_assigned.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(copy_assigned));
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
@@ -400,11 +400,11 @@ TEST(ReflectionProtocolTest, SelfAssignmentLeavesValueUnchanged) {
   protocol<A>& same = p;
   p = same;
   EXPECT_EQ(p.get(), 7);
-  EXPECT_FALSE(p.valueless_after_move());
+  EXPECT_FALSE(valueless_after_move(p));
 
   p = std::move(same);
   EXPECT_EQ(p.get(), 7);
-  EXPECT_FALSE(p.valueless_after_move());
+  EXPECT_FALSE(valueless_after_move(p));
 }
 
 // ---------------------------------------------------------------------------
@@ -1861,7 +1861,7 @@ TEST(ReflectionProtocolTest, ForwardingAfterMoveConstruction) {
   EXPECT_EQ(b.get(), 5);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(a.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(a));
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
@@ -1928,7 +1928,7 @@ TEST(ReflectionProtocolTest, ForwardingAfterMoveAssignment) {
   EXPECT_EQ(a.get(), 20);  // a now has Doubler's semantics.
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(b.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(b));
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
@@ -2332,7 +2332,7 @@ TEST(ReflectionProtocolTest, MutableValuelessCall) {
   auto _ = std::move(p);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(p));
 
   EXPECT_DEATH(p.foo(), "cannot call member function of valueless protocol");
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
@@ -2353,7 +2353,7 @@ TEST(ReflectionProtocolTest, ConstValuelessCall) {
   auto _ = std::move(p);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(p));
 
   EXPECT_DEATH(p.foo(), "cannot call member function of valueless protocol");
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
@@ -2374,7 +2374,7 @@ TEST(ReflectionProtocolTest, MutableCallOperatorValuelessCall) {
   auto _ = std::move(p);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(p));
 
   EXPECT_DEATH(p(21), "cannot call member function of valueless protocol");
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
@@ -2395,7 +2395,7 @@ TEST(ReflectionProtocolTest, ConstCallOperatorValuelessCall) {
   auto _ = std::move(p);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(p));
 
   EXPECT_DEATH(p(21), "cannot call member function of valueless protocol");
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
@@ -2416,7 +2416,7 @@ TEST(ReflectionProtocolTest, MutableOperatorSquareBracketsValuelessCall) {
   auto _ = std::move(p);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(p));
 
   EXPECT_DEATH(p[0], "cannot call member function of valueless protocol");
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
@@ -2437,7 +2437,7 @@ TEST(ReflectionProtocolTest, ConstOperatorSquareBracketsValuelessCall) {
   auto _ = std::move(p);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(p));
 
   EXPECT_DEATH(p[0], "cannot call member function of valueless protocol");
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
@@ -2458,7 +2458,7 @@ TEST(ReflectionProtocolTest, MutableOperatorStarValuelessCall) {
   auto _ = std::move(p);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(p));
 
   EXPECT_DEATH(*p, "cannot call member function of valueless protocol");
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
@@ -2479,7 +2479,7 @@ TEST(ReflectionProtocolTest, ConstOperatorStarValuelessCall) {
   auto _ = std::move(p);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(p));
 
   EXPECT_DEATH(*p, "cannot call member function of valueless protocol");
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
@@ -2500,7 +2500,7 @@ TEST(ReflectionProtocolTest, MutableOperatorArrowValuelessCall) {
   auto _ = std::move(p);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(p));
 
   EXPECT_DEATH(p.operator->(),
                "cannot call member function of valueless protocol");
@@ -2522,7 +2522,7 @@ TEST(ReflectionProtocolTest, ConstOperatorArrowValuelessCall) {
   auto _ = std::move(p);
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(p.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(p));
 
   EXPECT_DEATH(p.operator->(),
                "cannot call member function of valueless protocol");
@@ -3060,6 +3060,52 @@ TEST(ReflectionProtocolTest, OperatorArrow) {
 
   protocol_view<const Interface> pcv(c);
   EXPECT_EQ(pcv.operator->(), 0);
+}
+
+TEST(ReflectionProtocolTest, ValuelessAfterMoveFunctionDoesNotCollide) {
+  struct Interface {
+    bool valueless_after_move() const noexcept;
+  };
+
+  struct Conforming {
+    bool was_moved_from_ = false;
+    Conforming() = default;
+    Conforming(const Conforming&) = default;
+
+    Conforming(Conforming&& c) noexcept { c.was_moved_from_ = true; }
+
+    Conforming& operator=(const Conforming&) = default;
+
+    Conforming& operator=(Conforming&& c) noexcept {
+      c.was_moved_from_ = false;
+      return *this;
+    };
+
+    bool valueless_after_move() const noexcept { return was_moved_from_; }
+  };
+
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
+  // test exercises the moved-from state on purpose.
+
+  // Check that the `valueless_after_move` member function works as expected.
+  Conforming c;
+  EXPECT_FALSE(c.valueless_after_move());
+  [[maybe_unused]] auto cc = std::move(c);
+  EXPECT_TRUE(c.valueless_after_move());
+
+  // Free and member `valueless_after_move` on a `protocol`.
+  protocol<Interface> p(Conforming{});
+  EXPECT_FALSE(p.valueless_after_move());
+  EXPECT_FALSE(valueless_after_move(p));
+  auto pp = std::move(p);
+  EXPECT_TRUE(valueless_after_move(p));
+
+#if (defined(_MSC_VER) && defined(_DEBUG)) || (!defined(NDEBUG))
+  EXPECT_DEATH(p.valueless_after_move(),
+               "cannot call member function of valueless protocol");
+#endif
+
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 }  // namespace

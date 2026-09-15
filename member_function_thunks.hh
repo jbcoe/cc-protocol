@@ -57,7 +57,7 @@ struct member_function_thunk<R (*)(Args...) noexcept(IsNoexcept), EnclosingType,
     auto* enclosing = reinterpret_cast<EnclosingType*>(this);
     auto* protocol_object = static_cast<ProtocolType*>(enclosing);
     if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
+      assert(!valueless_after_move(*protocol_object) &&
              "cannot call member function of valueless protocol");
     }
 
@@ -72,7 +72,7 @@ struct member_function_thunk<R (*)(Args...) noexcept(IsNoexcept), EnclosingType,
     const auto* enclosing = reinterpret_cast<const EnclosingType*>(this);
     const auto* protocol_object = static_cast<const ProtocolType*>(enclosing);
     if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
+      assert(!valueless_after_move(*protocol_object) &&
              "cannot call member function of valueless protocol");
     }
 

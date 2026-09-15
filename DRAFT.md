@@ -255,7 +255,7 @@ class protocol<I, Allocator=std::allocator<void>> {
     int func2(int, int); // Another overload, same name.
 
     // valueless after move
-    constexpr bool valueless_after_move() const noexcept;
+    friend constexpr bool valueless_after_move(const protocol&) noexcept;
 };
 ```
 

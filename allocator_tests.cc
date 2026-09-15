@@ -250,17 +250,17 @@ TEST(ProtocolTest, ValuelessSpecialMembersAreNoOps) {
   TestProtocol sink{std::move(source)};
   // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
   // test exercises the moved-from state on purpose.
-  ASSERT_TRUE(source.valueless_after_move());
+  ASSERT_TRUE(valueless_after_move(source));
 
   // Copying a valueless protocol goes through the null vtable's copy entry
   // and allocates nothing.
   TestProtocol copy{source};
-  EXPECT_TRUE(copy.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(copy));
 
   // Moving a valueless protocol to an unequal allocator takes the slow path
   // through the null vtable's move and destroy entries.
   TestProtocol moved{std::allocator_arg, alloc2, std::move(source)};
-  EXPECT_TRUE(moved.valueless_after_move());
+  EXPECT_TRUE(valueless_after_move(moved));
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_EQ(allocs1, 1);
   EXPECT_EQ(allocs2, 0);
@@ -883,7 +883,7 @@ TEST(ProtocolTest, UnequalMoveConstructionException) {
     // p1 should be unmodified.
     // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
     // move never happened because the allocation threw first.
-    ASSERT_FALSE(p1.valueless_after_move());
+    ASSERT_FALSE(valueless_after_move(p1));
     EXPECT_EQ(p1.value(), 25);
     // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   }
@@ -946,7 +946,7 @@ TEST(ProtocolTest, UnequalMoveAssignmentException) {
     // p2 should not have been destroyed.
     // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
     // move never happened because the allocation threw first.
-    EXPECT_FALSE(p2.valueless_after_move());
+    EXPECT_FALSE(valueless_after_move(p2));
     EXPECT_EQ(p2.value(), 55);
     // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   }
@@ -978,7 +978,7 @@ TEST(ProtocolTest, UnequalMoveConstruction) {
     EXPECT_EQ(deallocs1, 1);
     // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
     // test exercises the moved-from state on purpose.
-    EXPECT_TRUE(p1.valueless_after_move());
+    EXPECT_TRUE(valueless_after_move(p1));
     // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
     EXPECT_EQ(p2.value(), 25);
   }
@@ -1013,7 +1013,7 @@ TEST(ProtocolTest, UnequalMoveAssignment) {
     EXPECT_EQ(p1.value(), 55);
     // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
     // test exercises the moved-from state on purpose.
-    EXPECT_TRUE(p2.valueless_after_move());
+    EXPECT_TRUE(valueless_after_move(p2));
     // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   }
 

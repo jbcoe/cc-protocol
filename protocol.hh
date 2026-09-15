@@ -486,10 +486,12 @@ class protocol
 
   constexpr const Alloc& get_allocator() const { return alloc_; }
 
-  constexpr bool valueless_after_move() const
+  // Hidden friend rather than a member so it can't collide with a forwarded
+  // interface member function of the same name.
+  friend constexpr bool valueless_after_move(const protocol& p) noexcept
     requires std::is_move_constructible_v<I>
   {
-    return object_ == nullptr;
+    return p.object_ == nullptr;
   }
 };
 
