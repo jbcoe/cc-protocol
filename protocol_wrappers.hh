@@ -61,14 +61,13 @@ consteval bool is_forwarded_member_function(
       // `protocol_view<T>` is a view type: overload resolution through
       // a const and non-const access path must yield the same result.
       // A const-qualified member function is only given a forwarding wrapper if
-      // no non-const-qualified with an otherwise identical signature exists.
+      // no non-const-qualified member with the same name and parameters exists.
       // (Aside: Oh the double negatives! If only `mutable` was the keyword.)
       if (!is_const(member)) {
         return true;
       } else {
         return std::ranges::none_of(members, [&](std::meta::info other) {
-          return member != other &&
-                 same_signature_ignoring_const(member, other);
+          return member != other && same_name_and_parameters(member, other);
         });
       }
   }

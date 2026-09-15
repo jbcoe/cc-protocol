@@ -3062,6 +3062,29 @@ TEST(ReflectionProtocolTest, OperatorArrow) {
   EXPECT_EQ(pcv.operator->(), 0);
 }
 
+TEST(ReflectionProtocolViewTest,
+     OverloadsDifferingOnlyByReturnTypeAreNotAmbiguous) {
+  struct Interface {
+    const int& operator*() const noexcept;
+    int& operator*() noexcept;
+  };
+
+  struct Conforming {
+    int value = 0;
+
+    const int& operator*() const noexcept { return value; }
+
+    int& operator*() noexcept { return value; }
+  };
+
+  Conforming c;
+
+  protocol_view<Interface> pv(c);
+  EXPECT_EQ(*pv, 0);
+  *pv = 5;
+  EXPECT_EQ(*pv, 5);
+}
+
 TEST(ReflectionProtocolTest, ValuelessAfterMoveFunctionDoesNotCollide) {
   struct Interface {
     bool valueless_after_move() const noexcept;

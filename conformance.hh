@@ -47,9 +47,21 @@ consteval bool same_name(std::meta::info a, std::meta::info b) {
 }
 
 // Returns `true` if the member functions `candidate` and `interface` have
-// the same name, de-aliased return type and de-aliased parameter types.
+// the same name and de-aliased parameter types.
 consteval bool same_name_and_parameters(std::meta::info candidate,
                                         std::meta::info interface) {
+  if (!same_name(candidate, interface)) return false;
+  auto dealiased_type_of = [](std::meta::info parameter) {
+    return dealias(type_of(parameter));
+  };
+  return std::ranges::equal(parameters_of(interface), parameters_of(candidate),
+                            {}, dealiased_type_of, dealiased_type_of);
+}
+
+// Returns `true` if the member functions `candidate` and `interface` have
+// the same name, de-aliased return type and de-aliased parameter types.
+consteval bool same_name_return_type_and_parameters(std::meta::info candidate,
+                                                    std::meta::info interface) {
   if (!same_name(candidate, interface)) return false;
   if (dealias(return_type_of(interface)) != dealias(return_type_of(candidate)))
     return false;
@@ -71,7 +83,7 @@ consteval bool same_signature_ignoring_const(std::meta::info candidate,
   if (is_rvalue_reference_qualified(interface) !=
       is_rvalue_reference_qualified(candidate))
     return false;
-  return same_name_and_parameters(candidate, interface);
+  return same_name_return_type_and_parameters(candidate, interface);
 }
 
 // Returns `true` if `candidate is a function with an explicit object parameter,
@@ -105,7 +117,8 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
   if (is_static_member(candidate)) {
     // A static candidate has no object parameter, so it satisfies any const
     // or reference qualification of `interface`.
-    if (!same_name_and_parameters(candidate, interface)) return false;
+    if (!same_name_return_type_and_parameters(candidate, interface))
+      return false;
   } else if (same_function_with_explicit_object(candidate, interface)) {
     // No additional conditions.
   } else {
