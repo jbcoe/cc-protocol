@@ -240,7 +240,6 @@ plain shell in the container.
 | `--rebuild-docker` | Rebuild the Docker image before starting. |
 | `--update` | Update the agent CLI to the latest version before running. |
 | `--skip-permissions` | Run `claude` with `--dangerously-skip-permissions`. |
-| `--cache-volumes`, `--no-cache-volumes` | Mount the persistent cache volumes (default: on). |
 | `--offline` | Run the container with `--network none`, to check that a build needs no network. Plain shell only. |
 | `-v`, `--verbose` | Enable verbose logging. |
 
@@ -250,14 +249,14 @@ the rest of the host file system, but the network is unrestricted and the
 project and `~/.claude`, credentials included, are mounted read-write. Pass
 `--skip-permissions` only when that is acceptable.
 
-The `uv` package cache and Bazel's repository cache persist across sandbox runs
-in Docker named volumes, `cc-protocol-uv-cache` and
-`cc-protocol-bazel-repository-cache`. To reset either volume, run `docker volume
-rm <name>`.
-
-The sandbox image also carries a googletest checkout at the tag pinned in
-`CMakeLists.txt`, so CMake builds need no network. Bumping that tag needs
-`--rebuild-docker`, as for `.bazelversion`.
+Building the sandbox image populates `uv`'s package cache, Bazel's
+repository cache, and a googletest checkout, so builds afterwards need no
+network. The caches may become stale if a dependency changes, and an offline
+sandbox (`--offline`) cannot build against a stale cache. If you plan to build
+offline, run `--rebuild-docker` first whenever a dependency has changed;
+ordinary source edits don't trigger that requirement. `uv run pre-commit run
+--all-files` downloads its hook repositories into `~/.cache/pre-commit` fresh in
+every container, so it (currently) needs the network every time.
 
 ### Using pre-commit Locally to run Github Workflow checks
 

@@ -1,0 +1,13 @@
+.git
+.venv
+.idea
+.vs
+.ruff_cache
+.cache
+__pycache__
+bazel-*
+build*
+_build
+_deps
+install
+out
