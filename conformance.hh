@@ -29,11 +29,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace xyz::detail {
 
-template <std::meta::operators Operator>
-consteval bool is_operator(std::meta::info function) {
-  return is_operator_function(function) && operator_of(function) == Operator;
-}
-
 // Returns `true` if `a` and `b` are the same operators or have the same
 // identifier. Otherwise returns false.
 consteval bool same_name(std::meta::info a, std::meta::info b) {
@@ -155,11 +150,8 @@ consteval auto conformance_candidate_infos() {
       members_of(Type, std::meta::access_context::unprivileged()) |
       std::views::filter(std::meta::is_function) |
       std::views::filter([](std::meta::info member) consteval {
-        return has_identifier(member) ||
-               is_operator<std::meta::operators::op_star>(member) ||
-               is_operator<std::meta::operators::op_arrow>(member) ||
-               is_operator<std::meta::operators::op_parentheses>(member) ||
-               is_operator<std::meta::operators::op_square_brackets>(member);
+        return !is_special_member_function(member) &&
+               (has_identifier(member) || is_operator_function(member));
       });
   std::vector<std::meta::info> result(std::ranges::begin(named),
                                       std::ranges::end(named));
@@ -178,21 +170,28 @@ template <std::meta::info Type>
 constexpr inline auto conformance_candidates_of =
     std::define_static_array(conformance_candidate_infos<Type>());
 
-// The number of parameters `member` declares beyond its object parameter:
-// `parameters_of` includes an explicit object parameter (from "deducing
-// this"), so that one is excluded to count only the operands a caller
-// supplies.
-consteval size_t declared_argument_count(std::meta::info member) {
-  auto params = parameters_of(member);
-  if (!params.empty() && is_explicit_object_parameter(params.front())) {
-    return params.size() - 1;
-  }
-  return params.size();
+// `symbol_of` returns a punctuation token for most operators (e.g. "==") but
+// a word for a few (e.g. "co_await"); word tokens read correctly only with a
+// space after "operator", punctuation tokens only without one.
+consteval std::string operator_diagnostic_name(std::meta::operators op) {
+  std::string_view symbol = symbol_of(op);
+  bool is_word = symbol.front() >= 'a' && symbol.front() <= 'z';
+  return is_word ? "operator " + std::string(symbol)
+                 : "operator" + std::string(symbol);
+}
+
+// Some operators are excluded from protocol interfaces.
+consteval bool is_unsupported_operator(std::meta::operators op) {
+  using enum std::meta::operators;
+  return op == op_equals || op == op_co_await || op == op_equals_equals ||
+         op == op_exclamation_equals || op == op_less || op == op_less_equals ||
+         op == op_greater || op == op_greater_equals || op == op_spaceship;
 }
 
 // The named, non-static, non-special member functions and call operators of
-// `Type`, static or not, in declaration order. Ref-qualified functions and
-// binary `operator*` are unsupported on protocol interfaces.
+// `Type`, static or not, in declaration order. Ref-qualified functions,
+// explicit-object member functions and the operators
+// `is_unsupported_operator` names are unsupported on protocol interfaces.
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   std::vector<std::meta::info> result;
@@ -206,10 +205,24 @@ consteval std::vector<std::meta::info> protocol_interface_function_infos() {
       throw std::runtime_error("ref-qualified member function '" + name +
                                "' is not supported in a protocol interface");
     }
-    if (is_operator<std::meta::operators::op_star>(member) &&
-        declared_argument_count(member) != 0) {
+    std::vector<std::meta::info> params = parameters_of(member);
+    if (!params.empty() && is_explicit_object_parameter(params.front())) {
+      std::string name = has_identifier(member)
+                             ? std::string(identifier_of(member))
+                             : std::string(display_string_of(member));
+      throw std::runtime_error("explicit-object member function '" + name +
+                               "' is not supported in a protocol interface");
+    }
+    if (is_operator_function(member) &&
+        operator_of(member) == std::meta::operators::op_ampersand &&
+        params.empty()) {
       throw std::runtime_error(
-          "binary operator* is not supported in a protocol interface");
+          "unary operator& is not supported in a protocol interface");
+    }
+    if (is_operator_function(member) &&
+        is_unsupported_operator(operator_of(member))) {
+      throw std::runtime_error(operator_diagnostic_name(operator_of(member)) +
+                               " is not supported in a protocol interface");
     }
     result.push_back(member);
   }
