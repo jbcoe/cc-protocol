@@ -57,7 +57,7 @@ struct operator_thunk<std::meta::operators::op_parentheses,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
+      assert(!valueless_after_move(*protocol_object) &&
              "cannot call member function of valueless protocol");
     }
 
@@ -71,7 +71,7 @@ struct operator_thunk<std::meta::operators::op_parentheses,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
+      assert(!valueless_after_move(*protocol_object) &&
              "cannot call member function of valueless protocol");
     }
 
@@ -104,7 +104,7 @@ struct operator_thunk<std::meta::operators::op_square_brackets,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
+      assert(!valueless_after_move(*protocol_object) &&
              "cannot call member function of valueless protocol");
     }
 
@@ -118,7 +118,7 @@ struct operator_thunk<std::meta::operators::op_square_brackets,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
+      assert(!valueless_after_move(*protocol_object) &&
              "cannot call member function of valueless protocol");
     }
 
@@ -151,7 +151,7 @@ struct operator_thunk<std::meta::operators::op_arrow,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
+      assert(!valueless_after_move(*protocol_object) &&
              "cannot call member function of valueless protocol");
     }
 
@@ -164,7 +164,7 @@ struct operator_thunk<std::meta::operators::op_arrow,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
+      assert(!valueless_after_move(*protocol_object) &&
              "cannot call member function of valueless protocol");
     }
 
@@ -196,7 +196,7 @@ struct operator_thunk<std::meta::operators::op_star,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
+      assert(!valueless_after_move(*protocol_object) &&
              "cannot call member function of valueless protocol");
     }
 
@@ -209,7 +209,7 @@ struct operator_thunk<std::meta::operators::op_star,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     if constexpr (xyz::reflection::is_protocol_v<ProtocolType>) {
-      assert(!protocol_object->valueless_after_move() &&
+      assert(!valueless_after_move(*protocol_object) &&
              "cannot call member function of valueless protocol");
     }
 
