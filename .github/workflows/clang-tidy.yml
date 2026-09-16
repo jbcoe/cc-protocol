@@ -76,7 +76,7 @@ jobs:
 
       - name: Restore the clang-p2996 toolchain
         id: toolchain-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/clang-p2996-toolchain
           key: clang-p2996-${{ runner.os }}-${{ env.CLANG_P2996_COMMIT }}
