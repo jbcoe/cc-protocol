@@ -53,7 +53,7 @@ runs:
     - name: Restore the installed tree
       id: cache
       if: steps.snapshot.outputs.cache-key != ''
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: /opt/gcc-latest
         key: ${{ steps.snapshot.outputs.cache-key }}

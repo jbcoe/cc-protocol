@@ -73,7 +73,7 @@ jobs:
       - name: Build, test and report runtime coverage
         run: ./scripts/cmake.sh test --coverage -B coverage
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           use_oidc: true
           files: build/coverage/coverage.info
@@ -103,7 +103,7 @@ jobs:
       - name: Probe consteval coverage
         run: ./scripts/consteval_coverage.sh --lcov-output build/consteval-coverage/coverage.info
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           use_oidc: true
           files: build/consteval-coverage/coverage.info
