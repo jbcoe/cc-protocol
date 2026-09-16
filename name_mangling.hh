@@ -236,25 +236,111 @@ consteval std::string mangle_type(std::meta::info type) {
   throw std::runtime_error("name mangling: unsupported parameter type");
 }
 
-// Returns the mangled function-name atom for `function`: the Itanium
-// <operator-name> `cl` for the call operator, or a length-prefixed
-// <source-name> for its identifier otherwise. `identifier_of` throws for
-// `operator()`, which has no identifier.
+// Returns the mangled function-name atom for `function`: an Itanium
+// <operator-name> for an operator, or a length-prefixed <source-name> for
+// its identifier otherwise. `identifier_of` throws for an operator, which
+// has no identifier.
+//
+// `operator++`/`operator--` mangle to the same atom (`pp`/`mm`) whether
+// prefix or postfix; overload resolution and linkage tell them apart via
+// the dummy `int` parameter C++ requires on the postfix form, which
+// `mangle`'s parameter loop already encodes.
 consteval std::string base_name_of(std::meta::info function) {
   if (is_operator_function(function)) {
-    if (operator_of(function) == std::meta::operators::op_parentheses) {
-      return "cl";
+    using std::meta::operators;
+    // A member `+`, `-`, `*` or `&` is unary when it has no parameters: the
+    // only argument is the implicit object parameter.
+    bool unary = parameters_of(function).empty();
+    switch (operator_of(function)) {
+      case operators::op_plus:
+        return unary ? "ps" : "pl";
+      case operators::op_minus:
+        return unary ? "ng" : "mi";
+      case operators::op_star:
+        return unary ? "de" : "ml";
+      case operators::op_ampersand:
+        return unary ? "ad" : "an";
+      case operators::op_new:
+        return "nw";
+      case operators::op_delete:
+        return "dl";
+      case operators::op_array_new:
+        return "na";
+      case operators::op_array_delete:
+        return "da";
+      case operators::op_co_await:
+        return "aw";
+      case operators::op_parentheses:
+        return "cl";
+      case operators::op_square_brackets:
+        return "ix";
+      case operators::op_arrow:
+        return "pt";
+      case operators::op_arrow_star:
+        return "pm";
+      case operators::op_tilde:
+        return "co";
+      case operators::op_exclamation:
+        return "nt";
+      case operators::op_slash:
+        return "dv";
+      case operators::op_percent:
+        return "rm";
+      case operators::op_caret:
+        return "eo";
+      case operators::op_equals:
+        return "aS";
+      case operators::op_pipe:
+        return "or";
+      case operators::op_plus_equals:
+        return "pL";
+      case operators::op_minus_equals:
+        return "mI";
+      case operators::op_star_equals:
+        return "mL";
+      case operators::op_slash_equals:
+        return "dV";
+      case operators::op_percent_equals:
+        return "rM";
+      case operators::op_caret_equals:
+        return "eO";
+      case operators::op_ampersand_equals:
+        return "aN";
+      case operators::op_pipe_equals:
+        return "oR";
+      case operators::op_equals_equals:
+        return "eq";
+      case operators::op_exclamation_equals:
+        return "ne";
+      case operators::op_less:
+        return "lt";
+      case operators::op_greater:
+        return "gt";
+      case operators::op_less_equals:
+        return "le";
+      case operators::op_greater_equals:
+        return "ge";
+      case operators::op_spaceship:
+        return "ss";
+      case operators::op_ampersand_ampersand:
+        return "aa";
+      case operators::op_pipe_pipe:
+        return "oo";
+      case operators::op_less_less:
+        return "ls";
+      case operators::op_greater_greater:
+        return "rs";
+      case operators::op_less_less_equals:
+        return "lS";
+      case operators::op_greater_greater_equals:
+        return "rS";
+      case operators::op_plus_plus:
+        return "pp";
+      case operators::op_minus_minus:
+        return "mm";
+      case operators::op_comma:
+        return "cm";
     }
-    if (operator_of(function) == std::meta::operators::op_square_brackets) {
-      return "ix";
-    }
-    if (operator_of(function) == std::meta::operators::op_arrow) {
-      return "pt";
-    }
-    if (operator_of(function) == std::meta::operators::op_star) {
-      return "de";
-    }
-    throw std::runtime_error("name mangling: unsupported operator");
   }
   return mangle_atom(identifier_of(function));
 }

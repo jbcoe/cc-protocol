@@ -410,7 +410,7 @@ class protocol
   constexpr protocol& operator=(const protocol& other)
     requires std::is_copy_constructible_v<I>
   {
-    if (this == &other) {
+    if (this == std::addressof(other)) {
       return *this;
     }
 
@@ -436,7 +436,7 @@ class protocol
                                                            pocma)
     requires std::is_move_constructible_v<I>
   {
-    if (this == &other) {
+    if (this == std::addressof(other)) {
       return *this;
     }
 
