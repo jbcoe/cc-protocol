@@ -51,7 +51,7 @@ jobs:
     outputs:
       relevant: ${{ steps.filter.outputs.relevant }}
     steps:
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           # Keep in sync with the `push.paths` list above.
