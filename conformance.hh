@@ -47,7 +47,7 @@ consteval bool same_name_and_parameters(std::meta::info candidate,
                                         std::meta::info interface) {
   if (!same_name(candidate, interface)) return false;
   auto dealiased_type_of = [](std::meta::info parameter) {
-    return dealias(type_of(parameter));
+    return type_of(parameter);
   };
   return std::ranges::equal(parameters_of(interface), parameters_of(candidate),
                             {}, dealiased_type_of, dealiased_type_of);
@@ -61,7 +61,7 @@ consteval bool same_name_return_type_and_parameters(std::meta::info candidate,
   if (dealias(return_type_of(interface)) != dealias(return_type_of(candidate)))
     return false;
   auto dealiased_type_of = [](std::meta::info parameter) {
-    return dealias(type_of(parameter));
+    return type_of(parameter);
   };
   return std::ranges::equal(parameters_of(interface), parameters_of(candidate),
                             {}, dealiased_type_of, dealiased_type_of);

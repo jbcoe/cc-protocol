@@ -80,9 +80,9 @@ template <std::meta::info Member, typename ProtocolObject, typename VtablePtr,
 }
 
 // Builds the function-pointer type `R(*)(Args...) noexcept(...)` from
-// `Member`'s return type, parameter types and noexcept-ness, with `dealias`
-// applied throughout so an aliased type and its underlying type produce the
-// same function-pointer type.
+// `Member`'s return type, parameter types and noexcept-ness. The return type
+// is dealiased so an aliased type and its underlying type produce the same
+// function-pointer type; parameter types come back dealiased already (#397).
 //
 // `Member` is a template parameter rather than a `std::meta::info` function
 // parameter: cc1plus crashes on the latter (GCC ICE).
@@ -92,7 +92,7 @@ consteval std::meta::info function_pointer_type_of() {
       std::meta::reflect_constant(is_noexcept(Member)),
       dealias(return_type_of(Member))};
   for (std::meta::info parameter : parameters_of(Member)) {
-    fn_args.push_back(dealias(type_of(parameter)));
+    fn_args.push_back(type_of(parameter));
   }
   return substitute(^^fn_ptr_t, fn_args);
 }
@@ -107,7 +107,7 @@ consteval std::meta::info function_pointer_type_of(
       std::meta::reflect_constant(is_noexcept(Member)),
       dealias(return_type_of(Member)), leading_parameter_type};
   for (std::meta::info parameter : parameters_of(Member)) {
-    fn_args.push_back(dealias(type_of(parameter)));
+    fn_args.push_back(type_of(parameter));
   }
   return substitute(^^fn_ptr_t, fn_args);
 }
