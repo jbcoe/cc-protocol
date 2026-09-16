@@ -57,9 +57,9 @@ consteval std::meta::info find_vtable_entry() {
 
 template <std::meta::info Member, typename Vtable, typename ProtocolObject,
           typename VtablePtr, typename Object, typename... Args>
-decltype(auto) call_through_vtable(ProtocolObject* protocol_object,
-                                   VtablePtr* vtable, Object object,
-                                   Args&&... args) {
+[[gnu::always_inline]] inline decltype(auto) call_through_vtable(
+    [[maybe_unused]] ProtocolObject* protocol_object, VtablePtr* vtable,
+    Object object, Args&&... args) {
   if constexpr (xyz::reflection::is_protocol_v<
                     std::remove_cv_t<ProtocolObject>>) {
     assert(!valueless_after_move(*protocol_object) &&
