@@ -43,6 +43,8 @@ constexpr inline auto mangled_name_of =
     std::define_static_string(xyz::name_mangling::mangle(Member));
 
 // The `VtableType` entry named after the mangled member function `Member`.
+// Searches base classes too: `protocol<I, Alloc>::vtable` derives from
+// `vtable_t<I>`, and callers pass the derived type.
 template <std::meta::info VtableType, std::meta::info Member>
 consteval std::meta::info find_vtable_entry() {
   std::string_view name = mangled_name_of<Member>;
@@ -51,12 +53,19 @@ consteval std::meta::info find_vtable_entry() {
   for (std::meta::info entry : entries) {
     if (identifier_of(entry) == name) return entry;
   }
+  for (std::meta::info base :
+       bases_of(VtableType, std::meta::access_context::unprivileged())) {
+    for (std::meta::info entry : nonstatic_data_members_of(
+             type_of(base), std::meta::access_context::unprivileged())) {
+      if (identifier_of(entry) == name) return entry;
+    }
+  }
   throw std::runtime_error("find_vtable_entry: no entry named '" +
                            std::string(name) + "'");
 }
 
-template <std::meta::info Member, typename Vtable, typename ProtocolObject,
-          typename VtablePtr, typename Object, typename... Args>
+template <std::meta::info Member, typename ProtocolObject, typename VtablePtr,
+          typename Object, typename... Args>
 decltype(auto) call_through_vtable(ProtocolObject* protocol_object,
                                    VtablePtr* vtable, Object object,
                                    Args&&... args) {
@@ -66,8 +75,41 @@ decltype(auto) call_through_vtable(ProtocolObject* protocol_object,
            "cannot call member function of valueless protocol");
   }
   constexpr std::meta::info vtable_entry =
-      find_vtable_entry<^^Vtable, Member>();
+      find_vtable_entry<^^std::remove_cv_t<VtablePtr>, Member>();
   return vtable->[:vtable_entry:](object, std::forward<Args>(args)...);
+}
+
+// Builds the function-pointer type `R(*)(Args...) noexcept(...)` from
+// `Member`'s return type, parameter types and noexcept-ness, with `dealias`
+// applied throughout so an aliased type and its underlying type produce the
+// same function-pointer type.
+//
+// `Member` is a template parameter rather than a `std::meta::info` function
+// parameter: cc1plus crashes on the latter (GCC ICE).
+template <std::meta::info Member>
+consteval std::meta::info function_pointer_type_of() {
+  std::vector<std::meta::info> fn_args{
+      std::meta::reflect_constant(is_noexcept(Member)),
+      dealias(return_type_of(Member))};
+  for (std::meta::info parameter : parameters_of(Member)) {
+    fn_args.push_back(dealias(type_of(parameter)));
+  }
+  return substitute(^^fn_ptr_t, fn_args);
+}
+
+// As above, but with `leading_parameter_type` as the function pointer's
+// first parameter, ahead of `Member`'s own parameters; a vtable entry uses
+// this for its type-erased object parameter.
+template <std::meta::info Member>
+consteval std::meta::info function_pointer_type_of(
+    std::meta::info leading_parameter_type) {
+  std::vector<std::meta::info> fn_args{
+      std::meta::reflect_constant(is_noexcept(Member)),
+      dealias(return_type_of(Member)), leading_parameter_type};
+  for (std::meta::info parameter : parameters_of(Member)) {
+    fn_args.push_back(dealias(type_of(parameter)));
+  }
+  return substitute(^^fn_ptr_t, fn_args);
 }
 
 // Returns a list of data_member_spec values, one for each member function
@@ -86,19 +128,10 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
 
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<interface_type>) {
-    // Build the function-pointer type R(*)(void*, Args...) noexcept(...)
-    // from the method's return type, parameter types and noexcept-ness; a
-    // const method takes `const void*` instead, matching the constness of
+    // A const method takes `const void*` instead, matching the constness of
     // the access path it's called through.
-    std::vector<std::meta::info> fn_args{
-        std::meta::reflect_constant(is_noexcept(member)),
-        dealias(return_type_of(member))};
-    fn_args.push_back(is_const(member) ? ^^const void* : ^^void*);
-    std::vector<std::meta::info> member_parameters = parameters_of(member);
-    for (std::meta::info parameter : member_parameters) {
-      fn_args.push_back(dealias(type_of(parameter)));
-    }
-    std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
+    std::meta::info fn_ptr_type = function_pointer_type_of<member>(
+        is_const(member) ? ^^const void* : ^^void*);
 
     // GCC UBSAN workaround: `std::string`'s pointer-taking constructors have a
     // null check GCC trunk can't constant-fold under `-fsanitize=undefined`,

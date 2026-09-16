@@ -21,9 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define XYZ_PROTOCOL_OPERATOR_THUNKS_HH_
 
 #include <meta>
-#include <ranges>
 #include <utility>
-#include <vector>
 
 #include "overload_spec.hh"
 #include "vtable.hh"
@@ -58,15 +56,8 @@ template <std::meta::info Member, bool IsConst, typename ProtocolType,
           typename Vtable>
 struct operator_thunk_for<overload_spec<Member, IsConst>, ProtocolType,
                           Vtable> {
-  // Build the function-pointer type R(*)(Args...) noexcept(...) from the
-  // method's return type, parameter types and noexcept-ness.
   static consteval std::meta::info fn_ptr_type() {
-    std::vector<std::meta::info> fn_args{
-        std::meta::reflect_constant(is_noexcept(Member)),
-        dealias(return_type_of(Member))};
-    fn_args.append_range(parameters_of(Member) |
-                         std::views::transform(std::meta::type_of));
-    return substitute(^^fn_ptr_t, fn_args);
+    return function_pointer_type_of<Member>();
   }
 
   // clang-format off
@@ -96,7 +87,7 @@ struct operator_thunk<std::meta::operators::op_parentheses,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -105,7 +96,7 @@ struct operator_thunk<std::meta::operators::op_parentheses,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -144,7 +135,7 @@ struct operator_thunk<std::meta::operators::op_square_brackets,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -153,7 +144,7 @@ struct operator_thunk<std::meta::operators::op_square_brackets,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -192,7 +183,7 @@ struct operator_thunk<std::meta::operators::op_arrow,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_);
   }
 
@@ -200,7 +191,7 @@ struct operator_thunk<std::meta::operators::op_arrow,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_);
   }
 
@@ -238,7 +229,7 @@ struct operator_thunk<std::meta::operators::op_star,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -247,7 +238,7 @@ struct operator_thunk<std::meta::operators::op_star,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -286,7 +277,7 @@ struct operator_thunk<std::meta::operators::op_arrow_star,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -295,7 +286,7 @@ struct operator_thunk<std::meta::operators::op_arrow_star,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -335,7 +326,7 @@ struct operator_thunk<std::meta::operators::op_tilde,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_);
   }
 
@@ -343,7 +334,7 @@ struct operator_thunk<std::meta::operators::op_tilde,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_);
   }
 
@@ -381,7 +372,7 @@ struct operator_thunk<std::meta::operators::op_exclamation,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_);
   }
 
@@ -389,7 +380,7 @@ struct operator_thunk<std::meta::operators::op_exclamation,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_);
   }
 
@@ -427,7 +418,7 @@ struct operator_thunk<std::meta::operators::op_plus,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -436,7 +427,7 @@ struct operator_thunk<std::meta::operators::op_plus,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -475,7 +466,7 @@ struct operator_thunk<std::meta::operators::op_minus,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -484,7 +475,7 @@ struct operator_thunk<std::meta::operators::op_minus,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -523,7 +514,7 @@ struct operator_thunk<std::meta::operators::op_slash,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -532,7 +523,7 @@ struct operator_thunk<std::meta::operators::op_slash,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -571,7 +562,7 @@ struct operator_thunk<std::meta::operators::op_percent,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -580,7 +571,7 @@ struct operator_thunk<std::meta::operators::op_percent,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -619,7 +610,7 @@ struct operator_thunk<std::meta::operators::op_caret,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -628,7 +619,7 @@ struct operator_thunk<std::meta::operators::op_caret,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -667,7 +658,7 @@ struct operator_thunk<std::meta::operators::op_ampersand,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -676,7 +667,7 @@ struct operator_thunk<std::meta::operators::op_ampersand,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -715,7 +706,7 @@ struct operator_thunk<std::meta::operators::op_pipe,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -724,7 +715,7 @@ struct operator_thunk<std::meta::operators::op_pipe,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -763,7 +754,7 @@ struct operator_thunk<std::meta::operators::op_plus_equals,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -772,7 +763,7 @@ struct operator_thunk<std::meta::operators::op_plus_equals,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -811,7 +802,7 @@ struct operator_thunk<std::meta::operators::op_minus_equals,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -820,7 +811,7 @@ struct operator_thunk<std::meta::operators::op_minus_equals,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -859,7 +850,7 @@ struct operator_thunk<std::meta::operators::op_star_equals,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -868,7 +859,7 @@ struct operator_thunk<std::meta::operators::op_star_equals,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -907,7 +898,7 @@ struct operator_thunk<std::meta::operators::op_slash_equals,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -916,7 +907,7 @@ struct operator_thunk<std::meta::operators::op_slash_equals,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -955,7 +946,7 @@ struct operator_thunk<std::meta::operators::op_percent_equals,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -964,7 +955,7 @@ struct operator_thunk<std::meta::operators::op_percent_equals,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1003,7 +994,7 @@ struct operator_thunk<std::meta::operators::op_caret_equals,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1012,7 +1003,7 @@ struct operator_thunk<std::meta::operators::op_caret_equals,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1051,7 +1042,7 @@ struct operator_thunk<std::meta::operators::op_ampersand_equals,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1060,7 +1051,7 @@ struct operator_thunk<std::meta::operators::op_ampersand_equals,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1099,7 +1090,7 @@ struct operator_thunk<std::meta::operators::op_pipe_equals,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1108,7 +1099,7 @@ struct operator_thunk<std::meta::operators::op_pipe_equals,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1147,7 +1138,7 @@ struct operator_thunk<std::meta::operators::op_ampersand_ampersand,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1156,7 +1147,7 @@ struct operator_thunk<std::meta::operators::op_ampersand_ampersand,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1195,7 +1186,7 @@ struct operator_thunk<std::meta::operators::op_pipe_pipe,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1204,7 +1195,7 @@ struct operator_thunk<std::meta::operators::op_pipe_pipe,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1243,7 +1234,7 @@ struct operator_thunk<std::meta::operators::op_less_less,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1252,7 +1243,7 @@ struct operator_thunk<std::meta::operators::op_less_less,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1291,7 +1282,7 @@ struct operator_thunk<std::meta::operators::op_greater_greater,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1300,7 +1291,7 @@ struct operator_thunk<std::meta::operators::op_greater_greater,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1339,7 +1330,7 @@ struct operator_thunk<std::meta::operators::op_less_less_equals,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1348,7 +1339,7 @@ struct operator_thunk<std::meta::operators::op_less_less_equals,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1387,7 +1378,7 @@ struct operator_thunk<std::meta::operators::op_greater_greater_equals,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1396,7 +1387,7 @@ struct operator_thunk<std::meta::operators::op_greater_greater_equals,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1435,7 +1426,7 @@ struct operator_thunk<std::meta::operators::op_plus_plus,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1444,7 +1435,7 @@ struct operator_thunk<std::meta::operators::op_plus_plus,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1483,7 +1474,7 @@ struct operator_thunk<std::meta::operators::op_minus_minus,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1492,7 +1483,7 @@ struct operator_thunk<std::meta::operators::op_minus_minus,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1531,7 +1522,7 @@ struct operator_thunk<std::meta::operators::op_comma,
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -1540,7 +1531,7 @@ struct operator_thunk<std::meta::operators::op_comma,
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }

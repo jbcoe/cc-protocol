@@ -21,9 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define XYZ_PROTOCOL_MEMBER_FUNCTION_THUNKS_HH_
 
 #include <meta>
-#include <ranges>
 #include <utility>
-#include <vector>
 
 #include "overload_spec.hh"
 #include "vtable.hh"
@@ -51,7 +49,7 @@ struct member_function_thunk<R (*)(Args...) noexcept(IsNoexcept), EnclosingType,
   {
     auto* enclosing = reinterpret_cast<EnclosingType*>(this);
     auto* protocol_object = static_cast<ProtocolType*>(enclosing);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -61,7 +59,7 @@ struct member_function_thunk<R (*)(Args...) noexcept(IsNoexcept), EnclosingType,
   {
     const auto* enclosing = reinterpret_cast<const EnclosingType*>(this);
     const auto* protocol_object = static_cast<const ProtocolType*>(enclosing);
-    return call_through_vtable<Member, Vtable>(
+    return call_through_vtable<Member>(
         protocol_object, protocol_object->vtable_, protocol_object->object_,
         std::forward<Args>(args)...);
   }
@@ -85,15 +83,8 @@ template <std::meta::info Member, bool IsConst, typename EnclosingType,
           typename ProtocolType, typename Vtable>
 struct member_function_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
                                  ProtocolType, Vtable> {
-  // Build the function-pointer type R(*)(Args...) noexcept(...) from the
-  // method's return type, parameter types and noexcept-ness.
   static consteval std::meta::info fn_ptr_type() {
-    std::vector<std::meta::info> fn_args{
-        std::meta::reflect_constant(is_noexcept(Member)),
-        dealias(return_type_of(Member))};
-    fn_args.append_range(parameters_of(Member) |
-                         std::views::transform(std::meta::type_of));
-    return substitute(^^fn_ptr_t, fn_args);
+    return function_pointer_type_of<Member>();
   }
 
   // clang-format off
