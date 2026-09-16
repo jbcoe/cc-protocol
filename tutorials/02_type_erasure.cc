@@ -76,13 +76,13 @@ constexpr inline vtable vtable_for = {
 // the canonical null state for our vtable instead of nullptr.
 constexpr inline vtable null_vtable = {
     // Calling .noise() with a null vtable is an error.
-    .noise_func_ = +[](const void* data) -> std::string_view {
+    .noise_func_ = +[](const void*) -> std::string_view {
       throw std::bad_function_call{};
     },
     // Destroying an object with a null vtable does nothing.
-    .destroy_ = +[](void* data) -> void {},
+    .destroy_ = +[](void*) -> void {},
     // Copying an object with a null vtable does nothing.
-    .copy_ = +[](const void* src) -> void* { return nullptr; }};
+    .copy_ = +[](const void*) -> void* { return nullptr; }};
 
 class Animal {
   void* data_;
