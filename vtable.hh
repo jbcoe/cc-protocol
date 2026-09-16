@@ -96,7 +96,7 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
     fn_args.push_back(is_const(member) ? ^^const void* : ^^void*);
     std::vector<std::meta::info> member_parameters = parameters_of(member);
     for (std::meta::info parameter : member_parameters) {
-      fn_args.push_back(dealias(type_of(parameter)));
+      fn_args.push_back(type_of(parameter));
     }
     std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
 
