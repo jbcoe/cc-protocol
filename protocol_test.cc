@@ -3092,7 +3092,9 @@ TEST(ReflectionProtocolTest, ValuelessAfterMoveFunctionDoesNotCollide) {
 
   struct Conforming {
     bool was_moved_from_ = false;
+
     Conforming() = default;
+
     Conforming(const Conforming&) = default;
 
     Conforming(Conforming&& c) noexcept { c.was_moved_from_ = true; }
@@ -3103,6 +3105,8 @@ TEST(ReflectionProtocolTest, ValuelessAfterMoveFunctionDoesNotCollide) {
       c.was_moved_from_ = false;
       return *this;
     };
+
+    ~Conforming() = default;
 
     bool valueless_after_move() const noexcept { return was_moved_from_; }
   };
