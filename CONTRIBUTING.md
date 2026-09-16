@@ -244,17 +244,14 @@ plain shell in the container.
 |------|-------------|
 | `--rebuild-docker` | Rebuild the Docker image before starting. |
 | `--update` | Update the agent CLI to the latest version before running. |
-| `--cache-volumes`, `--no-cache-volumes` | Mount the persistent cache volumes (default: on). |
 | `-v`, `--verbose` | Enable verbose logging. |
 
-The `uv` package cache and Bazel's repository cache persist across sandbox runs
-in Docker named volumes, `cc-protocol-uv-cache` and
-`cc-protocol-bazel-repository-cache`. To reset either volume, run `docker volume
-rm <name>`.
-
-The sandbox image also carries a googletest checkout at the tag pinned in
-`CMakeLists.txt`, so CMake builds need no network. Bumping that tag needs
-`--rebuild-docker`, as for `.bazelversion`.
+The sandbox image stores `uv`'s package cache and venv, Bazel's repository
+cache, and a googletest checkout at the tag pinned in `CMakeLists.txt`, so
+builds and installs need no network. Any repository change needs
+`--rebuild-docker` to refresh the cached image layers: the Bazel repository
+cache is warmed from the whole target graph, and the `uv` cache from
+`pyproject.toml`/`uv.lock`.
 
 ### Using pre-commit Locally to run Github Workflow checks
 
