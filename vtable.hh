@@ -70,6 +70,21 @@ template <std::meta::info Member, typename Vtable, typename ProtocolObject,
   return vtable->[:vtable_entry:](object, std::forward<Args>(args)...);
 }
 
+// The function-pointer type `R(*)(Args...) noexcept(...)` for `Member`.
+//
+// `Member` is a template parameter rather than a `std::meta::info` function
+// parameter: cc1plus crashes on the latter (GCC ICE).
+template <std::meta::info Member>
+consteval std::meta::info function_pointer_type_of() {
+  std::vector<std::meta::info> fn_args{
+      std::meta::reflect_constant(is_noexcept(Member)),
+      dealias(return_type_of(Member))};
+  for (std::meta::info parameter : parameters_of(Member)) {
+    fn_args.push_back(type_of(parameter));
+  }
+  return substitute(^^fn_ptr_t, fn_args);
+}
+
 // Returns a list of data_member_spec values, one for each member function
 // implemented by `protocol`, each describing a vtable function pointer with
 // signature R(*)(void*, Args...) noexcept(...) for a mutable interface
@@ -86,16 +101,13 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
 
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<interface_type>) {
-    // Build the function-pointer type R(*)(void*, Args...) noexcept(...)
-    // from the method's return type, parameter types and noexcept-ness; a
-    // const method takes `const void*` instead, matching the constness of
-    // the access path it's called through.
     std::vector<std::meta::info> fn_args{
         std::meta::reflect_constant(is_noexcept(member)),
         dealias(return_type_of(member))};
+    // A const method takes `const void*` instead, matching the constness of
+    // the access path it's called through.
     fn_args.push_back(is_const(member) ? ^^const void* : ^^void*);
-    std::vector<std::meta::info> member_parameters = parameters_of(member);
-    for (std::meta::info parameter : member_parameters) {
+    for (std::meta::info parameter : parameters_of(member)) {
       fn_args.push_back(type_of(parameter));
     }
     std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
