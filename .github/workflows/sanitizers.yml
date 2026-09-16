@@ -124,7 +124,7 @@ jobs:
       - name: Restore the Bazel disk cache
         if: needs.detect-changes.outputs.relevant != 'false'
         id: disk-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cache/bazel-disk
           # Every run saves under its own commit and restores the newest cache
@@ -151,7 +151,7 @@ jobs:
         # Save after a failed build too: its objects are as good as any. Skip
         # when the exact key already existed, which happens on a rerun.
         if: ${{ !cancelled() && needs.detect-changes.outputs.relevant != 'false' && steps.disk-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ~/.cache/bazel-disk
           key: ${{ steps.disk-cache.outputs.cache-primary-key }}
