@@ -2723,7 +2723,9 @@ TEST(ReflectionProtocolTest, ValuelessAfterMoveFunctionDoesNotCollide) {
 
   struct Conforming {
     bool was_moved_from_ = false;
+
     Conforming() = default;
+
     Conforming(const Conforming&) = default;
 
     Conforming(Conforming&& c) noexcept { c.was_moved_from_ = true; }
