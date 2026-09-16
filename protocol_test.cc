@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "test_helpers.h"
 #include "tracking_allocator.h"
 
 using xyz::reflection::is_protocol_conformant;
@@ -39,24 +40,6 @@ concept has_get_int = requires(P& p) { p.get(0); };
 
 template <typename P>
 concept has_get = requires(P& p) { p.get(); };
-
-// Concepts for call operator tests.
-template <typename P>
-concept is_callable = requires(P& p) { p(); };
-
-template <typename P>
-concept is_callable_with_int = requires(P& p) { p(0); };
-
-// A generic lambda's parameter type deduces `Op`, `P`, `V` and `S...` from
-// any `xyz::detail::operator_overload_set` base of `Derived`, so slicing can
-// be probed without naming the protocol's internal vtable/spec types.
-// `requires` treats the resulting inaccessible-special-member error as a
-// substitution failure rather than a hard error.
-template <typename Derived>
-concept operator_overload_set_can_be_sliced_from = requires(Derived d) {
-  []<std::meta::operators Op, typename P, typename V, typename... S>(
-      xyz::detail::operator_overload_set<Op, P, V, S...>) {}(d);
-};
 
 // ---------------------------------------------------------------------------
 // Type trait tests.
@@ -613,6 +596,61 @@ TEST(ConformsToTest, RefQualifiedInterfaceMembersAreRejected) {
                                           MatchingRvalueRefCandidate>());
   static_assert(
       conformance_check_rejects<RvalueRefInterface, UnqualifiedCandidate>());
+#endif  // __cpp_constexpr_exceptions
+}
+
+TEST(ConformsToTest, UnsupportedOperatorsAreRejected) {
+  struct EqualsInterface {
+    EqualsInterface& operator=(int);
+  };
+
+  struct CoAwaitInterface {
+    int operator co_await();
+  };
+
+  struct Candidate {};
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(conformance_check_rejects<EqualsInterface, Candidate>());
+  static_assert(conformance_check_rejects<CoAwaitInterface, Candidate>());
+#endif  // __cpp_constexpr_exceptions
+}
+
+TEST(ConformsToTest, UnaryAmpersandInterfaceMemberIsRejected) {
+  struct UnaryAmpersandInterface {
+    // NOLINTBEGIN(google-runtime-operator): the rejection is what's under
+    // test.
+    int* operator&();
+    // NOLINTEND(google-runtime-operator)
+  };
+
+  struct BinaryAmpersandInterface {
+    int operator&(int rhs);
+  };
+
+  struct Candidate {
+    int operator&(int rhs) { return rhs; }
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(
+      conformance_check_rejects<UnaryAmpersandInterface, Candidate>());
+#endif  // __cpp_constexpr_exceptions
+  static_assert(is_protocol_conformant<BinaryAmpersandInterface, Candidate>());
+}
+
+TEST(ConformsToTest, ExplicitObjectInterfaceMembersAreRejected) {
+  struct ExplicitObjectInterface {
+    int f(this const ExplicitObjectInterface&);
+  };
+
+  struct Candidate {
+    int f() const { return 0; }
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(
+      conformance_check_rejects<ExplicitObjectInterface, Candidate>());
 #endif  // __cpp_constexpr_exceptions
 }
 
@@ -2168,153 +2206,9 @@ TEST(ReflectionProtocolTest, NoexceptOverload) {
   static_assert(!noexcept(p.f(1.0)));
 }
 
-// Call operator tests for protocol.
-
-TEST(ReflectionProtocolTest, CallOperator) {
-  struct Interface {
-    int operator()(int x) const;
-  };
-
-  struct Conforming {
-    int operator()(int x) const { return x * 2; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(p(21), 42);
-}
-
-TEST(ReflectionProtocolTest, CallOperatorOverloadSetCannotBeDetached) {
-  struct Interface {
-    int operator()(int x) const;
-  };
-
-  struct Conforming {
-    int operator()(int x) const { return x * 2; }
-  };
-
-  protocol<Interface> p(Conforming{});
-
-  // Slicing `p` into its `operator_overload_set` base would detach the
-  // rest of `p`'s layout, so the base's own `static_cast<ProtocolType*>`
-  // back to the full object inside `operator()` would be undefined
-  // behaviour.
-  static_assert(!operator_overload_set_can_be_sliced_from<decltype(p)>);
-}
-
-TEST(ReflectionProtocolTest, CallOperatorFromLambda) {
-  struct Interface {
-    int operator()(int x) const;
-  };
-
-  protocol<Interface> p([](int x) { return x * 2; });
-  EXPECT_EQ(p(21), 42);
-}
-
-TEST(ReflectionProtocolTest, OverloadedCallOperators) {
-  struct Interface {
-    int operator()(int x);
-    double operator()(double x);
-    std::string operator()(const std::string& x) const;
-  };
-
-  struct Conforming {
-    int operator()(int x) { return x * 2; }
-
-    double operator()(double x) { return x * 3.0; }
-
-    std::string operator()(const std::string& x) const { return x + x; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(p(5), 10);
-  EXPECT_EQ(p(5.0), 15.0);
-
-  const auto& const_p = p;
-  EXPECT_EQ(const_p(std::string("A")), "AA");
-}
-
-TEST(ReflectionProtocolTest, ConstAndNonConstCallOperatorPair) {
-  struct Interface {
-    int operator()() const;
-    int operator()();
-  };
-
-  struct Conforming {
-    int operator()() const { return 1; }
-
-    int operator()() { return 2; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(p(), 2);
-
-  const protocol<Interface>& const_p = p;
-  EXPECT_EQ(const_p(), 1);
-}
-
-TEST(ReflectionProtocolTest, ConstProtocolExposesOnlyConstCallOperators) {
-  struct Interface {
-    int operator()() const;
-    void operator()(int value);
-  };
-
-  static_assert(!is_callable_with_int<const protocol<Interface>>);
-  static_assert(is_callable_with_int<protocol<Interface>>);
-
-  static_assert(is_callable<protocol<Interface>>);
-  static_assert(is_callable<const protocol<Interface>>);
-}
-
-TEST(ReflectionProtocolTest, CallOperatorAlongsideNamedMembers) {
-  struct Interface {
-    int operator()(int x) const;
-    int get() const;
-  };
-
-  struct Conforming {
-    int operator()(int x) const { return x * 2; }
-
-    int get() const { return 7; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(p(2), 4);
-  EXPECT_EQ(p.get(), 7);
-}
-
-TEST(ReflectionProtocolTest, NoexceptCallOperator) {
-  struct Interface {
-    int operator()(int x) noexcept;
-  };
-
-  struct Conforming {
-    int operator()(int x) noexcept { return x * 2; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(p(21), 42);
-  static_assert(noexcept(p(1)));
-}
-
-TEST(ReflectionProtocolTest, CallOperatorForwardingAfterCopy) {
-  struct Interface {
-    int operator()(int x) const;
-  };
-
-  struct Conforming {
-    int operator()(int x) const { return x * 2; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  // NOLINTBEGIN(performance-unnecessary-copy-initialization): the test
-  // exercises copy construction on purpose.
-  protocol<Interface> copy(p);
-  // NOLINTEND(performance-unnecessary-copy-initialization)
-  EXPECT_EQ(copy(21), 42);
-}
-
 // Tests that dispatching fails gracefully for a moved-from protocol, for
-// named member functions and for each operator.
+// named member functions. Operator dispatch has the same tests in
+// protocol_operator_tests.cc.
 #if (defined(_MSC_VER) && defined(_DEBUG)) || (!defined(NDEBUG))
 
 TEST(ReflectionProtocolTest, MutableValuelessCall) {
@@ -2356,176 +2250,6 @@ TEST(ReflectionProtocolTest, ConstValuelessCall) {
   EXPECT_TRUE(valueless_after_move(p));
 
   EXPECT_DEATH(p.foo(), "cannot call member function of valueless protocol");
-  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
-}
-
-TEST(ReflectionProtocolTest, MutableCallOperatorValuelessCall) {
-  struct Interface {
-    int operator()(int x);
-  };
-
-  struct TypeA {
-    int operator()(int x) { return x * 2; }
-  };
-
-  protocol<Interface> p(TypeA{});
-  EXPECT_EQ(p(21), 42);
-
-  auto _ = std::move(p);
-  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
-  // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(valueless_after_move(p));
-
-  EXPECT_DEATH(p(21), "cannot call member function of valueless protocol");
-  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
-}
-
-TEST(ReflectionProtocolTest, ConstCallOperatorValuelessCall) {
-  struct Interface {
-    int operator()(int x) const;
-  };
-
-  struct TypeA {
-    int operator()(int x) const { return x * 2; }
-  };
-
-  protocol<Interface> p(TypeA{});
-  EXPECT_EQ(p(21), 42);
-
-  auto _ = std::move(p);
-  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
-  // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(valueless_after_move(p));
-
-  EXPECT_DEATH(p(21), "cannot call member function of valueless protocol");
-  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
-}
-
-TEST(ReflectionProtocolTest, MutableOperatorSquareBracketsValuelessCall) {
-  struct Interface {
-    int operator[](int);
-  };
-
-  struct TypeA {
-    int operator[](int) { return 42; }
-  };
-
-  protocol<Interface> p(TypeA{});
-  EXPECT_EQ(p[0], 42);
-
-  auto _ = std::move(p);
-  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
-  // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(valueless_after_move(p));
-
-  EXPECT_DEATH(p[0], "cannot call member function of valueless protocol");
-  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
-}
-
-TEST(ReflectionProtocolTest, ConstOperatorSquareBracketsValuelessCall) {
-  struct Interface {
-    int operator[](int) const;
-  };
-
-  struct TypeA {
-    int operator[](int) const { return 42; }
-  };
-
-  protocol<Interface> p(TypeA{});
-  EXPECT_EQ(p[0], 42);
-
-  auto _ = std::move(p);
-  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
-  // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(valueless_after_move(p));
-
-  EXPECT_DEATH(p[0], "cannot call member function of valueless protocol");
-  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
-}
-
-TEST(ReflectionProtocolTest, MutableOperatorStarValuelessCall) {
-  struct Interface {
-    int operator*();
-  };
-
-  struct TypeA {
-    int operator*() { return 42; }
-  };
-
-  protocol<Interface> p(TypeA{});
-  EXPECT_EQ(*p, 42);
-
-  auto _ = std::move(p);
-  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
-  // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(valueless_after_move(p));
-
-  EXPECT_DEATH(*p, "cannot call member function of valueless protocol");
-  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
-}
-
-TEST(ReflectionProtocolTest, ConstOperatorStarValuelessCall) {
-  struct Interface {
-    int operator*() const;
-  };
-
-  struct TypeA {
-    int operator*() const { return 42; }
-  };
-
-  protocol<Interface> p(TypeA{});
-  EXPECT_EQ(*p, 42);
-
-  auto _ = std::move(p);
-  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
-  // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(valueless_after_move(p));
-
-  EXPECT_DEATH(*p, "cannot call member function of valueless protocol");
-  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
-}
-
-TEST(ReflectionProtocolTest, MutableOperatorArrowValuelessCall) {
-  struct Interface {
-    int operator->();
-  };
-
-  struct TypeA {
-    int operator->() { return 42; }
-  };
-
-  protocol<Interface> p(TypeA{});
-  EXPECT_EQ(p.operator->(), 42);
-
-  auto _ = std::move(p);
-  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
-  // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(valueless_after_move(p));
-
-  EXPECT_DEATH(p.operator->(),
-               "cannot call member function of valueless protocol");
-  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
-}
-
-TEST(ReflectionProtocolTest, ConstOperatorArrowValuelessCall) {
-  struct Interface {
-    int operator->() const;
-  };
-
-  struct TypeA {
-    int operator->() const { return 42; }
-  };
-
-  protocol<Interface> p(TypeA{});
-  EXPECT_EQ(p.operator->(), 42);
-
-  auto _ = std::move(p);
-  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the
-  // test exercises the moved-from state on purpose.
-  EXPECT_TRUE(valueless_after_move(p));
-
-  EXPECT_DEATH(p.operator->(),
-               "cannot call member function of valueless protocol");
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
@@ -2990,99 +2714,6 @@ TEST(ReflectionProtocolViewTest, MovedFromTargetType) {
   protocol_view<Interface> pv(movedFrom);
   EXPECT_EQ(target_type(pv), typeid(void));
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
-}
-
-TEST(ReflectionProtocolTest, OperatorSquareBrackets) {
-  struct Interface {
-    int operator[](int) const noexcept;
-    int operator[](int) noexcept;
-  };
-
-  struct Conforming {
-    int operator[](int) const noexcept { return 0; }
-
-    int operator[](int) noexcept { return 42; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(p[0], 42);
-
-  Conforming c;
-  protocol_view<Interface> pv(c);
-  EXPECT_EQ(pv[0], 42);
-
-  protocol_view<const Interface> pcv(c);
-  EXPECT_EQ(pcv[0], 0);
-}
-
-TEST(ReflectionProtocolTest, OperatorStar) {
-  struct Interface {
-    int operator*() const noexcept;
-    int operator*() noexcept;
-  };
-
-  struct Conforming {
-    int operator*() const noexcept { return 0; }
-
-    int operator*() noexcept { return 42; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_EQ(*p, 42);
-
-  Conforming c;
-  protocol_view<Interface> pv(c);
-  EXPECT_EQ(*pv, 42);
-
-  protocol_view<const Interface> pcv(c);
-  EXPECT_EQ(*pcv, 0);
-}
-
-TEST(ReflectionProtocolTest, OperatorArrow) {
-  struct Interface {
-    int operator->() const noexcept;
-    int operator->() noexcept;
-  };
-
-  struct Conforming {
-    int operator->() const noexcept { return 0; }
-
-    int operator->() noexcept { return 42; }
-  };
-
-  Conforming c;
-
-  protocol<Interface> p(c);
-  EXPECT_EQ(p.operator->(), 42);
-
-  protocol_view<Interface> pv(c);
-  EXPECT_EQ(pv.operator->(), 42);
-
-  protocol_view<const Interface> pcv(c);
-  EXPECT_EQ(pcv.operator->(), 0);
-}
-
-TEST(ReflectionProtocolViewTest,
-     OverloadsDifferingOnlyByReturnTypeAreNotAmbiguous) {
-  struct Interface {
-    const int& operator*() const noexcept;
-    int& operator*() noexcept;
-  };
-
-  struct Conforming {
-    int value = 0;
-
-    const int& operator*() const noexcept { return value; }
-
-    int& operator*() noexcept { return value; }
-  };
-
-  Conforming c;
-
-  protocol_view<Interface> pv(c);
-  EXPECT_EQ(*pv, 0);
-  *pv = 5;
-  EXPECT_EQ(*pv, 5);
 }
 
 TEST(ReflectionProtocolTest, ValuelessAfterMoveFunctionDoesNotCollide) {

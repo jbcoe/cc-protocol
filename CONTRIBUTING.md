@@ -195,15 +195,6 @@ Their public, non-virtual, non-template member functions define the protocol;
   of the interface member). Static member functions declared on the interface
   itself are ignored.
 
-- Limitations: No operators other than `operator()` are supported. Member
-  function templates are not matched, since only non-template functions are
-  considered as candidates. Conformance checking accounts for an interface
-  member's lvalue/rvalue reference qualifier, but the generated call wrapper
-  does not itself apply the qualifier. There is no conversion between a
-  `protocol`/`protocol_view` of one interface and another. Conformance
-  checking is O(N\*M) in the number of interface and candidate member
-  functions.
-
 - Guidance: Developers should refer to `protocol_test.cc`,
   `forwarding_test.cc`, `allocator_tests.cc` and `tutorials/reflection.cc` for
   examples of supported interface patterns.

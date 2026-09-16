@@ -21,6 +21,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef XYZ_TEST_HELPERS_H
 #define XYZ_TEST_HELPERS_H
 
+#include "protocol.hh"
+
 namespace xyz {
 
 template <bool B>
@@ -38,5 +40,24 @@ struct NonCopyable {
 };
 
 }  // namespace xyz
+
+// Concepts for call operator tests, shared by protocol_test.cc and
+// protocol_operator_tests.cc.
+template <typename P>
+concept is_callable = requires(P& p) { p(); };
+
+template <typename P>
+concept is_callable_with_int = requires(P& p) { p(0); };
+
+// A generic lambda's parameter type deduces `Op`, `P`, `V` and `S...` from
+// any `xyz::detail::operator_overload_set` base of `Derived`, so slicing can
+// be probed without naming the protocol's internal vtable/spec types.
+// `requires` treats the resulting inaccessible-special-member error as a
+// substitution failure rather than a hard error.
+template <typename Derived>
+concept operator_overload_set_can_be_sliced_from = requires(Derived d) {
+  []<std::meta::operators Op, typename P, typename V, typename... S>(
+      xyz::detail::operator_overload_set<Op, P, V, S...>) {}(d);
+};
 
 #endif  // XYZ_TEST_HELPERS_H

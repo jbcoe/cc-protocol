@@ -182,6 +182,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       xyz_protocol::protocol
       FILES
       protocol_test.cc
+      protocol_operator_tests.cc
       allocator_tests.cc
       consteval_check_test.cc
       forwarding_test.cc

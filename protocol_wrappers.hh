@@ -154,18 +154,8 @@ consteval std::meta::info generate_member_bases_wrapper() {
     std::vector<std::meta::info> member_base_args;
     if (has_identifier(member)) {
       member_base_args.push_back(reflect_constant(member));
-    } else if (is_operator<std::meta::operators::op_parentheses>(member)) {
-      member_base_args.push_back(
-          reflect_constant(std::meta::operators::op_parentheses));
-    } else if (is_operator<std::meta::operators::op_square_brackets>(member)) {
-      member_base_args.push_back(
-          reflect_constant(std::meta::operators::op_square_brackets));
-    } else if (is_operator<std::meta::operators::op_star>(member)) {
-      member_base_args.push_back(
-          reflect_constant(std::meta::operators::op_star));
-    } else if (is_operator<std::meta::operators::op_arrow>(member)) {
-      member_base_args.push_back(
-          reflect_constant(std::meta::operators::op_arrow));
+    } else if (is_operator_function(member)) {
+      member_base_args.push_back(reflect_constant(operator_of(member)));
     }
     member_base_args.push_back(^^ProtocolType);
     member_base_args.push_back(^^Vtable);

@@ -4,7 +4,10 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <meta>
+#include <stdexcept>
 
 #include "name_mangling.hh"
 
@@ -169,6 +172,216 @@ TEST(NameManglingTest, ExtraOperators) {
   static_assert(mangle(^^A::operator[]) == "fn_ixii");
   static_assert(mangle(^^A::operator*) == "fn_dePv");
   static_assert(mangle(^^A::operator->) == "fn_ptPv");
+}
+
+// A member function's mangled Itanium <operator-name> for every operator
+// `std::meta::operators` names, verified against the symbol names GCC
+// itself emits for real, defined member operators of the same shapes.
+// NOLINTBEGIN(cppcoreguidelines-special-member-functions,
+// hicpp-special-member-functions, google-runtime-operator): declarations
+// only, reflected but never instantiated or called.
+struct AllOperators {
+  // `+`, `-`, `*` and `&` mangle differently as unary (no declared
+  // parameters, only the implicit object parameter) than as binary.
+  int operator+();
+  int operator+(int);
+  int operator-();
+  int operator-(int);
+  int operator*();
+  int operator*(int);
+  int operator&();
+  int operator&(int);
+
+  // Binary-only arithmetic and bitwise operators.
+  int operator/(int);
+  int operator%(int);
+  int operator^(int);
+  int operator|(int);
+
+  // Unary-only operators.
+  int operator~();
+  int operator!();
+
+  // Assignment and compound assignment. Declaring exactly the
+  // copy-assignment form, rather than some other parameter type, avoids an
+  // implicitly-declared move assignment operator also existing and making
+  // `^^AllOperators::operator=` ambiguous between the two.
+  AllOperators& operator=(const AllOperators&);
+  int operator+=(int);
+  int operator-=(int);
+  int operator*=(int);
+  int operator/=(int);
+  int operator%=(int);
+  int operator^=(int);
+  int operator&=(int);
+  int operator|=(int);
+
+  // Comparison.
+  bool operator==(int) const;
+  bool operator!=(int) const;
+  bool operator<(int) const;
+  bool operator>(int) const;
+  bool operator<=(int) const;
+  bool operator>=(int) const;
+  int operator<=>(int) const;
+
+  // Logical.
+  bool operator&&(int) const;
+  bool operator||(int) const;
+
+  // Shift.
+  int operator<<(int);
+  int operator>>(int);
+  int operator<<=(int);
+  int operator>>=(int);
+
+  // Increment/decrement: prefix (no parameters) and postfix (the dummy
+  // `int` parameter C++ requires to distinguish them).
+  int operator++();
+  int operator++(int);
+  int operator--();
+  int operator--(int);
+
+  // Comma, member access, call and subscript.
+  int operator,(int);
+  void* operator->();
+  int operator->*(int);
+  int operator()(int);
+  int operator[](int);
+
+  int operator co_await();
+
+  // Implicitly static members: no cv/ref-qualification is possible. A
+  // deallocation function with no exception-specification is implicitly
+  // noexcept(true) (a C++11 defect resolution); declaring it explicitly
+  // here avoids depending on whether a reflection implementation applies
+  // that implicit rule.
+  void* operator new(unsigned long);
+  void operator delete(void*) noexcept;
+  void* operator new[](unsigned long);
+  void operator delete[](void*) noexcept;
+};
+
+// NOLINTEND(cppcoreguidelines-special-member-functions,
+// hicpp-special-member-functions, google-runtime-operator)
+
+// `^^AllOperators::operatorX` is ambiguous for an operator overloaded at
+// more than one arity (`+`, `-`, `*`, `&`, `++`, `--`): reflecting an
+// overload set is ill-formed, so the specific overload is found by arity
+// instead, the same way `parameters_of` is used elsewhere in this library
+// to tell a unary member operator from a binary one.
+consteval std::meta::info overload_with_arity(std::meta::info type,
+                                              std::meta::operators op,
+                                              std::size_t arity) {
+  for (std::meta::info member :
+       members_of(type, std::meta::access_context::unprivileged())) {
+    if (std::meta::is_function(member) && is_operator_function(member) &&
+        operator_of(member) == op && parameters_of(member).size() == arity) {
+      return member;
+    }
+  }
+  throw std::runtime_error("no overload of that arity");
+}
+
+TEST(NameManglingTest,
+     NamesUnaryAndBinaryFormsOfAmbiguousOperatorsDifferently) {
+  using enum std::meta::operators;
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_plus, 0)) ==
+                "fn_psi");
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_plus, 1)) ==
+                "fn_plii");
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_minus, 0)) ==
+                "fn_ngi");
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_minus, 1)) ==
+                "fn_miii");
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_star, 0)) ==
+                "fn_dei");
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_star, 1)) ==
+                "fn_mlii");
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_ampersand, 0)) ==
+                "fn_adi");
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_ampersand, 1)) ==
+                "fn_anii");
+}
+
+TEST(NameManglingTest, NamesBinaryOnlyArithmeticAndBitwiseOperators) {
+  static_assert(mangle(^^AllOperators::operator/) == "fn_dvii");
+  static_assert(mangle(^^AllOperators::operator%) == "fn_rmii");
+  static_assert(mangle(^^AllOperators::operator^) == "fn_eoii");
+  static_assert(mangle(^^AllOperators::operator|) == "fn_orii");
+}
+
+TEST(NameManglingTest, NamesUnaryOnlyOperators) {
+  static_assert(mangle(^^AllOperators::operator~) == "fn_coi");
+  static_assert(mangle(^^AllOperators::operator!) == "fn_nti");
+}
+
+TEST(NameManglingTest, NamesAssignmentAndCompoundAssignmentOperators) {
+  static_assert(mangle(^^AllOperators::operator=) ==
+                "fn_aSRN12_GLOBAL__N_112AllOperatorsE"
+                "RKN12_GLOBAL__N_112AllOperatorsE");
+  static_assert(mangle(^^AllOperators::operator+=) == "fn_pLii");
+  static_assert(mangle(^^AllOperators::operator-=) == "fn_mIii");
+  static_assert(mangle(^^AllOperators::operator*=) == "fn_mLii");
+  static_assert(mangle(^^AllOperators::operator/=) == "fn_dVii");
+  static_assert(mangle(^^AllOperators::operator%=) == "fn_rMii");
+  static_assert(mangle(^^AllOperators::operator^=) == "fn_eOii");
+  static_assert(mangle(^^AllOperators::operator&=) == "fn_aNii");
+  static_assert(mangle(^^AllOperators::operator|=) == "fn_oRii");
+}
+
+TEST(NameManglingTest, NamesComparisonOperators) {
+  static_assert(mangle(^^AllOperators::operator==) == "fn_NKeqEbi");
+  static_assert(mangle(^^AllOperators::operator!=) == "fn_NKneEbi");
+  static_assert(mangle(^^AllOperators::operator<) == "fn_NKltEbi");
+  static_assert(mangle(^^AllOperators::operator>) == "fn_NKgtEbi");
+  static_assert(mangle(^^AllOperators::operator<=) == "fn_NKleEbi");
+  static_assert(mangle(^^AllOperators::operator>=) == "fn_NKgeEbi");
+  static_assert(mangle(^^AllOperators::operator<=>) == "fn_NKssEii");
+}
+
+TEST(NameManglingTest, NamesLogicalOperators) {
+  static_assert(mangle(^^AllOperators::operator&&) == "fn_NKaaEbi");
+  static_assert(mangle(^^AllOperators::operator||) == "fn_NKooEbi");
+}
+
+TEST(NameManglingTest, NamesShiftOperators) {
+  static_assert(mangle(^^AllOperators::operator<<) == "fn_lsii");
+  static_assert(mangle(^^AllOperators::operator>>) == "fn_rsii");
+  static_assert(mangle(^^AllOperators::operator<<=) == "fn_lSii");
+  static_assert(mangle(^^AllOperators::operator>>=) == "fn_rSii");
+}
+
+TEST(NameManglingTest, NamesIncrementAndDecrementTheSameForPrefixAndPostfix) {
+  using enum std::meta::operators;
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_plus_plus, 0)) ==
+                "fn_ppi");
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_plus_plus, 1)) ==
+                "fn_ppii");
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_minus_minus,
+                                           0)) == "fn_mmi");
+  static_assert(mangle(overload_with_arity(^^AllOperators, op_minus_minus,
+                                           1)) == "fn_mmii");
+}
+
+TEST(NameManglingTest, NamesCommaMemberAccessCallAndSubscriptOperators) {
+  static_assert(mangle(^^AllOperators::operator, ) == "fn_cmii");
+  static_assert(mangle(^^AllOperators::operator->) == "fn_ptPv");
+  static_assert(mangle(^^AllOperators::operator->*) == "fn_pmii");
+  static_assert(mangle(^^AllOperators::operator()) == "fn_clii");
+  static_assert(mangle(^^AllOperators::operator[]) == "fn_ixii");
+}
+
+TEST(NameManglingTest, NamesTheCoAwaitOperator) {
+  static_assert(mangle(^^AllOperators::operator co_await) == "fn_awi");
+}
+
+TEST(NameManglingTest,
+     NamesAllocationOperatorsWithNoQualifiersAsTheyAreStatic) {
+  static_assert(mangle(^^AllOperators::operator new) == "fn_nwPvm");
+  static_assert(mangle(^^AllOperators::operator delete) == "fn_dlDovPv");
+  static_assert(mangle(^^AllOperators::operator new[]) == "fn_naPvm");
+  static_assert(mangle(^^AllOperators::operator delete[]) == "fn_daDovPv");
 }
 
 }  // namespace
