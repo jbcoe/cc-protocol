@@ -65,7 +65,7 @@ function(xyz_add_test)
         $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
         $<$<CXX_COMPILER_ID:MSVC>:/W4>
         $<$<CXX_COMPILER_ID:MSVC>:/bigobj>
-        $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>>:-Werror;-Wall;-Wno-self-assign-overloaded;-Wno-delete-non-abstract-non-virtual-dtor;-Wno-unknown-warning-option;-Wno-self-move;-Wno-self-assign-overloaded>
+        $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>>:-Werror;-Wall;-Wextra;-Wno-self-assign-overloaded;-Wno-delete-non-abstract-non-virtual-dtor;-Wno-unknown-warning-option;-Wno-self-move;-Wno-self-assign-overloaded;-Wno-missing-field-initializers>
     )
 
   endif(NOT TARGET common_compiler_settings)
