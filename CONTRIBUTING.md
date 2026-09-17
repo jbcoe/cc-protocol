@@ -244,9 +244,16 @@ plain shell in the container.
 |------|-------------|
 | `--rebuild-docker` | Rebuild the Docker image before starting. |
 | `--update` | Update the agent CLI to the latest version before running. |
+| `--skip-permissions` | Run `claude` with `--dangerously-skip-permissions`. |
 | `--cache-volumes`, `--no-cache-volumes` | Mount the persistent cache volumes (default: on). |
 | `--offline` | Run the container with `--network none`, to check that a build needs no network. Plain shell only. |
 | `-v`, `--verbose` | Enable verbose logging. |
+
+`claude` starts in the permission mode set in your host `~/.claude/settings.json`,
+which is mounted into the container. The container keeps the agent away from
+the rest of the host file system, but the network is unrestricted and the
+project and `~/.claude`, credentials included, are mounted read-write. Pass
+`--skip-permissions` only when that is acceptable.
 
 The `uv` package cache and Bazel's repository cache persist across sandbox runs
 in Docker named volumes, `cc-protocol-uv-cache` and

@@ -32,7 +32,7 @@ class AgentCli(TypedDict):
 AGENT_CLIS: dict[str, AgentCli] = {
     "claude": {
         "update": "claude update",
-        "cmd": "claude --dangerously-skip-permissions",
+        "cmd": "claude",
     },
     "agy": {
         "update": "curl -fsSL https://antigravity.google/cli/install.sh | bash",
@@ -148,6 +148,13 @@ def main() -> None:
         "Requires an agent.",
     )
     parser.add_argument(
+        "--skip-permissions",
+        action="store_true",
+        help="Run claude with --dangerously-skip-permissions. The sandbox does "
+        "not restrict the network and mounts the project and ~/.claude "
+        "read-write.",
+    )
+    parser.add_argument(
         "--rebuild-docker", action="store_true", help="Rebuild the Docker image."
     )
     parser.add_argument(
@@ -170,6 +177,8 @@ def main() -> None:
         parser.error("--update requires an agent")
     if args.offline and args.agent is not None:
         parser.error("--offline cannot be used with an agent")
+    if args.skip_permissions and args.agent != "claude":
+        parser.error("--skip-permissions requires the claude agent")
 
     def log(msg: str) -> None:
         if args.verbose:
@@ -211,9 +220,10 @@ def main() -> None:
         container_cmd = None
     else:
         cli = AGENT_CLIS[args.agent]
-        container_cmd = (
-            f"{cli['update']} && {cli['cmd']}" if args.update else cli["cmd"]
-        )
+        agent_cmd = cli["cmd"]
+        if args.skip_permissions:
+            agent_cmd += " --dangerously-skip-permissions"
+        container_cmd = f"{cli['update']} && {agent_cmd}" if args.update else agent_cmd
 
     cache_mounts = []
     if args.cache_volumes:
