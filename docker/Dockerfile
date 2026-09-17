@@ -16,12 +16,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gdb \
     git \
     gpg \
+    jq \
     lcov \
     llvm \
     ninja-build \
     python-is-python3 \
     python3-pip \
     python3-venv \
+    ripgrep \
     ssh \
     unzip \
     wget \
