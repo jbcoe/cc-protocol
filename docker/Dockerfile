@@ -89,22 +89,15 @@ RUN userdel -r ubuntu \
     && mkdir -p /workspace \
     && chown vscode:vscode /workspace
 
-# Install Node.js (required for Claude Code).
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
 # Switch to non-root user.
 USER vscode
 WORKDIR /workspace
 
-# Configure npm for user-local global installs.
-ENV NPM_CONFIG_PREFIX=/home/vscode/.npm-global
-ENV PATH="/home/vscode/.npm-global/bin:/home/vscode/.local/bin:/usr/local/bin:${PATH}"
-RUN mkdir -p /home/vscode/.npm-global
+ENV PATH="/home/vscode/.local/bin:/usr/local/bin:${PATH}"
 
-# Install Claude Code CLI.
-RUN npm install -g @anthropic-ai/claude-code
+# Install Claude Code CLI with the native installer (installs `claude` into
+# ~/.local/bin). It needs no Node.js and updates itself in the background.
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Install Antigravity CLI (installs binary as `agy` into ~/.local/bin).
 RUN curl -fsSL https://antigravity.google/cli/install.sh | bash

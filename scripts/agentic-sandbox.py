@@ -23,18 +23,21 @@ CACHE_VOLUMES: dict[str, str] = {
 
 
 class AgentCli(TypedDict):
-    """npm package and launch command for an agent CLI."""
+    """Update and launch commands for an agent CLI."""
 
-    npm_package: str | None
+    update: str
     cmd: str
 
 
 AGENT_CLIS: dict[str, AgentCli] = {
     "claude": {
-        "npm_package": "@anthropic-ai/claude-code",
+        "update": "claude update",
         "cmd": "claude --dangerously-skip-permissions",
     },
-    "agy": {"npm_package": None, "cmd": "agy"},
+    "agy": {
+        "update": "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+        "cmd": "agy",
+    },
 }
 
 
@@ -48,20 +51,6 @@ def _seed_config_file(path: str, content: bytes) -> None:
         os.write(fd, content)
     finally:
         os.close(fd)
-
-
-def _update_command(agent: str, agent_cmd: str, npm_package: str | None) -> str:
-    """Build the shell command that updates an agent CLI before running it."""
-    if agent == "agy":
-        return (
-            "curl -fsSL https://antigravity.google/cli/install.sh | bash && "
-            f"{agent_cmd}"
-        )
-    return (
-        "export NPM_CONFIG_PREFIX=~/.npm-global && "
-        "export PATH=~/.npm-global/bin:$PATH && "
-        f"npm install -g {npm_package}@latest && {agent_cmd}"
-    )
 
 
 def _host_git_identity() -> tuple[str | None, str | None]:
@@ -216,9 +205,7 @@ def main() -> None:
     else:
         cli = AGENT_CLIS[args.agent]
         container_cmd = (
-            _update_command(args.agent, cli["cmd"], cli["npm_package"])
-            if args.update
-            else cli["cmd"]
+            f"{cli['update']} && {cli['cmd']}" if args.update else cli["cmd"]
         )
 
     cache_mounts = []
