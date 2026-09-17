@@ -245,6 +245,7 @@ plain shell in the container.
 | `--rebuild-docker` | Rebuild the Docker image before starting. |
 | `--update` | Update the agent CLI to the latest version before running. |
 | `--cache-volumes`, `--no-cache-volumes` | Mount the persistent cache volumes (default: on). |
+| `--offline` | Run the container with `--network none`, to check that a build needs no network. Plain shell only. |
 | `-v`, `--verbose` | Enable verbose logging. |
 
 The `uv` package cache and Bazel's repository cache persist across sandbox runs
