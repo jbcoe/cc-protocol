@@ -26,6 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <vector>
 
 #include "conformance.hh"
+#include "conversion_thunks.hh"
 #include "member_function_thunks.hh"
 #include "operator_thunks.hh"
 #include "overload_spec.hh"
@@ -109,15 +110,13 @@ using member_base_t =
     member_base_generator<Member, ProtocolType, Vtable, OverloadSpecs...>::type;
 
 // Combines the single-member base types and overload sets produced by
-// `member_base_generator` and `X_operator_overload_set` into one type via
-// multiple inheritance.
+// `member_base_generator`, `X_operator_overload_set` and
+// `conversion_overload_set` into one type via multiple inheritance.
 template <typename... MemberBases>
 struct member_bases_wrapper : MemberBases... {};
 
-// Returns a `member_bases_wrapper` specialisation with one base per public,
-// non-special, member function name of `interface_type`, giving named members
-// with an `operator()` for each overload selected by `ConstPolicy`, plus a
-// `operator_overload_set` if `interface_type` has call operators.
+// Returns a `member_bases_wrapper` to enable forwarding of named member
+// functions, operators and conversion functions.
 // TODO: Rewrite this hard-to-read function.
 template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable,
           const_policy ConstPolicy>
@@ -152,6 +151,10 @@ consteval std::meta::info generate_member_bases_wrapper() {
       member_base_args.push_back(reflect_constant(member));
     } else if (is_operator_function(member)) {
       member_base_args.push_back(reflect_constant(operator_of(member)));
+    } else if (is_conversion_function(member)) {
+      member_base_args.push_back(dealias(return_type_of(member)));
+    } else {
+      std::unreachable();
     }
     member_base_args.push_back(^^ProtocolType);
     member_base_args.push_back(^^Vtable);
@@ -162,6 +165,9 @@ consteval std::meta::info generate_member_bases_wrapper() {
     } else if (is_operator_function(member)) {
       member_base_types.push_back(
           substitute(^^operator_overload_set, member_base_args));
+    } else if (is_conversion_function(member)) {
+      member_base_types.push_back(
+          substitute(^^conversion_overload_set, member_base_args));
     } else {
       std::unreachable();
     }
