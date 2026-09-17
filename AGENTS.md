@@ -7,6 +7,11 @@ CI checks. The points below are the ones that are easy to get wrong.
   for coverage and clang-tidy. Both scripts select a GCC with C++26
   reflection. A bare `bazel` or `cmake` invocation uses stock GCC and fails
   on `-freflection`.
+- After a Bazel build, rerun one test directly:
+  `./bazel-bin/protocol_test --gtest_filter='Vtable*'`, under `gdb` if needed.
+- Released Clang tools (`clang-tidy`, `clang-query`, `clangd`) cannot parse
+  the reflection sources. Search with `rg`; lint with
+  `./scripts/cmake.sh --clang-tidy`, which needs a clang-p2996 toolchain.
 - Run Python through `uv run`, and run `uv run pre-commit run --all-files`
   after changing anything.
 - Do not abbreviate names: `XYZ_PROTOCOL_LIBSTDCXX_DIRECTORY`, not
