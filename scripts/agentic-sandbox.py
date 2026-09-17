@@ -157,12 +157,19 @@ def main() -> None:
         help="Mount the persistent cache volumes.",
     )
     parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Run the container without network access. Plain shell only.",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging."
     )
     args = parser.parse_args()
 
     if args.update and args.agent is None:
         parser.error("--update requires an agent")
+    if args.offline and args.agent is not None:
+        parser.error("--offline cannot be used with an agent")
 
     def log(msg: str) -> None:
         if args.verbose:
@@ -221,6 +228,9 @@ def main() -> None:
         "-v",
         f"{project_root}:/workspace",
     ]
+
+    if args.offline:
+        run_args.extend(["--network", "none"])
 
     run_args.extend(cache_mounts)
     run_args.extend(_agent_mount_args(args.agent))
