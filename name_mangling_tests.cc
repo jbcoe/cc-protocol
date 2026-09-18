@@ -71,7 +71,31 @@ TEST(NameManglingTest, CallOperatorDoesNotCollideWithAMemberLiterallyNamedCl) {
 }
 
 TEST(NameManglingTest, NamesAConversionFunctionUsingItsTargetType) {
-  static_assert(mangle(^^Interface::operator bool) == "fn_NKcvbEb");
+  static_assert(mangle(^^Interface::operator bool) == "fn_NKcvbE");
+}
+
+TEST(NameManglingTest, ConversionFunctionManglesItsTargetTypeOnce) {
+  struct Conversions {
+    operator Widget() const;
+    operator int() noexcept;
+  };
+
+  static_assert(mangle(^^Conversions::operator Widget) ==
+                "fn_NKcvN12_GLOBAL__N_16WidgetEE");
+  static_assert(mangle(^^Conversions::operator int) == "fn_cviDo");
+}
+
+TEST(NameManglingTest, DistinguishesConversionFunctionsByTargetType) {
+  struct IntInterface {
+    operator int() const;
+  };
+
+  struct LongInterface {
+    operator long() const;
+  };
+
+  static_assert(mangle(^^IntInterface::operator int) !=
+                mangle(^^LongInterface::operator long));
 }
 
 TEST(NameManglingTest,
