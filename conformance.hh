@@ -23,6 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <algorithm>
 #include <meta>
 #include <ranges>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -142,19 +143,27 @@ concept is_maybe_lambda =
     bases_of(dealias(^^T), std::meta::access_context::unprivileged()).empty() &&
     requires { &T::operator(); };
 
-// The named, non-special member functions and call operators of `Type`,
-// static or not, in declaration order.
-template <std::meta::info Type>
-consteval auto conformance_candidate_infos() {
+// The named, non-special member functions and call operators of `type`,
+// static or not, in declaration order. Not a template, so the range adaptors
+// and the closure type are instantiated once rather than once per type.
+consteval std::vector<std::meta::info> named_member_function_infos(
+    std::meta::info type) {
   auto named =
-      members_of(Type, std::meta::access_context::unprivileged()) |
+      members_of(type, std::meta::access_context::unprivileged()) |
       std::views::filter(std::meta::is_function) |
       std::views::filter([](std::meta::info member) consteval {
         return !is_special_member_function(member) &&
                (has_identifier(member) || is_operator_function(member));
       });
-  std::vector<std::meta::info> result(std::ranges::begin(named),
+  return std::vector<std::meta::info>(std::ranges::begin(named),
                                       std::ranges::end(named));
+}
+
+// The named, non-special member functions and call operators of `Type`,
+// static or not, in declaration order.
+template <std::meta::info Type>
+consteval auto conformance_candidate_infos() {
+  std::vector<std::meta::info> result = named_member_function_infos(Type);
   // GCC Workaround: Per [meta.reflection.member.queries], a closure type's
   // function call operator is members-of-eligible, but GCC16's `members_of`
   // does not yet enumerate it, leaving `result` empty for lambdas; name the
@@ -241,6 +250,29 @@ consteval std::meta::info find_conforming_member() {
     if (member_function_conforms_to(candidate, Member)) return candidate;
   }
   std::unreachable();
+}
+
+// Returns `true` if every interface member has a conforming candidate. This
+// and `contains_same_name` are not templates, so their closure types and the
+// algorithms over them are instantiated once rather than once per interface.
+consteval bool all_members_conform(
+    std::span<const std::meta::info> interface_members,
+    std::span<const std::meta::info> candidate_members) {
+  return std::ranges::all_of(
+      interface_members, [&](std::meta::info interface_member) {
+        return std::ranges::any_of(candidate_members,
+                                   [&](std::meta::info candidate_member) {
+                                     return member_function_conforms_to(
+                                         candidate_member, interface_member);
+                                   });
+      });
+}
+
+// Returns `true` if `members` has a member with the same name as `member`.
+consteval bool contains_same_name(std::span<const std::meta::info> members,
+                                  std::meta::info member) {
+  return std::ranges::any_of(
+      members, [&](std::meta::info other) { return same_name(member, other); });
 }
 
 }  // namespace xyz::detail

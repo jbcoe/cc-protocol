@@ -128,11 +128,7 @@ consteval std::meta::info generate_member_bases_wrapper() {
   std::vector<std::meta::info> matched_members;
   for (std::meta::info member : members) {
     // Find unique names/operators.
-    if (std::ranges::any_of(matched_members,
-                            [&](std::meta::info matched_member) {
-                              return same_name(member, matched_member);
-                            }))
-      continue;
+    if (contains_same_name(matched_members, member)) continue;
     matched_members.push_back(member);
 
     // Collect overloads.
