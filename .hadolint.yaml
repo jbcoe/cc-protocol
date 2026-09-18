@@ -1,0 +1,12 @@
+ignored:
+  # Packages track the Ubuntu release and the agent CLIs track latest; the
+  # image is rebuilt rather than pinned.
+  - DL3008
+  - DL3016
+  # Each tool is installed the way its own documentation says, so both wget
+  # and curl appear.
+  - DL4001
+  # One RUN per tool keeps the layer cache useful when a single tool changes.
+  - DL3059
+  # `vscode` is created in the image with a fixed UID, so the name resolves.
+  - DL3066

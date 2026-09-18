@@ -1,0 +1,56 @@
+name: Docker
+
+# Builds the `sandbox` stage of docker/Dockerfile, which also builds `base`,
+# the stage the devcontainer uses. Not a required check, so a `paths:` filter
+# on the trigger is safe.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/docker.yml" # This file
+      - ".bazelversion"
+      - "docker/*"
+  pull_request:
+    branches: [main]
+    paths:
+      # Keep in sync with the `push.paths` list above.
+      - ".github/workflows/docker.yml" # This file
+      - ".bazelversion"
+      - "docker/*"
+
+# One group per PR, or per ref for pushes and scheduled runs. A new push to a
+# PR cancels the runs for its previous head; main and scheduled runs only queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE_NAME: cc-protocol-sandbox
+
+jobs:
+  sandbox:
+    name: docker-sandbox
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build the sandbox stage
+        run: docker build --target sandbox -t "$IMAGE_NAME" -f docker/Dockerfile .
+
+      # Without network access, so a pinned Bazel that was not pre-warmed into
+      # the image fails here instead of downloading silently.
+      - name: Check Bazel reads the sandbox repository cache setting
+        run: |
+          docker run --rm --network none -v "$PWD:/workspace:ro" "$IMAGE_NAME" \
+            bash -c 'test "$(bazel info repository_cache)" = "$XYZ_BAZEL_REPOSITORY_CACHE_DIR"'
+
+      - name: Check the cache directories are writable by the sandbox user
+        run: |
+          docker run --rm --network none "$IMAGE_NAME" \
+            bash -c 'test -w "$UV_CACHE_DIR" && test -w "$XYZ_BAZEL_REPOSITORY_CACHE_DIR"'
+
+      - name: Check the baked googletest checkout matches CMakeLists.txt
+        run: |
+          docker run --rm --network none -v "$PWD:/workspace:ro" "$IMAGE_NAME" \
+            bash -c 'tag="$(git -C "$FETCHCONTENT_SOURCE_DIR_GOOGLETEST" describe --tags --exact-match)" \
+              && grep -q "GIT_TAG *$tag" CMakeLists.txt'

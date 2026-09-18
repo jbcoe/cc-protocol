@@ -6,6 +6,19 @@
 		"target": "base"
 	},
 	"remoteUser": "vscode",
+	// Docker-in-Docker: the feature's entrypoint starts `dockerd`, which needs
+	// root. The image has no `sudo`, so the container itself runs as root while
+	// VS Code, terminals and lifecycle commands still run as `vscode`.
+	"containerUser": "root",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:4": {
+			// Docker CE; Moby packages lag behind new Ubuntu releases.
+			"moby": false,
+			// Ubuntu 26.04 has no kernel support for legacy iptables. Select
+			// iptables-nft at image build time instead of probing at start.
+			"iptablesSwitchAtRuntime": false
+		}
+	},
 	// Host credentials are shared with the container by bind-mounting them into
 	// the `vscode` home directory. Only `~/.ssh` is mounted by default. To reuse
 	// your GitHub CLI login (`gh auth login` on the host) and your Claude Code

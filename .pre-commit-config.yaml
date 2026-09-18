@@ -32,12 +32,12 @@ repos:
   hooks:
   - id: clang-format
     types_or: [c++, c]
-# TODO(jbcoe): Use hadolint (or similar) for improved Dockerfile linting.
-# - repo: https://github.com/pryorda/dockerfilelint-precommit-hooks
-#   rev: v0.1.0
-#   hooks:
-#   - id: dockerfilelint
-#     stages: [pre-commit]
+# Installs the hadolint binary from PyPI, so the hook needs neither Docker nor
+# a system hadolint. Ignored rules are listed in .hadolint.yaml.
+- repo: https://github.com/AleksaC/hadolint-py
+  rev: v2.15.1
+  hooks:
+  - id: hadolint
 - repo: https://github.com/keith/pre-commit-buildifier
   rev: 8.5.1
   hooks:
