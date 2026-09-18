@@ -82,9 +82,11 @@ TRAP_ERROR_PATTERN = re.compile(r"consteval_coverage_probe::trap_hit<(\d+), (\d+
 # protocol_member_function_tests.cc is left out: it reaches no probe point
 # the others miss.
 DEFAULT_TRANSLATION_UNITS = [
+    "vtable_tests.cc",
     "name_mangling_tests.cc",
     "conformance_tests.cc",
     "allocator_tests.cc",
+    "protocol_operator_tests.cc",
     "protocol_test.cc",
     "protocol_view_tests.cc",
     "forwarding_test.cc",

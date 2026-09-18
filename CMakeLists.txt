@@ -125,6 +125,7 @@ target_sources(
             FILES
             protocol.hh
             conformance.hh
+            conversion_thunks.hh
             member_function_thunks.hh
             operator_thunks.hh
             overload_spec.hh

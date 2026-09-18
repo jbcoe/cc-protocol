@@ -30,14 +30,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace xyz::detail {
 
-// Returns `true` if `a` and `b` are the same operators or have the same
-// identifier. Otherwise returns false.
+// Returns `true` if `a` and `b` are the same operators, the same conversion
+// function, or have the same identifier. Otherwise returns false. A
+// conversion function's name is its (dealiased) target type.
 consteval bool same_name(std::meta::info a, std::meta::info b) {
   if (has_identifier(a) && has_identifier(b)) {
     return identifier_of(a) == identifier_of(b);
   }
   if (is_operator_function(a) && is_operator_function(b)) {
     return operator_of(a) == operator_of(b);
+  }
+  if (is_conversion_function(a) && is_conversion_function(b)) {
+    return dealias(return_type_of(a)) == dealias(return_type_of(b));
   }
   return false;
 }
@@ -123,7 +127,10 @@ consteval bool member_function_conforms_to(std::meta::info candidate,
     if (is_const(interface) != is_const(candidate)) return false;
   }
   // If interface is `noexcept`, `candidate` must be noexcept.
-  return !is_noexcept(interface) || is_noexcept(candidate);
+  if (is_noexcept(interface) && !is_noexcept(candidate)) return false;
+
+  // `explicit` qualifiers must match.
+  return is_explicit(interface) == is_explicit(candidate);
 }
 
 // Per ISO C++ ([expr.prim.lambda.closure]), closure types are unique, unnamed,
@@ -143,9 +150,10 @@ concept is_maybe_lambda =
     bases_of(dealias(^^T), std::meta::access_context::unprivileged()).empty() &&
     requires { &T::operator(); };
 
-// The named, non-special member functions and call operators of `type`,
-// static or not, in declaration order. Not a template, so the range adaptors
-// and the closure type are instantiated once rather than once per type.
+// The named, non-special member functions, operators and conversion
+// functions of `type`, static or not, in declaration order. Not a template,
+// so the range adaptors and the closure type are instantiated once rather
+// than once per type.
 consteval std::vector<std::meta::info> named_member_function_infos(
     std::meta::info type) {
   auto named =
@@ -153,14 +161,15 @@ consteval std::vector<std::meta::info> named_member_function_infos(
       std::views::filter(std::meta::is_function) |
       std::views::filter([](std::meta::info member) consteval {
         return !is_special_member_function(member) &&
-               (has_identifier(member) || is_operator_function(member));
+               (has_identifier(member) || is_operator_function(member) ||
+                is_conversion_function(member));
       });
   return std::vector<std::meta::info>(std::ranges::begin(named),
                                       std::ranges::end(named));
 }
 
-// The named, non-special member functions and call operators of `Type`,
-// static or not, in declaration order.
+// The named, non-special member functions, operators and conversion
+// functions of `Type`, static or not, in declaration order.
 template <std::meta::info Type>
 consteval auto conformance_candidate_infos() {
   std::vector<std::meta::info> result = named_member_function_infos(Type);
@@ -197,10 +206,11 @@ consteval bool is_unsupported_operator(std::meta::operators op) {
          op == op_greater || op == op_greater_equals || op == op_spaceship;
 }
 
-// The named, non-static, non-special member functions and call operators of
-// `Type`, static or not, in declaration order. Ref-qualified functions,
-// explicit-object member functions and the operators
-// `is_unsupported_operator` names are unsupported on protocol interfaces.
+// The named, non-static, non-special member functions, operators and
+// conversion functions of `Type`, in declaration order.
+// Ref-qualified functions, explicit-object member functions and the
+// operators `is_unsupported_operator` names are unsupported on protocol
+// interfaces.
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   std::vector<std::meta::info> result;
