@@ -72,12 +72,14 @@ fails on stock GCC.
 Pull requests run the workflows in `.github/workflows`. Each build workflow
 ends in a job with a fixed name (`bazel`, `cmake`, `sanitizers`) that reports
 the outcome of its matrix; `uv-lock` and `pre-commit` are single jobs. The
-checks the `main` ruleset requires are drawn from these fixed-name jobs; the
-current list is in the ruleset, not here. The per-configuration legs
-(`GCC trunk Release`, `asan`, and so on) and the macOS jobs (`GCC-16 (macOS)`
-in Bazel, `GCC-16 (macOS) Release` in CMake) are informational: a leg skipped
-by change detection reports under its unexpanded matrix name, so it cannot be
-required.
+checks the `main` ruleset requires are listed in the ruleset, not here.
+Requiring a fixed-name job covers every leg of its workflow and keeps working
+when a matrix entry is renamed or removed. A per-configuration leg
+(`GCC trunk Release`, `asan`, and so on) can also be required: change
+detection skips a leg's steps, not the leg, so it always reports under its own
+name. The macOS jobs (`GCC-16 (macOS)` in Bazel, `GCC-16 (macOS) Release` in
+CMake) are informational and the fixed-name jobs do not wait for them, because
+macOS runners can be slow to provision.
 
 On pull requests that touch no C++, CMake, Bazel, or build-script sources,
 a change-detection job makes the build and sanitizer jobs skip their steps,
