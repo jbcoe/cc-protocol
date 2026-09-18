@@ -84,15 +84,8 @@ consteval bool is_protocol_conformant() {
     auto candidate_member_functions =
         detail::conformance_candidates_of<^^Candidate>;
 
-    return std::ranges::all_of(
-        interface_member_functions, [&](std::meta::info interface_member) {
-          return std::ranges::any_of(
-              candidate_member_functions,
-              [&](std::meta::info candidate_member) {
-                return detail::member_function_conforms_to(candidate_member,
-                                                           interface_member);
-              });
-        });
+    return detail::all_members_conform(interface_member_functions,
+                                       candidate_member_functions);
   }
   return false;
 }
