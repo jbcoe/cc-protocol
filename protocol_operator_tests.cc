@@ -22,6 +22,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <gtest/gtest.h>
 
+#include <type_traits>
+
 #include "protocol.hh"
 #include "test_helpers.h"
 
@@ -406,6 +408,177 @@ TEST(ReflectionProtocolTest, OperatorLogicalNot) {
 
   protocol_view<const Interface> pcv(c);
   EXPECT_FALSE(!pcv);
+}
+
+TEST(ReflectionProtocolTest, ConversionToBool) {
+  struct Interface {
+    explicit operator bool() const noexcept;
+    explicit operator bool() noexcept;
+  };
+
+  struct Conforming {
+    explicit operator bool() const noexcept { return false; }
+
+    explicit operator bool() noexcept { return true; }
+  };
+
+  static_assert(std::is_constructible_v<bool, protocol<Interface>>);
+  static_assert(!std::is_convertible_v<protocol<Interface>, bool>);
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(static_cast<bool>(p));
+
+  const protocol<Interface> const_p(Conforming{});
+  EXPECT_FALSE(static_cast<bool>(const_p));
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_TRUE(static_cast<bool>(pv));
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_FALSE(static_cast<bool>(pcv));
+}
+
+TEST(ReflectionProtocolTest, ConversionToMultipleDistinctTargets) {
+  struct Interface {
+    explicit operator bool() const noexcept;
+    explicit operator int() const noexcept;
+  };
+
+  struct Conforming {
+    explicit operator bool() const noexcept { return true; }
+
+    explicit operator int() const noexcept { return 42; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(static_cast<bool>(p));
+  EXPECT_EQ(static_cast<int>(p), 42);
+}
+
+TEST(ReflectionProtocolTest, NonExplicitConversionIsImplicit) {
+  struct Interface {
+    operator int() const noexcept;
+  };
+
+  struct Conforming {
+    operator int() const noexcept { return 42; }
+  };
+
+  static_assert(std::is_convertible_v<protocol<Interface>, int>);
+
+  protocol<Interface> p(Conforming{});
+  int x = p;
+  EXPECT_EQ(x, 42);
+}
+
+TEST(ReflectionProtocolViewTest, NonExplicitConversionIsImplicit) {
+  struct Interface {
+    operator int() const noexcept;
+  };
+
+  struct Conforming {
+    operator int() const noexcept { return 42; }
+  };
+
+  static_assert(std::is_convertible_v<protocol_view<Interface>, int>);
+  static_assert(std::is_convertible_v<protocol_view<const Interface>, int>);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  int y = pv;
+  EXPECT_EQ(y, 42);
+
+  protocol_view<const Interface> pcv(c);
+  int z = pcv;
+  EXPECT_EQ(z, 42);
+}
+
+TEST(ReflectionProtocolTest, NonNoexceptConversion) {
+  struct Interface {
+    explicit operator bool() const;
+  };
+
+  struct Conforming {
+    explicit operator bool() const { return true; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(static_cast<bool>(p));
+  static_assert(!noexcept(static_cast<bool>(p)));
+}
+
+TEST(ReflectionProtocolTest, ConversionTargetMatchesThroughAlias) {
+  using S = std::string;
+
+  struct Interface {
+    explicit operator S() const;
+  };
+
+  struct Conforming {
+    explicit operator std::string() const { return "hello"; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(static_cast<std::string>(p), "hello");
+}
+
+// A class type target for `ConversionToClassType`, at namespace scope so its
+// mangled name has a real enclosing scope to walk.
+struct ConversionTargetWidget {
+  int value = 0;
+};
+
+TEST(ReflectionProtocolTest, ConversionToClassType) {
+  struct Interface {
+    explicit operator ConversionTargetWidget() const noexcept;
+  };
+
+  struct Conforming {
+    explicit operator ConversionTargetWidget() const noexcept {
+      return ConversionTargetWidget{42};
+    }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(static_cast<ConversionTargetWidget>(p).value, 42);
+}
+
+TEST(ReflectionProtocolTest, ConversionAlongsideNamedMember) {
+  struct Interface {
+    int get() const noexcept;
+    explicit operator bool() const noexcept;
+  };
+
+  struct Conforming {
+    int get() const noexcept { return 42; }
+
+    explicit operator bool() const noexcept { return true; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p.get(), 42);
+  EXPECT_TRUE(static_cast<bool>(p));
+}
+
+TEST(ReflectionProtocolTest, ConstOnlyConversionFunction) {
+  struct Interface {
+    explicit operator bool() const noexcept;
+  };
+
+  struct Conforming {
+    explicit operator bool() const noexcept { return true; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(static_cast<bool>(p));
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_TRUE(static_cast<bool>(pv));
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_TRUE(static_cast<bool>(pcv));
 }
 
 TEST(ReflectionProtocolTest, OperatorPlus) {

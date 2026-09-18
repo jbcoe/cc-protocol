@@ -80,9 +80,11 @@ TRAP_ERROR_PATTERN = re.compile(r"consteval_coverage_probe::trap_hit<(\d+), (\d+
 # machinery in the instrumented headers, cheapest to compile first: each
 # only arms the probe points the ones before it left uncovered.
 DEFAULT_TRANSLATION_UNITS = [
+    "vtable_tests.cc",
     "name_mangling_tests.cc",
     "allocator_tests.cc",
     "forwarding_test.cc",
+    "protocol_operator_tests.cc",
     "protocol_test.cc",
 ]
 

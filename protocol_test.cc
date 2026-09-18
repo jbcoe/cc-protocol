@@ -639,6 +639,63 @@ TEST(ConformsToTest, UnaryAmpersandInterfaceMemberIsRejected) {
   static_assert(is_protocol_conformant<BinaryAmpersandInterface, Candidate>());
 }
 
+TEST(ConformsToTest, MissingConversionFunctionIsRejected) {
+  struct BoolConvertibleInterface {
+    int f() const;
+    explicit operator bool() const;
+  };
+
+  struct Candidate {
+    int f() const { return 0; }
+  };
+
+  static_assert(!is_protocol_conformant<BoolConvertibleInterface, Candidate>());
+}
+
+TEST(ConformsToTest, ConversionFunctionExplicitnessMustMatch) {
+  struct ExplicitInterface {
+    explicit operator bool() const;
+  };
+
+  struct NonExplicitInterface {
+    operator bool() const;
+  };
+
+  struct ExplicitCandidate {
+    explicit operator bool() const { return true; }
+  };
+
+  struct NonExplicitCandidate {
+    operator bool() const { return true; }
+  };
+
+  static_assert(is_protocol_conformant<ExplicitInterface, ExplicitCandidate>());
+  static_assert(
+      !is_protocol_conformant<ExplicitInterface, NonExplicitCandidate>());
+  static_assert(
+      is_protocol_conformant<NonExplicitInterface, NonExplicitCandidate>());
+  static_assert(
+      !is_protocol_conformant<NonExplicitInterface, ExplicitCandidate>());
+}
+
+// A local class can't have a member template, so this candidate for
+// `TemplatedConversionFunctionsAreIgnored` lives at namespace scope.
+struct CandidateWithTemplatedConversion {
+  template <typename T>
+  explicit operator T() const;
+
+  explicit operator bool() const { return true; }
+};
+
+TEST(ConformsToTest, TemplatedConversionFunctionsAreIgnored) {
+  struct BoolConvertibleInterface {
+    explicit operator bool() const;
+  };
+
+  static_assert(is_protocol_conformant<BoolConvertibleInterface,
+                                       CandidateWithTemplatedConversion>());
+}
+
 TEST(ConformsToTest, ExplicitObjectInterfaceMembersAreRejected) {
   struct ExplicitObjectInterface {
     int f(this const ExplicitObjectInterface&);

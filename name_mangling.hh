@@ -236,16 +236,20 @@ consteval std::string mangle_type(std::meta::info type) {
   throw std::runtime_error("name mangling: unsupported parameter type");
 }
 
-// Returns the mangled function-name atom for `function`: an Itanium
+// Returns the mangled function-name atom for `function`: `cv` followed by
+// its mangled target type for a conversion function, an Itanium
 // <operator-name> for an operator, or a length-prefixed <source-name> for
-// its identifier otherwise. `identifier_of` throws for an operator, which
-// has no identifier.
+// its identifier otherwise. `identifier_of` throws for an operator or
+// conversion function, neither of which has an identifier.
 //
 // `operator++`/`operator--` mangle to the same atom (`pp`/`mm`) whether
 // prefix or postfix; overload resolution and linkage tell them apart via
 // the dummy `int` parameter C++ requires on the postfix form, which
 // `mangle`'s parameter loop already encodes.
 consteval std::string base_name_of(std::meta::info function) {
+  if (is_conversion_function(function)) {
+    return "cv" + mangle_type(return_type_of(function));
+  }
   if (is_operator_function(function)) {
     using std::meta::operators;
     // A member `+`, `-`, `*` or `&` is unary when it has no parameters: the

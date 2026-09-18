@@ -49,6 +49,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <vector>
 
 #include "conformance.hh"
+#include "conversion_thunks.hh"
 #include "member_function_thunks.hh"
 #include "name_mangling.hh"
 #include "operator_thunks.hh"
@@ -239,6 +240,10 @@ class protocol
             typename ProtocolType, typename Vtable, std::meta::info Member,
             bool IsConst>
   friend struct detail::operator_thunk;
+
+  template <typename FnPtrType, typename ProtocolType, typename Vtable,
+            std::meta::info Member, bool IsConst, bool IsExplicit>
+  friend struct detail::conversion_thunk;
 
   // Grants `protocol_view` access so that a view of a protocol can share its
   // vtable.
@@ -557,6 +562,10 @@ class protocol_view
             bool IsConst>
   friend struct detail::operator_thunk;
 
+  template <typename FnPtrType, typename ProtocolType, typename Vtable,
+            std::meta::info Member, bool IsConst, bool IsExplicit>
+  friend struct detail::conversion_thunk;
+
   template <typename U>
     requires(is_protocol_conformant_v<T, std::decay_t<U>>)
   friend constexpr U& protocol_cast(protocol_view operand) {
@@ -651,6 +660,10 @@ class protocol_view<const T>
             typename ProtocolType, typename Vtable, std::meta::info Member,
             bool IsConst>
   friend struct detail::operator_thunk;
+
+  template <typename FnPtrType, typename ProtocolType, typename Vtable,
+            std::meta::info Member, bool IsConst, bool IsExplicit>
+  friend struct detail::conversion_thunk;
 
   template <typename U>
     requires(is_protocol_conformant_v<T, std::decay_t<U>>)

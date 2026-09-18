@@ -30,6 +30,8 @@ struct Interface {
   void update(int value);
   int operator()(int value) const;
   int cl(int value) const;
+  explicit operator bool() const;
+  int cv(int value) const;
   void set_int(int value);
   void set_double(double value);
   void set_widget_ref(const Widget& value);
@@ -66,6 +68,16 @@ TEST(NameManglingTest, NamesTheCallOperatorUsingItsOperatorNameCode) {
 TEST(NameManglingTest, CallOperatorDoesNotCollideWithAMemberLiterallyNamedCl) {
   static_assert(mangle(^^Interface::cl) == "fn_NK2clEii");
   static_assert(mangle(^^Interface::operator()) != mangle(^^Interface::cl));
+}
+
+TEST(NameManglingTest, NamesAConversionFunctionUsingItsTargetType) {
+  static_assert(mangle(^^Interface::operator bool) == "fn_NKcvbEb");
+}
+
+TEST(NameManglingTest,
+     ConversionFunctionDoesNotCollideWithAMemberLiterallyNamedCv) {
+  static_assert(mangle(^^Interface::cv) == "fn_NK2cvEii");
+  static_assert(mangle(^^Interface::operator bool) != mangle(^^Interface::cv));
 }
 
 TEST(NameManglingTest, NamesAPointerParameter) {
