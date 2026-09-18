@@ -221,7 +221,8 @@ The repository includes a Docker-based sandbox script for AI coding
 assistants. It mounts the project into a container with all build dependencies
 pre-installed, providing an isolated environment for AI-assisted development.
 The instructions the assistants read are in [AGENTS.md](AGENTS.md);
-`CLAUDE.md` and `GEMINI.md` are symbolic links to it.
+`GEMINI.md` is a symbolic link to it. Claude Code reads `AGENTS.md` directly
+from version 2.1.277.
 
 ### Usage
 
