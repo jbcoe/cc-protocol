@@ -81,9 +81,12 @@ TRAP_ERROR_PATTERN = re.compile(r"consteval_coverage_probe::trap_hit<(\d+), (\d+
 # only arms the probe points the ones before it left uncovered.
 DEFAULT_TRANSLATION_UNITS = [
     "name_mangling_tests.cc",
+    "conformance_tests.cc",
     "allocator_tests.cc",
-    "forwarding_test.cc",
     "protocol_test.cc",
+    "protocol_member_function_tests.cc",
+    "protocol_view_tests.cc",
+    "forwarding_test.cc",
 ]
 
 ProbeKey = tuple[int, int]  # (header index, line number)
