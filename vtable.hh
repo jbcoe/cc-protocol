@@ -55,10 +55,13 @@ consteval std::meta::info find_vtable_entry() {
                            std::string(name) + "'");
 }
 
+// Calls the `Vtable` entry for `Member`. `Vtable` is named by the caller, not
+// deduced: an owning vtable that derives from it converts at the call, so the
+// type searched for the entry is the type the entry is spliced into.
 template <std::meta::info Member, typename Vtable, typename ProtocolObject,
-          typename VtablePtr, typename Object, typename... Args>
+          typename Object, typename... Args>
 [[gnu::always_inline]] inline decltype(auto) call_through_vtable(
-    [[maybe_unused]] ProtocolObject* protocol_object, VtablePtr* vtable,
+    [[maybe_unused]] ProtocolObject* protocol_object, const Vtable* vtable,
     Object object, Args&&... args) {
   if constexpr (xyz::reflection::is_protocol_v<
                     std::remove_cv_t<ProtocolObject>>) {
@@ -86,19 +89,10 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
 
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<interface_type>) {
-    // Build the function-pointer type R(*)(void*, Args...) noexcept(...)
-    // from the method's return type, parameter types and noexcept-ness; a
-    // const method takes `const void*` instead, matching the constness of
-    // the access path it's called through.
-    std::vector<std::meta::info> fn_args{
-        std::meta::reflect_constant(is_noexcept(member)),
-        dealias(return_type_of(member))};
-    fn_args.push_back(is_const(member) ? ^^const void* : ^^void*);
-    std::vector<std::meta::info> member_parameters = parameters_of(member);
-    for (std::meta::info parameter : member_parameters) {
-      fn_args.push_back(type_of(parameter));
-    }
-    std::meta::info fn_ptr_type = substitute(^^fn_ptr_t, fn_args);
+    // A const method takes `const void*`, matching the constness of the
+    // access path it's called through.
+    std::meta::info fn_ptr_type = function_pointer_type_of(
+        member, {is_const(member) ? ^^const void* : ^^void* });
 
     // GCC UBSAN workaround: `std::string`'s pointer-taking constructors have a
     // null check GCC trunk can't constant-fold under `-fsanitize=undefined`,

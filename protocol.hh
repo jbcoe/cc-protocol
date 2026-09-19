@@ -241,8 +241,8 @@ class protocol
             bool IsConst>
   friend struct detail::operator_thunk;
 
-  template <typename FnPtrType, typename ProtocolType, typename Vtable,
-            std::meta::info Member, bool IsConst, bool IsExplicit>
+  template <typename ProtocolType, typename Vtable, std::meta::info Member,
+            bool IsConst>
   friend struct detail::conversion_thunk;
 
   // Grants `protocol_view` access so that a view of a protocol can share its
@@ -562,8 +562,8 @@ class protocol_view
             bool IsConst>
   friend struct detail::operator_thunk;
 
-  template <typename FnPtrType, typename ProtocolType, typename Vtable,
-            std::meta::info Member, bool IsConst, bool IsExplicit>
+  template <typename ProtocolType, typename Vtable, std::meta::info Member,
+            bool IsConst>
   friend struct detail::conversion_thunk;
 
   template <typename U>
@@ -664,8 +664,8 @@ class protocol_view<const T>
             bool IsConst>
   friend struct detail::operator_thunk;
 
-  template <typename FnPtrType, typename ProtocolType, typename Vtable,
-            std::meta::info Member, bool IsConst, bool IsExplicit>
+  template <typename ProtocolType, typename Vtable, std::meta::info Member,
+            bool IsConst>
   friend struct detail::conversion_thunk;
 
   template <typename U>

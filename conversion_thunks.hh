@@ -21,30 +21,26 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define XYZ_PROTOCOL_CONVERSION_THUNKS_HH_
 
 #include <meta>
-#include <vector>
 
 #include "overload_spec.hh"
 #include "vtable.hh"
 
 namespace xyz::detail {
 
+// The target type of the conversion function `Member`.
+template <std::meta::info Member>
+using conversion_target_t = typename[:dealias(return_type_of(Member)):];
+
 // Thunk for one overload of a synthesised conversion function. A conversion
 // function can't be reached through a named member, so
 // `conversion_overload_set` derives from this thunk directly instead of
 // holding it as a data member, letting `ProtocolType` be recovered with a
 // plain static_cast.
-template <typename FnPtrType, typename ProtocolType, typename Vtable,
-          std::meta::info Member, bool IsConst, bool IsExplicit>
+template <typename ProtocolType, typename Vtable, std::meta::info Member,
+          bool IsConst>
 struct conversion_thunk {
-  static_assert(false,
-                "Unspecialized conversion_thunk cannot be instantiated.");
-};
-
-template <typename R, bool IsNoexcept, typename ProtocolType, typename Vtable,
-          std::meta::info Member, bool IsConst, bool IsExplicit>
-struct conversion_thunk<R (*)() noexcept(IsNoexcept), ProtocolType, Vtable,
-                        Member, IsConst, IsExplicit> {
-  explicit(IsExplicit) operator R() noexcept(IsNoexcept)
+  explicit(is_explicit(Member)) operator conversion_target_t<Member>() noexcept(
+      is_noexcept(Member))
     requires(!IsConst)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
@@ -52,7 +48,8 @@ struct conversion_thunk<R (*)() noexcept(IsNoexcept), ProtocolType, Vtable,
         protocol_object, protocol_object->vtable_, protocol_object->object_);
   }
 
-  explicit(IsExplicit) operator R() const noexcept(IsNoexcept)
+  explicit(is_explicit(Member)) operator conversion_target_t<Member>() const
+      noexcept(is_noexcept(Member))
     requires(IsConst)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
@@ -69,7 +66,7 @@ struct conversion_thunk<R (*)() noexcept(IsNoexcept), ProtocolType, Vtable,
   conversion_thunk& operator=(conversion_thunk&&) = default;
 };
 
-// The `conversion_thunk` specialisation for an `overload_spec`.
+// The `conversion_thunk` for an `overload_spec`.
 template <typename OverloadSpec, typename ProtocolType, typename Vtable>
 struct conversion_thunk_for;
 
@@ -77,26 +74,7 @@ template <std::meta::info Member, bool IsConst, typename ProtocolType,
           typename Vtable>
 struct conversion_thunk_for<overload_spec<Member, IsConst>, ProtocolType,
                             Vtable> {
-  // Build the function-pointer type R(*)() noexcept(...) from the
-  // conversion function's target type and noexcept-ness.
-  static consteval std::meta::info fn_ptr_type() {
-    std::vector<std::meta::info> fn_args{
-        std::meta::reflect_constant(is_noexcept(Member)),
-        dealias(return_type_of(Member))};
-    return substitute(^^fn_ptr_t, fn_args);
-  }
-
-  // clang-format off
-  using type =
-      typename[:substitute(^^conversion_thunk,
-                    {
-                        fn_ptr_type(),
-                         ^^ProtocolType, ^^Vtable,
-                        std::meta::reflect_constant(Member),
-                        std::meta::reflect_constant(IsConst),
-                        std::meta::reflect_constant(is_explicit(Member))
-                    }):];
-  // clang-format on
+  using type = conversion_thunk<ProtocolType, Vtable, Member, IsConst>;
 };
 
 template <typename Spec, typename ProtocolType, typename Vtable>
