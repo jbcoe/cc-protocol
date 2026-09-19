@@ -456,8 +456,6 @@ TEST(ReflectionProtocolTest, ConversionToMultipleDistinctTargets) {
   EXPECT_EQ(static_cast<int>(p), 42);
 }
 
-// Shared by both `NonExplicitConversionIsImplicit` tests, so the interface is
-// analysed once.
 struct ImplicitIntConversionInterface {
   operator int() const noexcept;
 };
