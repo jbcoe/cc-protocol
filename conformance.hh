@@ -26,6 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace xyz::detail {
@@ -188,14 +189,17 @@ template <std::meta::info Type>
 constexpr inline auto conformance_candidates_of =
     std::define_static_array(conformance_candidate_infos<Type>());
 
-// `symbol_of` returns a punctuation token for most operators (e.g. "==") but
-// a word for a few (e.g. "co_await"); word tokens read correctly only with a
-// space after "operator", punctuation tokens only without one.
-consteval std::string operator_diagnostic_name(std::meta::operators op) {
-  std::string_view symbol = symbol_of(op);
-  bool is_word = symbol.front() >= 'a' && symbol.front() <= 'z';
-  return is_word ? "operator " + std::string(symbol)
-                 : "operator" + std::string(symbol);
+// Throws to reject `member` of a protocol interface; `kind` says what is
+// unsupported about it. The message names `member` by its identifier if it
+// has one and by its display string otherwise, which for an operator or a
+// conversion function names the exact overload.
+[[noreturn]] consteval void reject_interface_member(std::string_view kind,
+                                                    std::meta::info member) {
+  std::string name = has_identifier(member)
+                         ? std::string(identifier_of(member))
+                         : std::string(display_string_of(member));
+  throw std::runtime_error(std::string(kind) + " '" + name +
+                           "' is not supported in a protocol interface");
 }
 
 // Some operators are excluded from protocol interfaces.
@@ -220,11 +224,7 @@ consteval void reject_member_function_templates(std::meta::info type) {
         is_static_member(member)) {
       continue;
     }
-    std::string name = has_identifier(member)
-                           ? std::string(identifier_of(member))
-                           : std::string(display_string_of(member));
-    throw std::runtime_error("member function template '" + name +
-                             "' is not supported in a protocol interface");
+    reject_interface_member("member function template", member);
   }
 }
 
@@ -241,30 +241,20 @@ consteval std::vector<std::meta::info> protocol_interface_function_infos() {
     if (is_static_member(member)) continue;
     if (is_lvalue_reference_qualified(member) ||
         is_rvalue_reference_qualified(member)) {
-      std::string name = has_identifier(member)
-                             ? std::string(identifier_of(member))
-                             : std::string(display_string_of(member));
-      throw std::runtime_error("ref-qualified member function '" + name +
-                               "' is not supported in a protocol interface");
+      reject_interface_member("ref-qualified member function", member);
     }
     std::vector<std::meta::info> params = parameters_of(member);
     if (!params.empty() && is_explicit_object_parameter(params.front())) {
-      std::string name = has_identifier(member)
-                             ? std::string(identifier_of(member))
-                             : std::string(display_string_of(member));
-      throw std::runtime_error("explicit-object member function '" + name +
-                               "' is not supported in a protocol interface");
+      reject_interface_member("explicit-object member function", member);
     }
-    if (is_operator_function(member) &&
-        operator_of(member) == std::meta::operators::op_ampersand &&
-        params.empty()) {
-      throw std::runtime_error(
-          "unary operator& is not supported in a protocol interface");
-    }
-    if (is_operator_function(member) &&
-        is_unsupported_operator(operator_of(member))) {
-      throw std::runtime_error(operator_diagnostic_name(operator_of(member)) +
-                               " is not supported in a protocol interface");
+    if (is_operator_function(member)) {
+      std::meta::operators op = operator_of(member);
+      if (op == std::meta::operators::op_ampersand && params.empty()) {
+        reject_interface_member("address-of operator", member);
+      }
+      if (is_unsupported_operator(op)) {
+        reject_interface_member("operator", member);
+      }
     }
     result.push_back(member);
   }
