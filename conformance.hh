@@ -206,13 +206,36 @@ consteval bool is_unsupported_operator(std::meta::operators op) {
          op == op_greater || op == op_greater_equals || op == op_spaceship;
 }
 
+// Throws if `type` has a non-static member function template, operator
+// template or conversion function template. A template cannot be forwarded
+// through a vtable, and `named_member_function_infos` does not return one, so
+// without this check an interface would silently lose the member.
+// Constructor templates and static member function templates are ignored, as
+// constructors and static member functions are. Not a template, for the
+// reason given on `named_member_function_infos`.
+consteval void reject_member_function_templates(std::meta::info type) {
+  for (std::meta::info member :
+       members_of(type, std::meta::access_context::unprivileged())) {
+    if (!is_function_template(member) || is_constructor_template(member) ||
+        is_static_member(member)) {
+      continue;
+    }
+    std::string name = has_identifier(member)
+                           ? std::string(identifier_of(member))
+                           : std::string(display_string_of(member));
+    throw std::runtime_error("member function template '" + name +
+                             "' is not supported in a protocol interface");
+  }
+}
+
 // The named, non-static, non-special member functions, operators and
 // conversion functions of `Type`, in declaration order.
-// Ref-qualified functions, explicit-object member functions and the
-// operators `is_unsupported_operator` names are unsupported on protocol
-// interfaces.
+// Ref-qualified functions, explicit-object member functions, member function
+// templates and the operators `is_unsupported_operator` names are unsupported
+// on protocol interfaces.
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
+  reject_member_function_templates(Type);
   std::vector<std::meta::info> result;
   for (std::meta::info member : conformance_candidates_of<Type>) {
     if (is_static_member(member)) continue;
