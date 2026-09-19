@@ -1556,6 +1556,342 @@ struct operator_overload_set<std::meta::operators::op_comma, ProtocolType,
   operator_overload_set& operator=(operator_overload_set&&) = default;
 };
 
+// operator==
+template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
+          typename Vtable, std::meta::info Member, bool IsConst>
+struct operator_thunk<std::meta::operators::op_equals_equals,
+                      R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
+                      Member, IsConst> {
+  R operator==(Args... args) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+  R operator==(Args... args) const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+ protected:
+  operator_thunk() = default;
+  ~operator_thunk() = default;
+  operator_thunk(const operator_thunk&) = default;
+  operator_thunk(operator_thunk&&) = default;
+  operator_thunk& operator=(const operator_thunk&) = default;
+  operator_thunk& operator=(operator_thunk&&) = default;
+};
+
+template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
+struct operator_overload_set<std::meta::operators::op_equals_equals,
+                             ProtocolType, Vtable, OverloadSpecs...>
+    : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
+  using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator==...;
+
+ protected:
+  operator_overload_set() = default;
+  ~operator_overload_set() = default;
+  operator_overload_set(const operator_overload_set&) = default;
+  operator_overload_set(operator_overload_set&&) = default;
+  operator_overload_set& operator=(const operator_overload_set&) = default;
+  operator_overload_set& operator=(operator_overload_set&&) = default;
+};
+
+// operator!=
+template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
+          typename Vtable, std::meta::info Member, bool IsConst>
+struct operator_thunk<std::meta::operators::op_exclamation_equals,
+                      R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
+                      Member, IsConst> {
+  R operator!=(Args... args) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+  R operator!=(Args... args) const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+ protected:
+  operator_thunk() = default;
+  ~operator_thunk() = default;
+  operator_thunk(const operator_thunk&) = default;
+  operator_thunk(operator_thunk&&) = default;
+  operator_thunk& operator=(const operator_thunk&) = default;
+  operator_thunk& operator=(operator_thunk&&) = default;
+};
+
+template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
+struct operator_overload_set<std::meta::operators::op_exclamation_equals,
+                             ProtocolType, Vtable, OverloadSpecs...>
+    : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
+  using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator!=...;
+
+ protected:
+  operator_overload_set() = default;
+  ~operator_overload_set() = default;
+  operator_overload_set(const operator_overload_set&) = default;
+  operator_overload_set(operator_overload_set&&) = default;
+  operator_overload_set& operator=(const operator_overload_set&) = default;
+  operator_overload_set& operator=(operator_overload_set&&) = default;
+};
+
+// operator<
+template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
+          typename Vtable, std::meta::info Member, bool IsConst>
+struct operator_thunk<std::meta::operators::op_less,
+                      R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
+                      Member, IsConst> {
+  R operator<(Args... args) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+  R operator<(Args... args) const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+ protected:
+  operator_thunk() = default;
+  ~operator_thunk() = default;
+  operator_thunk(const operator_thunk&) = default;
+  operator_thunk(operator_thunk&&) = default;
+  operator_thunk& operator=(const operator_thunk&) = default;
+  operator_thunk& operator=(operator_thunk&&) = default;
+};
+
+template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
+struct operator_overload_set<std::meta::operators::op_less, ProtocolType,
+                             Vtable, OverloadSpecs...>
+    : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
+  using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator<...;
+
+ protected:
+  operator_overload_set() = default;
+  ~operator_overload_set() = default;
+  operator_overload_set(const operator_overload_set&) = default;
+  operator_overload_set(operator_overload_set&&) = default;
+  operator_overload_set& operator=(const operator_overload_set&) = default;
+  operator_overload_set& operator=(operator_overload_set&&) = default;
+};
+
+// operator<=
+template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
+          typename Vtable, std::meta::info Member, bool IsConst>
+struct operator_thunk<std::meta::operators::op_less_equals,
+                      R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
+                      Member, IsConst> {
+  R operator<=(Args... args) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+  R operator<=(Args... args) const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+ protected:
+  operator_thunk() = default;
+  ~operator_thunk() = default;
+  operator_thunk(const operator_thunk&) = default;
+  operator_thunk(operator_thunk&&) = default;
+  operator_thunk& operator=(const operator_thunk&) = default;
+  operator_thunk& operator=(operator_thunk&&) = default;
+};
+
+template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
+struct operator_overload_set<std::meta::operators::op_less_equals, ProtocolType,
+                             Vtable, OverloadSpecs...>
+    : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
+  using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator<=...;
+
+ protected:
+  operator_overload_set() = default;
+  ~operator_overload_set() = default;
+  operator_overload_set(const operator_overload_set&) = default;
+  operator_overload_set(operator_overload_set&&) = default;
+  operator_overload_set& operator=(const operator_overload_set&) = default;
+  operator_overload_set& operator=(operator_overload_set&&) = default;
+};
+
+// operator>
+template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
+          typename Vtable, std::meta::info Member, bool IsConst>
+struct operator_thunk<std::meta::operators::op_greater,
+                      R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
+                      Member, IsConst> {
+  R operator>(Args... args) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+  R operator>(Args... args) const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+ protected:
+  operator_thunk() = default;
+  ~operator_thunk() = default;
+  operator_thunk(const operator_thunk&) = default;
+  operator_thunk(operator_thunk&&) = default;
+  operator_thunk& operator=(const operator_thunk&) = default;
+  operator_thunk& operator=(operator_thunk&&) = default;
+};
+
+template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
+struct operator_overload_set<std::meta::operators::op_greater, ProtocolType,
+                             Vtable, OverloadSpecs...>
+    : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
+  using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator>...;
+
+ protected:
+  operator_overload_set() = default;
+  ~operator_overload_set() = default;
+  operator_overload_set(const operator_overload_set&) = default;
+  operator_overload_set(operator_overload_set&&) = default;
+  operator_overload_set& operator=(const operator_overload_set&) = default;
+  operator_overload_set& operator=(operator_overload_set&&) = default;
+};
+
+// operator>=
+template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
+          typename Vtable, std::meta::info Member, bool IsConst>
+struct operator_thunk<std::meta::operators::op_greater_equals,
+                      R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
+                      Member, IsConst> {
+  R operator>=(Args... args) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+  R operator>=(Args... args) const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+ protected:
+  operator_thunk() = default;
+  ~operator_thunk() = default;
+  operator_thunk(const operator_thunk&) = default;
+  operator_thunk(operator_thunk&&) = default;
+  operator_thunk& operator=(const operator_thunk&) = default;
+  operator_thunk& operator=(operator_thunk&&) = default;
+};
+
+template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
+struct operator_overload_set<std::meta::operators::op_greater_equals,
+                             ProtocolType, Vtable, OverloadSpecs...>
+    : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
+  using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator>=...;
+
+ protected:
+  operator_overload_set() = default;
+  ~operator_overload_set() = default;
+  operator_overload_set(const operator_overload_set&) = default;
+  operator_overload_set(operator_overload_set&&) = default;
+  operator_overload_set& operator=(const operator_overload_set&) = default;
+  operator_overload_set& operator=(operator_overload_set&&) = default;
+};
+
+// operator<=>
+template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
+          typename Vtable, std::meta::info Member, bool IsConst>
+struct operator_thunk<std::meta::operators::op_spaceship,
+                      R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
+                      Member, IsConst> {
+  R operator<=>(Args... args) noexcept(IsNoexcept)
+    requires(!IsConst)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+  R operator<=>(Args... args) const noexcept(IsNoexcept)
+    requires(IsConst)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(
+        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        std::forward<Args>(args)...);
+  }
+
+ protected:
+  operator_thunk() = default;
+  ~operator_thunk() = default;
+  operator_thunk(const operator_thunk&) = default;
+  operator_thunk(operator_thunk&&) = default;
+  operator_thunk& operator=(const operator_thunk&) = default;
+  operator_thunk& operator=(operator_thunk&&) = default;
+};
+
+template <typename ProtocolType, typename Vtable, typename... OverloadSpecs>
+struct operator_overload_set<std::meta::operators::op_spaceship, ProtocolType,
+                             Vtable, OverloadSpecs...>
+    : operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
+  using operator_thunk_t<OverloadSpecs, ProtocolType, Vtable>::operator<=>...;
+
+ protected:
+  operator_overload_set() = default;
+  ~operator_overload_set() = default;
+  operator_overload_set(const operator_overload_set&) = default;
+  operator_overload_set(operator_overload_set&&) = default;
+  operator_overload_set& operator=(const operator_overload_set&) = default;
+  operator_overload_set& operator=(operator_overload_set&&) = default;
+};
+
 }  // namespace xyz::detail
 
 #endif  // XYZ_PROTOCOL_OPERATOR_THUNKS_HH_
