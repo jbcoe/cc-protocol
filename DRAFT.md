@@ -562,11 +562,19 @@ generate better compiler errors when non-conforming types are used.
 
 #### Equality and comparison operators
 
-We do not generate equality or comparison operators. If the interface struct `I` in
-`protocol<I>` defines equality or comparison operators as inline friends or member functions,
-these are not generated for `protocol` or `protocol_view`.
+Equality and comparison operators declared as member functions of the interface struct `I`
+are forwarded like any other operator: `protocol<I>` and `protocol_view<I>` have a member
+with the same signature, and a conforming type must provide one. Given
+`bool operator==(int) const` on `I`, the expressions `p == 1`, `1 == p` and `p != 1` are all
+valid for a `protocol<I>` `p` through the usual rewriting rules.
 
-Equality or comparison operators are not part of the core functionality of `protocol` or
+A defaulted equality or comparison operator on `I` is ill-formed. It would compare objects of
+type `I`, which says nothing about the objects a `protocol` owns. Equality or comparison
+operators that `I` defines as inline friends are not generated for `protocol` or
+`protocol_view`.
+
+We do not generate equality or comparison between two `protocol` objects or two
+`protocol_view` objects. These are not part of the core functionality of `protocol` or
 `protocol_view` but could be added in a later revision of the C++ standard.
 
 ## Impact on the Standard

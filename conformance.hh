@@ -205,9 +205,7 @@ constexpr inline auto conformance_candidates_of =
 // Some operators are excluded from protocol interfaces.
 consteval bool is_unsupported_operator(std::meta::operators op) {
   using enum std::meta::operators;
-  return op == op_equals || op == op_co_await || op == op_equals_equals ||
-         op == op_exclamation_equals || op == op_less || op == op_less_equals ||
-         op == op_greater || op == op_greater_equals || op == op_spaceship;
+  return op == op_equals || op == op_co_await;
 }
 
 // Throws if `type` has a non-static member function template, operator
@@ -231,8 +229,8 @@ consteval void reject_member_function_templates(std::meta::info type) {
 // The named, non-static, non-special member functions, operators and
 // conversion functions of `Type`, in declaration order.
 // Ref-qualified functions, explicit-object member functions, member function
-// templates and the operators `is_unsupported_operator` names are unsupported
-// on protocol interfaces.
+// templates, defaulted comparison operators and the operators
+// `is_unsupported_operator` names are unsupported on protocol interfaces.
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   reject_member_function_templates(Type);
@@ -251,6 +249,12 @@ consteval std::vector<std::meta::info> protocol_interface_function_infos() {
       std::meta::operators op = operator_of(member);
       if (op == std::meta::operators::op_ampersand && params.empty()) {
         reject_interface_member("address-of operator", member);
+      }
+      // Special member functions are filtered out above, so a defaulted
+      // operator is a comparison. Forwarding it would require a candidate to
+      // compare itself with `Type`, which is not what `= default` asks for.
+      if (is_defaulted(member)) {
+        reject_interface_member("defaulted comparison operator", member);
       }
       if (is_unsupported_operator(op)) {
         reject_interface_member("operator", member);
