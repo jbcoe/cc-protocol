@@ -291,21 +291,25 @@ TEST(ConformsToTest, ComparisonOperatorsAreRequiredOfCandidates) {
   static_assert(!is_protocol_conformant<SpaceshipInterface, EmptyCandidate>());
 }
 
-TEST(ConformsToTest, ComparisonWithInterfaceTypeOperandIsForwarded) {
-  struct Interface {
-    bool operator==(const Interface& rhs) const;
+TEST(ConformsToTest, ComparisonWithInterfaceTypeOperandIsRejected) {
+  struct ReferenceOperandInterface {
+    bool operator==(const ReferenceOperandInterface& rhs) const;
   };
 
-  struct MatchingCandidate {
-    bool operator==(const Interface& rhs) const;
+  struct ValueOperandInterface {
+    std::strong_ordering operator<=>(ValueOperandInterface rhs) const;
   };
 
   struct Candidate {
-    bool operator==(const Candidate& rhs) const;
+    bool operator==(const ReferenceOperandInterface& rhs) const;
+    std::strong_ordering operator<=>(ValueOperandInterface rhs) const;
   };
 
-  static_assert(is_protocol_conformant<Interface, MatchingCandidate>());
-  static_assert(!is_protocol_conformant<Interface, Candidate>());
+#ifdef __cpp_constexpr_exceptions
+  static_assert(
+      conformance_check_rejects<ReferenceOperandInterface, Candidate>());
+  static_assert(conformance_check_rejects<ValueOperandInterface, Candidate>());
+#endif  // __cpp_constexpr_exceptions
 }
 
 struct HiddenFriendComparisonInterface {

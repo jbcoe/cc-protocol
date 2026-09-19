@@ -208,6 +208,14 @@ consteval bool is_unsupported_operator(std::meta::operators op) {
   return op == op_equals || op == op_co_await;
 }
 
+// `true` for `==`, `!=`, `<`, `<=`, `>`, `>=` and `<=>`.
+consteval bool is_comparison_operator(std::meta::operators op) {
+  using enum std::meta::operators;
+  return op == op_equals_equals || op == op_exclamation_equals ||
+         op == op_less || op == op_less_equals || op == op_greater ||
+         op == op_greater_equals || op == op_spaceship;
+}
+
 // Throws if `type` has a non-static member function template, operator
 // template or conversion function template. A template cannot be forwarded
 // through a vtable, and `named_member_function_infos` does not return one, so
@@ -229,8 +237,9 @@ consteval void reject_member_function_templates(std::meta::info type) {
 // The named, non-static, non-special member functions, operators and
 // conversion functions of `Type`, in declaration order.
 // Ref-qualified functions, explicit-object member functions, member function
-// templates, defaulted comparison operators and the operators
-// `is_unsupported_operator` names are unsupported on protocol interfaces.
+// templates, defaulted comparison operators, comparisons with `Type` and the
+// operators `is_unsupported_operator` names are unsupported on protocol
+// interfaces.
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   reject_member_function_templates(Type);
@@ -255,6 +264,15 @@ consteval std::vector<std::meta::info> protocol_interface_function_infos() {
       // compare itself with `Type`, which is not what `= default` asks for.
       if (is_defaulted(member)) {
         reject_interface_member("defaulted comparison operator", member);
+      }
+      // A comparison with `Type` itself is reserved: forwarding it would
+      // require a candidate to compare itself with `Type`, and rejecting it
+      // leaves room to make it compare two protocols later.
+      if (is_comparison_operator(op) &&
+          std::ranges::any_of(params, [](std::meta::info parameter) {
+            return dealias(remove_cvref(type_of(parameter))) == dealias(Type);
+          })) {
+        reject_interface_member("comparison with the interface type", member);
       }
       if (is_unsupported_operator(op)) {
         reject_interface_member("operator", member);

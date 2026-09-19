@@ -23,7 +23,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <gtest/gtest.h>
 
 #include <compare>
+#include <iterator>
 #include <stdexcept>
+#include <string_view>
 #include <type_traits>
 
 #include "protocol.hh"
@@ -1599,5 +1601,32 @@ TEST(ReflectionProtocolTest, ComparisonWithClassTypeOperand) {
   protocol_view<const Interface> pcv(c);
   EXPECT_TRUE(pcv == ComparisonOperandWidget{42});
   EXPECT_FALSE(pcv == ComparisonOperandWidget{7});
+}
+
+TEST(ReflectionProtocolTest, ComparisonWithStringViewAndSentinelOperands) {
+  struct Interface {
+    bool operator==(std::string_view rhs) const;
+    bool operator==(std::default_sentinel_t) const;
+  };
+
+  struct Conforming {
+    std::string_view name;
+
+    bool operator==(std::string_view rhs) const { return name == rhs; }
+
+    bool operator==(std::default_sentinel_t) const { return name.empty(); }
+  };
+
+  protocol<Interface> p(Conforming{"id"});
+  EXPECT_TRUE(p == "id");
+  EXPECT_TRUE("id" == p);
+  EXPECT_TRUE(p != "other");
+  EXPECT_TRUE(p != std::default_sentinel);
+  EXPECT_TRUE(std::default_sentinel != p);
+
+  const Conforming c{""};
+  protocol_view<const Interface> pcv(c);
+  EXPECT_TRUE(pcv == "");
+  EXPECT_TRUE(std::default_sentinel == pcv);
 }
 }  // namespace
