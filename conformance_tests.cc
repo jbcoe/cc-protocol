@@ -319,6 +319,71 @@ TEST(ConformsToTest, TemplatedConversionFunctionsAreIgnored) {
                                        CandidateWithTemplatedConversion>());
 }
 
+// A local class can't have a member template, so the interfaces for
+// `InterfaceMemberFunctionTemplatesAreRejected` and
+// `InterfaceConstructorAndStaticTemplatesAreIgnored` live at namespace scope.
+struct InterfaceWithMemberFunctionTemplate {
+  int f() const;
+
+  template <typename T>
+  void g(T) const;
+};
+
+struct InterfaceWithOperatorTemplate {
+  int f() const;
+
+  template <typename T>
+  int operator+(T) const;
+};
+
+struct InterfaceWithConversionFunctionTemplate {
+  int f() const;
+
+  template <typename T>
+  explicit operator T() const;
+};
+
+struct InterfaceWithConstructorAndStaticTemplates {
+  template <typename T>
+  explicit InterfaceWithConstructorAndStaticTemplates(T);
+
+  template <typename T>
+  static void make(T);
+
+  int f() const;
+};
+
+TEST(ConformsToTest, InterfaceMemberFunctionTemplatesAreRejected) {
+  struct Candidate {
+    int f() const { return 0; }
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(conformance_check_rejects<InterfaceWithMemberFunctionTemplate,
+                                          Candidate>());
+  static_assert(
+      conformance_check_rejects<InterfaceWithOperatorTemplate, Candidate>());
+  static_assert(
+      conformance_check_rejects<InterfaceWithConversionFunctionTemplate,
+                                Candidate>());
+  // A candidate with the same templates is rejected too: the interface is at
+  // fault, not the candidate.
+  static_assert(
+      conformance_check_rejects<InterfaceWithMemberFunctionTemplate,
+                                InterfaceWithMemberFunctionTemplate>());
+#endif  // __cpp_constexpr_exceptions
+}
+
+TEST(ConformsToTest, InterfaceConstructorAndStaticTemplatesAreIgnored) {
+  struct Candidate {
+    int f() const { return 0; }
+  };
+
+  static_assert(
+      is_protocol_conformant<InterfaceWithConstructorAndStaticTemplates,
+                             Candidate>());
+}
+
 TEST(ConformsToTest, ExplicitObjectInterfaceMembersAreRejected) {
   struct ExplicitObjectInterface {
     int f(this const ExplicitObjectInterface&);
