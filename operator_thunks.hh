@@ -21,9 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define XYZ_PROTOCOL_OPERATOR_THUNKS_HH_
 
 #include <meta>
-#include <ranges>
 #include <utility>
-#include <vector>
 
 #include "overload_spec.hh"
 #include "vtable.hh"
@@ -58,23 +56,12 @@ template <std::meta::info Member, bool IsConst, typename ProtocolType,
           typename Vtable>
 struct operator_thunk_for<overload_spec<Member, IsConst>, ProtocolType,
                           Vtable> {
-  // Build the function-pointer type R(*)(Args...) noexcept(...) from the
-  // method's return type, parameter types and noexcept-ness.
-  static consteval std::meta::info fn_ptr_type() {
-    std::vector<std::meta::info> fn_args{
-        std::meta::reflect_constant(is_noexcept(Member)),
-        dealias(return_type_of(Member))};
-    fn_args.append_range(parameters_of(Member) |
-                         std::views::transform(std::meta::type_of));
-    return substitute(^^fn_ptr_t, fn_args);
-  }
-
   // clang-format off
   using type =
       typename[:substitute(^^operator_thunk,
                     {
                         std::meta::reflect_constant(operator_of(Member)),
-                        fn_ptr_type(),
+                        function_pointer_type_of(Member),
                          ^^ProtocolType, ^^Vtable,
                         std::meta::reflect_constant(Member),
                         std::meta::reflect_constant(IsConst)

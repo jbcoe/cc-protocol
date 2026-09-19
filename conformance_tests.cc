@@ -34,6 +34,20 @@ consteval bool conformance_check_rejects() {
   }
   return false;
 }
+
+// Returns `true` if checking conformance of `Candidate` against `Interface`
+// throws during constant evaluation with a message that contains `text`.
+// A display string is implementation-defined, so tests look for the parts
+// of a member's declaration that set it apart from its neighbours.
+template <typename Interface, typename Candidate>
+consteval bool conformance_rejection_message_contains(std::string_view text) {
+  try {
+    (void)is_protocol_conformant<Interface, Candidate>();
+  } catch (const std::runtime_error& error) {
+    return std::string_view(error.what()).contains(text);
+  }
+  return false;
+}
 #endif  // __cpp_constexpr_exceptions
 
 TEST(ConformsToTest, EmptyInterfaceIsAlwaysSatisfied) {
@@ -493,6 +507,100 @@ TEST(ConformsToTest, ExplicitObjectInterfaceMembersAreRejected) {
 #ifdef __cpp_constexpr_exceptions
   static_assert(
       conformance_check_rejects<ExplicitObjectInterface, Candidate>());
+#endif  // __cpp_constexpr_exceptions
+}
+
+struct FirstOperand {};
+
+struct SecondOperand {};
+
+// At namespace scope because a local class cannot declare a member template.
+struct InterfaceWithNamedMemberFunctionTemplate {
+  template <typename T>
+  void named_template(T);
+};
+
+TEST(ConformsToTest, RejectionMessageNamesTheMember) {
+  struct RefQualifiedInterface {
+    void named_function() &;
+  };
+
+  struct ExplicitObjectInterface {
+    void named_function(this ExplicitObjectInterface&);
+  };
+
+  struct AddressOfInterface {
+    // NOLINTBEGIN(google-runtime-operator): the rejection is what's under
+    // test.
+    int* operator&();
+    // NOLINTEND(google-runtime-operator)
+  };
+
+  struct CoAwaitInterface {
+    int operator co_await();
+  };
+
+  struct Candidate {};
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(
+      conformance_rejection_message_contains<RefQualifiedInterface, Candidate>(
+          "ref-qualified member function 'named_function'"));
+  static_assert(conformance_rejection_message_contains<ExplicitObjectInterface,
+                                                       Candidate>(
+      "explicit-object member function 'named_function'"));
+  static_assert(conformance_rejection_message_contains<
+                InterfaceWithNamedMemberFunctionTemplate, Candidate>(
+      "member function template 'named_template'"));
+  static_assert(
+      conformance_rejection_message_contains<AddressOfInterface, Candidate>(
+          "address-of operator '"));
+  static_assert(
+      conformance_rejection_message_contains<AddressOfInterface, Candidate>(
+          "operator&"));
+  static_assert(
+      conformance_rejection_message_contains<CoAwaitInterface, Candidate>(
+          "operator co_await"));
+#endif  // __cpp_constexpr_exceptions
+}
+
+TEST(ConformsToTest, RejectionMessageNamesTheOverload) {
+  struct Interface {
+    Interface& operator=(const FirstOperand&);
+    Interface& operator=(const SecondOperand&);
+  };
+
+  struct Candidate {};
+
+#ifdef __cpp_constexpr_exceptions
+  // The first rejected overload is the one reported.
+  static_assert(conformance_rejection_message_contains<Interface, Candidate>(
+      "operator '"));
+  static_assert(conformance_rejection_message_contains<Interface, Candidate>(
+      "operator="));
+  static_assert(conformance_rejection_message_contains<Interface, Candidate>(
+      "FirstOperand"));
+  static_assert(!conformance_rejection_message_contains<Interface, Candidate>(
+      "SecondOperand"));
+#endif  // __cpp_constexpr_exceptions
+}
+
+TEST(ConformsToTest, RejectedOperatorIsNamedTheSameWayByEveryCheck) {
+  // Ref-qualified and an unsupported operator: whichever check fires, the
+  // member is named by its display string.
+  struct Interface {
+    bool operator==(const FirstOperand&) const&;
+  };
+
+  struct Candidate {};
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(conformance_rejection_message_contains<Interface, Candidate>(
+      "ref-qualified member function '"));
+  static_assert(conformance_rejection_message_contains<Interface, Candidate>(
+      "operator=="));
+  static_assert(conformance_rejection_message_contains<Interface, Candidate>(
+      "FirstOperand"));
 #endif  // __cpp_constexpr_exceptions
 }
 

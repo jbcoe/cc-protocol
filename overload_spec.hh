@@ -20,12 +20,33 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef XYZ_PROTOCOL_OVERLOAD_SPEC_HH_
 #define XYZ_PROTOCOL_OVERLOAD_SPEC_HH_
 
+#include <initializer_list>
 #include <meta>
+#include <vector>
 
 namespace xyz::detail {
 
 template <bool IsNoexcept, typename R, typename... Args>
 using fn_ptr_t = R (*)(Args...) noexcept(IsNoexcept);
+
+// The function-pointer type R(*)(Leading..., Args...) noexcept(...) built from
+// `member`'s return type, parameter types and noexcept-ness. A thunk passes no
+// `leading` types; a vtable entry passes the erased object pointer, so the two
+// differ in that parameter alone and a thunk's partial specialisation always
+// matches its vtable entry.
+consteval std::meta::info function_pointer_type_of(
+    std::meta::info member,
+    std::initializer_list<std::meta::info> leading = {}) {
+  std::vector<std::meta::info> fn_args{
+      std::meta::reflect_constant(is_noexcept(member)),
+      dealias(return_type_of(member))};
+  fn_args.append_range(leading);
+  std::vector<std::meta::info> member_parameters = parameters_of(member);
+  for (std::meta::info parameter : member_parameters) {
+    fn_args.push_back(type_of(parameter));
+  }
+  return substitute(^^fn_ptr_t, fn_args);
+}
 
 // One overload of a synthesised member function or operator: the interface
 // member (which names its vtable entry) and the const-qualification of the
