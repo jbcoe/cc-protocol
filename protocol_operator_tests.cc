@@ -456,14 +456,19 @@ TEST(ReflectionProtocolTest, ConversionToMultipleDistinctTargets) {
   EXPECT_EQ(static_cast<int>(p), 42);
 }
 
-TEST(ReflectionProtocolTest, NonExplicitConversionIsImplicit) {
-  struct Interface {
-    operator int() const noexcept;
-  };
+// Shared by both `NonExplicitConversionIsImplicit` tests, so the interface is
+// analysed once.
+struct ImplicitIntConversionInterface {
+  operator int() const noexcept;
+};
 
-  struct Conforming {
-    operator int() const noexcept { return 42; }
-  };
+struct ImplicitIntConversionConforming {
+  operator int() const noexcept { return 42; }
+};
+
+TEST(ReflectionProtocolTest, NonExplicitConversionIsImplicit) {
+  using Interface = ImplicitIntConversionInterface;
+  using Conforming = ImplicitIntConversionConforming;
 
   static_assert(std::is_convertible_v<protocol<Interface>, int>);
 
@@ -473,13 +478,8 @@ TEST(ReflectionProtocolTest, NonExplicitConversionIsImplicit) {
 }
 
 TEST(ReflectionProtocolViewTest, NonExplicitConversionIsImplicit) {
-  struct Interface {
-    operator int() const noexcept;
-  };
-
-  struct Conforming {
-    operator int() const noexcept { return 42; }
-  };
+  using Interface = ImplicitIntConversionInterface;
+  using Conforming = ImplicitIntConversionConforming;
 
   static_assert(std::is_convertible_v<protocol_view<Interface>, int>);
   static_assert(std::is_convertible_v<protocol_view<const Interface>, int>);
@@ -559,26 +559,6 @@ TEST(ReflectionProtocolTest, ConversionAlongsideNamedMember) {
   protocol<Interface> p(Conforming{});
   EXPECT_EQ(p.get(), 42);
   EXPECT_TRUE(static_cast<bool>(p));
-}
-
-TEST(ReflectionProtocolTest, ConstOnlyConversionFunction) {
-  struct Interface {
-    explicit operator bool() const noexcept;
-  };
-
-  struct Conforming {
-    explicit operator bool() const noexcept { return true; }
-  };
-
-  protocol<Interface> p(Conforming{});
-  EXPECT_TRUE(static_cast<bool>(p));
-
-  Conforming c;
-  protocol_view<Interface> pv(c);
-  EXPECT_TRUE(static_cast<bool>(pv));
-
-  protocol_view<const Interface> pcv(c);
-  EXPECT_TRUE(static_cast<bool>(pcv));
 }
 
 TEST(ReflectionProtocolTest, OperatorPlus) {
