@@ -23,6 +23,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <algorithm>
 #include <meta>
 #include <span>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "conformance.hh"
@@ -75,6 +77,33 @@ consteval bool is_forwarded_member_function(
   std::unreachable();
 }
 
+// Throws if the conversion functions `protocol_view<T>` forwards differ in
+// constness. Conversion functions to different target types compete in
+// overload resolution, and a non-const object prefers a non-const one, as its
+// implicit object parameter binds without adding `const`. Every wrapper on
+// the view is const-qualified, so that preference would be lost and the view
+// could select a different conversion function than the viewed object.
+consteval void reject_conversion_functions_of_mixed_constness(
+    std::span<const std::meta::info> members) {
+  std::meta::info first = {};
+  for (std::meta::info member : members) {
+    if (!is_conversion_function(member) ||
+        !is_forwarded_member_function<const_policy::all_const>(member,
+                                                               members)) {
+      continue;
+    }
+    if (first == std::meta::info{}) {
+      first = member;
+    } else if (is_const(member) != is_const(first)) {
+      throw std::runtime_error(
+          "conversion functions '" + std::string(display_string_of(first)) +
+          "' and '" + std::string(display_string_of(member)) +
+          "' differ in constness, which is not supported in a protocol_view "
+          "interface");
+    }
+  }
+}
+
 // A single-member base wrapping the overload set for one interface member
 // function name, named after that method (giving the
 // `p.member_function_name(args)` call syntax).
@@ -123,6 +152,9 @@ template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable,
 consteval std::meta::info generate_member_bases_wrapper() {
   std::span<const std::meta::info> members =
       protocol_interface_functions_of<InterfaceType>;
+  if (ConstPolicy == const_policy::all_const) {
+    reject_conversion_functions_of_mixed_constness(members);
+  }
   std::vector<std::meta::info> member_base_types;
   std::vector<std::meta::info> matched_members;
   for (std::meta::info member : members) {
