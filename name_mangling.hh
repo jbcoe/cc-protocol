@@ -233,7 +233,7 @@ consteval std::string mangle_type(std::meta::info type) {
   if (is_class_type(type) || is_union_type(type) || is_enum_type(type)) {
     return mangle_qualified_name(type);
   }
-  throw std::runtime_error("name mangling: unsupported parameter type");
+  throw std::runtime_error("name mangling: unsupported type");
 }
 
 // Returns the mangled function-name atom for `function`: `cv` followed by
@@ -363,6 +363,9 @@ consteval std::string base_name_of(std::meta::info function) {
 // across two different interfaces: two unrelated interfaces can each
 // declare `get() const` with a different return type or noexcept-ness, and
 // without this, both would mangle to the same entry name.
+//
+// A conversion function is the exception, as it is in the Itanium ABI: its
+// name already carries its target type, so the return type is not repeated.
 consteval std::string mangle(std::meta::info function) {
   std::string qualifiers;
   if (is_volatile(function)) qualifiers += "V";
@@ -373,7 +376,9 @@ consteval std::string mangle(std::meta::info function) {
   std::string name =
       "fn_" + (qualifiers.empty() ? atom : "N" + qualifiers + atom + "E");
   name += is_noexcept(function) ? "Do" : "";
-  name += detail::mangle_type(return_type_of(function));
+  if (!is_conversion_function(function)) {
+    name += detail::mangle_type(return_type_of(function));
+  }
   std::vector<std::meta::info> parameters = parameters_of(function);
   for (std::meta::info parameter : parameters) {
     name += detail::mangle_type(type_of(parameter));
