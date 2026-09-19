@@ -241,9 +241,12 @@ TEST(ConformsToTest, UnsupportedOperatorsAreRejected) {
 }
 
 // A local class cannot define a friend function, so the types with hidden
-// friends for the tests below live at namespace scope.
+// friends for the tests below live at namespace scope. Nothing calls the
+// friends, hence `[[maybe_unused]]`.
 struct HiddenFriendCandidate {
-  friend bool operator==(const HiddenFriendCandidate&, int) { return true; }
+  [[maybe_unused]] friend bool operator==(const HiddenFriendCandidate&, int) {
+    return true;
+  }
 };
 
 TEST(ConformsToTest, ComparisonOperatorsAreRequiredOfCandidates) {
@@ -294,8 +297,9 @@ TEST(ConformsToTest, ComparisonWithInterfaceTypeOperandIsForwarded) {
 struct HiddenFriendComparisonInterface {
   int f() const;
 
-  friend bool operator==(const HiddenFriendComparisonInterface&,
-                         const HiddenFriendComparisonInterface&) {
+  [[maybe_unused]] friend bool operator==(
+      const HiddenFriendComparisonInterface&,
+      const HiddenFriendComparisonInterface&) {
     return true;
   }
 };
