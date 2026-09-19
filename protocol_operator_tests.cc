@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <gtest/gtest.h>
 
+#include <compare>
 #include <type_traits>
 
 #include "protocol.hh"
@@ -1233,5 +1234,254 @@ TEST(ReflectionProtocolTest, OperatorComma) {
 
   protocol_view<const Interface> pcv(c);
   EXPECT_EQ((pcv, 3), 3);
+}
+
+TEST(ReflectionProtocolTest, OperatorEqualsEquals) {
+  struct Interface {
+    bool operator==(int rhs) const noexcept;
+    bool operator==(int rhs) noexcept;
+  };
+
+  struct Conforming {
+    bool operator==(int rhs) const noexcept { return rhs == 1; }
+
+    bool operator==(int rhs) noexcept { return rhs == 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(p == 2);
+  EXPECT_FALSE(p == 1);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_TRUE(pv == 2);
+  EXPECT_FALSE(pv == 1);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_TRUE(pcv == 1);
+  EXPECT_FALSE(pcv == 2);
+}
+
+TEST(ReflectionProtocolTest, OperatorNotEquals) {
+  struct Interface {
+    bool operator!=(int rhs) const noexcept;
+    bool operator!=(int rhs) noexcept;
+  };
+
+  struct Conforming {
+    bool operator!=(int rhs) const noexcept { return rhs != 1; }
+
+    bool operator!=(int rhs) noexcept { return rhs != 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(p != 1);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_TRUE(pv != 1);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_FALSE(pcv != 1);
+}
+
+TEST(ReflectionProtocolTest, OperatorLess) {
+  struct Interface {
+    bool operator<(int rhs) const noexcept;
+    bool operator<(int rhs) noexcept;
+  };
+
+  struct Conforming {
+    bool operator<(int rhs) const noexcept { return 1 < rhs; }
+
+    bool operator<(int rhs) noexcept { return 10 < rhs; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_FALSE(p < 5);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_FALSE(pv < 5);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_TRUE(pcv < 5);
+}
+
+TEST(ReflectionProtocolTest, OperatorLessEquals) {
+  struct Interface {
+    bool operator<=(int rhs) const noexcept;
+    bool operator<=(int rhs) noexcept;
+  };
+
+  struct Conforming {
+    bool operator<=(int rhs) const noexcept { return 1 <= rhs; }
+
+    bool operator<=(int rhs) noexcept { return 10 <= rhs; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_FALSE(p <= 5);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_FALSE(pv <= 5);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_TRUE(pcv <= 5);
+}
+
+TEST(ReflectionProtocolTest, OperatorGreater) {
+  struct Interface {
+    bool operator>(int rhs) const noexcept;
+    bool operator>(int rhs) noexcept;
+  };
+
+  struct Conforming {
+    bool operator>(int rhs) const noexcept { return 1 > rhs; }
+
+    bool operator>(int rhs) noexcept { return 10 > rhs; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(p > 5);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_TRUE(pv > 5);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_FALSE(pcv > 5);
+}
+
+TEST(ReflectionProtocolTest, OperatorGreaterEquals) {
+  struct Interface {
+    bool operator>=(int rhs) const noexcept;
+    bool operator>=(int rhs) noexcept;
+  };
+
+  struct Conforming {
+    bool operator>=(int rhs) const noexcept { return 1 >= rhs; }
+
+    bool operator>=(int rhs) noexcept { return 10 >= rhs; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(p >= 5);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_TRUE(pv >= 5);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_FALSE(pcv >= 5);
+}
+
+TEST(ReflectionProtocolTest, OperatorSpaceship) {
+  struct Interface {
+    std::strong_ordering operator<=>(int rhs) const noexcept;
+    std::strong_ordering operator<=>(int rhs) noexcept;
+  };
+
+  struct Conforming {
+    std::strong_ordering operator<=>(int rhs) const noexcept {
+      return 1 <=> rhs;
+    }
+
+    std::strong_ordering operator<=>(int rhs) noexcept { return 10 <=> rhs; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE((p <=> 5) == std::strong_ordering::greater);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_TRUE((pv <=> 5) == std::strong_ordering::greater);
+
+  protocol_view<const Interface> pcv(c);
+  EXPECT_TRUE((pcv <=> 5) == std::strong_ordering::less);
+}
+
+TEST(ReflectionProtocolTest, ComparisonOperatorsSupportRewrittenCandidates) {
+  struct Interface {
+    bool operator==(int rhs) const;
+    std::strong_ordering operator<=>(int rhs) const;
+  };
+
+  struct Conforming {
+    int value;
+
+    bool operator==(int rhs) const { return value == rhs; }
+
+    std::strong_ordering operator<=>(int rhs) const { return value <=> rhs; }
+  };
+
+  protocol<Interface> p(Conforming{3});
+  EXPECT_TRUE(p == 3);
+  EXPECT_TRUE(3 == p);
+  EXPECT_TRUE(p != 4);
+  EXPECT_TRUE(4 != p);
+  EXPECT_TRUE(p < 4);
+  EXPECT_TRUE(p <= 3);
+  EXPECT_TRUE(p > 2);
+  EXPECT_TRUE(p >= 3);
+  EXPECT_TRUE(2 < p);
+  EXPECT_TRUE(4 > p);
+
+  const Conforming c{3};
+  protocol_view<const Interface> pcv(c);
+  EXPECT_TRUE(pcv == 3);
+  EXPECT_TRUE(3 == pcv);
+  EXPECT_TRUE(pcv != 4);
+  EXPECT_TRUE(4 != pcv);
+  EXPECT_TRUE(pcv < 4);
+  EXPECT_TRUE(pcv <= 3);
+  EXPECT_TRUE(pcv > 2);
+  EXPECT_TRUE(pcv >= 3);
+  EXPECT_TRUE(2 < pcv);
+  EXPECT_TRUE(4 > pcv);
+}
+
+TEST(ReflectionProtocolTest, ComparisonOperatorIsNoexceptWhenInterfaceIs) {
+  struct Interface {
+    bool operator==(int rhs) const noexcept;
+    bool operator<(int rhs) const;
+  };
+
+  struct Conforming {
+    bool operator==(int rhs) const noexcept { return rhs == 1; }
+
+    bool operator<(int rhs) const { return rhs < 1; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(p == 1);
+  static_assert(noexcept(p == 1));
+  static_assert(!noexcept(p < 1));
+}
+
+struct ComparisonOperandWidget {
+  int value;
+};
+
+TEST(ReflectionProtocolTest, ComparisonWithClassTypeOperand) {
+  struct Interface {
+    bool operator==(const ComparisonOperandWidget& rhs) const;
+  };
+
+  struct Conforming {
+    bool operator==(const ComparisonOperandWidget& rhs) const {
+      return rhs.value == 42;
+    }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_TRUE(p == ComparisonOperandWidget{42});
+  EXPECT_FALSE(p == ComparisonOperandWidget{7});
+
+  Conforming c;
+  protocol_view<const Interface> pcv(c);
+  EXPECT_TRUE(pcv == ComparisonOperandWidget{42});
+  EXPECT_FALSE(pcv == ComparisonOperandWidget{7});
 }
 }  // namespace

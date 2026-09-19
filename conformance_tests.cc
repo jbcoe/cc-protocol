@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <compare>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -236,6 +237,98 @@ TEST(ConformsToTest, UnsupportedOperatorsAreRejected) {
 #ifdef __cpp_constexpr_exceptions
   static_assert(conformance_check_rejects<EqualsInterface, Candidate>());
   static_assert(conformance_check_rejects<CoAwaitInterface, Candidate>());
+#endif  // __cpp_constexpr_exceptions
+}
+
+// A local class cannot define a friend function, so the types with hidden
+// friends for the tests below live at namespace scope.
+struct HiddenFriendCandidate {
+  friend bool operator==(const HiddenFriendCandidate&, int) { return true; }
+};
+
+TEST(ConformsToTest, ComparisonOperatorsAreRequiredOfCandidates) {
+  struct Interface {
+    bool operator==(int rhs) const;
+  };
+
+  struct MemberCandidate {
+    bool operator==(int rhs) const;
+  };
+
+  struct EmptyCandidate {};
+
+  static_assert(is_protocol_conformant<Interface, MemberCandidate>());
+  static_assert(!is_protocol_conformant<Interface, HiddenFriendCandidate>());
+  static_assert(!is_protocol_conformant<Interface, EmptyCandidate>());
+
+  struct SpaceshipInterface {
+    std::strong_ordering operator<=>(int rhs) const;
+  };
+
+  struct MemberSpaceshipCandidate {
+    std::strong_ordering operator<=>(int rhs) const;
+  };
+
+  static_assert(
+      is_protocol_conformant<SpaceshipInterface, MemberSpaceshipCandidate>());
+  static_assert(!is_protocol_conformant<SpaceshipInterface, EmptyCandidate>());
+}
+
+TEST(ConformsToTest, ComparisonWithInterfaceTypeOperandIsForwarded) {
+  struct Interface {
+    bool operator==(const Interface& rhs) const;
+  };
+
+  struct MatchingCandidate {
+    bool operator==(const Interface& rhs) const;
+  };
+
+  struct Candidate {
+    bool operator==(const Candidate& rhs) const;
+  };
+
+  static_assert(is_protocol_conformant<Interface, MatchingCandidate>());
+  static_assert(!is_protocol_conformant<Interface, Candidate>());
+}
+
+struct HiddenFriendComparisonInterface {
+  int f() const;
+
+  friend bool operator==(const HiddenFriendComparisonInterface&,
+                         const HiddenFriendComparisonInterface&) {
+    return true;
+  }
+};
+
+TEST(ConformsToTest, HiddenFriendComparisonOnInterfaceIsIgnored) {
+  struct Candidate {
+    int f() const;
+  };
+
+  static_assert(
+      is_protocol_conformant<HiddenFriendComparisonInterface, Candidate>());
+}
+
+TEST(ConformsToTest, DefaultedComparisonOperatorsAreRejected) {
+  struct DefaultedEqualsInterface {
+    int f() const;
+    bool operator==(const DefaultedEqualsInterface&) const = default;
+  };
+
+  struct DefaultedSpaceshipInterface {
+    int f() const;
+    auto operator<=>(const DefaultedSpaceshipInterface&) const = default;
+  };
+
+  struct Candidate {
+    int f() const;
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(
+      conformance_check_rejects<DefaultedEqualsInterface, Candidate>());
+  static_assert(
+      conformance_check_rejects<DefaultedSpaceshipInterface, Candidate>());
 #endif  // __cpp_constexpr_exceptions
 }
 
