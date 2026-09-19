@@ -643,10 +643,13 @@ class protocol_view<const T>
   template <typename Alloc>
   protocol_view(const protocol<T, Alloc>&&) = delete;
 
-  // Views the object a `protocol_view<T>` views, sharing its vtable. Taken
+  // Views the object a `protocol_view<T>` views, sharing its vtable.
   // The argument `view` is passed by value as `protocol_view` is a non-owning
-  // handle.
-  constexpr protocol_view(protocol_view<T> view) noexcept
+  // handle. A template so that overload resolution for another argument does
+  // not complete `protocol_view<T>`, which rejects some interfaces that
+  // `protocol_view<const T>` supports.
+  template <std::same_as<protocol_view<T>> View>
+  constexpr protocol_view(View view) noexcept
       : object_(view.object_), vtable_(view.vtable_) {}
 
  private:
