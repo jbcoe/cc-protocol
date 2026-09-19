@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <gtest/gtest.h>
 
+#include <stdexcept>
 #include <type_traits>
 
 #include "protocol.hh"
@@ -557,6 +558,143 @@ TEST(ReflectionProtocolTest, ConversionAlongsideNamedMember) {
   protocol<Interface> p(Conforming{});
   EXPECT_EQ(p.get(), 42);
   EXPECT_TRUE(static_cast<bool>(p));
+}
+
+// Returns `true` if generating the wrappers of `protocol_view<Interface>`
+// throws during constant evaluation. See `conformance_check_rejects` in
+// conformance_tests.cc for why this needs P3068 constexpr exceptions.
+#ifdef __cpp_constexpr_exceptions
+template <typename Interface>
+consteval bool view_wrappers_reject() {
+  try {
+    (void)xyz::detail::generate_member_bases_wrapper<
+        ^^Interface, protocol_view<Interface>, xyz::detail::vtable_t<Interface>,
+        xyz::detail::const_policy::all_const>();
+  } catch (const std::runtime_error&) {
+    return true;
+  }
+  return false;
+}
+#endif  // __cpp_constexpr_exceptions
+
+// A non-const object prefers a non-const conversion function over a const
+// one to a better-matching target. Every wrapper on `protocol_view<I>` is
+// const-qualified, so the view would select the other one.
+TEST(ReflectionProtocolViewTest, ConversionFunctionsOfMixedConstnessRejected) {
+  struct Interface {
+    operator int();
+    operator long() const;
+  };
+
+  struct Conforming {
+    operator int() { return 1; }
+
+    operator long() const { return 2; }
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(view_wrappers_reject<Interface>());
+#endif  // __cpp_constexpr_exceptions
+
+  Conforming c;
+  long from_object = c;
+  EXPECT_EQ(from_object, 1);
+
+  protocol<Interface> p(Conforming{});
+  long from_protocol = p;
+  EXPECT_EQ(from_protocol, 1);
+
+  protocol_view<const Interface> pcv(c);
+  long from_const_view = pcv;
+  EXPECT_EQ(from_const_view, 2);
+}
+
+TEST(ReflectionProtocolViewTest,
+     ExplicitConversionFunctionsOfMixedConstnessRejected) {
+  struct Interface {
+    explicit operator bool() const;
+    operator int();
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(view_wrappers_reject<Interface>());
+#endif  // __cpp_constexpr_exceptions
+}
+
+// A target with a const and a non-const conversion function counts as
+// non-const, as only the non-const one is forwarded by `protocol_view<I>`.
+TEST(ReflectionProtocolViewTest, ConstAndNonConstConversionToOneTarget) {
+  struct Rejected {
+    operator int();
+    operator int() const;
+    operator long() const;
+  };
+
+  struct Interface {
+    operator int();
+    operator int() const;
+    operator long();
+  };
+
+  struct Conforming {
+    operator int() { return 1; }
+
+    operator int() const { return 2; }
+
+    operator long() { return 3; }
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(view_wrappers_reject<Rejected>());
+  static_assert(!view_wrappers_reject<Interface>());
+#endif  // __cpp_constexpr_exceptions
+
+  Conforming c;
+  long from_object = c;
+  EXPECT_EQ(from_object, 3);
+
+  protocol_view<Interface> pv(c);
+  long from_view = pv;
+  EXPECT_EQ(from_view, 3);
+}
+
+TEST(ReflectionProtocolViewTest, ConversionFunctionsOfOneConstnessAccepted) {
+  struct ConstInterface {
+    operator int() const;
+    operator long() const;
+  };
+
+  struct NonConstInterface {
+    operator int();
+    operator long();
+  };
+
+  struct Conforming {
+    operator int() const { return 1; }
+
+    operator long() const { return 2; }
+  };
+
+  struct NonConstConforming {
+    operator int() { return 1; }
+
+    operator long() { return 2; }
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(!view_wrappers_reject<ConstInterface>());
+  static_assert(!view_wrappers_reject<NonConstInterface>());
+#endif  // __cpp_constexpr_exceptions
+
+  Conforming c;
+  protocol_view<ConstInterface> pv(c);
+  long from_view = pv;
+  EXPECT_EQ(from_view, 2);
+
+  NonConstConforming non_const_c;
+  protocol_view<NonConstInterface> non_const_pv(non_const_c);
+  long from_non_const_view = non_const_pv;
+  EXPECT_EQ(from_non_const_view, 2);
 }
 
 TEST(ReflectionProtocolTest, OperatorPlus) {
