@@ -2,8 +2,11 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <compare>
 #include <cstddef>
+#include <meta>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -522,6 +525,99 @@ TEST(ConformsToTest, InterfaceAllocationOperatorsAreIgnored) {
       1);
 }
 
+TEST(ConformsToTest, PlaceholderConversionFunctionsOnAnInterfaceAreRejected) {
+  struct AutoInterface {
+    int f() const;
+    operator auto() const;
+  };
+
+  struct DecltypeAutoInterface {
+    int f() const;
+    explicit operator decltype(auto)();
+  };
+
+  struct Candidate {
+    int f() const { return 0; }
+
+    operator int() const { return 1; }
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(conformance_check_rejects<AutoInterface, Candidate>());
+  static_assert(conformance_check_rejects<DecltypeAutoInterface, Candidate>());
+  // A candidate with the same function is rejected too: the interface is at
+  // fault, not the candidate.
+  static_assert(conformance_check_rejects<AutoInterface, AutoInterface>());
+  static_assert(
+      conformance_rejection_message_contains<AutoInterface, Candidate>(
+          "conversion function with a placeholder return type '"));
+  static_assert(
+      conformance_rejection_message_contains<AutoInterface, Candidate>(
+          "operator auto"));
+  static_assert(
+      conformance_rejection_message_contains<DecltypeAutoInterface, Candidate>(
+          "operator decltype(auto)"));
+#endif  // __cpp_constexpr_exceptions
+}
+
+TEST(ConformsToTest, PrivatePlaceholderConversionFunctionIsIgnored) {
+  class Interface {
+    operator auto() const;
+
+   public:
+    int f() const;
+  };
+
+  struct Candidate {
+    int f() const { return 0; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Candidate>());
+}
+
+TEST(ConformsToTest, DeducedPlaceholderConversionFunctionIsAnOrdinaryMember) {
+  // A body deduces the return type, so this is `operator int() const`.
+  struct Interface {
+    operator auto() const { return 0; }
+  };
+
+  struct IntInterface {
+    operator int() const;
+  };
+
+  struct IntCandidate {
+    operator int() const { return 1; }
+  };
+
+  struct AutoCandidate {
+    operator auto() const { return 1; }
+  };
+
+  struct Empty {};
+
+  static_assert(is_protocol_conformant<Interface, IntCandidate>());
+  static_assert(is_protocol_conformant<Interface, AutoCandidate>());
+  static_assert(is_protocol_conformant<IntInterface, AutoCandidate>());
+  static_assert(!is_protocol_conformant<Interface, Empty>());
+}
+
+TEST(ConformsToTest, OtherPlaceholderFunctionsWithoutABodyAreLost) {
+  // `members_of` does not return a function whose return type is not yet
+  // deduced, and only `operator auto` and `operator decltype(auto)` can be
+  // found by name, so these members are neither forwarded nor rejected.
+  struct Interface {
+    int f() const;
+    auto g() const;
+    operator const auto&() const;
+  };
+
+  struct Candidate {
+    int f() const { return 0; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Candidate>());
+}
+
 TEST(ConformsToTest, ExplicitObjectInterfaceMembersAreRejected) {
   struct ExplicitObjectInterface {
     int f(this const ExplicitObjectInterface&);
@@ -546,6 +642,93 @@ struct InterfaceWithNamedMemberFunctionTemplate {
   template <typename T>
   void named_template(T);
 };
+
+TEST(ConformsToTest, ReservedMemberNamesAreRejected) {
+  struct SwapInterface {
+    void swap(SwapInterface&) noexcept;
+  };
+
+  struct GetAllocatorInterface {
+    int get_allocator() const;
+  };
+
+  struct AllocatorTypeInterface {
+    int allocator_type() const;
+  };
+
+  struct Candidate {
+    void swap(SwapInterface&) noexcept {}
+
+    int get_allocator() const { return 0; }
+
+    int allocator_type() const { return 0; }
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(conformance_check_rejects<SwapInterface, Candidate>());
+  static_assert(conformance_check_rejects<GetAllocatorInterface, Candidate>());
+  static_assert(conformance_check_rejects<AllocatorTypeInterface, Candidate>());
+  static_assert(
+      conformance_rejection_message_contains<GetAllocatorInterface, Candidate>(
+          "reserved member name 'get_allocator'"));
+#endif  // __cpp_constexpr_exceptions
+}
+
+TEST(ConformsToTest, StaticInterfaceMemberWithReservedNameIsIgnored) {
+  struct Interface {
+    static void swap(Interface&, Interface&) noexcept;
+    int f() const;
+  };
+
+  struct Candidate {
+    int f() const { return 0; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Candidate>());
+}
+
+// clang-p2996 Workaround: the fork's `members_of` returns private type
+// aliases through an unprivileged access context and its `is_public` is
+// `false` for public ones, so the public members of a class cannot be
+// enumerated there.
+#ifndef __clang__
+// Returns `true` if the identifiers of the public members of `type` are
+// exactly `expected`.
+consteval bool public_member_names_are(
+    std::meta::info type, std::span<const std::string_view> expected) {
+  std::vector<std::string_view> names;
+  for (std::meta::info member :
+       members_of(type, std::meta::access_context::unprivileged())) {
+    if (has_identifier(member)) names.push_back(identifier_of(member));
+  }
+  std::ranges::sort(names);
+  names.erase(std::ranges::unique(names).begin(), names.end());
+  std::vector<std::string_view> sorted_expected(expected.begin(),
+                                                expected.end());
+  std::ranges::sort(sorted_expected);
+  return names == sorted_expected;
+}
+#endif  // __clang__
+
+// A public member added to `protocol` or `protocol_view` hides an interface
+// member function of the same name, so it has to be added to
+// `reserved_member_names` too; prefer a hidden friend, which reserves no name.
+TEST(ConformsToTest, ReservedMemberNamesAreThePublicMembersOfProtocol) {
+  struct Interface {
+    int f() const;
+  };
+
+#ifndef __clang__
+  static_assert(public_member_names_are(^^xyz::reflection::protocol<Interface>,
+                                        xyz::detail::reserved_member_names));
+  static_assert(
+      public_member_names_are(^^xyz::reflection::protocol_view<Interface>, {
+                                                                           }));
+  static_assert(public_member_names_are(
+      ^^xyz::reflection::protocol_view<const Interface>, {
+                                                         }));
+#endif  // __clang__
+}
 
 TEST(ConformsToTest, RejectionMessageNamesTheMember) {
   struct RefQualifiedInterface {

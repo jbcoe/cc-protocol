@@ -140,17 +140,35 @@ RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
 # Clone googletest into the image so CMake builds need no network. With
 # FETCHCONTENT_SOURCE_DIR_GOOGLETEST set, FetchContent performs no download or
 # update step and each build tree still compiles its own copy. The tag is read
-# from CMakeLists.txt's GIT_TAG so the two can't drift out of sync.
+# from CMakeLists.txt's GIT_TAG so the two can't drift out of sync. Only the
+# tag on the first GIT_TAG line is taken, so a trailing comment or a CRLF line
+# ending never reaches git.
 ENV FETCHCONTENT_SOURCE_DIR_GOOGLETEST="/home/vscode/.cache/googletest-src"
 RUN --mount=type=bind,source=CMakeLists.txt,target=CMakeLists.txt \
     git clone --depth 1 \
-        --branch "$(sed -n 's/^ *GIT_TAG *//p' CMakeLists.txt)" \
+        --branch "$(sed -n '/^\s*GIT_TAG\s\+\([^[:space:]#]\+\).*/{s//\1/p;q}' CMakeLists.txt)" \
         https://github.com/google/googletest.git \
         "$FETCHCONTENT_SOURCE_DIR_GOOGLETEST"
 
 # Pre-warm Bazel's repository cache from the target graph so sandbox builds
-# need no network for external dependencies. Last in the stage, since it's
-# the only input here a source edit invalidates. --lockfile_mode=error fails
-# the build on a stale MODULE.bazel.lock instead of resolving online.
-RUN --mount=type=bind,source=.,target=. \
+# need no network for external dependencies. Only the files that define the
+# graph are mounted; the fetch needs no sources. It is last in the stage, but
+# a miss in an earlier layer still re-runs it: the googletest clone above is
+# keyed on the whole of CMakeLists.txt, so any CMake edit re-clones googletest
+# and re-runs this fetch. --lockfile_mode=error fails the build on a stale
+# MODULE.bazel.lock instead of resolving online.
+#
+# Most of the layer is the repository cache, under
+# ~/.cache/bazel/_bazel_vscode/cache. The layer also captures Bazel's output
+# base for /workspace, which the runtime container reuses because the checkout
+# mounts at the same path.
+#
+# The files mounted in this stage and .bazelversion above are the image's
+# inputs; keep them in sync with IMAGE_INPUT_FILES in
+# scripts/agentic-sandbox.py.
+RUN --mount=type=bind,source=.bazelrc,target=.bazelrc \
+    --mount=type=bind,source=.bazelversion,target=.bazelversion \
+    --mount=type=bind,source=BUILD.bazel,target=BUILD.bazel \
+    --mount=type=bind,source=MODULE.bazel,target=MODULE.bazel \
+    --mount=type=bind,source=MODULE.bazel.lock,target=MODULE.bazel.lock \
     bazel fetch --lockfile_mode=error //...

@@ -48,6 +48,7 @@ and code injection and focuses solely on the design of the class templates
 - Support zero-cost conversion from a compatible `protocol` or `protocol_view` to a narrower target interface (subtype substitution).
 - Add `any` to the standard library types equivalence table.
 - Add `any` to the standard library types equivalence table.
+- Reserve the names of `protocol`'s own members: an interface cannot declare a member function named `allocator_type`, `get_allocator` or `swap`.
 
 ### Changes in revision R1
 
@@ -177,6 +178,8 @@ template <typename Allocator>
 class protocol<I, Allocator=std::allocator<void>> {
   public:
 
+    using allocator_type = Allocator;
+
     // Default constructor.
     explicit constexpr protocol(); // conditionally-generated
 
@@ -253,6 +256,14 @@ class protocol<I, Allocator=std::allocator<void>> {
     double func1(double) const;
     int func2(int);
     int func2(int, int); // Another overload, same name.
+
+    // Allocator access.
+    constexpr allocator_type get_allocator() const noexcept;
+
+    // Swap.
+    constexpr void swap(protocol& other) noexcept(see below);
+    friend constexpr void swap(protocol& lhs,
+                               protocol& rhs) noexcept(see below);
 
     // valueless after move
     friend constexpr bool valueless_after_move(const protocol&) noexcept;
@@ -380,6 +391,20 @@ Narrowing construction is allowed when the target interface specifies a structur
 Code generation is currently implemented in a reference implementation with a
 custom build step but would be better implemented with generative reflection post
 C++26.
+
+#### Reserved member names
+
+The member functions generated from `I` share a scope with the members
+`protocol` declares itself: `allocator_type`, `get_allocator` and `swap`. An
+interface with a non-static member function of one of these names is
+ill-formed. If it were allowed, the member of `protocol` would hide the
+generated one without a diagnostic, and `protocol<I>` would differ from
+`protocol_view<I>`, which declares no named members and would still expose the
+function from `I`.
+
+`get_allocator` and `swap` are members for consistency with `polymorphic` and
+the containers. An operation that need not be a member, such as
+`valueless_after_move`, is a hidden friend so that it reserves no name.
 
 ### Function-like examples
 

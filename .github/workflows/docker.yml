@@ -10,7 +10,6 @@ on:
       - ".github/workflows/docker.yml" # This file
       - ".bazelrc"
       - ".bazelversion"
-      - ".dockerignore"
       - "**/BUILD.bazel"
       - "CMakeLists.txt"
       - "MODULE.bazel"
@@ -25,7 +24,6 @@ on:
       - ".github/workflows/docker.yml" # This file
       - ".bazelrc"
       - ".bazelversion"
-      - ".dockerignore"
       - "**/BUILD.bazel"
       - "CMakeLists.txt"
       - "MODULE.bazel"
