@@ -236,9 +236,13 @@ consteval void reject_member_function_templates(std::meta::info type) {
 
 // Throws if `member`, a conversion function named by
 // `reject_placeholder_conversion_functions`, is one `members_of` would have
-// returned had its return type been deduced.
+// returned had its return type been deduced. A compiler may also find a
+// function with a body by this name; `members_of` returns that one, so it is
+// left alone.
 consteval void reject_placeholder_conversion_function(std::meta::info member) {
-  if (!is_accessible(member, std::meta::access_context::unprivileged())) {
+  std::meta::access_context context = std::meta::access_context::unprivileged();
+  if (!is_accessible(member, context) ||
+      std::ranges::contains(members_of(parent_of(member), context), member)) {
     return;
   }
   reject_interface_member("conversion function with a placeholder return type",
