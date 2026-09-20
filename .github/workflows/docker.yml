@@ -8,15 +8,33 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/docker.yml" # This file
+      # The files the image is built from: IMAGE_INPUT_FILES in
+      # scripts/agentic-sandbox.py and the other bind mounts in the Dockerfile.
+      - ".bazelrc"
       - ".bazelversion"
+      - "BUILD.bazel"
+      - "CMakeLists.txt"
+      - "MODULE.bazel"
+      - "MODULE.bazel.lock"
       - "docker/*"
+      - "pyproject.toml"
+      - "uv.lock"
   pull_request:
     branches: [main]
     paths:
       # Keep in sync with the `push.paths` list above.
       - ".github/workflows/docker.yml" # This file
+      # The files the image is built from: IMAGE_INPUT_FILES in
+      # scripts/agentic-sandbox.py and the other bind mounts in the Dockerfile.
+      - ".bazelrc"
       - ".bazelversion"
+      - "BUILD.bazel"
+      - "CMakeLists.txt"
+      - "MODULE.bazel"
+      - "MODULE.bazel.lock"
       - "docker/*"
+      - "pyproject.toml"
+      - "uv.lock"
 
 # One group per PR, or per ref for pushes and scheduled runs. A new push to a
 # PR cancels the runs for its previous head; main and scheduled runs only queue.
@@ -37,17 +55,12 @@ jobs:
       - name: Build the sandbox stage
         run: docker build --target sandbox -t "$IMAGE_NAME" -f docker/Dockerfile .
 
-      # Without network access, so a pinned Bazel that was not pre-warmed into
-      # the image fails here instead of downloading silently.
-      - name: Check Bazel reads the sandbox repository cache setting
+      # Without network access, so an input that was not baked into the image
+      # fails here instead of downloading silently.
+      - name: Check Bazel and uv need no network
         run: |
           docker run --rm --network none -v "$PWD:/workspace:ro" "$IMAGE_NAME" \
-            bash -c 'test "$(bazel info repository_cache)" = "$XYZ_BAZEL_REPOSITORY_CACHE_DIR"'
-
-      - name: Check the cache directories are writable by the sandbox user
-        run: |
-          docker run --rm --network none "$IMAGE_NAME" \
-            bash -c 'test -w "$UV_CACHE_DIR" && test -w "$XYZ_BAZEL_REPOSITORY_CACHE_DIR"'
+            bash -c 'bazel fetch --lockfile_mode=error //... && uv sync --locked --offline'
 
       - name: Check the baked googletest checkout matches CMakeLists.txt
         run: |
