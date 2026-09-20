@@ -150,9 +150,16 @@ RUN --mount=type=bind,source=CMakeLists.txt,target=CMakeLists.txt \
 
 # Pre-warm Bazel's repository cache from the target graph so sandbox builds
 # need no network for external dependencies. Only the files that define the
-# graph are mounted; the fetch needs no sources. Last in the stage, since it is
-# the layer most likely to miss the layer cache. --lockfile_mode=error fails
-# the build on a stale MODULE.bazel.lock instead of resolving online.
+# graph are mounted; the fetch needs no sources. It is last in the stage, but
+# a miss in an earlier layer still re-runs it: the googletest clone above is
+# keyed on the whole of CMakeLists.txt, so any CMake edit re-clones googletest
+# and re-runs this fetch. --lockfile_mode=error fails the build on a stale
+# MODULE.bazel.lock instead of resolving online.
+#
+# Most of the layer is the repository cache, under
+# ~/.cache/bazel/_bazel_vscode/cache. The layer also captures Bazel's output
+# base for /workspace, which the runtime container reuses because the checkout
+# mounts at the same path.
 #
 # The files mounted in this stage and .bazelversion above are the image's
 # inputs; keep them in sync with IMAGE_INPUT_FILES in
