@@ -264,6 +264,8 @@ consteval std::string base_name_of(std::meta::info function) {
         return unary ? "de" : "ml";
       case operators::op_ampersand:
         return unary ? "ad" : "an";
+      // The allocation functions are static, so a protocol interface ignores
+      // them. They are named here so that the switch covers every operator.
       case operators::op_new:
         return "nw";
       case operators::op_delete:

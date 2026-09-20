@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <compare>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -497,6 +498,28 @@ TEST(ConformsToTest, InterfaceConstructorAndStaticTemplatesAreIgnored) {
   static_assert(
       is_protocol_conformant<InterfaceWithConstructorAndStaticTemplates,
                              Candidate>());
+}
+
+TEST(ConformsToTest, InterfaceAllocationOperatorsAreIgnored) {
+  // Allocation and deallocation functions are static without being declared
+  // so, and are ignored as any other static member of an interface is.
+  struct Interface {
+    int f() const;
+
+    void* operator new(std::size_t);
+    void operator delete(void*) noexcept;
+    void* operator new[](std::size_t);
+    void operator delete[](void*) noexcept;
+  };
+
+  struct Candidate {
+    int f() const { return 0; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Candidate>());
+  static_assert(
+      xyz::detail::protocol_interface_function_infos<^^Interface>().size() ==
+      1);
 }
 
 TEST(ConformsToTest, ExplicitObjectInterfaceMembersAreRejected) {

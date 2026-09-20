@@ -187,7 +187,13 @@ Their public, non-virtual, non-template member functions define the protocol;
   and static member functions on the conforming type (a static candidate has
   no object parameter, so it can satisfy any const or reference qualification
   of the interface member). Static member functions declared on the interface
-  itself are ignored.
+  itself are ignored. That includes `operator new`, `operator delete` and
+  their array forms, which are implicitly static.
+
+- Allocation: `protocol`, like `std::polymorphic`, allocates and constructs
+  the object it owns only through its allocator. Class-specific allocation
+  functions are never called, whether declared on the interface or on the
+  conforming type.
 
 - Guidance: Developers should refer to `protocol_test.cc`,
   `forwarding_test.cc`, `allocator_tests.cc` and `tutorials/reflection.cc` for

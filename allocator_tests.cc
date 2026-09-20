@@ -100,6 +100,33 @@ TEST(ProtocolTest, InPlaceConstruction) {
   EXPECT_EQ(deallocs, 1);
 }
 
+TEST(ProtocolTest, ClassSpecificAllocationFunctionsAreNotUsed) {
+  // Like std::polymorphic, protocol allocates and constructs only through its
+  // allocator, so it can own a type whose allocation functions are deleted.
+  struct NoNew {
+    [[maybe_unused]] std::array<std::byte, sizeof(TestProtocol)> padding_{};
+
+    static void* operator new(std::size_t) = delete;
+    static void operator delete(void*) = delete;
+
+    int value() const noexcept { return 7; }
+  };
+
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+  {
+    TestAlloc alloc{&allocs, &deallocs};
+    TestProtocol p{std::allocator_arg, alloc, std::in_place_type<NoNew>};
+    TestProtocol copy{p};
+
+    EXPECT_EQ(copy.value(), 7);
+    EXPECT_EQ(allocs, 2);
+    EXPECT_EQ(deallocs, 0);
+  }
+  EXPECT_EQ(allocs, 2);
+  EXPECT_EQ(deallocs, 2);
+}
+
 TEST(ProtocolTest, InitListConstruction) {
   unsigned allocs = 0;
   unsigned deallocs = 0;
