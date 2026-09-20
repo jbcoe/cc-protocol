@@ -2,7 +2,9 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <compare>
+#include <meta>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -523,6 +525,92 @@ struct InterfaceWithNamedMemberFunctionTemplate {
   template <typename T>
   void named_template(T);
 };
+
+TEST(ConformsToTest, ReservedMemberNamesAreRejected) {
+  struct SwapInterface {
+    void swap(SwapInterface&);
+  };
+
+  struct GetAllocatorInterface {
+    int get_allocator() const;
+  };
+
+  struct AllocatorTypeInterface {
+    int allocator_type() const;
+  };
+
+  struct Candidate {
+    void swap(SwapInterface&) {}
+
+    int get_allocator() const { return 0; }
+
+    int allocator_type() const { return 0; }
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(conformance_check_rejects<SwapInterface, Candidate>());
+  static_assert(conformance_check_rejects<GetAllocatorInterface, Candidate>());
+  static_assert(conformance_check_rejects<AllocatorTypeInterface, Candidate>());
+  static_assert(
+      conformance_rejection_message_contains<GetAllocatorInterface, Candidate>(
+          "reserved member name 'get_allocator'"));
+#endif  // __cpp_constexpr_exceptions
+}
+
+TEST(ConformsToTest, StaticInterfaceMemberWithReservedNameIsIgnored) {
+  struct Interface {
+    static void swap(Interface&, Interface&);
+    int f() const;
+  };
+
+  struct Candidate {
+    int f() const { return 0; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Candidate>());
+}
+
+// Returns `true` if the public members of `type` that have an identifier are
+// exactly those `reserved_member_names` lists.
+consteval bool public_member_names_are_reserved(std::meta::info type) {
+  std::vector<std::string_view> names;
+  for (std::meta::info member :
+       members_of(type, std::meta::access_context::unprivileged())) {
+    if (has_identifier(member)) names.push_back(identifier_of(member));
+  }
+  return std::ranges::all_of(names,
+                             [](std::string_view name) {
+                               return std::ranges::contains(
+                                   xyz::detail::reserved_member_names, name);
+                             }) &&
+         std::ranges::all_of(xyz::detail::reserved_member_names,
+                             [&](std::string_view name) {
+                               return std::ranges::contains(names, name);
+                             });
+}
+
+// Returns `true` if `type` has no public member with an identifier.
+consteval bool has_no_public_member_names(std::meta::info type) {
+  return std::ranges::none_of(
+      members_of(type, std::meta::access_context::unprivileged()),
+      std::meta::has_identifier);
+}
+
+// A public member added to `protocol` or `protocol_view` hides an interface
+// member function of the same name, so it has to be added to
+// `reserved_member_names` too; prefer a hidden friend, which reserves no name.
+TEST(ConformsToTest, ReservedMemberNamesAreThePublicMembersOfProtocol) {
+  struct Interface {
+    int f() const;
+  };
+
+  static_assert(
+      public_member_names_are_reserved(^^xyz::reflection::protocol<Interface>));
+  static_assert(
+      has_no_public_member_names(^^xyz::reflection::protocol_view<Interface>));
+  static_assert(has_no_public_member_names(
+      ^^xyz::reflection::protocol_view<const Interface>));
+}
 
 TEST(ConformsToTest, RejectionMessageNamesTheMember) {
   struct RefQualifiedInterface {
