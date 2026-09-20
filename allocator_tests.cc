@@ -117,7 +117,10 @@ TEST(ProtocolTest, ClassSpecificAllocationFunctionsAreNotUsed) {
   {
     TestAlloc alloc{&allocs, &deallocs};
     TestProtocol p{std::allocator_arg, alloc, std::in_place_type<NoNew>};
+    // NOLINTBEGIN(performance-unnecessary-copy-initialization): the copy has
+    // to allocate through the allocator too.
     TestProtocol copy{p};
+    // NOLINTEND(performance-unnecessary-copy-initialization)
 
     EXPECT_EQ(copy.value(), 7);
     EXPECT_EQ(allocs, 2);
