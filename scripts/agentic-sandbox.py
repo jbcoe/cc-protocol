@@ -6,12 +6,30 @@ Supported agents: Claude Code, Antigravity CLI.
 """
 
 import argparse
+import hashlib
 import os
+import re
 import subprocess
 import sys
 from typing import TypedDict
 
 IMAGE_NAME = "cc-protocol-sandbox"
+
+# Files baked into the image, together with the googletest tag in
+# CMakeLists.txt. A change to any of them leaves an existing image stale.
+# Keep in sync with the bind mounts in docker/Dockerfile, the `paths` filters
+# in .github/workflows/docker.yml and the list in CONTRIBUTING.md.
+IMAGE_INPUT_FILES = (
+    "docker/Dockerfile",
+    ".bazelversion",
+    "MODULE.bazel",
+    "MODULE.bazel.lock",
+    "pyproject.toml",
+    "uv.lock",
+)
+
+# Image label holding the hash of the inputs the image was built from.
+INPUT_HASH_LABEL = "com.github.jbcoe.cc-protocol.input-hash"
 
 
 class AgentCli(TypedDict):
@@ -31,6 +49,35 @@ AGENT_CLIS: dict[str, AgentCli] = {
         "cmd": "agy",
     },
 }
+
+
+def _image_input_hash(project_root: str) -> str:
+    """Hash the image input files and the googletest tag in CMakeLists.txt."""
+    digest = hashlib.sha256()
+    for name in IMAGE_INPUT_FILES:
+        with open(os.path.join(project_root, name), "rb") as file:
+            digest.update(name.encode() + b"\0" + file.read() + b"\0")
+    with open(os.path.join(project_root, "CMakeLists.txt"), "rb") as file:
+        for tag in re.findall(rb"^\s*GIT_TAG\s+(\S+)", file.read(), re.MULTILINE):
+            digest.update(tag + b"\0")
+    return digest.hexdigest()
+
+
+def _image_label(label: str) -> str | None:
+    """Read a label from the sandbox image, or return None if there is no image."""
+    result = subprocess.run(
+        [
+            "docker",
+            "image",
+            "inspect",
+            "--format",
+            f'{{{{index .Config.Labels "{label}"}}}}',
+            IMAGE_NAME,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
 
 
 def _seed_config_file(path: str, content: bytes) -> None:
@@ -174,13 +221,9 @@ def main() -> None:
         ["git", "rev-parse", "--show-toplevel"], text=True
     ).strip()
 
-    image_exists = (
-        subprocess.run(
-            ["docker", "image", "inspect", IMAGE_NAME], capture_output=True
-        ).returncode
-        == 0
-    )
-    if args.rebuild_docker or not image_exists:
+    input_hash = _image_input_hash(project_root)
+    built_from_hash = _image_label(INPUT_HASH_LABEL)
+    if args.rebuild_docker or built_from_hash is None:
         log(f"--- Building Docker Sandbox: {IMAGE_NAME} ---")
         subprocess.check_call(
             [
@@ -188,12 +231,19 @@ def main() -> None:
                 "build",
                 "--target",
                 "sandbox",
+                "--label",
+                f"{INPUT_HASH_LABEL}={input_hash}",
                 "-t",
                 IMAGE_NAME,
                 "-f",
                 os.path.join(project_root, "docker/Dockerfile"),
                 project_root,
             ]
+        )
+    elif built_from_hash != input_hash:
+        print(
+            f"The {IMAGE_NAME} image is stale: its inputs have changed since it "
+            "was built. Pass --rebuild-docker to refresh it."
         )
 
     session_name = args.agent.capitalize() if args.agent else "Shell"

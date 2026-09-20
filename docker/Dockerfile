@@ -149,8 +149,17 @@ RUN --mount=type=bind,source=CMakeLists.txt,target=CMakeLists.txt \
         "$FETCHCONTENT_SOURCE_DIR_GOOGLETEST"
 
 # Pre-warm Bazel's repository cache from the target graph so sandbox builds
-# need no network for external dependencies. Last in the stage, since it's
-# the only input here a source edit invalidates. --lockfile_mode=error fails
+# need no network for external dependencies. Only the files that define the
+# graph are mounted; the fetch needs no sources. Last in the stage, since it is
+# the layer most likely to miss the layer cache. --lockfile_mode=error fails
 # the build on a stale MODULE.bazel.lock instead of resolving online.
-RUN --mount=type=bind,source=.,target=. \
+#
+# The files mounted in this stage and .bazelversion above are the image's
+# inputs; keep them in sync with IMAGE_INPUT_FILES in
+# scripts/agentic-sandbox.py.
+RUN --mount=type=bind,source=.bazelrc,target=.bazelrc \
+    --mount=type=bind,source=.bazelversion,target=.bazelversion \
+    --mount=type=bind,source=BUILD.bazel,target=BUILD.bazel \
+    --mount=type=bind,source=MODULE.bazel,target=MODULE.bazel \
+    --mount=type=bind,source=MODULE.bazel.lock,target=MODULE.bazel.lock \
     bazel fetch --lockfile_mode=error //...

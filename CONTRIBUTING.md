@@ -18,8 +18,8 @@ Ubuntu 26.04's `gcc-16` package, or Homebrew's `gcc@16` formula on macOS
 Python dependencies and execute build scripts. The CMake build, used for
 coverage and clang-tidy, additionally needs
 [CMake](https://cmake.org/download/) 3.25 or later. To move to a newer Bazel
-release, bump `.bazelversion` and rebuild the sandbox Docker image so its
-pre-warmed download stays in sync.
+release, bump `.bazelversion`, which is one of the
+[sandbox image inputs](#sandbox-image-inputs).
 
 ### Building and Testing
 
@@ -249,14 +249,27 @@ the rest of the host file system, but the network is unrestricted and the
 project and `~/.claude`, credentials included, are mounted read-write. Pass
 `--skip-permissions` only when that is acceptable.
 
+### Sandbox image inputs
+
 Building the sandbox image populates `uv`'s package cache, Bazel's
 repository cache, and a googletest checkout, so builds afterwards need no
-network. The caches may become stale if a dependency changes, and an offline
-sandbox (`--offline`) cannot build against a stale cache. If you plan to build
-offline, run `--rebuild-docker` first whenever a dependency has changed;
-ordinary source edits don't trigger that requirement. `uv run pre-commit run
---all-files` downloads its hook repositories into `~/.cache/pre-commit` fresh in
-every container, so it (currently) needs the network every time.
+network. The image is built from:
+
+- `docker/Dockerfile`
+- `.bazelversion`
+- `MODULE.bazel` and `MODULE.bazel.lock`
+- `pyproject.toml` and `uv.lock`
+- the googletest `GIT_TAG` in `CMakeLists.txt`
+
+Source edits never need a rebuild. When one of the inputs changes, the script
+prints a hint to pass `--rebuild-docker` and starts the existing image. A stale
+image still works, because Bazel and `uv` fetch what it lacks from the network;
+only an offline sandbox (`--offline`) fails. The googletest checkout is the
+exception: CMake builds stay on the old tag until the image is rebuilt.
+
+`uv run pre-commit run --all-files` downloads its hook repositories into
+`~/.cache/pre-commit` fresh in every container, so it (currently) needs the
+network every time.
 
 ### Using pre-commit Locally to run Github Workflow checks
 
