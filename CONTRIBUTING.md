@@ -261,11 +261,12 @@ network. The image is built from:
 - `pyproject.toml` and `uv.lock`
 - the googletest `GIT_TAG` in `CMakeLists.txt`
 
-Source edits never need a rebuild. When one of the inputs changes, the script
-prints a hint to pass `--rebuild-docker` and starts the existing image. A stale
-image still works, because Bazel and `uv` fetch what it lacks from the network;
-only an offline sandbox (`--offline`) fails. The googletest checkout is the
-exception: CMake builds stay on the old tag until the image is rebuilt.
+Source edits never need a container rebuild. When one of the inputs changes,
+the script prints a hint to pass `--rebuild-docker` and starts the existing
+image. A stale image still works, because Bazel and `uv` fetch what it lacks
+from the network; only an offline sandbox (`--offline`) fails. The googletest
+checkout is the exception: CMake builds stay on the old tag until the image is
+rebuilt.
 
 `uv run pre-commit run --all-files` downloads its hook repositories into
 `~/.cache/pre-commit` fresh in every container, so it (currently) needs the
