@@ -21,6 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define XYZ_PROTOCOL_CONFORMANCE_HH_
 
 #include <algorithm>
+#include <array>
 #include <meta>
 #include <ranges>
 #include <span>
@@ -216,6 +217,19 @@ consteval bool is_comparison_operator(std::meta::operators op) {
          op == op_greater_equals || op == op_spaceship;
 }
 
+// The names `protocol` declares as public members. Interface member functions
+// are forwarded by members of a base class of `protocol`, so one with a name
+// listed here would be hidden on `protocol` while `protocol_view`, which
+// declares no named members, would still forward it.
+inline constexpr std::array<std::string_view, 3> reserved_member_names = {
+    "allocator_type", "get_allocator", "swap"};
+
+// Returns `true` if `member` has a name `reserved_member_names` lists.
+consteval bool has_reserved_member_name(std::meta::info member) {
+  return has_identifier(member) &&
+         std::ranges::contains(reserved_member_names, identifier_of(member));
+}
+
 // Throws if `type` has a non-static member function template, operator
 // template or conversion function template. A template cannot be forwarded
 // through a vtable, and `named_member_function_infos` does not return one, so
@@ -269,10 +283,11 @@ consteval void reject_placeholder_conversion_functions() {
 
 // The named, non-static, non-special member functions, operators and
 // conversion functions of `Type`, in declaration order.
-// Ref-qualified functions, explicit-object member functions, member function
-// templates, conversion functions to `auto` or `decltype(auto)`, defaulted
-// comparison operators, comparisons with `Type` and the operators
-// `is_unsupported_operator` names are unsupported on protocol interfaces.
+// Functions with a name in `reserved_member_names`, ref-qualified functions,
+// explicit-object member functions, member function templates, conversion
+// functions to `auto` or `decltype(auto)`, defaulted comparison operators,
+// comparisons with `Type` and the operators `is_unsupported_operator` names
+// are unsupported on protocol interfaces.
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   reject_member_function_templates(Type);
@@ -280,6 +295,9 @@ consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   std::vector<std::meta::info> result;
   for (std::meta::info member : conformance_candidates_of<Type>) {
     if (is_static_member(member)) continue;
+    if (has_reserved_member_name(member)) {
+      reject_interface_member("reserved member name", member);
+    }
     if (is_lvalue_reference_qualified(member) ||
         is_rvalue_reference_qualified(member)) {
       reject_interface_member("ref-qualified member function", member);

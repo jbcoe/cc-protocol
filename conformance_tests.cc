@@ -2,7 +2,10 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <compare>
+#include <meta>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -616,6 +619,93 @@ struct InterfaceWithNamedMemberFunctionTemplate {
   template <typename T>
   void named_template(T);
 };
+
+TEST(ConformsToTest, ReservedMemberNamesAreRejected) {
+  struct SwapInterface {
+    void swap(SwapInterface&) noexcept;
+  };
+
+  struct GetAllocatorInterface {
+    int get_allocator() const;
+  };
+
+  struct AllocatorTypeInterface {
+    int allocator_type() const;
+  };
+
+  struct Candidate {
+    void swap(SwapInterface&) noexcept {}
+
+    int get_allocator() const { return 0; }
+
+    int allocator_type() const { return 0; }
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(conformance_check_rejects<SwapInterface, Candidate>());
+  static_assert(conformance_check_rejects<GetAllocatorInterface, Candidate>());
+  static_assert(conformance_check_rejects<AllocatorTypeInterface, Candidate>());
+  static_assert(
+      conformance_rejection_message_contains<GetAllocatorInterface, Candidate>(
+          "reserved member name 'get_allocator'"));
+#endif  // __cpp_constexpr_exceptions
+}
+
+TEST(ConformsToTest, StaticInterfaceMemberWithReservedNameIsIgnored) {
+  struct Interface {
+    static void swap(Interface&, Interface&) noexcept;
+    int f() const;
+  };
+
+  struct Candidate {
+    int f() const { return 0; }
+  };
+
+  static_assert(is_protocol_conformant<Interface, Candidate>());
+}
+
+// clang-p2996 Workaround: the fork's `members_of` returns private type
+// aliases through an unprivileged access context and its `is_public` is
+// `false` for public ones, so the public members of a class cannot be
+// enumerated there.
+#ifndef __clang__
+// Returns `true` if the identifiers of the public members of `type` are
+// exactly `expected`.
+consteval bool public_member_names_are(
+    std::meta::info type, std::span<const std::string_view> expected) {
+  std::vector<std::string_view> names;
+  for (std::meta::info member :
+       members_of(type, std::meta::access_context::unprivileged())) {
+    if (has_identifier(member)) names.push_back(identifier_of(member));
+  }
+  std::ranges::sort(names);
+  names.erase(std::ranges::unique(names).begin(), names.end());
+  std::vector<std::string_view> sorted_expected(expected.begin(),
+                                                expected.end());
+  std::ranges::sort(sorted_expected);
+  return names == sorted_expected;
+}
+#endif  // __clang__
+
+// A public member added to `protocol` or `protocol_view` hides an interface
+// member function of the same name, so it has to be added to
+// `reserved_member_names` too; prefer a hidden friend, which reserves no name.
+TEST(ConformsToTest, ReservedMemberNamesAreThePublicMembersOfProtocol) {
+  struct Interface {
+    int f() const;
+  };
+
+#ifndef __clang__
+  static_assert(public_member_names_are(^^xyz::reflection::protocol<Interface>,
+                                        xyz::detail::reserved_member_names));
+  static_assert(
+      public_member_names_are(^^xyz::reflection::protocol_view<Interface>, {
+                                                                           }));
+  static_assert(public_member_names_are(
+      ^^xyz::reflection::protocol_view<const Interface>, {
+                                                         }));
+#endif  // __clang__
+}
 
 TEST(ConformsToTest, RejectionMessageNamesTheMember) {
   struct RefQualifiedInterface {
