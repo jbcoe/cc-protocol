@@ -140,11 +140,13 @@ RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
 # Clone googletest into the image so CMake builds need no network. With
 # FETCHCONTENT_SOURCE_DIR_GOOGLETEST set, FetchContent performs no download or
 # update step and each build tree still compiles its own copy. The tag is read
-# from CMakeLists.txt's GIT_TAG so the two can't drift out of sync.
+# from CMakeLists.txt's GIT_TAG so the two can't drift out of sync. Only the
+# tag on the first GIT_TAG line is taken, so a trailing comment or a CRLF line
+# ending never reaches git.
 ENV FETCHCONTENT_SOURCE_DIR_GOOGLETEST="/home/vscode/.cache/googletest-src"
 RUN --mount=type=bind,source=CMakeLists.txt,target=CMakeLists.txt \
     git clone --depth 1 \
-        --branch "$(sed -n 's/^ *GIT_TAG *//p' CMakeLists.txt)" \
+        --branch "$(sed -n '/^\s*GIT_TAG\s\+\([^[:space:]#]\+\).*/{s//\1/p;q}' CMakeLists.txt)" \
         https://github.com/google/googletest.git \
         "$FETCHCONTENT_SOURCE_DIR_GOOGLETEST"
 
