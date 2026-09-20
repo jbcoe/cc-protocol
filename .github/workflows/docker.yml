@@ -8,11 +8,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/docker.yml" # This file
-      # The files the image is built from: IMAGE_INPUT_FILES in
-      # scripts/agentic-sandbox.py and the other bind mounts in the Dockerfile.
       - ".bazelrc"
       - ".bazelversion"
-      - "BUILD.bazel"
+      - "**/BUILD.bazel"
       - "CMakeLists.txt"
       - "MODULE.bazel"
       - "MODULE.bazel.lock"
@@ -24,11 +22,9 @@ on:
     paths:
       # Keep in sync with the `push.paths` list above.
       - ".github/workflows/docker.yml" # This file
-      # The files the image is built from: IMAGE_INPUT_FILES in
-      # scripts/agentic-sandbox.py and the other bind mounts in the Dockerfile.
       - ".bazelrc"
       - ".bazelversion"
-      - "BUILD.bazel"
+      - "**/BUILD.bazel"
       - "CMakeLists.txt"
       - "MODULE.bazel"
       - "MODULE.bazel.lock"
@@ -55,15 +51,24 @@ jobs:
       - name: Build the sandbox stage
         run: docker build --target sandbox -t "$IMAGE_NAME" -f docker/Dockerfile .
 
-      # Without network access, so an input that was not baked into the image
-      # fails here instead of downloading silently.
-      - name: Check Bazel and uv need no network
+      # Every check runs without network access, so anything the image failed
+      # to bake fails here, naming the download it wanted, instead of being
+      # fetched silently.
+      - name: Check Bazel resolves its external dependencies offline
         run: |
           docker run --rm --network none -v "$PWD:/workspace:ro" "$IMAGE_NAME" \
-            bash -c 'bazel fetch --lockfile_mode=error //... && uv sync --locked --offline'
+            bazel build --nobuild --lockfile_mode=error //...
+
+      - name: Check uv installs the locked packages offline
+        run: |
+          docker run --rm --network none -v "$PWD:/workspace:ro" "$IMAGE_NAME" \
+            uv sync --locked --offline
 
       - name: Check the baked googletest checkout matches CMakeLists.txt
         run: |
-          docker run --rm --network none -v "$PWD:/workspace:ro" "$IMAGE_NAME" \
-            bash -c 'tag="$(git -C "$FETCHCONTENT_SOURCE_DIR_GOOGLETEST" describe --tags --exact-match)" \
-              && grep -q "GIT_TAG *$tag" CMakeLists.txt'
+          docker run --rm --network none -v "$PWD:/workspace:ro" "$IMAGE_NAME" bash -euc '
+            baked="$(git -C "$FETCHCONTENT_SOURCE_DIR_GOOGLETEST" describe --tags --exact-match)"
+            echo "Baked googletest tag: $baked"
+            echo "CMakeLists.txt pins:"
+            grep -n "GIT_TAG" CMakeLists.txt
+            grep -q "GIT_TAG *$baked\$" CMakeLists.txt'
