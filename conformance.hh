@@ -234,15 +234,45 @@ consteval void reject_member_function_templates(std::meta::info type) {
   }
 }
 
+// Throws if `member`, a conversion function named by
+// `reject_placeholder_conversion_functions`, is one `members_of` would have
+// returned had its return type been deduced.
+consteval void reject_placeholder_conversion_function(std::meta::info member) {
+  if (!is_accessible(member, std::meta::access_context::unprivileged())) {
+    return;
+  }
+  reject_interface_member("conversion function with a placeholder return type",
+                          member);
+}
+
+// Throws if `T` declares `operator auto()` or `operator decltype(auto)()`
+// without a body. The return type of such a function is never deduced, so
+// `members_of` does not return it ([meta.reflection.member.queries]) and
+// without this check an interface would silently lose the member. The
+// function can only be found by naming it, so any other member function
+// declared with a placeholder return type and no body, such as
+// `auto f() const;` or `operator const auto&() const;`, is still lost. One
+// with a body has its return type deduced and is an ordinary member.
+template <typename T>
+consteval void reject_placeholder_conversion_functions() {
+  if constexpr (requires { ^^T::operator auto; }) {
+    reject_placeholder_conversion_function(^^T::operator auto);
+  }
+  if constexpr (requires { ^^T::operator decltype(auto); }) {
+    reject_placeholder_conversion_function(^^T::operator decltype(auto));
+  }
+}
+
 // The named, non-static, non-special member functions, operators and
 // conversion functions of `Type`, in declaration order.
 // Ref-qualified functions, explicit-object member functions, member function
-// templates, defaulted comparison operators, comparisons with `Type` and the
-// operators `is_unsupported_operator` names are unsupported on protocol
-// interfaces.
+// templates, conversion functions to `auto` or `decltype(auto)`, defaulted
+// comparison operators, comparisons with `Type` and the operators
+// `is_unsupported_operator` names are unsupported on protocol interfaces.
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   reject_member_function_templates(Type);
+  reject_placeholder_conversion_functions<typename[:Type:]>();
   std::vector<std::meta::info> result;
   for (std::meta::info member : conformance_candidates_of<Type>) {
     if (is_static_member(member)) continue;
