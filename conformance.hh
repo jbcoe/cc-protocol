@@ -288,6 +288,12 @@ consteval void reject_placeholder_conversion_functions() {
 // functions to `auto` or `decltype(auto)`, defaulted comparison operators,
 // comparisons with `Type` and the operators `is_unsupported_operator` names
 // are unsupported on protocol interfaces.
+// Static member functions of `Type` are ignored; a static member function of
+// a candidate can still conform, see `member_function_conforms_to`. The
+// ignored functions include `operator new`, `operator delete` and their array
+// forms, which are static without being declared so: like `std::polymorphic`,
+// `protocol` allocates only through its allocator, so a class-specific
+// allocation function has nothing to do.
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
   reject_member_function_templates(Type);
