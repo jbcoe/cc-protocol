@@ -505,7 +505,9 @@ TEST(ConformsToTest, InterfaceConstructorAndStaticTemplatesAreIgnored) {
 
 TEST(ConformsToTest, InterfaceAllocationOperatorsAreIgnored) {
   // Allocation and deallocation functions are static without being declared
-  // so, and are ignored as any other static member of an interface is.
+  // so, and are ignored as any other static member of an interface is. Static
+  // members of a candidate are not ignored: see
+  // StaticCandidateConformsToNonConstMember.
   struct Interface {
     int f() const;
 
