@@ -41,10 +41,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # gcc-16. It installs to /opt/gcc-latest; scripts/cmake.py locates it there
 # explicitly, and CMakeLists.txt adds a build rpath so linked executables can
 # find its libstdc++ at runtime without any PATH or LD_LIBRARY_PATH changes.
+# The snapshot is pinned to the one CI installs; the reason is with the
+# package-url default in .github/actions/install-gcc-trunk/action.yml.
 RUN ARCH=$(dpkg --print-architecture) && \
     case "$ARCH" in \
         amd64) \
-            wget -nv https://kayari.org/gcc-latest/gcc-latest.deb -O /tmp/gcc-latest.deb \
+            wget -nv https://kayari.org/gcc-latest/gcc-latest_17.0.0-20260906gitb6dabcdc335a.deb -O /tmp/gcc-latest.deb \
             && apt-get update && apt-get install -y --no-install-recommends /tmp/gcc-latest.deb \
             && rm -f /tmp/gcc-latest.deb \
             && rm -rf /var/lib/apt/lists/* \
