@@ -9,12 +9,19 @@ description: >-
 inputs:
   package-url:
     description: >-
-      URL of the snapshot .deb. The default tracks upstream weekly; if a
-      snapshot regression breaks a job, pin the versioned file linked from
-      https://jwakely.github.io/pkg-gcc-latest/, e.g.
-      https://kayari.org/gcc-latest/gcc-latest_17.0.0-20260816git8df013222dff.deb
+      URL of the snapshot .deb. https://kayari.org/gcc-latest/gcc-latest.deb
+      tracks upstream weekly; when a snapshot regression breaks a job, pin
+      the versioned file linked from https://jwakely.github.io/pkg-gcc-latest/
+      instead, and keep docker/Dockerfile on the same snapshot.
     required: false
-    default: https://kayari.org/gcc-latest/gcc-latest.deb
+    # Pinned to the 2026-09-06 snapshot. From r17-4197 (P4101 consteval-only
+    # values, 2026-09-13) onward, any -flto build of the tests fails with
+    # "tree code 'lang_type' is not supported in LTO streams" (GCC PR126017),
+    # and -fsanitize=null or vptr rejects the `template for` over
+    # enumerators_of in tutorials/03_reflection.cc with "consteval-only value
+    # outside an immediate function context". Restore gcc-latest.deb once a
+    # snapshot fixes both.
+    default: https://kayari.org/gcc-latest/gcc-latest_17.0.0-20260906gitb6dabcdc335a.deb
 
 runs:
   using: composite
