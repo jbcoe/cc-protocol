@@ -151,10 +151,13 @@ be constructed from a const object, a `const protocol<I>` or a
 `protocol_view<I>`.
 
 Unlike `polymorphic`, `protocol` and `protocol_view` do not provide `operator*`
-or `operator->` (or const-overloads) as there is no common base type to form a
-pointer or reference. Member functions from a `protocol` or `protocol_view` are
-generated so that the `protocol` or `protocol_view` is a valid structural subtype
-and can be called with traditional `instance.member_function(args)` syntax.
+or `operator->` (or const-overloads) of their own to reach the owned object, as
+there is no common base type to form a pointer or reference. If the interface
+`I` declares `operator*` or `operator->`, `protocol<I>` and `protocol_view<I>`
+forward them like any other member function. Member functions from a
+`protocol` or `protocol_view` are generated so that the `protocol` or
+`protocol_view` is a valid structural subtype and can be called with
+traditional `instance.member_function(args)` syntax.
 
 ```c++
 struct I {
@@ -620,16 +623,13 @@ header `<protocol>`.
 
 ## Reference Implementation
 
-A reference implementation, using an AST-based Python code generator to simulate
-post-C++26 code injection, is available at
+A reference implementation in C++26, using static reflection to generate the
+member functions and vtables, is available at
 <https://github.com/jbcoe/cc-protocol>. The implementation demonstrates the
 feasibility of vtable generation, allocator awareness, and the value semantics
 properties required by this proposal.
 
 ## Acknowledgements
-
-The authors would like to thank Billy Baker, Tony van Eerd and the BSI C++
-Panel for suggestions and useful discussion.
 
 The authors would like to thank Billy Baker, Tony van Eerd and the BSI C++
 Panel for suggestions and useful discussion.
