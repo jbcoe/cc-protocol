@@ -48,10 +48,32 @@ consteval std::meta::info function_pointer_type_of(
   return substitute(^^fn_ptr_t, fn_args);
 }
 
+enum class member_qualifiers {
+  unqualified,
+  const_qualified,
+  lvalue,
+  rvalue,
+  const_lvalue,
+  const_rvalue,
+};
+
+consteval member_qualifiers member_qualifiers_of(std::meta::info member) {
+  if (is_lvalue_reference_qualified(member)) {
+    return is_const(member) ? member_qualifiers::const_lvalue
+                            : member_qualifiers::lvalue;
+  }
+  if (is_rvalue_reference_qualified(member)) {
+    return is_const(member) ? member_qualifiers::const_rvalue
+                            : member_qualifiers::rvalue;
+  }
+  return is_const(member) ? member_qualifiers::const_qualified
+                          : member_qualifiers::unqualified;
+}
+
 // One overload of a synthesised member function or operator: the interface
-// member (which names its vtable entry) and the const-qualification of the
-// generated wrapper.
-template <std::meta::info Member, bool IsConst>
+// member (which names its vtable entry) and the const and ref qualifiers of
+// the generated wrapper.
+template <std::meta::info Member, member_qualifiers MemberQualifiers>
 struct overload_spec {};
 
 }  // namespace xyz::detail

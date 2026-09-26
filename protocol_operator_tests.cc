@@ -25,8 +25,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <compare>
 #include <iterator>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 
 #include "protocol.hh"
 #include "test_helpers.h"
@@ -1628,5 +1630,69 @@ TEST(ReflectionProtocolTest, ComparisonWithStringViewAndSentinelOperands) {
   protocol_view<const Interface> pcv(c);
   EXPECT_TRUE(pcv == "");
   EXPECT_TRUE(std::default_sentinel == pcv);
+}
+
+TEST(ReflectionProtocolTest, RefQualifiedCallOperators) {
+  struct Interface {
+    int operator()() &;
+    int operator()() const&;
+    int operator()() &&;
+  };
+
+  struct Conforming {
+    int operator()() & { return 1; }
+
+    int operator()() const& { return 2; }
+
+    int operator()() && { return 3; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p(), 1);
+
+  const protocol<Interface>& const_p = p;
+  EXPECT_EQ(const_p(), 2);
+
+  EXPECT_EQ(std::move(p)(), 3);
+
+  Conforming c;
+  protocol_view<Interface> pv(c);
+  EXPECT_EQ(pv(), 1);
+  EXPECT_EQ(protocol_view<Interface>(c)(), 1);
+}
+
+TEST(ReflectionProtocolTest, RefQualifiedBinaryOperator) {
+  struct Interface {
+    int operator+(int) const&;
+    int operator+(int) &&;
+  };
+
+  struct Conforming {
+    int operator+(int value) const& { return value + 1; }
+
+    int operator+(int value) && { return value + 2; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  EXPECT_EQ(p + 10, 11);
+  EXPECT_EQ(std::move(p) + 10, 12);
+}
+
+TEST(ReflectionProtocolTest, RvalueQualifiedConversion) {
+  struct Interface {
+    explicit operator std::string() &&;
+  };
+
+  struct Conforming {
+    std::string text;
+
+    explicit operator std::string() && { return std::move(text); }
+  };
+
+  static_assert(std::is_constructible_v<std::string, protocol<Interface>>);
+  static_assert(!std::is_constructible_v<std::string, protocol<Interface>&>);
+
+  protocol<Interface> p(Conforming{"converted"});
+  EXPECT_EQ(static_cast<std::string>(std::move(p)), "converted");
 }
 }  // namespace

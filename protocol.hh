@@ -76,8 +76,8 @@ consteval bool is_protocol_conformant() {
   // assumed to be negligible at compile time.
   // TODO(jbcoe): Use set/map once there is library support for `constexpr`.
   // Calls `protocol_interface_function_infos` rather than reading
-  // `protocol_interface_functions_of` so that the rejection of a
-  // ref-qualified interface member is thrown from this function, where a
+  // `protocol_interface_functions_of` so that the rejection of an
+  // unsupported interface member is thrown from this function, where a
   // caller can catch it, instead of escaping a variable initializer.
   if constexpr (std::is_class_v<Candidate>) {
     auto interface_member_functions =
@@ -164,9 +164,9 @@ class protocol
   using view_vtable = detail::vtable_t<I>;
 
   // Extends the generated per-member-function vtable with the entries needed
-  // for ownership. Because it derives from `view_vtable`, the synthesised
-  // member function thunks (which take a `const view_vtable*`) can call
-  // through a `const vtable*` unchanged.
+  // for ownership. Because it derives from `view_vtable`,
+  // `call_through_vtable` can look entries up in `view_vtable` through a
+  // `const vtable*`.
   struct vtable : view_vtable {
     void (*destroy)(const Alloc& alloc, void* data);
     void* (*copy)(const Alloc& alloc, const void* data);
@@ -230,20 +230,12 @@ class protocol
 
   static constexpr vtable null_vtable = make_null_vtable();
 
-  // Grants the synthesised member thunks access to `object_`/`vtable_` so
-  // they can locate and call through the matching vtable entry.
-  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst>
-  friend struct detail::member_function_thunk;
-
-  template <std::meta::operators Operator, typename FnPtrType,
-            typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
-  friend struct detail::operator_thunk;
-
-  template <typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
-  friend struct detail::conversion_thunk;
+  // Grants `call_through_vtable` access to `object_`/`vtable_` so it can
+  // locate and call through the matching vtable entry.
+  template <std::meta::info Member, typename Vtable, typename ProtocolObject,
+            typename... Args>
+  friend decltype(auto) detail::call_through_vtable(
+      ProtocolObject* protocol_object, Args&&... args);
 
   // Grants `protocol_view` access so that a view of a protocol can share its
   // vtable.
@@ -551,20 +543,12 @@ class protocol_view
   template <is_valid_view_interface>
   friend class protocol_view;
 
-  // Grants the synthesised member thunks access to `object_`/`vtable_` so
-  // they can locate and call through the matching vtable entry.
-  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst>
-  friend struct detail::member_function_thunk;
-
-  template <std::meta::operators Operator, typename FnPtrType,
-            typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
-  friend struct detail::operator_thunk;
-
-  template <typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
-  friend struct detail::conversion_thunk;
+  // Grants `call_through_vtable` access to `object_`/`vtable_` so it can
+  // locate and call through the matching vtable entry.
+  template <std::meta::info Member, typename Vtable, typename ProtocolObject,
+            typename... Args>
+  friend decltype(auto) detail::call_through_vtable(
+      ProtocolObject* protocol_object, Args&&... args);
 
   template <typename U>
     requires(is_protocol_conformant_v<T, std::decay_t<U>>)
@@ -653,20 +637,12 @@ class protocol_view<const T>
       : object_(view.object_), vtable_(view.vtable_) {}
 
  private:
-  // Grants the synthesised member thunks access to `object_`/`vtable_` so
-  // they can locate and call through the matching vtable entry.
-  template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst>
-  friend struct detail::member_function_thunk;
-
-  template <std::meta::operators Operator, typename FnPtrType,
-            typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
-  friend struct detail::operator_thunk;
-
-  template <typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
-  friend struct detail::conversion_thunk;
+  // Grants `call_through_vtable` access to `object_`/`vtable_` so it can
+  // locate and call through the matching vtable entry.
+  template <std::meta::info Member, typename Vtable, typename ProtocolObject,
+            typename... Args>
+  friend decltype(auto) detail::call_through_vtable(
+      ProtocolObject* protocol_object, Args&&... args);
 
   template <typename U>
     requires(is_protocol_conformant_v<T, std::decay_t<U>>)

@@ -55,22 +55,23 @@ consteval std::meta::info find_vtable_entry() {
                            std::string(name) + "'");
 }
 
-// Calls the `Vtable` entry for `Member`. `Vtable` is named by the caller, not
-// deduced: an owning vtable that derives from it converts at the call, so the
-// type searched for the entry is the type the entry is spliced into.
+// Calls the `Vtable` entry for `Member`. A protocol's `vtable_` points to a
+// type derived from `Vtable`, and `find_vtable_entry` does not search base
+// classes, so the caller names `Vtable` and the lookup uses it.
 template <std::meta::info Member, typename Vtable, typename ProtocolObject,
-          typename Object, typename... Args>
+          typename... Args>
 [[gnu::always_inline]] inline decltype(auto) call_through_vtable(
-    [[maybe_unused]] ProtocolObject* protocol_object, const Vtable* vtable,
-    Object object, Args&&... args) {
+    ProtocolObject* protocol_object, Args&&... args) {
   if constexpr (xyz::reflection::is_protocol_v<
                     std::remove_cv_t<ProtocolObject>>) {
     assert(!valueless_after_move(*protocol_object) &&
            "cannot call member function of valueless protocol");
   }
+  const Vtable* vtable = protocol_object->vtable_;
   constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
-  return vtable->[:vtable_entry:](object, std::forward<Args>(args)...);
+  return vtable->[:vtable_entry:](protocol_object->object_,
+                                  std::forward<Args>(args)...);
 }
 
 // Returns a list of data_member_spec values, one for each member function
@@ -121,29 +122,41 @@ using vtable_t = typename vtable_generator<T>::type;
 
 // Trampolines translate type-erased calls to vtable functions to member
 // function calls on the underlying (owned or viewed) object.
-template <typename FnPtrType, typename U, std::meta::info CandidateMember>
+template <typename FnPtrType, typename U, std::meta::info Member,
+          std::meta::info CandidateMember>
 struct mutable_view_trampoline;
 
 template <typename R, typename... Args, bool Noexcept, typename U,
-          std::meta::info CandidateMember>
+          std::meta::info Member, std::meta::info CandidateMember>
 struct mutable_view_trampoline<R (*)(void*, Args...) noexcept(Noexcept), U,
-                               CandidateMember> {
+                               Member, CandidateMember> {
   static R operator()(void* ptr, Args... args) noexcept(Noexcept) {
-    return static_cast<U*>(ptr)->[:CandidateMember:](
-        std::forward<Args>(args)...);
+    if constexpr (is_rvalue_reference_qualified(Member)) {
+      return std::move(*static_cast<U*>(ptr)).[:CandidateMember:](
+          std::forward<Args>(args)...);
+    } else {
+      return static_cast<U*>(ptr)->[:CandidateMember:](
+          std::forward<Args>(args)...);
+    }
   }
 };
 
-template <typename FnPtrType, typename U, std::meta::info CandidateMember>
+template <typename FnPtrType, typename U, std::meta::info Member,
+          std::meta::info CandidateMember>
 struct const_view_trampoline;
 
 template <typename R, typename... Args, bool Noexcept, typename U,
-          std::meta::info CandidateMember>
+          std::meta::info Member, std::meta::info CandidateMember>
 struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
-                             CandidateMember> {
+                             Member, CandidateMember> {
   static R operator()(const void* ptr, Args... args) noexcept(Noexcept) {
-    return static_cast<const U*>(ptr)->[:CandidateMember:](
-        std::forward<Args>(args)...);
+    if constexpr (is_rvalue_reference_qualified(Member)) {
+      return std::move(*static_cast<const U*>(ptr)).[:CandidateMember:](
+          std::forward<Args>(args)...);
+    } else {
+      return static_cast<const U*>(ptr)->[:CandidateMember:](
+          std::forward<Args>(args)...);
+    }
   }
 };
 
@@ -166,13 +179,13 @@ consteval vtable_t<T> make_view_vtable() {
     if constexpr (is_const(member)) {
       constexpr std::meta::info candidate =
           find_conforming_member<member, ^^U>();
-      vtable.[:vtable_member:] = &const_view_trampoline<FnPtrType, U,
+      vtable.[:vtable_member:] = &const_view_trampoline<FnPtrType, U, member,
                                                         candidate>::operator();
     } else /*constexpr*/ {
       constexpr std::meta::info candidate =
           find_conforming_member<member, ^^U>();
       vtable.[:vtable_member:] = &mutable_view_trampoline<
-                                   FnPtrType, U, candidate>::operator();
+                                   FnPtrType, U, member, candidate>::operator();
     }
   }
   return vtable;

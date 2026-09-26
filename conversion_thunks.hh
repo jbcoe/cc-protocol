@@ -37,24 +37,54 @@ using conversion_target_t = typename[:dealias(return_type_of(Member)):];
 // holding it as a data member, letting `ProtocolType` be recovered with a
 // plain static_cast.
 template <typename ProtocolType, typename Vtable, std::meta::info Member,
-          bool IsConst>
+          member_qualifiers Qualifiers>
 struct conversion_thunk {
   explicit(is_explicit(Member)) operator conversion_target_t<Member>() noexcept(
       is_noexcept(Member))
-    requires(!IsConst)
+    requires(Qualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_);
+    return call_through_vtable<Member, Vtable>(protocol_object);
   }
 
   explicit(is_explicit(Member)) operator conversion_target_t<Member>() const
       noexcept(is_noexcept(Member))
-    requires(IsConst)
+    requires(Qualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_);
+    return call_through_vtable<Member, Vtable>(protocol_object);
+  }
+
+  explicit(is_explicit(Member))
+  operator conversion_target_t<Member>() & noexcept(is_noexcept(Member))
+    requires(Qualifiers == member_qualifiers::lvalue)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(protocol_object);
+  }
+
+  explicit(is_explicit(Member))
+  operator conversion_target_t<Member>() && noexcept(is_noexcept(Member))
+    requires(Qualifiers == member_qualifiers::rvalue)
+  {
+    auto* protocol_object = static_cast<ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(protocol_object);
+  }
+
+  explicit(is_explicit(Member)) operator conversion_target_t<Member>()
+      const& noexcept(is_noexcept(Member))
+    requires(Qualifiers == member_qualifiers::const_lvalue)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(protocol_object);
+  }
+
+  explicit(is_explicit(Member)) operator conversion_target_t<Member>()
+      const&& noexcept(is_noexcept(Member))
+    requires(Qualifiers == member_qualifiers::const_rvalue)
+  {
+    const auto* protocol_object = static_cast<const ProtocolType*>(this);
+    return call_through_vtable<Member, Vtable>(protocol_object);
   }
 
  protected:
@@ -70,11 +100,11 @@ struct conversion_thunk {
 template <typename OverloadSpec, typename ProtocolType, typename Vtable>
 struct conversion_thunk_for;
 
-template <std::meta::info Member, bool IsConst, typename ProtocolType,
-          typename Vtable>
-struct conversion_thunk_for<overload_spec<Member, IsConst>, ProtocolType,
+template <std::meta::info Member, member_qualifiers Qualifiers,
+          typename ProtocolType, typename Vtable>
+struct conversion_thunk_for<overload_spec<Member, Qualifiers>, ProtocolType,
                             Vtable> {
-  using type = conversion_thunk<ProtocolType, Vtable, Member, IsConst>;
+  using type = conversion_thunk<ProtocolType, Vtable, Member, Qualifiers>;
 };
 
 template <typename Spec, typename ProtocolType, typename Vtable>
