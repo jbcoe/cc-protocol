@@ -102,8 +102,11 @@ consteval bool same_function_with_explicit_object(std::meta::info candidate,
   if (params.empty() || !is_explicit_object_parameter(params.front()))
     return false;
 
-  if (is_const(interface) !=
-      is_const(remove_reference(type_of(params.front()))))
+  std::meta::info object_type = type_of(params.front());
+  if (is_const(interface) != is_const(remove_reference(object_type)))
+    return false;
+  if (is_rvalue_reference_qualified(interface) !=
+      is_rvalue_reference_type(object_type))
     return false;
 
   return std::ranges::equal(parameters_of(interface),
@@ -283,11 +286,11 @@ consteval void reject_placeholder_conversion_functions() {
 
 // The named, non-static, non-special member functions, operators and
 // conversion functions of `Type`, in declaration order.
-// Functions with a name in `reserved_member_names`, ref-qualified functions,
-// explicit-object member functions, member function templates, conversion
-// functions to `auto` or `decltype(auto)`, defaulted comparison operators,
-// comparisons with `Type` and the operators `is_unsupported_operator` names
-// are unsupported on protocol interfaces.
+// Functions with a name in `reserved_member_names`, explicit-object member
+// functions, member function templates, conversion functions to `auto` or
+// `decltype(auto)`, defaulted comparison operators, comparisons with `Type`
+// and the operators `is_unsupported_operator` names are unsupported on
+// protocol interfaces.
 // Static member functions of `Type` are ignored; a static member function of
 // a candidate can still conform, see `member_function_conforms_to`. The
 // ignored functions include `operator new`, `operator delete` and their array
@@ -303,10 +306,6 @@ consteval std::vector<std::meta::info> protocol_interface_function_infos() {
     if (is_static_member(member)) continue;
     if (has_reserved_member_name(member)) {
       reject_interface_member("reserved member name", member);
-    }
-    if (is_lvalue_reference_qualified(member) ||
-        is_rvalue_reference_qualified(member)) {
-      reject_interface_member("ref-qualified member function", member);
     }
     std::vector<std::meta::info> params = parameters_of(member);
     if (!params.empty() && is_explicit_object_parameter(params.front())) {

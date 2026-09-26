@@ -23,7 +23,7 @@ namespace {
 // ---------------------------------------------------------------------------
 
 // Returns `true` if checking conformance of `Candidate` against `Interface`
-// throws during constant evaluation, as it does for a ref-qualified
+// throws during constant evaluation, as it does for an explicit-object
 // interface member function. Observing the rejection means catching the
 // exception at constant evaluation time (P3068 constexpr exceptions), which
 // GCC trunk implements but the clang-p2996 fork used for clang-tidy does
@@ -139,6 +139,37 @@ TEST(ConformsToTest, WrongParameterTypeDoesNotConform) {
   static_assert(!is_protocol_conformant<Interface, WrongParam>());
 }
 
+TEST(ConformsToTest, RefQualifiersMatchExactly) {
+  struct Interface {
+    int foo() &;
+    int foo() &&;
+  };
+
+  struct BadOverload {
+    int foo();
+  };
+
+  static_assert(!is_protocol_conformant<Interface, BadOverload>());
+}
+
+TEST(ConformsToTest, ExplicitObject) {
+  struct Interface {
+    int foo();
+  };
+
+  struct Conforming {
+    int foo(this Conforming&);
+  };
+
+  static_assert(is_protocol_conformant<Interface, Conforming>());
+
+  struct NonConforming {
+    int foo(this NonConforming&&);
+  };
+
+  static_assert(!is_protocol_conformant<Interface, NonConforming>());
+}
+
 TEST(ConformsToTest, WrongParameterCountDoesNotConform) {
   struct Interface {
     void process(int a, int b);
@@ -206,39 +237,6 @@ TEST(ConformsToTest, NonNoexceptInterfaceAcceptsNoexceptCandidate) {
   };
 
   static_assert(is_protocol_conformant<Interface, NoexceptCandidate>());
-}
-
-TEST(ConformsToTest, RefQualifiedInterfaceMembersAreRejected) {
-  struct LvalueRefInterface {
-    void f() &;
-  };
-
-  struct RvalueRefInterface {
-    void f() &&;
-  };
-
-  struct MatchingLvalueRefCandidate {
-    void f() &;
-  };
-
-  struct MatchingRvalueRefCandidate {
-    void f() &&;
-  };
-
-  struct UnqualifiedCandidate {
-    void f();
-  };
-
-#ifdef __cpp_constexpr_exceptions
-  static_assert(conformance_check_rejects<LvalueRefInterface,
-                                          MatchingLvalueRefCandidate>());
-  static_assert(
-      conformance_check_rejects<LvalueRefInterface, UnqualifiedCandidate>());
-  static_assert(conformance_check_rejects<RvalueRefInterface,
-                                          MatchingRvalueRefCandidate>());
-  static_assert(
-      conformance_check_rejects<RvalueRefInterface, UnqualifiedCandidate>());
-#endif  // __cpp_constexpr_exceptions
 }
 
 TEST(ConformsToTest, UnsupportedOperatorsAreRejected) {
@@ -733,10 +731,6 @@ TEST(ConformsToTest, ReservedMemberNamesAreThePublicMembersOfProtocol) {
 }
 
 TEST(ConformsToTest, RejectionMessageNamesTheMember) {
-  struct RefQualifiedInterface {
-    void named_function() &;
-  };
-
   struct ExplicitObjectInterface {
     void named_function(this ExplicitObjectInterface&);
   };
@@ -755,9 +749,6 @@ TEST(ConformsToTest, RejectionMessageNamesTheMember) {
   struct Candidate {};
 
 #ifdef __cpp_constexpr_exceptions
-  static_assert(
-      conformance_rejection_message_contains<RefQualifiedInterface, Candidate>(
-          "ref-qualified member function 'named_function'"));
   static_assert(conformance_rejection_message_contains<ExplicitObjectInterface,
                                                        Candidate>(
       "explicit-object member function 'named_function'"));
@@ -798,19 +789,19 @@ TEST(ConformsToTest, RejectionMessageNamesTheOverload) {
 }
 
 TEST(ConformsToTest, RejectedOperatorIsNamedTheSameWayByEveryCheck) {
-  // Ref-qualified and an unsupported operator: whichever check fires, the
+  // Explicit-object and an unsupported operator: whichever check fires, the
   // member is named by its display string.
   struct Interface {
-    bool operator==(const FirstOperand&) const&;
+    Interface& operator=(this Interface&, const FirstOperand&);
   };
 
   struct Candidate {};
 
 #ifdef __cpp_constexpr_exceptions
   static_assert(conformance_rejection_message_contains<Interface, Candidate>(
-      "ref-qualified member function '"));
+      "explicit-object member function '"));
   static_assert(conformance_rejection_message_contains<Interface, Candidate>(
-      "operator=="));
+      "operator="));
   static_assert(conformance_rejection_message_contains<Interface, Candidate>(
       "FirstOperand"));
 #endif  // __cpp_constexpr_exceptions
@@ -1011,7 +1002,7 @@ TEST(ConformsToTest, StaticCandidateConformsToNonConstMember) {
   static_assert(is_protocol_conformant<Interface, Conforming>());
 }
 
-TEST(ConformsToTest, RefQualifiedInterfaceMemberRejectedForStaticCandidate) {
+TEST(ConformsToTest, StaticCandidateConformsToRefQualifiedMember) {
   struct Interface {
     int take() &&;
   };
@@ -1020,9 +1011,7 @@ TEST(ConformsToTest, RefQualifiedInterfaceMemberRejectedForStaticCandidate) {
     static int take();
   };
 
-#ifdef __cpp_constexpr_exceptions
-  static_assert(conformance_check_rejects<Interface, Conforming>());
-#endif  // __cpp_constexpr_exceptions
+  static_assert(is_protocol_conformant<Interface, Conforming>());
 }
 
 TEST(ConformsToTest, StaticCandidateWithWrongSignatureDoesNotConform) {
