@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <initializer_list>
 #include <meta>
+#include <utility>
 #include <vector>
 
 namespace xyz::detail {
@@ -48,10 +49,30 @@ consteval std::meta::info function_pointer_type_of(
   return substitute(^^fn_ptr_t, fn_args);
 }
 
+enum class member_options {
+  none = 0,
+  is_const = 1 << 0,
+  is_lvalue = 1 << 1,
+  is_rvalue = 1 << 2
+};
+
+constexpr member_options operator|(member_options lhs, member_options rhs) {
+  return static_cast<member_options>(std::to_underlying(lhs) |
+                                     std::to_underlying(rhs));
+}
+
+constexpr member_options& operator|=(member_options& lhs, member_options rhs) {
+  return lhs = (lhs | rhs);
+}
+
+constexpr bool operator&(member_options lhs, member_options rhs) {
+  return static_cast<bool>(std::to_underlying(lhs) & std::to_underlying(rhs));
+}
+
 // One overload of a synthesised member function or operator: the interface
-// member (which names its vtable entry) and the const-qualification of the
-// generated wrapper.
-template <std::meta::info Member, bool IsConst>
+// member (which names its vtable entry) and the member options (const and ref
+// qualifiers) of the generated wrapper.
+template <std::meta::info Member, member_options MemberOptions>
 struct overload_spec {};
 
 }  // namespace xyz::detail

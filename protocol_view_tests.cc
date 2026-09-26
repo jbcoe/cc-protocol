@@ -863,4 +863,18 @@ TEST(ReflectionProtocolViewTest, ViewOfConformingObjectPassedByValue) {
   EXPECT_EQ(read(c), 4);
 }
 
+TEST(ReflectionProtocolViewTest, LvalueRefQualifier) {
+  struct LvalueInterface {
+    int foo() &;
+  };
+
+  struct Conforming {
+    int foo() & { return 5; }
+  };
+
+  Conforming c{};
+  protocol_view<LvalueInterface> p(c);
+  EXPECT_EQ(p.foo(), 5);
+}
+
 }  // namespace

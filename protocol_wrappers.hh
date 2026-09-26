@@ -35,15 +35,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace xyz::detail {
 
-// How generated wrappers treat the const-qualification of interface members.
+// How generated wrappers treat the const- and ref-qualification of interface
+// members.
 enum class const_policy {
   // `protocol<I>`: as declared in `I`, so `const protocol<I>` exposes only the
-  // const member functions of `I` (const propagates).
+  // const member functions of `I` (const propagates), and a ref-qualified
+  // member is callable only on a protocol of that value category.
   propagate,
   // `protocol_view<I>`: every wrapper is const-qualified regardless of `I`
-  // (shallow const, as for `std::span`).
+  // (shallow const, as for `std::span`). The viewed object is not owned, so
+  // rvalue-qualified members are not forwarded and lvalue-qualified members
+  // are callable on a view of either value category.
   all_const,
-  // `protocol_view<const I>`: only the const member functions of `I`.
+  // `protocol_view<const I>`: only the const member functions of `I`, with
+  // ref-qualification treated as for `all_const`.
   const_only,
 };
 
@@ -59,18 +64,21 @@ consteval bool is_forwarded_member_function(
     case const_policy::const_only:
       // `protocol_view<const T>` forwards only const-qualified member
       // functions.
-      return is_const(member);
+      return is_const(member) && !is_rvalue_reference_qualified(member);
     case const_policy::all_const:
       // `protocol_view<T>` is a view type: overload resolution through
       // a const and non-const access path must yield the same result.
       // A const-qualified member function is only given a forwarding wrapper if
       // no non-const-qualified member with the same name and parameters exists.
       // (Aside: Oh the double negatives! If only `mutable` was the keyword.)
-      if (!is_const(member)) {
+      if (is_rvalue_reference_qualified(member)) {
+        return false;
+      } else if (!is_const(member)) {
         return true;
       } else {
         return std::ranges::none_of(members, [&](std::meta::info other) {
-          return member != other && same_name_and_parameters(member, other);
+          return !is_const(other) && !is_rvalue_reference_qualified(other) &&
+                 same_name_and_parameters(member, other);
         });
       }
   }
@@ -168,12 +176,22 @@ consteval std::meta::info generate_member_bases_wrapper() {
       if (!same_name(overload, member) ||
           !is_forwarded_member_function<ConstPolicy>(overload, members))
         continue;
-      const bool wrapper_is_const =
-          ConstPolicy == const_policy::propagate ? is_const(overload) : true;
+      member_options options =
+          ConstPolicy != const_policy::propagate || is_const(overload)
+              ? member_options::is_const
+              : member_options::none;
+      if (ConstPolicy == const_policy::propagate) {
+        if (is_lvalue_reference_qualified(overload)) {
+          options |= member_options::is_lvalue;
+        }
+        if (is_rvalue_reference_qualified(overload)) {
+          options |= member_options::is_rvalue;
+        }
+      }
       // clang-format off
       overload_specs.push_back(substitute(
           ^^overload_spec, {reflect_constant(overload),
-                            std::meta::reflect_constant(wrapper_is_const)}));
+                            std::meta::reflect_constant(options)}));
       // clang-format on
     }
     if (overload_specs.empty()) continue;
