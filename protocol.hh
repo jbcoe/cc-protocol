@@ -233,16 +233,17 @@ class protocol
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst>
+            typename Vtable, std::meta::info Member,
+            member_qualifiers MemberQualifiers>
   friend struct detail::member_function_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
             typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
+            member_qualifiers MemberQualifiers>
   friend struct detail::operator_thunk;
 
   template <typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
+            member_qualifiers MemberQualifiers>
   friend struct detail::conversion_thunk;
 
   // Grants `protocol_view` access so that a view of a protocol can share its
@@ -554,16 +555,17 @@ class protocol_view
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst>
+            typename Vtable, std::meta::info Member,
+            member_qualifiers MemberQualifiers>
   friend struct detail::member_function_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
             typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
+            member_qualifiers MemberQualifiers>
   friend struct detail::operator_thunk;
 
   template <typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
+            member_qualifiers MemberQualifiers>
   friend struct detail::conversion_thunk;
 
   template <typename U>
@@ -656,16 +658,17 @@ class protocol_view<const T>
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-            typename Vtable, std::meta::info Member, bool IsConst>
+            typename Vtable, std::meta::info Member,
+            member_qualifiers MemberQualifiers>
   friend struct detail::member_function_thunk;
 
   template <std::meta::operators Operator, typename FnPtrType,
             typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
+            member_qualifiers MemberQualifiers>
   friend struct detail::operator_thunk;
 
   template <typename ProtocolType, typename Vtable, std::meta::info Member,
-            bool IsConst>
+            member_qualifiers MemberQualifiers>
   friend struct detail::conversion_thunk;
 
   template <typename U>

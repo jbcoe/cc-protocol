@@ -168,12 +168,14 @@ consteval std::meta::info generate_member_bases_wrapper() {
       if (!same_name(overload, member) ||
           !is_forwarded_member_function<ConstPolicy>(overload, members))
         continue;
-      const bool wrapper_is_const =
-          ConstPolicy == const_policy::propagate ? is_const(overload) : true;
+      const member_qualifiers qualifiers =
+          ConstPolicy == const_policy::propagate
+              ? member_qualifiers_of(overload)
+              : member_qualifiers::const_qualified;
       // clang-format off
       overload_specs.push_back(substitute(
           ^^overload_spec, {reflect_constant(overload),
-                            std::meta::reflect_constant(wrapper_is_const)}));
+                            std::meta::reflect_constant(qualifiers)}));
       // clang-format on
     }
     if (overload_specs.empty()) continue;
