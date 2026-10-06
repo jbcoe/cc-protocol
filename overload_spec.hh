@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <initializer_list>
 #include <meta>
+#include <stdexcept>
 #include <vector>
 
 namespace xyz::detail {
@@ -48,10 +49,30 @@ consteval std::meta::info function_pointer_type_of(
   return substitute(^^fn_ptr_t, fn_args);
 }
 
+enum class member_qualifiers {
+  unqualified,
+  const_qualified,
+  // TODO(jbcoe): Add const and non-const rvalue and lvalue qualifiers.
+};
+
+consteval member_qualifiers member_qualifiers_of(std::meta::info member) {
+  // TODO(jbcoe): Remove this check once reference-qualified member functions
+  // are supported.
+  if (is_lvalue_reference_qualified(member) ||
+      is_rvalue_reference_qualified(member)) {
+    throw std::runtime_error(
+        "lvalue or rvalue qualified member functions are not currently "
+        "supported");
+  }
+
+  return is_const(member) ? member_qualifiers::const_qualified
+                          : member_qualifiers::unqualified;
+}
+
 // One overload of a synthesised member function or operator: the interface
-// member (which names its vtable entry) and the const-qualification of the
+// member (which names its vtable entry) and the const and ref qualifiers of the
 // generated wrapper.
-template <std::meta::info Member, bool IsConst>
+template <std::meta::info Member, member_qualifiers MemberQualifiers>
 struct overload_spec {};
 
 }  // namespace xyz::detail

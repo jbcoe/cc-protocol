@@ -37,11 +37,11 @@ using conversion_target_t = typename[:dealias(return_type_of(Member)):];
 // holding it as a data member, letting `ProtocolType` be recovered with a
 // plain static_cast.
 template <typename ProtocolType, typename Vtable, std::meta::info Member,
-          bool IsConst>
+          member_qualifiers MemberQualifiers>
 struct conversion_thunk {
   explicit(is_explicit(Member)) operator conversion_target_t<Member>() noexcept(
       is_noexcept(Member))
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -50,7 +50,7 @@ struct conversion_thunk {
 
   explicit(is_explicit(Member)) operator conversion_target_t<Member>() const
       noexcept(is_noexcept(Member))
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -70,11 +70,11 @@ struct conversion_thunk {
 template <typename OverloadSpec, typename ProtocolType, typename Vtable>
 struct conversion_thunk_for;
 
-template <std::meta::info Member, bool IsConst, typename ProtocolType,
-          typename Vtable>
-struct conversion_thunk_for<overload_spec<Member, IsConst>, ProtocolType,
-                            Vtable> {
-  using type = conversion_thunk<ProtocolType, Vtable, Member, IsConst>;
+template <std::meta::info Member, member_qualifiers MemberQualifiers,
+          typename ProtocolType, typename Vtable>
+struct conversion_thunk_for<overload_spec<Member, MemberQualifiers>,
+                            ProtocolType, Vtable> {
+  using type = conversion_thunk<ProtocolType, Vtable, Member, MemberQualifiers>;
 };
 
 template <typename Spec, typename ProtocolType, typename Vtable>

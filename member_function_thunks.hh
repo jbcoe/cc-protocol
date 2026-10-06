@@ -33,7 +33,8 @@ namespace xyz::detail {
 // member, named after the interface method, giving
 // `p.member_function_name(args)` call syntax.
 template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct member_function_thunk {
   static_assert(false,
                 "Unspecialized member_function_thunk cannot be instantiated.");
@@ -41,11 +42,11 @@ struct member_function_thunk {
 
 template <typename R, typename... Args, bool IsNoexcept, typename EnclosingType,
           typename ProtocolType, typename Vtable, std::meta::info Member,
-          bool IsConst>
+          member_qualifiers MemberQualifiers>
 struct member_function_thunk<R (*)(Args...) noexcept(IsNoexcept), EnclosingType,
-                             ProtocolType, Vtable, Member, IsConst> {
+                             ProtocolType, Vtable, Member, MemberQualifiers> {
   R operator()(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* enclosing = reinterpret_cast<EnclosingType*>(this);
     auto* protocol_object = static_cast<ProtocolType*>(enclosing);
@@ -55,7 +56,7 @@ struct member_function_thunk<R (*)(Args...) noexcept(IsNoexcept), EnclosingType,
   }
 
   R operator()(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* enclosing = reinterpret_cast<const EnclosingType*>(this);
     const auto* protocol_object = static_cast<const ProtocolType*>(enclosing);
@@ -79,15 +80,15 @@ template <typename OverloadSpec, typename EnclosingType, typename ProtocolType,
           typename Vtable>
 struct member_function_thunk_for;
 
-template <std::meta::info Member, bool IsConst, typename EnclosingType,
-          typename ProtocolType, typename Vtable>
-struct member_function_thunk_for<overload_spec<Member, IsConst>, EnclosingType,
-                                 ProtocolType, Vtable> {
+template <std::meta::info Member, member_qualifiers MemberQualifiers,
+          typename EnclosingType, typename ProtocolType, typename Vtable>
+struct member_function_thunk_for<overload_spec<Member, MemberQualifiers>,
+                                 EnclosingType, ProtocolType, Vtable> {
   // clang-format off
   using type = typename[:substitute(
       ^^member_function_thunk, {function_pointer_type_of(Member), ^^EnclosingType, ^^ProtocolType, ^^Vtable,
                        std::meta::reflect_constant(Member),
-                       std::meta::reflect_constant(IsConst)}):];
+                       std::meta::reflect_constant(MemberQualifiers)}):];
   // clang-format on
 };
 

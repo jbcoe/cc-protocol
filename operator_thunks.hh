@@ -34,7 +34,7 @@ namespace xyz::detail {
 // letting `ProtocolType` be recovered with a plain static_cast.
 template <std::meta::operators Operator, typename FnPtrType,
           typename ProtocolType, typename Vtable, std::meta::info Member,
-          bool IsConst>
+          member_qualifiers MemberQualifiers>
 struct operator_thunk {
   static_assert(false, "Unspecialized operator_thunk cannot be instantiated.");
 };
@@ -52,9 +52,9 @@ struct operator_overload_set {
 template <typename OverloadSpec, typename ProtocolType, typename Vtable>
 struct operator_thunk_for;
 
-template <std::meta::info Member, bool IsConst, typename ProtocolType,
-          typename Vtable>
-struct operator_thunk_for<overload_spec<Member, IsConst>, ProtocolType,
+template <std::meta::info Member, member_qualifiers MemberQualifiers,
+          typename ProtocolType, typename Vtable>
+struct operator_thunk_for<overload_spec<Member, MemberQualifiers>, ProtocolType,
                           Vtable> {
   // clang-format off
   using type =
@@ -64,7 +64,7 @@ struct operator_thunk_for<overload_spec<Member, IsConst>, ProtocolType,
                         function_pointer_type_of(Member),
                          ^^ProtocolType, ^^Vtable,
                         std::meta::reflect_constant(Member),
-                        std::meta::reflect_constant(IsConst)
+                        std::meta::reflect_constant(MemberQualifiers)
                     }):];
   // clang-format on
 };
@@ -75,12 +75,13 @@ using operator_thunk_t =
 
 // operator()
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_parentheses,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator()(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -89,7 +90,7 @@ struct operator_thunk<std::meta::operators::op_parentheses,
   }
 
   R operator()(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -123,12 +124,13 @@ struct operator_overload_set<std::meta::operators::op_parentheses, ProtocolType,
 
 // operator []
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_square_brackets,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator[](Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -137,7 +139,7 @@ struct operator_thunk<std::meta::operators::op_square_brackets,
   }
 
   R operator[](Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -171,12 +173,13 @@ struct operator_overload_set<std::meta::operators::op_square_brackets,
 
 // operator ->
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_arrow,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator->() noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -184,7 +187,7 @@ struct operator_thunk<std::meta::operators::op_arrow,
   }
 
   R operator->() const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -217,12 +220,13 @@ struct operator_overload_set<std::meta::operators::op_arrow, ProtocolType,
 
 // operator *
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_star,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator*(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -231,7 +235,7 @@ struct operator_thunk<std::meta::operators::op_star,
   }
 
   R operator*(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -265,12 +269,13 @@ struct operator_overload_set<std::meta::operators::op_star, ProtocolType,
 
 // operator->*
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_arrow_star,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator->*(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -279,7 +284,7 @@ struct operator_thunk<std::meta::operators::op_arrow_star,
   }
 
   R operator->*(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -314,12 +319,12 @@ struct operator_overload_set<std::meta::operators::op_arrow_star, ProtocolType,
 // operator~: always unary as a member (the language forbids a parameter),
 // so this uses a fixed R(*)() rather than the generic R(*)(Args...) shape.
 template <typename R, bool IsNoexcept, typename ProtocolType, typename Vtable,
-          std::meta::info Member, bool IsConst>
+          std::meta::info Member, member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_tilde,
                       R (*)() noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator~() noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -327,7 +332,7 @@ struct operator_thunk<std::meta::operators::op_tilde,
   }
 
   R operator~() const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -360,12 +365,12 @@ struct operator_overload_set<std::meta::operators::op_tilde, ProtocolType,
 
 // operator!: always unary as a member, for the same reason as operator~.
 template <typename R, bool IsNoexcept, typename ProtocolType, typename Vtable,
-          std::meta::info Member, bool IsConst>
+          std::meta::info Member, member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_exclamation,
                       R (*)() noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator!() noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -373,7 +378,7 @@ struct operator_thunk<std::meta::operators::op_exclamation,
   }
 
   R operator!() const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -406,12 +411,13 @@ struct operator_overload_set<std::meta::operators::op_exclamation, ProtocolType,
 
 // operator+
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_plus,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator+(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -420,7 +426,7 @@ struct operator_thunk<std::meta::operators::op_plus,
   }
 
   R operator+(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -454,12 +460,13 @@ struct operator_overload_set<std::meta::operators::op_plus, ProtocolType,
 
 // operator-
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_minus,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator-(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -468,7 +475,7 @@ struct operator_thunk<std::meta::operators::op_minus,
   }
 
   R operator-(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -502,12 +509,13 @@ struct operator_overload_set<std::meta::operators::op_minus, ProtocolType,
 
 // operator/
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_slash,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator/(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -516,7 +524,7 @@ struct operator_thunk<std::meta::operators::op_slash,
   }
 
   R operator/(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -550,12 +558,13 @@ struct operator_overload_set<std::meta::operators::op_slash, ProtocolType,
 
 // operator%
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_percent,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator%(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -564,7 +573,7 @@ struct operator_thunk<std::meta::operators::op_percent,
   }
 
   R operator%(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -598,12 +607,13 @@ struct operator_overload_set<std::meta::operators::op_percent, ProtocolType,
 
 // operator^
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_caret,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator^(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -612,7 +622,7 @@ struct operator_thunk<std::meta::operators::op_caret,
   }
 
   R operator^(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -646,12 +656,13 @@ struct operator_overload_set<std::meta::operators::op_caret, ProtocolType,
 
 // operator&
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_ampersand,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator&(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -660,7 +671,7 @@ struct operator_thunk<std::meta::operators::op_ampersand,
   }
 
   R operator&(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -694,12 +705,13 @@ struct operator_overload_set<std::meta::operators::op_ampersand, ProtocolType,
 
 // operator|
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_pipe,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator|(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -708,7 +720,7 @@ struct operator_thunk<std::meta::operators::op_pipe,
   }
 
   R operator|(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -742,12 +754,13 @@ struct operator_overload_set<std::meta::operators::op_pipe, ProtocolType,
 
 // operator+=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_plus_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator+=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -756,7 +769,7 @@ struct operator_thunk<std::meta::operators::op_plus_equals,
   }
 
   R operator+=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -790,12 +803,13 @@ struct operator_overload_set<std::meta::operators::op_plus_equals, ProtocolType,
 
 // operator-=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_minus_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator-=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -804,7 +818,7 @@ struct operator_thunk<std::meta::operators::op_minus_equals,
   }
 
   R operator-=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -838,12 +852,13 @@ struct operator_overload_set<std::meta::operators::op_minus_equals,
 
 // operator*=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_star_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator*=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -852,7 +867,7 @@ struct operator_thunk<std::meta::operators::op_star_equals,
   }
 
   R operator*=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -886,12 +901,13 @@ struct operator_overload_set<std::meta::operators::op_star_equals, ProtocolType,
 
 // operator/=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_slash_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator/=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -900,7 +916,7 @@ struct operator_thunk<std::meta::operators::op_slash_equals,
   }
 
   R operator/=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -934,12 +950,13 @@ struct operator_overload_set<std::meta::operators::op_slash_equals,
 
 // operator%=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_percent_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator%=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -948,7 +965,7 @@ struct operator_thunk<std::meta::operators::op_percent_equals,
   }
 
   R operator%=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -982,12 +999,13 @@ struct operator_overload_set<std::meta::operators::op_percent_equals,
 
 // operator^=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_caret_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator^=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -996,7 +1014,7 @@ struct operator_thunk<std::meta::operators::op_caret_equals,
   }
 
   R operator^=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1030,12 +1048,13 @@ struct operator_overload_set<std::meta::operators::op_caret_equals,
 
 // operator&=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_ampersand_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator&=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1044,7 +1063,7 @@ struct operator_thunk<std::meta::operators::op_ampersand_equals,
   }
 
   R operator&=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1078,12 +1097,13 @@ struct operator_overload_set<std::meta::operators::op_ampersand_equals,
 
 // operator|=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_pipe_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator|=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1092,7 +1112,7 @@ struct operator_thunk<std::meta::operators::op_pipe_equals,
   }
 
   R operator|=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1126,12 +1146,13 @@ struct operator_overload_set<std::meta::operators::op_pipe_equals, ProtocolType,
 
 // operator&&
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_ampersand_ampersand,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator&&(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1140,7 +1161,7 @@ struct operator_thunk<std::meta::operators::op_ampersand_ampersand,
   }
 
   R operator&&(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1174,12 +1195,13 @@ struct operator_overload_set<std::meta::operators::op_ampersand_ampersand,
 
 // operator||
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_pipe_pipe,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator||(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1188,7 +1210,7 @@ struct operator_thunk<std::meta::operators::op_pipe_pipe,
   }
 
   R operator||(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1222,12 +1244,13 @@ struct operator_overload_set<std::meta::operators::op_pipe_pipe, ProtocolType,
 
 // operator<<
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_less_less,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator<<(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1236,7 +1259,7 @@ struct operator_thunk<std::meta::operators::op_less_less,
   }
 
   R operator<<(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1270,12 +1293,13 @@ struct operator_overload_set<std::meta::operators::op_less_less, ProtocolType,
 
 // operator>>
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_greater_greater,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator>>(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1284,7 +1308,7 @@ struct operator_thunk<std::meta::operators::op_greater_greater,
   }
 
   R operator>>(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1318,12 +1342,13 @@ struct operator_overload_set<std::meta::operators::op_greater_greater,
 
 // operator<<=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_less_less_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator<<=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1332,7 +1357,7 @@ struct operator_thunk<std::meta::operators::op_less_less_equals,
   }
 
   R operator<<=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1366,12 +1391,13 @@ struct operator_overload_set<std::meta::operators::op_less_less_equals,
 
 // operator>>=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_greater_greater_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator>>=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1380,7 +1406,7 @@ struct operator_thunk<std::meta::operators::op_greater_greater_equals,
   }
 
   R operator>>=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1414,12 +1440,13 @@ struct operator_overload_set<std::meta::operators::op_greater_greater_equals,
 
 // operator++
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_plus_plus,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator++(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1428,7 +1455,7 @@ struct operator_thunk<std::meta::operators::op_plus_plus,
   }
 
   R operator++(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1462,12 +1489,13 @@ struct operator_overload_set<std::meta::operators::op_plus_plus, ProtocolType,
 
 // operator--
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_minus_minus,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator--(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1476,7 +1504,7 @@ struct operator_thunk<std::meta::operators::op_minus_minus,
   }
 
   R operator--(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1510,12 +1538,13 @@ struct operator_overload_set<std::meta::operators::op_minus_minus, ProtocolType,
 
 // operator,
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_comma,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator,(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1524,7 +1553,7 @@ struct operator_thunk<std::meta::operators::op_comma,
   }
 
   R operator,(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1558,12 +1587,13 @@ struct operator_overload_set<std::meta::operators::op_comma, ProtocolType,
 
 // operator==
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_equals_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator==(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1572,7 +1602,7 @@ struct operator_thunk<std::meta::operators::op_equals_equals,
   }
 
   R operator==(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1606,12 +1636,13 @@ struct operator_overload_set<std::meta::operators::op_equals_equals,
 
 // operator!=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_exclamation_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator!=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1620,7 +1651,7 @@ struct operator_thunk<std::meta::operators::op_exclamation_equals,
   }
 
   R operator!=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1654,12 +1685,13 @@ struct operator_overload_set<std::meta::operators::op_exclamation_equals,
 
 // operator<
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_less,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator<(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1668,7 +1700,7 @@ struct operator_thunk<std::meta::operators::op_less,
   }
 
   R operator<(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1702,12 +1734,13 @@ struct operator_overload_set<std::meta::operators::op_less, ProtocolType,
 
 // operator<=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_less_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator<=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1716,7 +1749,7 @@ struct operator_thunk<std::meta::operators::op_less_equals,
   }
 
   R operator<=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1750,12 +1783,13 @@ struct operator_overload_set<std::meta::operators::op_less_equals, ProtocolType,
 
 // operator>
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_greater,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator>(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1764,7 +1798,7 @@ struct operator_thunk<std::meta::operators::op_greater,
   }
 
   R operator>(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1798,12 +1832,13 @@ struct operator_overload_set<std::meta::operators::op_greater, ProtocolType,
 
 // operator>=
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_greater_equals,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator>=(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1812,7 +1847,7 @@ struct operator_thunk<std::meta::operators::op_greater_equals,
   }
 
   R operator>=(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1846,12 +1881,13 @@ struct operator_overload_set<std::meta::operators::op_greater_equals,
 
 // operator<=>
 template <typename R, typename... Args, bool IsNoexcept, typename ProtocolType,
-          typename Vtable, std::meta::info Member, bool IsConst>
+          typename Vtable, std::meta::info Member,
+          member_qualifiers MemberQualifiers>
 struct operator_thunk<std::meta::operators::op_spaceship,
                       R (*)(Args...) noexcept(IsNoexcept), ProtocolType, Vtable,
-                      Member, IsConst> {
+                      Member, MemberQualifiers> {
   R operator<=>(Args... args) noexcept(IsNoexcept)
-    requires(!IsConst)
+    requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
@@ -1860,7 +1896,7 @@ struct operator_thunk<std::meta::operators::op_spaceship,
   }
 
   R operator<=>(Args... args) const noexcept(IsNoexcept)
-    requires(IsConst)
+    requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
