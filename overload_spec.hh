@@ -25,15 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <stdexcept>
 #include <vector>
 
-namespace xyz {
-
-enum class member_qualifiers {
-  unqualified,
-  const_qualified,
-  // TODO(jbcoe): Add const and non-const rvalue and lvalue qualifiers.
-};
-
-namespace detail {
+namespace xyz::detail {
 
 template <bool IsNoexcept, typename R, typename... Args>
 using fn_ptr_t = R (*)(Args...) noexcept(IsNoexcept);
@@ -57,6 +49,12 @@ consteval std::meta::info function_pointer_type_of(
   return substitute(^^fn_ptr_t, fn_args);
 }
 
+enum class member_qualifiers {
+  unqualified,
+  const_qualified,
+  // TODO(jbcoe): Add const and non-const rvalue and lvalue qualifiers.
+};
+
 consteval member_qualifiers member_qualifiers_of(std::meta::info member) {
   // TODO(jbcoe): Remove this check once reference-qualified member functions
   // are supported.
@@ -72,12 +70,11 @@ consteval member_qualifiers member_qualifiers_of(std::meta::info member) {
 }
 
 // One overload of a synthesised member function or operator: the interface
-// member (which names its vtable entry) and the const-qualification of the
+// member (which names its vtable entry) and the const and ref qualifiers of the
 // generated wrapper.
 template <std::meta::info Member, member_qualifiers MemberQualifiers>
 struct overload_spec {};
 
-}  // namespace detail
-}  // namespace xyz
+}  // namespace xyz::detail
 
 #endif  // XYZ_PROTOCOL_OVERLOAD_SPEC_HH_
