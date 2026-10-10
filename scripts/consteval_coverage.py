@@ -64,7 +64,9 @@ SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Library headers use the .hh suffix; test helpers (.h) are not instrumented.
 INSTRUMENTED_HEADERS = sorted(
-    os.path.basename(path) for path in glob.glob(os.path.join(SOURCE_ROOT, "*.hh"))
+    os.path.relpath(path, SOURCE_ROOT)
+    for pattern in ("xyz/*.hh", "xyz/detail/*.hh")
+    for path in glob.glob(os.path.join(SOURCE_ROOT, pattern))
 )
 
 TRAP_HEADER = "consteval_coverage_probe.h"
@@ -79,17 +81,17 @@ TRAP_ERROR_PATTERN = re.compile(r"consteval_coverage_probe::trap_hit<(\d+), (\d+
 # Translation units that instantiate protocols and so drive the consteval
 # machinery in the instrumented headers, cheapest to compile first: each
 # only arms the probe points the ones before it left uncovered.
-# protocol_member_function_tests.cc is left out: it reaches no probe point
-# the others miss.
+# xyz/tests/protocol_member_function_tests.cc is left out: it reaches no probe
+# point the others miss.
 DEFAULT_TRANSLATION_UNITS = [
-    "vtable_tests.cc",
-    "name_mangling_tests.cc",
-    "conformance_tests.cc",
-    "allocator_tests.cc",
-    "protocol_operator_tests.cc",
-    "protocol_test.cc",
-    "protocol_view_tests.cc",
-    "forwarding_test.cc",
+    "xyz/tests/vtable_tests.cc",
+    "xyz/tests/name_mangling_tests.cc",
+    "xyz/tests/conformance_tests.cc",
+    "xyz/tests/allocator_tests.cc",
+    "xyz/tests/protocol_operator_tests.cc",
+    "xyz/tests/protocol_test.cc",
+    "xyz/tests/protocol_view_tests.cc",
+    "xyz/tests/forwarding_test.cc",
 ]
 
 ProbeKey = tuple[int, int]  # (header index, line number)
@@ -427,7 +429,7 @@ def populate_work_dir(
     """
     Fill `work_dir` with the instrumented headers and everything they need.
 
-    Every root header and each probe translation unit is copied, so that
+    Every header and each probe translation unit is copied, so that
     every quote-include resolves inside the work directory; nothing falls
     back to an uninstrumented original. A previous run's directory is
     replaced; any other existing directory is left alone.
@@ -439,14 +441,21 @@ def populate_work_dir(
         shutil.rmtree(work_dir)
     os.makedirs(work_dir)
     open(marker, "w").close()
-    for pattern in ("*.h", "*.hh"):
+    os.makedirs(os.path.join(work_dir, "xyz", "detail"))
+    os.makedirs(os.path.join(work_dir, "xyz", "tests"))
+    for pattern in ("xyz/*.hh", "xyz/detail/*.hh", "xyz/tests/*.h"):
         for path in glob.glob(os.path.join(SOURCE_ROOT, pattern)):
-            shutil.copy(path, work_dir)
+            shutil.copy(
+                path, os.path.join(work_dir, os.path.relpath(path, SOURCE_ROOT))
+            )
     for header, lines in instrumented_by_header.items():
         with open(os.path.join(work_dir, header), "w") as out:
             out.write("\n".join(lines) + "\n")
     for translation_unit in translation_units:
-        shutil.copy(os.path.join(SOURCE_ROOT, translation_unit), work_dir)
+        shutil.copy(
+            os.path.join(SOURCE_ROOT, translation_unit),
+            os.path.join(work_dir, translation_unit),
+        )
 
 
 def compile_batch(
@@ -469,6 +478,8 @@ def compile_batch(
         "-w",
         "-include",
         trap_header,
+        "-iquote",
+        configuration.work_dir,
     ]
     for directory in configuration.include_directories:
         command.extend(["-I", directory])

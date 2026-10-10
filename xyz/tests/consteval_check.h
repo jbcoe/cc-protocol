@@ -17,8 +17,8 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==============================================================================*/
-#ifndef XYZ_REFLECTION_CONSTEVAL_CHECK_H_
-#define XYZ_REFLECTION_CONSTEVAL_CHECK_H_
+#ifndef XYZ_CONSTEVAL_CHECK_H_
+#define XYZ_CONSTEVAL_CHECK_H_
 
 // A compile-time assertion helper for use inside `consteval` blocks and
 // functions. `static_assert` requires its operand to be a constant expression
@@ -43,7 +43,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <meta>
 #endif
 
-namespace xyz {
+namespace xyz::tests {
 
 class consteval_check_failure : public std::exception {
  public:
@@ -58,7 +58,7 @@ class consteval_check_failure : public std::exception {
   std::string message_;
 };
 
-namespace detail::consteval_check {
+namespace consteval_check {
 
 // Best-effort rendering of an operand for the diagnostic.
 template <typename T>
@@ -162,8 +162,8 @@ constexpr void report(captured_value<Lhs> value,
   report(value.evaluate(), expression_text, location);
 }
 
-}  // namespace detail::consteval_check
-}  // namespace xyz
+}  // namespace consteval_check
+}  // namespace xyz::tests
 
 // GCC's -Wparentheses fires on `capturer <= lhs == rhs`, so the capture is
 // bracketed by push/pop pragmas. Kept as separate macros so that the main
@@ -174,13 +174,13 @@ constexpr void report(captured_value<Lhs> value,
 #define XYZ_CONSTEVAL_CHECK_INTERNAL_RESTORE_WARNINGS \
   _Pragma("GCC diagnostic pop")
 
-#define XYZ_CONSTEVAL_CHECK(...)                                           \
-  do {                                                                     \
-    XYZ_CONSTEVAL_CHECK_INTERNAL_SUPPRESS_PARENTHESES_WARNINGS             \
-    ::xyz::detail::consteval_check::report(                                \
-        (::xyz::detail::consteval_check::value_capturer{} <= __VA_ARGS__), \
-        #__VA_ARGS__, std::source_location::current());                    \
-    XYZ_CONSTEVAL_CHECK_INTERNAL_RESTORE_WARNINGS                          \
+#define XYZ_CONSTEVAL_CHECK(...)                                          \
+  do {                                                                    \
+    XYZ_CONSTEVAL_CHECK_INTERNAL_SUPPRESS_PARENTHESES_WARNINGS            \
+    ::xyz::tests::consteval_check::report(                                \
+        (::xyz::tests::consteval_check::value_capturer{} <= __VA_ARGS__), \
+        #__VA_ARGS__, std::source_location::current());                   \
+    XYZ_CONSTEVAL_CHECK_INTERNAL_RESTORE_WARNINGS                         \
   } while (false)
 
-#endif  // XYZ_REFLECTION_CONSTEVAL_CHECK_H_
+#endif  // XYZ_CONSTEVAL_CHECK_H_

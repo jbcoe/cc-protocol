@@ -24,7 +24,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <cstddef>
 #include <memory>
 
-namespace xyz {
+namespace xyz::tests {
 
 template <typename T>
 struct TrackingAllocator {
@@ -70,6 +70,6 @@ struct TrackingAllocator {
   }
 };
 
-}  // namespace xyz
+}  // namespace xyz::tests
 
 #endif  // XYZ_TRACKING_ALLOCATOR_H_

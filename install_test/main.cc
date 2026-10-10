@@ -1,4 +1,4 @@
-#include "protocol.hh"
+#include "xyz/protocol.hh"
 
 struct Shape {
   double area() const;
@@ -11,6 +11,6 @@ struct Square {
 };
 
 int main() {
-  xyz::reflection::protocol<Shape> shape(Square{2.0});
+  xyz::protocol<Shape> shape(Square{2.0});
   return shape.area() == 4.0 ? 0 : 1;
 }

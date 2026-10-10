@@ -21,7 +21,7 @@ on:
       - "scripts/bazel.py"
       - "scripts/bazel.sh"
       - "scripts/compiler_discovery.py"
-      - "tutorials/BUILD.bazel"
+      - "xyz/tutorials/BUILD.bazel"
   # No `paths:` filter here. The `bazel` summary job is a required status
   # check for merging to main, and a workflow that is filtered out by
   # `paths:` never reports a check, which leaves unrelated pull requests
@@ -72,7 +72,7 @@ jobs:
               - "scripts/bazel.py"
               - "scripts/bazel.sh"
               - "scripts/compiler_discovery.py"
-              - "tutorials/BUILD.bazel"
+              - "xyz/tutorials/BUILD.bazel"
 
   build:
     needs: detect-changes

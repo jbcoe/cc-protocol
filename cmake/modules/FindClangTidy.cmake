@@ -184,7 +184,7 @@ endfunction()
 
 if (CLANG_TIDY_ENABLE)
     # No CONFIG_FILE: passing --config-file disables clang-tidy's
-    # per-directory lookup, which is needed for tutorials/.clang-tidy to
+    # per-directory lookup, which is needed for xyz/tutorials/.clang-tidy to
     # override the repository configuration. The repository .clang-tidy is
     # still found by walking up from each source file.
     enable_clang_tidy()

@@ -4,50 +4,43 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "name_mangling",
-    hdrs = ["name_mangling.hh"],
-)
-
-cc_library(
     name = "protocol",
     srcs = [
-        "conformance.hh",
-        "conversion_thunks.hh",
-        "member_function_thunks.hh",
-        "operator_thunks.hh",
-        "overload_spec.hh",
-        "protocol_traits.hh",
-        "protocol_wrappers.hh",
-        "vtable.hh",
+        "xyz/detail/conformance.hh",
+        "xyz/detail/conversion_thunks.hh",
+        "xyz/detail/member_function_thunks.hh",
+        "xyz/detail/name_mangling.hh",
+        "xyz/detail/operator_thunks.hh",
+        "xyz/detail/overload_spec.hh",
+        "xyz/detail/protocol_traits.hh",
+        "xyz/detail/protocol_wrappers.hh",
+        "xyz/detail/vtable.hh",
     ],
-    hdrs = ["protocol.hh"],
-    deps = [
-        ":name_mangling",
-    ],
+    hdrs = ["xyz/protocol.hh"],
 )
 
 cc_library(
     name = "consteval_check",
-    hdrs = ["consteval_check.h"],
+    hdrs = ["xyz/tests/consteval_check.h"],
 )
 
 cc_test(
     name = "protocol_test",
     size = "small",
     srcs = [
-        "allocator_tests.cc",
-        "conformance_tests.cc",
-        "consteval_check_test.cc",
-        "forwarding_test.cc",
-        "name_mangling_tests.cc",
-        "protocol_member_function_tests.cc",
-        "protocol_operator_tests.cc",
-        "protocol_test.cc",
-        "protocol_view_tests.cc",
-        "tagged_allocator.h",
-        "test_helpers.h",
-        "tracking_allocator.h",
-        "vtable_tests.cc",
+        "xyz/tests/allocator_tests.cc",
+        "xyz/tests/conformance_tests.cc",
+        "xyz/tests/consteval_check_test.cc",
+        "xyz/tests/forwarding_test.cc",
+        "xyz/tests/name_mangling_tests.cc",
+        "xyz/tests/protocol_member_function_tests.cc",
+        "xyz/tests/protocol_operator_tests.cc",
+        "xyz/tests/protocol_test.cc",
+        "xyz/tests/protocol_view_tests.cc",
+        "xyz/tests/tagged_allocator.h",
+        "xyz/tests/test_helpers.h",
+        "xyz/tests/tracking_allocator.h",
+        "xyz/tests/vtable_tests.cc",
     ],
     deps = [
         ":consteval_check",

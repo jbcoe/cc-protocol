@@ -33,11 +33,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string_view>
 #include <vector>
 
-#include "consteval_check.h"
+#include "xyz/tests/consteval_check.h"
 
 // A study of using vtables for overloaded member functions and `operator()`.
-// This tutorial follows on from the work in `tutorials/polymorphism.cc` and
-// `tutorials/reflection.cc`
+// This tutorial follows on from the work in
+// `xyz/tutorials/01_polymorphism.cc` and `xyz/tutorials/03_reflection.cc`
 
 namespace xyz::tutorials::simple_vtable {
 

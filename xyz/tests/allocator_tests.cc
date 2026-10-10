@@ -25,15 +25,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <new>
 #include <type_traits>
 
-#include "protocol.hh"
-#include "tagged_allocator.h"
-#include "tracking_allocator.h"
+#include "xyz/protocol.hh"
+#include "xyz/tests/tagged_allocator.h"
+#include "xyz/tests/tracking_allocator.h"
 
-// Workaround to move protocol into xyz namespace
-namespace xyz {
-using reflection::protocol;
-}
-
+namespace xyz::tests {
 namespace {
 
 // A simple interface to test protocol with.
@@ -45,7 +41,7 @@ struct IntLike {
 // test narrowing constructors.
 struct Blank {};
 
-using TestAlloc = xyz::TrackingAllocator<std::byte>;
+using TestAlloc = xyz::tests::TrackingAllocator<std::byte>;
 using TestProtocol = xyz::protocol<IntLike, TestAlloc>;
 
 // A simple test class that we will place in protocol.
@@ -574,8 +570,8 @@ TEST(ProtocolTest, SwapUnequal) {
 
 // Extends TrackingAllocator with POCCA set to true.
 template <typename T>
-struct PoccaAllocator : xyz::TrackingAllocator<T> {
-  using xyz::TrackingAllocator<T>::TrackingAllocator;
+struct PoccaAllocator : xyz::tests::TrackingAllocator<T> {
+  using xyz::tests::TrackingAllocator<T>::TrackingAllocator;
   using propagate_on_container_copy_assignment = std::true_type;
 
   template <typename Other>
@@ -623,8 +619,8 @@ TEST(ProtocolTest, CopyAssignmentUnequalPocca) {
 
 // Extends TrackingAllocator with POCMA set to true.
 template <typename T>
-struct PocmaAllocator : xyz::TrackingAllocator<T> {
-  using xyz::TrackingAllocator<T>::TrackingAllocator;
+struct PocmaAllocator : xyz::tests::TrackingAllocator<T> {
+  using xyz::tests::TrackingAllocator<T>::TrackingAllocator;
   using propagate_on_container_move_assignment = std::true_type;
 
   template <typename Other>
@@ -674,8 +670,8 @@ TEST(ProtocolTest, MoveAssignmentUnequalPocma) {
 
 // Extends TrackingAllocator with POCS set to true.
 template <typename T>
-struct PocsAllocator : xyz::TrackingAllocator<T> {
-  using xyz::TrackingAllocator<T>::TrackingAllocator;
+struct PocsAllocator : xyz::tests::TrackingAllocator<T> {
+  using xyz::tests::TrackingAllocator<T>::TrackingAllocator;
   using propagate_on_container_swap = std::true_type;
 
   template <typename Other>
@@ -732,7 +728,7 @@ struct TestException : std::bad_alloc {};
 // Tests can pass in should_throw and change its value to exercise exception
 // safety.
 template <typename T>
-struct ThrowingAllocator : xyz::TrackingAllocator<T> {
+struct ThrowingAllocator : xyz::tests::TrackingAllocator<T> {
   const bool* should_throw_;
 
   template <typename Other>
@@ -745,7 +741,7 @@ struct ThrowingAllocator : xyz::TrackingAllocator<T> {
   // them; the check cannot see that in this uninstantiated template.
   ThrowingAllocator(unsigned* allocs, unsigned* deallocs,
                     const bool* should_throw)
-      : xyz::TrackingAllocator<T>(allocs, deallocs),
+      : xyz::tests::TrackingAllocator<T>(allocs, deallocs),
         should_throw_(should_throw) {}
 
   // NOLINTEND(readability-non-const-parameter)
@@ -754,12 +750,13 @@ struct ThrowingAllocator : xyz::TrackingAllocator<T> {
     if (*should_throw_) {
       throw TestException{};
     }
-    return xyz::TrackingAllocator<T>::allocate(count);
+    return xyz::tests::TrackingAllocator<T>::allocate(count);
   }
 
   template <typename U>
   ThrowingAllocator(const ThrowingAllocator<U>& other)
-      : xyz::TrackingAllocator<T>(other), should_throw_(other.should_throw_) {}
+      : xyz::tests::TrackingAllocator<T>(other),
+        should_throw_(other.should_throw_) {}
 };
 
 using ThrowingAlloc = ThrowingAllocator<std::byte>;
@@ -1051,3 +1048,4 @@ TEST(ProtocolTest, UnequalMoveAssignment) {
 }
 
 }  // namespace
+}  // namespace xyz::tests

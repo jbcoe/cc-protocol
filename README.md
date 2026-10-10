@@ -11,9 +11,9 @@ structural-subtyping, `protocol` is owning, `protocol_view` is non-owning.
 See [DRAFT.md](DRAFT.md) for more details on design.
 
 This repository contains both the ISO C++ proposal to add these new library
-types and a reference implementation, `protocol.hh`, built on C++26 reflection
-(P2996). It requires a compiler with reflection support, such as a GCC trunk
-snapshot with `-freflection`.
+types and a reference implementation, `xyz/protocol.hh`, built on C++26
+reflection (P2996). It requires a compiler with reflection support, such as a
+GCC trunk snapshot with `-freflection`.
 
 ## Standardization
 

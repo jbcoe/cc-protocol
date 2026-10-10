@@ -1,7 +1,7 @@
 // Tests for xyz::detail::generate_vtable_specs: a vtable entry's
 // function-pointer type must carry the interface member's noexcept-ness
-// (issue #365), since the view trampolines in vtable.hh deduce their own
-// noexcept-ness from that pointer type.
+// (issue #365), since the view trampolines in xyz/detail/vtable.hh deduce their
+// own noexcept-ness from that pointer type.
 
 #include <gtest/gtest.h>
 
@@ -11,9 +11,10 @@
 #include <type_traits>
 #include <vector>
 
-#include "name_mangling.hh"
-#include "vtable.hh"
+#include "xyz/detail/name_mangling.hh"
+#include "xyz/detail/vtable.hh"
 
+namespace xyz::tests {
 namespace {
 
 struct NoexceptInterface {
@@ -32,10 +33,10 @@ using xyz::detail::vtable_t;
 // std::define_static_string, and this GCC trunk snapshot emits a duplicate
 // symbol when that template is instantiated for `Member` a second time
 // (once here, once inside generate_vtable_specs). Calling
-// xyz::name_mangling::mangle directly avoids the shared template.
+// xyz::detail::mangle directly avoids the shared template.
 template <std::meta::info VtableType, std::meta::info Member>
 consteval std::meta::info vtable_entry_for() {
-  std::string name = xyz::name_mangling::mangle(Member);
+  std::string name = xyz::detail::mangle(Member);
   std::vector<std::meta::info> members = nonstatic_data_members_of(
       VtableType, std::meta::access_context::unprivileged());
   for (std::meta::info member : members) {
@@ -59,3 +60,4 @@ TEST(VtableTest, ThrowingInterfaceMemberGetsANonNoexceptVtableEntry) {
 }
 
 }  // namespace
+}  // namespace xyz::tests

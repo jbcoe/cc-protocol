@@ -30,17 +30,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <utility>
 #include <vector>
 
-#include "conformance.hh"
-#include "name_mangling.hh"
-#include "overload_spec.hh"
-#include "protocol_traits.hh"
+#include "xyz/detail/conformance.hh"
+#include "xyz/detail/name_mangling.hh"
+#include "xyz/detail/overload_spec.hh"
+#include "xyz/detail/protocol_traits.hh"
 
 namespace xyz::detail {
 
 // The mangled name of `Member`, computed once per distinct `Member`.
 template <std::meta::info Member>
 constexpr inline auto mangled_name_of =
-    std::define_static_string(xyz::name_mangling::mangle(Member));
+    std::define_static_string(xyz::detail::mangle(Member));
 
 // The `VtableType` entry named after the mangled member function `Member`.
 template <std::meta::info VtableType, std::meta::info Member>
@@ -63,8 +63,7 @@ template <std::meta::info Member, typename Vtable, typename ProtocolObject,
 [[gnu::always_inline]] inline decltype(auto) call_through_vtable(
     [[maybe_unused]] ProtocolObject* protocol_object, const Vtable* vtable,
     Object object, Args&&... args) {
-  if constexpr (xyz::reflection::is_protocol_v<
-                    std::remove_cv_t<ProtocolObject>>) {
+  if constexpr (is_protocol_v<std::remove_cv_t<ProtocolObject>>) {
     assert(!valueless_after_move(*protocol_object) &&
            "cannot call member function of valueless protocol");
   }
@@ -77,8 +76,7 @@ template <std::meta::info Member, typename Vtable, typename ProtocolObject,
 // implemented by `protocol`, each describing a vtable function pointer with
 // signature R(*)(void*, Args...) noexcept(...) for a mutable interface
 // method, or R(*)(const void*, Args...) noexcept(...) for a const one, named
-// by the member function's mangled signature (see
-// `xyz::name_mangling::mangle`).
+// by the member function's mangled signature (see `xyz::detail::mangle`).
 template <std::meta::info interface_type>
 consteval std::vector<std::meta::info> generate_vtable_specs() {
   std::vector<std::meta::info> function_pointer_specs;

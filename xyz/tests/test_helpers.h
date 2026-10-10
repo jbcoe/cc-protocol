@@ -21,9 +21,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef XYZ_TEST_HELPERS_H
 #define XYZ_TEST_HELPERS_H
 
-#include "protocol.hh"
+#include "xyz/protocol.hh"
 
-namespace xyz {
+namespace xyz::tests {
 
 template <bool B>
 constexpr bool static_test() {
@@ -39,10 +39,8 @@ struct NonCopyable {
   NonCopyable& operator=(NonCopyable&&) = default;
 };
 
-}  // namespace xyz
-
-// Concepts for call operator tests, shared by protocol_test.cc and
-// protocol_operator_tests.cc.
+// Concepts for call operator tests, shared by protocol_operator_tests.cc and
+// protocol_view_tests.cc.
 template <typename P>
 concept is_callable = requires(P& p) { p(); };
 
@@ -59,5 +57,7 @@ concept operator_overload_set_can_be_sliced_from = requires(Derived d) {
   []<std::meta::operators Op, typename P, typename V, typename... S>(
       xyz::detail::operator_overload_set<Op, P, V, S...>) {}(d);
 };
+
+}  // namespace xyz::tests
 
 #endif  // XYZ_TEST_HELPERS_H

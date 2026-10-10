@@ -26,7 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <ranges>
 #include <type_traits>
 
-namespace xyz::reflection {
+namespace xyz::detail {
 
 template <typename I>
 concept is_valid_interface =
@@ -39,17 +39,8 @@ template <typename I>
 concept is_valid_view_interface =
     is_valid_interface<I> || is_valid_interface<std::remove_const_t<I>>;
 
-template <is_valid_interface T, typename Allocator>
-class protocol;
-
-template <is_valid_view_interface T>
-class protocol_view;
-
 template <typename T>
 struct is_protocol : std::false_type {};
-
-template <is_valid_interface T, typename Allocator>
-struct is_protocol<protocol<T, Allocator>> : std::true_type {};
 
 template <typename T>
 inline constexpr bool is_protocol_v = is_protocol<T>::value;
@@ -57,12 +48,9 @@ inline constexpr bool is_protocol_v = is_protocol<T>::value;
 template <typename T>
 struct is_protocol_view : std::false_type {};
 
-template <is_valid_view_interface T>
-struct is_protocol_view<protocol_view<T>> : std::true_type {};
-
 template <typename T>
 inline constexpr bool is_protocol_view_v = is_protocol_view<T>::value;
 
-}  // namespace xyz::reflection
+}  // namespace xyz::detail
 
 #endif  // XYZ_PROTOCOL_PROTOCOL_TRAITS_HH_

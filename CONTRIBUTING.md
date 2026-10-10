@@ -26,7 +26,7 @@ release, bump `.bazelversion`, which is one of the
 The project supports both Bazel and CMake build systems. Prefer Bazel for
 day-to-day building and testing: on a two-core codespace a full Bazel build
 took 140 s against 223 s for CMake, and rebuilding after a one-character edit
-to `protocol.hh` took 45 s against 81 s.
+to `xyz/protocol.hh` took 45 s against 81 s.
 
 1. **Bazel** (preferred): To build the project and run tests, execute:
 
@@ -110,13 +110,13 @@ configure time when the version it found does not match
 Fix genuine findings. Suppress false positives at the site with a `NOLINT`
 comment that names the check and gives a reason, or, for a check that does not
 apply to a whole directory, in that directory's `.clang-tidy` (see
-`tutorials/.clang-tidy`). Checks disabled for the whole repository are listed
-with their rationale at the top of `.clang-tidy`.
+`xyz/tutorials/.clang-tidy`). Checks disabled for the whole repository are
+listed with their rationale at the top of `.clang-tidy`.
 
 ### Measuring Test Coverage
 
-Test coverage is measured in two halves, because much of `protocol.hh` is
-`consteval` code that executes inside the compiler where runtime coverage
+Test coverage is measured in two halves, because much of `xyz/protocol.hh`
+is `consteval` code that executes inside the compiler where runtime coverage
 instrumentation cannot see it.
 
 Runtime coverage uses GCC's gcov:
@@ -177,7 +177,7 @@ constraints.
 
 Interfaces for `protocol` and `protocol_view` are plain structs or classes.
 Their public, non-virtual, non-template member functions define the protocol;
-`protocol.hh` inspects them with C++26 reflection at compile time.
+`xyz/protocol.hh` inspects them with C++26 reflection at compile time.
 
 ### Supported Features
 
@@ -195,19 +195,20 @@ Their public, non-virtual, non-template member functions define the protocol;
   functions are never called, whether declared on the interface or on the
   conforming type.
 
-- Guidance: Developers should refer to `protocol_test.cc`,
-  `forwarding_test.cc`, `allocator_tests.cc` and `tutorials/reflection.cc` for
-  examples of supported interface patterns.
+- Guidance: Developers should refer to `xyz/tests/protocol_test.cc`,
+  `xyz/tests/forwarding_test.cc`, `xyz/tests/allocator_tests.cc` and
+  `xyz/tutorials/03_reflection.cc` for examples of supported interface
+  patterns.
 
 ## Usage Examples
 
 Examples of how to use the `protocol` library can be found within the test
 suite.
 
-- `protocol_test.cc`: This file contains tests that demonstrate the library's
-  intended usage. It shows how to define an interface and then instantiate
-  and use the wrapper with concrete types. Developers can examine this file
-  for practical examples.
+- `xyz/tests/protocol_test.cc`: This file contains tests that demonstrate the
+  library's intended usage. It shows how to define an interface and then
+  instantiate and use the wrapper with concrete types. Developers can examine
+  this file for practical examples.
 
 ## Current Status and Limitations
 

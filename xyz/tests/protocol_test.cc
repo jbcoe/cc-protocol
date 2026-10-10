@@ -2,7 +2,7 @@
 // protocol_view: type traits, special member functions, constructability,
 // protocol_cast and target_type.
 
-#include "protocol.hh"
+#include "xyz/protocol.hh"
 
 #include <gtest/gtest.h>
 
@@ -13,12 +13,11 @@
 #include <type_traits>
 #include <utility>
 
-using xyz::reflection::is_protocol_v;
-using xyz::reflection::is_protocol_view_v;
-using xyz::reflection::is_valid_interface;
-using xyz::reflection::protocol;
-using xyz::reflection::protocol_view;
+using xyz::detail::is_protocol_v;
+using xyz::detail::is_protocol_view_v;
+using xyz::detail::is_valid_interface;
 
+namespace xyz::tests {
 namespace {
 
 // ---------------------------------------------------------------------------
@@ -557,12 +556,11 @@ TEST(ReflectionProtocolTest, FailedProtocolCast) {
   struct OtherType {};
 
   protocol<Interface> p(Conforming{.value = 25});
-  EXPECT_THROW(protocol_cast<OtherType>(p), xyz::reflection::bad_protocol_cast);
+  EXPECT_THROW(protocol_cast<OtherType>(p), xyz::bad_protocol_cast);
   EXPECT_EQ(protocol_cast<OtherType>(&p), nullptr);
 
   protocol_view<Interface> pv(p);
-  EXPECT_THROW(protocol_cast<OtherType>(pv),
-               xyz::reflection::bad_protocol_cast);
+  EXPECT_THROW(protocol_cast<OtherType>(pv), xyz::bad_protocol_cast);
   EXPECT_EQ(protocol_cast<OtherType>(&pv), nullptr);
 }
 
@@ -604,8 +602,7 @@ TEST(ReflectionProtocolViewTest, FailedConstProtocolCast) {
   Conforming c;
   protocol_view<const Interface> pv(c);
 
-  EXPECT_THROW(protocol_cast<OtherType>(pv),
-               xyz::reflection::bad_protocol_cast);
+  EXPECT_THROW(protocol_cast<OtherType>(pv), xyz::bad_protocol_cast);
   EXPECT_EQ(protocol_cast<OtherType>(&pv), nullptr);
 }
 
@@ -789,3 +786,4 @@ TEST(ReflectionProtocolTest, ValuelessAfterMoveFunctionDoesNotCollide) {
 }
 
 }  // namespace
+}  // namespace xyz::tests

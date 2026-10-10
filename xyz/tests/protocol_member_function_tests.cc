@@ -7,11 +7,10 @@
 #include <type_traits>
 #include <utility>
 
-#include "protocol.hh"
-#include "tracking_allocator.h"
+#include "xyz/protocol.hh"
+#include "xyz/tests/tracking_allocator.h"
 
-using xyz::reflection::protocol;
-
+namespace xyz::tests {
 namespace {
 
 // Concepts for negative member function tests: a requires-expression naming a
@@ -374,9 +373,9 @@ TEST(ReflectionProtocolTest, ForwardingWithCustomAllocator) {
 
   unsigned allocs = 0;
   unsigned deallocs = 0;
-  xyz::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
+  xyz::tests::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
 
-  protocol<Interface, xyz::TrackingAllocator<std::byte>> p(
+  protocol<Interface, xyz::tests::TrackingAllocator<std::byte>> p(
       std::allocator_arg, alloc, Conforming(42));
 
   EXPECT_EQ(p.get(), 42);
@@ -606,3 +605,4 @@ TEST(ReflectionProtocolTest, VolatileConformingType) {
 }
 
 }  // namespace
+}  // namespace xyz::tests

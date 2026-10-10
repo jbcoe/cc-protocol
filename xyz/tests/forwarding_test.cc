@@ -13,11 +13,9 @@
 #include <utility>
 #include <vector>
 
-#include "protocol.hh"
+#include "xyz/protocol.hh"
 
-using xyz::reflection::protocol;
-using xyz::reflection::protocol_view;
-
+namespace xyz::tests {
 namespace {
 
 // Counts copies and moves so tests can assert how arguments and return
@@ -672,8 +670,7 @@ TEST(ReflectionProtocolTest, AcceptExplicitObject) {
     int bar(this const Conforming&) { return 10; }
   };
 
-  static_assert(
-      xyz::reflection::is_protocol_conformant_v<Interface, Conforming>);
+  static_assert(xyz::is_protocol_conformant_v<Interface, Conforming>);
 
   protocol<Interface> p(Conforming{});
   EXPECT_EQ(p.foo(), 5);
@@ -686,3 +683,4 @@ TEST(ReflectionProtocolTest, AcceptExplicitObject) {
 }
 
 }  // namespace
+}  // namespace xyz::tests
