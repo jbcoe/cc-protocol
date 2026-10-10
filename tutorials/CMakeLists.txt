@@ -44,3 +44,9 @@ xyz_add_test(
     wide_pointer_sbo_tutorial
     FILES
     07_wide_pointer_sbo.cc)
+
+xyz_add_test(
+    NAME
+    wide_pointer_narrowing_tutorial
+    FILES
+    08_wide_pointer_narrowing.cc)

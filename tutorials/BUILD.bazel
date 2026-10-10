@@ -58,3 +58,10 @@ cc_test(
     srcs = ["07_wide_pointer_sbo.cc"],
     deps = ["@googletest//:gtest_main"],
 )
+
+cc_test(
+    name = "wide_pointer_narrowing_tutorial",
+    size = "small",
+    srcs = ["08_wide_pointer_narrowing.cc"],
+    deps = ["@googletest//:gtest_main"],
+)
