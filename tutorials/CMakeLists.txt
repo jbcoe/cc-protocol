@@ -38,3 +38,9 @@ xyz_add_test(
     xyz_protocol::protocol
     FILES
     06_advanced_vtables.cc)
+
+xyz_add_test(
+    NAME
+    wide_pointer_sbo_tutorial
+    FILES
+    07_wide_pointer_sbo.cc)
