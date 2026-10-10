@@ -7,6 +7,7 @@ codecov:
 ignore:
   - "*_test.cc"
   - "*_tests.cc"
+  - "tutorials/**"
 
 coverage:
   status:
