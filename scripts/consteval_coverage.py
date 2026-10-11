@@ -62,12 +62,20 @@ from compiler_discovery import find_reflection_compilers
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+
+def source_files(suffix: str) -> list[str]:
+    """Repository-relative paths of the files under xyz/ ending in `suffix`."""
+    return sorted(
+        os.path.relpath(path, SOURCE_ROOT)
+        for path in glob.glob(
+            os.path.join(SOURCE_ROOT, "xyz", "**", f"*{suffix}"), recursive=True
+        )
+    )
+
+
 # Library headers use the .hh suffix; test helpers (.h) are not instrumented.
-INSTRUMENTED_HEADERS = sorted(
-    os.path.relpath(path, SOURCE_ROOT)
-    for pattern in ("xyz/*.hh", "xyz/detail/*.hh")
-    for path in glob.glob(os.path.join(SOURCE_ROOT, pattern))
-)
+INSTRUMENTED_HEADERS = source_files(".hh")
+HELPER_HEADERS = source_files(".h")
 
 TRAP_HEADER = "consteval_coverage_probe.h"
 
@@ -441,21 +449,13 @@ def populate_work_dir(
         shutil.rmtree(work_dir)
     os.makedirs(work_dir)
     open(marker, "w").close()
-    os.makedirs(os.path.join(work_dir, "xyz", "detail"))
-    os.makedirs(os.path.join(work_dir, "xyz", "tests"))
-    for pattern in ("xyz/*.hh", "xyz/detail/*.hh", "xyz/tests/*.h"):
-        for path in glob.glob(os.path.join(SOURCE_ROOT, pattern)):
-            shutil.copy(
-                path, os.path.join(work_dir, os.path.relpath(path, SOURCE_ROOT))
-            )
+    for path in INSTRUMENTED_HEADERS + HELPER_HEADERS + translation_units:
+        destination = os.path.join(work_dir, path)
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        shutil.copy(os.path.join(SOURCE_ROOT, path), destination)
     for header, lines in instrumented_by_header.items():
         with open(os.path.join(work_dir, header), "w") as out:
             out.write("\n".join(lines) + "\n")
-    for translation_unit in translation_units:
-        shutil.copy(
-            os.path.join(SOURCE_ROOT, translation_unit),
-            os.path.join(work_dir, translation_unit),
-        )
 
 
 def compile_batch(

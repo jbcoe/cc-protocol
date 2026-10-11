@@ -33,7 +33,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string_view>
 #include <vector>
 
-#include "xyz/tests/consteval_check.h"
+#include "xyz/testing/consteval_check.h"
 
 // A study of using vtables for overloaded member functions and `operator()`.
 // This tutorial follows on from the work in

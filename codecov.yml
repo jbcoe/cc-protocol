@@ -6,6 +6,7 @@ codecov:
 
 ignore:
   - "xyz/tests/**"
+  - "xyz/testing/**"
   - "xyz/tutorials/**"
 
 coverage:

@@ -43,7 +43,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <meta>
 #endif
 
-namespace xyz::tests {
+namespace xyz::testing {
 
 class consteval_check_failure : public std::exception {
  public:
@@ -163,7 +163,7 @@ constexpr void report(captured_value<Lhs> value,
 }
 
 }  // namespace consteval_check
-}  // namespace xyz::tests
+}  // namespace xyz::testing
 
 // GCC's -Wparentheses fires on `capturer <= lhs == rhs`, so the capture is
 // bracketed by push/pop pragmas. Kept as separate macros so that the main
@@ -174,13 +174,13 @@ constexpr void report(captured_value<Lhs> value,
 #define XYZ_CONSTEVAL_CHECK_INTERNAL_RESTORE_WARNINGS \
   _Pragma("GCC diagnostic pop")
 
-#define XYZ_CONSTEVAL_CHECK(...)                                          \
-  do {                                                                    \
-    XYZ_CONSTEVAL_CHECK_INTERNAL_SUPPRESS_PARENTHESES_WARNINGS            \
-    ::xyz::tests::consteval_check::report(                                \
-        (::xyz::tests::consteval_check::value_capturer{} <= __VA_ARGS__), \
-        #__VA_ARGS__, std::source_location::current());                   \
-    XYZ_CONSTEVAL_CHECK_INTERNAL_RESTORE_WARNINGS                         \
+#define XYZ_CONSTEVAL_CHECK(...)                                            \
+  do {                                                                      \
+    XYZ_CONSTEVAL_CHECK_INTERNAL_SUPPRESS_PARENTHESES_WARNINGS              \
+    ::xyz::testing::consteval_check::report(                                \
+        (::xyz::testing::consteval_check::value_capturer{} <= __VA_ARGS__), \
+        #__VA_ARGS__, std::source_location::current());                     \
+    XYZ_CONSTEVAL_CHECK_INTERNAL_RESTORE_WARNINGS                           \
   } while (false)
 
 #endif  // XYZ_CONSTEVAL_CHECK_H_

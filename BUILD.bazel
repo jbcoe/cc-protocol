@@ -3,9 +3,11 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
 
+# Implementation headers. Visible only inside this repository; tests that
+# include them depend on this target directly.
 cc_library(
-    name = "protocol",
-    srcs = [
+    name = "detail",
+    hdrs = [
         "xyz/detail/conformance.hh",
         "xyz/detail/conversion_thunks.hh",
         "xyz/detail/member_function_thunks.hh",
@@ -16,12 +18,18 @@ cc_library(
         "xyz/detail/protocol_wrappers.hh",
         "xyz/detail/vtable.hh",
     ],
+    visibility = ["//:__subpackages__"],
+)
+
+cc_library(
+    name = "protocol",
     hdrs = ["xyz/protocol.hh"],
+    deps = [":detail"],
 )
 
 cc_library(
     name = "consteval_check",
-    hdrs = ["xyz/tests/consteval_check.h"],
+    hdrs = ["xyz/testing/consteval_check.h"],
 )
 
 cc_test(
@@ -44,6 +52,7 @@ cc_test(
     ],
     deps = [
         ":consteval_check",
+        ":detail",
         ":protocol",
         "@googletest//:gtest_main",
     ],
