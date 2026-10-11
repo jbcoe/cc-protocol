@@ -5,9 +5,9 @@ codecov:
     after_n_builds: 2
 
 ignore:
-  - "*_test.cc"
-  - "*_tests.cc"
-  - "tutorials/**"
+  - "xyz/tests/**"
+  - "xyz/testing/**"
+  - "xyz/tutorials/**"
 
 coverage:
   status:

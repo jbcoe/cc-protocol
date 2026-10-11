@@ -29,7 +29,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <new>
 #include <utility>
 
-namespace xyz {
+namespace xyz::tests {
 
 template <typename T>
 struct TaggedAllocator {
@@ -76,6 +76,6 @@ struct TaggedAllocator {
   }
 };
 
-}  // namespace xyz
+}  // namespace xyz::tests
 
 #endif  // XYZ_TAGGED_ALLOCATOR_H_

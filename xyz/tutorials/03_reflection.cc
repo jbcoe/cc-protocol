@@ -29,7 +29,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string_view>
 #include <type_traits>
 
-#include "consteval_check.h"
+#include "xyz/testing/consteval_check.h"
 
 // A very brief (and intentionally incomplete) tour of C++26 reflection.
 
@@ -92,7 +92,7 @@ TEST(TutorialsReflection, MembersOfWithConstevalBlock) {
   // A bare `throw std::runtime_error("...")` would work too, but the
   // resulting diagnostic only shows the hand-written string, not what was
   // actually compared. `XYZ_CONSTEVAL_CHECK` decomposes the expression and
-  // throws `xyz::consteval_check_failure`, whose `what()` carries the
+  // throws `xyz::testing::consteval_check_failure`, whose `what()` carries the
   // `file:line`, the expression text, and the operand values, e.g.
   // "reflection.cc:NN: check failed: identifier_of(members[1]) == \"y\"
   // [\"x\" == \"y\"]". GCC prints `what()` of an uncaught exception thrown

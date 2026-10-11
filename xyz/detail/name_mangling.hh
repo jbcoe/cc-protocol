@@ -39,9 +39,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <type_traits>
 #include <vector>
 
-namespace xyz::name_mangling {
-
-namespace detail {
+namespace xyz::detail {
 
 template <typename T>
 consteval std::string decimal(T value) {
@@ -351,8 +349,6 @@ consteval std::string base_name_of(std::meta::info function) {
   return mangle_atom(identifier_of(function));
 }
 
-}  // namespace detail
-
 // Names the member function `function`, distinguishing overloads by folding
 // its cv- and ref-qualification, noexcept-ness, return type and each
 // parameter's type into the name. Matches the Itanium ABI's own placement
@@ -374,20 +370,20 @@ consteval std::string mangle(std::meta::info function) {
   if (is_const(function)) qualifiers += "K";
   if (is_lvalue_reference_qualified(function)) qualifiers += "R";
   if (is_rvalue_reference_qualified(function)) qualifiers += "O";
-  std::string atom = detail::base_name_of(function);
+  std::string atom = base_name_of(function);
   std::string name =
       "fn_" + (qualifiers.empty() ? atom : "N" + qualifiers + atom + "E");
   name += is_noexcept(function) ? "Do" : "";
   if (!is_conversion_function(function)) {
-    name += detail::mangle_type(return_type_of(function));
+    name += mangle_type(return_type_of(function));
   }
   std::vector<std::meta::info> parameters = parameters_of(function);
   for (std::meta::info parameter : parameters) {
-    name += detail::mangle_type(type_of(parameter));
+    name += mangle_type(type_of(parameter));
   }
   return name;
 }
 
-}  // namespace xyz::name_mangling
+}  // namespace xyz::detail
 
 #endif  // XYZ_PROTOCOL_NAME_MANGLING_HH_

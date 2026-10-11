@@ -27,11 +27,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string>
 #include <vector>
 
-#include "conformance.hh"
-#include "conversion_thunks.hh"
-#include "member_function_thunks.hh"
-#include "operator_thunks.hh"
-#include "overload_spec.hh"
+#include "xyz/detail/conformance.hh"
+#include "xyz/detail/conversion_thunks.hh"
+#include "xyz/detail/member_function_thunks.hh"
+#include "xyz/detail/operator_thunks.hh"
+#include "xyz/detail/overload_spec.hh"
 
 namespace xyz::detail {
 

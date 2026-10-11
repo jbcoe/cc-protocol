@@ -12,10 +12,9 @@
 #include <string_view>
 #include <vector>
 
-#include "protocol.hh"
+#include "xyz/protocol.hh"
 
-using xyz::reflection::is_protocol_conformant;
-
+namespace xyz::tests {
 namespace {
 
 // ---------------------------------------------------------------------------
@@ -721,14 +720,13 @@ TEST(ConformsToTest, ReservedMemberNamesAreThePublicMembersOfProtocol) {
   };
 
 #ifndef __clang__
-  static_assert(public_member_names_are(^^xyz::reflection::protocol<Interface>,
+  static_assert(public_member_names_are(^^xyz::protocol<Interface>,
                                         xyz::detail::reserved_member_names));
+  static_assert(public_member_names_are(^^xyz::protocol_view<Interface>, {
+                                                                         }));
   static_assert(
-      public_member_names_are(^^xyz::reflection::protocol_view<Interface>, {
-                                                                           }));
-  static_assert(public_member_names_are(
-      ^^xyz::reflection::protocol_view<const Interface>, {
-                                                         }));
+      public_member_names_are(^^xyz::protocol_view<const Interface>, {
+                                                                     }));
 #endif  // __clang__
 }
 
@@ -1100,3 +1098,4 @@ TEST(ConformsToTest, StaticOverloadConformsAlongsideNonStatic) {
 }
 
 }  // namespace
+}  // namespace xyz::tests

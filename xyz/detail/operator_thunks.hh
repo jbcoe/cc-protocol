@@ -23,8 +23,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <meta>
 #include <utility>
 
-#include "overload_spec.hh"
-#include "vtable.hh"
+#include "xyz/detail/overload_spec.hh"
+#include "xyz/detail/vtable.hh"
 
 namespace xyz::detail {
 

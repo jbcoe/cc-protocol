@@ -28,12 +28,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string_view>
 #include <type_traits>
 
-#include "protocol.hh"
-#include "test_helpers.h"
+#include "xyz/protocol.hh"
+#include "xyz/tests/test_helpers.h"
 
-using xyz::reflection::protocol;
-using xyz::reflection::protocol_view;
-
+namespace xyz::tests {
 namespace {
 
 TEST(ReflectionProtocolTest, CallOperator) {
@@ -1630,3 +1628,4 @@ TEST(ReflectionProtocolTest, ComparisonWithStringViewAndSentinelOperands) {
   EXPECT_TRUE(std::default_sentinel == pcv);
 }
 }  // namespace
+}  // namespace xyz::tests

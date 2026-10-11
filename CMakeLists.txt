@@ -123,16 +123,16 @@ target_sources(
             BASE_DIRS
             "${CMAKE_CURRENT_SOURCE_DIR}"
             FILES
-            protocol.hh
-            conformance.hh
-            conversion_thunks.hh
-            member_function_thunks.hh
-            operator_thunks.hh
-            overload_spec.hh
-            protocol_traits.hh
-            protocol_wrappers.hh
-            vtable.hh
-            name_mangling.hh)
+            xyz/protocol.hh
+            xyz/detail/conformance.hh
+            xyz/detail/conversion_thunks.hh
+            xyz/detail/member_function_thunks.hh
+            xyz/detail/operator_thunks.hh
+            xyz/detail/overload_spec.hh
+            xyz/detail/protocol_traits.hh
+            xyz/detail/protocol_wrappers.hh
+            xyz/detail/vtable.hh
+            xyz/detail/name_mangling.hh)
 # Consumers need the reflection flags of whichever compiler they build with,
 # so the options are generator expressions evaluated at their configure time
 # rather than the flags of the compiler that installed the package.
@@ -182,18 +182,18 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       LINK_LIBRARIES
       xyz_protocol::protocol
       FILES
-      protocol_test.cc
-      protocol_member_function_tests.cc
-      protocol_operator_tests.cc
-      protocol_view_tests.cc
-      conformance_tests.cc
-      allocator_tests.cc
-      consteval_check_test.cc
-      forwarding_test.cc
-      name_mangling_tests.cc
-      vtable_tests.cc)
+      xyz/tests/protocol_test.cc
+      xyz/tests/protocol_member_function_tests.cc
+      xyz/tests/protocol_operator_tests.cc
+      xyz/tests/protocol_view_tests.cc
+      xyz/tests/conformance_tests.cc
+      xyz/tests/allocator_tests.cc
+      xyz/tests/consteval_check_test.cc
+      xyz/tests/forwarding_test.cc
+      xyz/tests/name_mangling_tests.cc
+      xyz/tests/vtable_tests.cc)
 
-    add_subdirectory(tutorials)
+    add_subdirectory(xyz/tutorials)
   endif(${BUILD_TESTING})
 
   install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt"

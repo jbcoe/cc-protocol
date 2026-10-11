@@ -9,10 +9,11 @@
 #include <meta>
 #include <stdexcept>
 
-#include "name_mangling.hh"
+#include "xyz/detail/name_mangling.hh"
 
-using xyz::name_mangling::mangle;
+using xyz::detail::mangle;
 
+namespace xyz::tests {
 namespace {
 
 enum class Kind : std::uint8_t { one, two };
@@ -81,7 +82,7 @@ TEST(NameManglingTest, ConversionFunctionManglesItsTargetTypeOnce) {
   };
 
   static_assert(mangle(^^Conversions::operator Widget) ==
-                "fn_NKcvN12_GLOBAL__N_16WidgetEE");
+                "fn_NKcvN3xyz5tests12_GLOBAL__N_16WidgetEE");
   static_assert(mangle(^^Conversions::operator int) == "fn_cviDo");
 }
 
@@ -121,12 +122,12 @@ TEST(NameManglingTest, NamesAnExtendedFundamentalTypeParameter) {
 
 TEST(NameManglingTest, NamesAReferenceToALocalClassType) {
   static_assert(mangle(^^Interface::set_widget_ref) ==
-                "fn_14set_widget_refvRKN12_GLOBAL__N_16WidgetE");
+                "fn_14set_widget_refvRKN3xyz5tests12_GLOBAL__N_16WidgetE");
 }
 
 TEST(NameManglingTest, NamesAnEnumerationParameter) {
   static_assert(mangle(^^Interface::set_kind) ==
-                "fn_8set_kindvN12_GLOBAL__N_14KindE");
+                "fn_8set_kindvN3xyz5tests12_GLOBAL__N_14KindE");
 }
 
 TEST(NameManglingTest, NamesAClassTemplateSpecialisationParameter) {
@@ -140,19 +141,21 @@ TEST(NameManglingTest, NamesAClassTemplateSpecialisationParameter) {
 
 TEST(NameManglingTest, NamesAnIntegralNonTypeTemplateArgument) {
   static_assert(mangle(^^Interface::set_tagged) ==
-                "fn_10set_taggedvN12_GLOBAL__N_16TaggedILi3EEE");
+                "fn_10set_taggedvN3xyz5tests12_GLOBAL__N_16TaggedILi3EEE");
 }
 
 TEST(NameManglingTest, NamesANegativeIntegralNonTypeTemplateArgument) {
-  static_assert(mangle(^^Interface::set_negative_tagged) ==
-                "fn_19set_negative_taggedvN12_GLOBAL__N_16TaggedILin3EEE");
+  static_assert(
+      mangle(^^Interface::set_negative_tagged) ==
+      "fn_19set_negative_taggedvN3xyz5tests12_GLOBAL__N_16TaggedILin3EEE");
 }
 
 TEST(NameManglingTest, DoesNotTruncateA64BitNonTypeTemplateArgumentToSizeT) {
   static_assert(mangle(^^Interface::set_zero) ==
-                "fn_8set_zerovN12_GLOBAL__N_18Tagged64ILx0EEE");
-  static_assert(mangle(^^Interface::set_big) ==
-                "fn_7set_bigvN12_GLOBAL__N_18Tagged64ILx4294967296EEE");
+                "fn_8set_zerovN3xyz5tests12_GLOBAL__N_18Tagged64ILx0EEE");
+  static_assert(
+      mangle(^^Interface::set_big) ==
+      "fn_7set_bigvN3xyz5tests12_GLOBAL__N_18Tagged64ILx4294967296EEE");
   static_assert(mangle(^^Interface::set_zero) != mangle(^^Interface::set_big));
 }
 
@@ -354,8 +357,8 @@ TEST(NameManglingTest, NamesUnaryOnlyOperators) {
 
 TEST(NameManglingTest, NamesAssignmentAndCompoundAssignmentOperators) {
   static_assert(mangle(^^AllOperators::operator=) ==
-                "fn_aSRN12_GLOBAL__N_112AllOperatorsE"
-                "RKN12_GLOBAL__N_112AllOperatorsE");
+                "fn_aSRN3xyz5tests12_GLOBAL__N_112AllOperatorsE"
+                "RKN3xyz5tests12_GLOBAL__N_112AllOperatorsE");
   static_assert(mangle(^^AllOperators::operator+=) == "fn_pLii");
   static_assert(mangle(^^AllOperators::operator-=) == "fn_mIii");
   static_assert(mangle(^^AllOperators::operator*=) == "fn_mLii");
@@ -421,3 +424,4 @@ TEST(NameManglingTest,
 }
 
 }  // namespace
+}  // namespace xyz::tests

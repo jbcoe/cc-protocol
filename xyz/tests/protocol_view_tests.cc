@@ -9,13 +9,11 @@
 #include <type_traits>
 #include <utility>
 
-#include "protocol.hh"
-#include "test_helpers.h"
-#include "tracking_allocator.h"
+#include "xyz/protocol.hh"
+#include "xyz/tests/test_helpers.h"
+#include "xyz/tests/tracking_allocator.h"
 
-using xyz::reflection::protocol;
-using xyz::reflection::protocol_view;
-
+namespace xyz::tests {
 namespace {
 
 // Concepts for negative member function tests: a requires-expression naming a
@@ -759,10 +757,10 @@ TEST(ReflectionProtocolViewTest, ViewOfProtocolWithCustomAllocator) {
 
   unsigned allocs = 0;
   unsigned deallocs = 0;
-  xyz::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
+  xyz::tests::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
 
-  protocol<Interface, xyz::TrackingAllocator<std::byte>> p(std::allocator_arg,
-                                                           alloc, Conforming{});
+  protocol<Interface, xyz::tests::TrackingAllocator<std::byte>> p(
+      std::allocator_arg, alloc, Conforming{});
   protocol_view<Interface> view(p);
 
   EXPECT_EQ(view.get(), 9);
@@ -864,3 +862,4 @@ TEST(ReflectionProtocolViewTest, ViewOfConformingObjectPassedByValue) {
 }
 
 }  // namespace
+}  // namespace xyz::tests

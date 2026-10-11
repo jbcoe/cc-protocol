@@ -22,7 +22,6 @@ cc_test(
     srcs = ["03_reflection.cc"],
     deps = [
         "//:consteval_check",
-        "//:protocol",
         "@googletest//:gtest_main",
     ],
 )
@@ -47,7 +46,6 @@ cc_test(
     srcs = ["06_advanced_vtables.cc"],
     deps = [
         "//:consteval_check",
-        "//:protocol",
         "@googletest//:gtest_main",
     ],
 )

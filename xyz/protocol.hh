@@ -17,8 +17,8 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==============================================================================*/
-#ifndef XYZ_REFLECTION_PROTOCOL_HH_
-#define XYZ_REFLECTION_PROTOCOL_HH_
+#ifndef XYZ_PROTOCOL_PROTOCOL_HH_
+#define XYZ_PROTOCOL_PROTOCOL_HH_
 
 // A C++26-reflection-based implementation of protocol and protocol_view.
 //
@@ -26,8 +26,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // runtime through a generated vtable; `protocol`'s vtable extends
 // `protocol_view`'s with destroy/copy/move entries used for allocator-aware
 // ownership. Vtable entries are named by mangling the interface member
-// function's signature (see "name_mangling.hh"), so an entry can be found by
-// the signature it implements rather than by declaration order.
+// function's signature (see "xyz/detail/name_mangling.hh"), so an entry can
+// be found by the signature it implements rather than by declaration order.
 //
 // Neither implementation currently supports operators other than operator().
 
@@ -48,16 +48,28 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <utility>
 #include <vector>
 
-#include "conformance.hh"
-#include "conversion_thunks.hh"
-#include "member_function_thunks.hh"
-#include "name_mangling.hh"
-#include "operator_thunks.hh"
-#include "protocol_traits.hh"
-#include "protocol_wrappers.hh"
-#include "vtable.hh"
+#include "xyz/detail/conformance.hh"
+#include "xyz/detail/conversion_thunks.hh"
+#include "xyz/detail/member_function_thunks.hh"
+#include "xyz/detail/name_mangling.hh"
+#include "xyz/detail/operator_thunks.hh"
+#include "xyz/detail/protocol_traits.hh"
+#include "xyz/detail/protocol_wrappers.hh"
+#include "xyz/detail/vtable.hh"
 
-namespace xyz::reflection {
+namespace xyz {
+
+template <detail::is_valid_interface T, typename Allocator>
+class protocol;
+
+template <detail::is_valid_view_interface T>
+class protocol_view;
+
+template <detail::is_valid_interface T, typename Allocator>
+struct detail::is_protocol<xyz::protocol<T, Allocator>> : std::true_type {};
+
+template <detail::is_valid_view_interface T>
+struct detail::is_protocol_view<xyz::protocol_view<T>> : std::true_type {};
 
 // Returns `true` if `Candidate` is a structural subtype of `Interface`;
 // otherwise returns `false`.
@@ -120,7 +132,8 @@ struct bad_protocol_cast : std::exception {
 // through the owning vtable (see `vtable` below). Calling a member function
 // on a valueless (moved-from) `protocol` is a precondition violation.
 // ---------------------------------------------------------------------------
-template <is_valid_interface I, typename Alloc = std::allocator<std::byte>>
+template <detail::is_valid_interface I,
+          typename Alloc = std::allocator<std::byte>>
 class protocol
     : public detail::protocol_wrappers_t<I, protocol<I, Alloc>,
                                          detail::vtable_t<I>,
@@ -248,7 +261,7 @@ class protocol
 
   // Grants `protocol_view` access so that a view of a protocol can share its
   // vtable.
-  template <is_valid_view_interface>
+  template <detail::is_valid_view_interface>
   friend class protocol_view;
 
   template <typename T, typename Protocol>
@@ -502,7 +515,7 @@ class protocol
 // does not restrict the interface. Use `protocol_view<const T>` to view a
 // const object.
 // ---------------------------------------------------------------------------
-template <is_valid_view_interface T>
+template <detail::is_valid_view_interface T>
 class protocol_view
     : public detail::protocol_wrappers_t<T, protocol_view<T>,
                                          detail::vtable_t<T>,
@@ -522,7 +535,7 @@ class protocol_view
   // Views a non-const object that conforms to the Interface T.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
-                 (!is_protocol_view_v<std::remove_cvref_t<U>>) &&
+                 (!detail::is_protocol_view_v<std::remove_cvref_t<U>>) &&
                  (!std::is_const_v<U>)
   protocol_view(U& object)
       : object_(static_cast<void*>(std::addressof(object))),
@@ -531,7 +544,7 @@ class protocol_view
   // A view of a temporary would dangle.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
-                 (!is_protocol_view_v<std::remove_cvref_t<U>>) &&
+                 (!detail::is_protocol_view_v<std::remove_cvref_t<U>>) &&
                  (!std::is_const_v<U>)
   protocol_view(const U&&) = delete;
 
@@ -549,7 +562,7 @@ class protocol_view
  private:
   // Grants `protocol_view<const T>` access so it can share this view's
   // `object_`/`vtable_`.
-  template <is_valid_view_interface>
+  template <detail::is_valid_view_interface>
   friend class protocol_view;
 
   // Grants the synthesised member thunks access to `object_`/`vtable_` so
@@ -603,7 +616,7 @@ class protocol_view
 //
 // Views a const object `T` and exposes the const member functions.
 // ---------------------------------------------------------------------------
-template <is_valid_interface T>
+template <detail::is_valid_interface T>
 class protocol_view<const T>
     : public detail::protocol_wrappers_t<T, protocol_view<const T>,
                                          detail::vtable_t<T>,
@@ -623,7 +636,7 @@ class protocol_view<const T>
   // Views a (possibly const) object that conforms to the Interface T.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
-                 (!is_protocol_view_v<std::remove_cvref_t<U>>)
+                 (!detail::is_protocol_view_v<std::remove_cvref_t<U>>)
   protocol_view(const U& object)
       : object_(static_cast<const void*>(std::addressof(object))),
         vtable_(&detail::view_vtable_for<T, U>) {}
@@ -631,7 +644,7 @@ class protocol_view<const T>
   // A view of a temporary would dangle.
   template <typename U>
     requires is_protocol_conformant_v<T, std::remove_cvref_t<U>> &&
-                 (!is_protocol_view_v<std::remove_cvref_t<U>>)
+                 (!detail::is_protocol_view_v<std::remove_cvref_t<U>>)
   protocol_view(const U&&) = delete;
 
   // Views the object a `protocol<T>` owns, sharing its vtable.
@@ -701,6 +714,6 @@ class protocol_view<const T>
   const detail::vtable_t<T>* vtable_;
 };
 
-}  // namespace xyz::reflection
+}  // namespace xyz
 
-#endif  // XYZ_REFLECTION_PROTOCOL_HH_
+#endif  // XYZ_PROTOCOL_PROTOCOL_HH_

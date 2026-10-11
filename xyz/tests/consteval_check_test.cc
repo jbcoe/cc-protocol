@@ -18,15 +18,16 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ==============================================================================*/
 
-#include "consteval_check.h"
+#include "xyz/testing/consteval_check.h"
 
 #include <gtest/gtest.h>
 
 #include <string>
 #include <string_view>
 
-using xyz::consteval_check_failure;
+using xyz::testing::consteval_check_failure;
 
+namespace xyz::tests {
 namespace {
 
 // ---------------------------------------------------------------------------
@@ -151,3 +152,4 @@ TEST(ConstevalCheckTest, UnsupportedTypeDisplaysPlaceholder) {
 }
 
 }  // namespace
+}  // namespace xyz::tests
