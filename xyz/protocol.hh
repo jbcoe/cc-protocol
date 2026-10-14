@@ -304,6 +304,17 @@ class protocol
     return *p.vtable_->xyz_protocol_typeid;
   }
 
+  // The pointer the synthesised member thunks pass to the vtable entries.
+  // Hidden friends so they can't collide with a forwarded interface member
+  // function of the same name.
+  friend constexpr void* erased_object(protocol& p) noexcept {
+    return p.object_;
+  }
+
+  friend constexpr const void* erased_object(const protocol& p) noexcept {
+    return p.object_;
+  }
+
   [[no_unique_address]] Alloc alloc_;
 
   void* object_ = nullptr;
@@ -605,6 +616,12 @@ class protocol_view
     return *p.vtable_->xyz_protocol_typeid;
   }
 
+  // The pointer the synthesised member thunks pass to the vtable entries. The
+  // view's const is shallow, so a const view passes a mutable pointer.
+  friend constexpr void* erased_object(const protocol_view& p) noexcept {
+    return p.object_;
+  }
+
   // Non-owning pointer to the viewed object.
   void* object_ = nullptr;
 
@@ -706,6 +723,11 @@ class protocol_view<const T>
 
   friend constexpr const std::type_info& target_type(protocol_view p) noexcept {
     return *p.vtable_->xyz_protocol_typeid;
+  }
+
+  // The pointer the synthesised member thunks pass to the vtable entries.
+  friend constexpr const void* erased_object(const protocol_view& p) noexcept {
+    return p.object_;
   }
 
   // Non-owning pointer to the viewed object.

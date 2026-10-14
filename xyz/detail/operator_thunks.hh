@@ -85,8 +85,8 @@ struct operator_thunk<std::meta::operators::op_parentheses,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator()(Args... args) const noexcept(IsNoexcept)
@@ -94,8 +94,8 @@ struct operator_thunk<std::meta::operators::op_parentheses,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -134,8 +134,8 @@ struct operator_thunk<std::meta::operators::op_square_brackets,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator[](Args... args) const noexcept(IsNoexcept)
@@ -143,8 +143,8 @@ struct operator_thunk<std::meta::operators::op_square_brackets,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -182,16 +182,18 @@ struct operator_thunk<std::meta::operators::op_arrow,
     requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_);
+    return call_through_vtable<Member, Vtable>(protocol_object,
+                                               protocol_object->vtable_,
+                                               erased_object(*protocol_object));
   }
 
   R operator->() const noexcept(IsNoexcept)
     requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_);
+    return call_through_vtable<Member, Vtable>(protocol_object,
+                                               protocol_object->vtable_,
+                                               erased_object(*protocol_object));
   }
 
  protected:
@@ -230,8 +232,8 @@ struct operator_thunk<std::meta::operators::op_star,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator*(Args... args) const noexcept(IsNoexcept)
@@ -239,8 +241,8 @@ struct operator_thunk<std::meta::operators::op_star,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -279,8 +281,8 @@ struct operator_thunk<std::meta::operators::op_arrow_star,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator->*(Args... args) const noexcept(IsNoexcept)
@@ -288,8 +290,8 @@ struct operator_thunk<std::meta::operators::op_arrow_star,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -327,16 +329,18 @@ struct operator_thunk<std::meta::operators::op_tilde,
     requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_);
+    return call_through_vtable<Member, Vtable>(protocol_object,
+                                               protocol_object->vtable_,
+                                               erased_object(*protocol_object));
   }
 
   R operator~() const noexcept(IsNoexcept)
     requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_);
+    return call_through_vtable<Member, Vtable>(protocol_object,
+                                               protocol_object->vtable_,
+                                               erased_object(*protocol_object));
   }
 
  protected:
@@ -373,16 +377,18 @@ struct operator_thunk<std::meta::operators::op_exclamation,
     requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_);
+    return call_through_vtable<Member, Vtable>(protocol_object,
+                                               protocol_object->vtable_,
+                                               erased_object(*protocol_object));
   }
 
   R operator!() const noexcept(IsNoexcept)
     requires(MemberQualifiers == member_qualifiers::const_qualified)
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
-    return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_);
+    return call_through_vtable<Member, Vtable>(protocol_object,
+                                               protocol_object->vtable_,
+                                               erased_object(*protocol_object));
   }
 
  protected:
@@ -421,8 +427,8 @@ struct operator_thunk<std::meta::operators::op_plus,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator+(Args... args) const noexcept(IsNoexcept)
@@ -430,8 +436,8 @@ struct operator_thunk<std::meta::operators::op_plus,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -470,8 +476,8 @@ struct operator_thunk<std::meta::operators::op_minus,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator-(Args... args) const noexcept(IsNoexcept)
@@ -479,8 +485,8 @@ struct operator_thunk<std::meta::operators::op_minus,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -519,8 +525,8 @@ struct operator_thunk<std::meta::operators::op_slash,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator/(Args... args) const noexcept(IsNoexcept)
@@ -528,8 +534,8 @@ struct operator_thunk<std::meta::operators::op_slash,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -568,8 +574,8 @@ struct operator_thunk<std::meta::operators::op_percent,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator%(Args... args) const noexcept(IsNoexcept)
@@ -577,8 +583,8 @@ struct operator_thunk<std::meta::operators::op_percent,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -617,8 +623,8 @@ struct operator_thunk<std::meta::operators::op_caret,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator^(Args... args) const noexcept(IsNoexcept)
@@ -626,8 +632,8 @@ struct operator_thunk<std::meta::operators::op_caret,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -666,8 +672,8 @@ struct operator_thunk<std::meta::operators::op_ampersand,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator&(Args... args) const noexcept(IsNoexcept)
@@ -675,8 +681,8 @@ struct operator_thunk<std::meta::operators::op_ampersand,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -715,8 +721,8 @@ struct operator_thunk<std::meta::operators::op_pipe,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator|(Args... args) const noexcept(IsNoexcept)
@@ -724,8 +730,8 @@ struct operator_thunk<std::meta::operators::op_pipe,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -764,8 +770,8 @@ struct operator_thunk<std::meta::operators::op_plus_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator+=(Args... args) const noexcept(IsNoexcept)
@@ -773,8 +779,8 @@ struct operator_thunk<std::meta::operators::op_plus_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -813,8 +819,8 @@ struct operator_thunk<std::meta::operators::op_minus_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator-=(Args... args) const noexcept(IsNoexcept)
@@ -822,8 +828,8 @@ struct operator_thunk<std::meta::operators::op_minus_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -862,8 +868,8 @@ struct operator_thunk<std::meta::operators::op_star_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator*=(Args... args) const noexcept(IsNoexcept)
@@ -871,8 +877,8 @@ struct operator_thunk<std::meta::operators::op_star_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -911,8 +917,8 @@ struct operator_thunk<std::meta::operators::op_slash_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator/=(Args... args) const noexcept(IsNoexcept)
@@ -920,8 +926,8 @@ struct operator_thunk<std::meta::operators::op_slash_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -960,8 +966,8 @@ struct operator_thunk<std::meta::operators::op_percent_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator%=(Args... args) const noexcept(IsNoexcept)
@@ -969,8 +975,8 @@ struct operator_thunk<std::meta::operators::op_percent_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1009,8 +1015,8 @@ struct operator_thunk<std::meta::operators::op_caret_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator^=(Args... args) const noexcept(IsNoexcept)
@@ -1018,8 +1024,8 @@ struct operator_thunk<std::meta::operators::op_caret_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1058,8 +1064,8 @@ struct operator_thunk<std::meta::operators::op_ampersand_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator&=(Args... args) const noexcept(IsNoexcept)
@@ -1067,8 +1073,8 @@ struct operator_thunk<std::meta::operators::op_ampersand_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1107,8 +1113,8 @@ struct operator_thunk<std::meta::operators::op_pipe_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator|=(Args... args) const noexcept(IsNoexcept)
@@ -1116,8 +1122,8 @@ struct operator_thunk<std::meta::operators::op_pipe_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1156,8 +1162,8 @@ struct operator_thunk<std::meta::operators::op_ampersand_ampersand,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator&&(Args... args) const noexcept(IsNoexcept)
@@ -1165,8 +1171,8 @@ struct operator_thunk<std::meta::operators::op_ampersand_ampersand,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1205,8 +1211,8 @@ struct operator_thunk<std::meta::operators::op_pipe_pipe,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator||(Args... args) const noexcept(IsNoexcept)
@@ -1214,8 +1220,8 @@ struct operator_thunk<std::meta::operators::op_pipe_pipe,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1254,8 +1260,8 @@ struct operator_thunk<std::meta::operators::op_less_less,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator<<(Args... args) const noexcept(IsNoexcept)
@@ -1263,8 +1269,8 @@ struct operator_thunk<std::meta::operators::op_less_less,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1303,8 +1309,8 @@ struct operator_thunk<std::meta::operators::op_greater_greater,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator>>(Args... args) const noexcept(IsNoexcept)
@@ -1312,8 +1318,8 @@ struct operator_thunk<std::meta::operators::op_greater_greater,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1352,8 +1358,8 @@ struct operator_thunk<std::meta::operators::op_less_less_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator<<=(Args... args) const noexcept(IsNoexcept)
@@ -1361,8 +1367,8 @@ struct operator_thunk<std::meta::operators::op_less_less_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1401,8 +1407,8 @@ struct operator_thunk<std::meta::operators::op_greater_greater_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator>>=(Args... args) const noexcept(IsNoexcept)
@@ -1410,8 +1416,8 @@ struct operator_thunk<std::meta::operators::op_greater_greater_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1450,8 +1456,8 @@ struct operator_thunk<std::meta::operators::op_plus_plus,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator++(Args... args) const noexcept(IsNoexcept)
@@ -1459,8 +1465,8 @@ struct operator_thunk<std::meta::operators::op_plus_plus,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1499,8 +1505,8 @@ struct operator_thunk<std::meta::operators::op_minus_minus,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator--(Args... args) const noexcept(IsNoexcept)
@@ -1508,8 +1514,8 @@ struct operator_thunk<std::meta::operators::op_minus_minus,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1548,8 +1554,8 @@ struct operator_thunk<std::meta::operators::op_comma,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator,(Args... args) const noexcept(IsNoexcept)
@@ -1557,8 +1563,8 @@ struct operator_thunk<std::meta::operators::op_comma,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1597,8 +1603,8 @@ struct operator_thunk<std::meta::operators::op_equals_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator==(Args... args) const noexcept(IsNoexcept)
@@ -1606,8 +1612,8 @@ struct operator_thunk<std::meta::operators::op_equals_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1646,8 +1652,8 @@ struct operator_thunk<std::meta::operators::op_exclamation_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator!=(Args... args) const noexcept(IsNoexcept)
@@ -1655,8 +1661,8 @@ struct operator_thunk<std::meta::operators::op_exclamation_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1695,8 +1701,8 @@ struct operator_thunk<std::meta::operators::op_less,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator<(Args... args) const noexcept(IsNoexcept)
@@ -1704,8 +1710,8 @@ struct operator_thunk<std::meta::operators::op_less,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1744,8 +1750,8 @@ struct operator_thunk<std::meta::operators::op_less_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator<=(Args... args) const noexcept(IsNoexcept)
@@ -1753,8 +1759,8 @@ struct operator_thunk<std::meta::operators::op_less_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1793,8 +1799,8 @@ struct operator_thunk<std::meta::operators::op_greater,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator>(Args... args) const noexcept(IsNoexcept)
@@ -1802,8 +1808,8 @@ struct operator_thunk<std::meta::operators::op_greater,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1842,8 +1848,8 @@ struct operator_thunk<std::meta::operators::op_greater_equals,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator>=(Args... args) const noexcept(IsNoexcept)
@@ -1851,8 +1857,8 @@ struct operator_thunk<std::meta::operators::op_greater_equals,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
@@ -1891,8 +1897,8 @@ struct operator_thunk<std::meta::operators::op_spaceship,
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
   R operator<=>(Args... args) const noexcept(IsNoexcept)
@@ -1900,8 +1906,8 @@ struct operator_thunk<std::meta::operators::op_spaceship,
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
-        std::forward<Args>(args)...);
+        protocol_object, protocol_object->vtable_,
+        erased_object(*protocol_object), std::forward<Args>(args)...);
   }
 
  protected:
