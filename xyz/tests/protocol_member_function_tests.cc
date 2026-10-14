@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -365,6 +367,10 @@ TEST(ReflectionProtocolTest, ForwardingWithCustomAllocator) {
 
   struct Conforming {
     int value;
+
+    // Too large for protocol's small buffer, so that it is allocated.
+    [[maybe_unused]] std::array<std::byte, xyz::detail::small_buffer_size>
+        padding{};
 
     explicit Conforming(int initial_value) : value(initial_value) {}
 

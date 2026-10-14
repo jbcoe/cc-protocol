@@ -187,6 +187,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       xyz/tests/protocol_member_function_tests.cc
       xyz/tests/protocol_operator_tests.cc
       xyz/tests/protocol_view_tests.cc
+      xyz/tests/small_buffer_tests.cc
       xyz/tests/conformance_tests.cc
       xyz/tests/allocator_tests.cc
       xyz/tests/consteval_check_test.cc

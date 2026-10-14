@@ -205,6 +205,18 @@ consteval vtable_t<T> make_view_vtable() {
 template <typename T, typename U>
 inline constexpr vtable_t<T> view_vtable_for = make_view_vtable<T, U>();
 
+// A vtable for `T` with no member function entries, describing no object.
+template <typename T>
+consteval vtable_t<T> make_null_view_vtable() {
+  vtable_t<T> vtable{};
+  vtable.xyz_protocol_typeid = &typeid(void);
+  return vtable;
+}
+
+// The vtable a view of a valueless protocol<T> points to.
+template <typename T>
+inline constexpr vtable_t<T> null_view_vtable_for = make_null_view_vtable<T>();
+
 }  // namespace xyz::detail
 
 #endif  // XYZ_PROTOCOL_VTABLE_HH_

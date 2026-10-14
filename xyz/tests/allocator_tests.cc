@@ -48,10 +48,9 @@ using TestProtocol = xyz::protocol<IntLike, TestAlloc>;
 class Tester {
   int val_;
 
-  // protocol should probably implement small buffer optimization, and therefore
-  // we may find there are fewer allocations than these tests suggest. To
-  // sidestep this, we can use a type that is guaranteed to be larger than
-  // protocol.
+  // protocol stores small objects in a buffer without allocating. These tests
+  // count allocations, so they use a type larger than protocol, which cannot
+  // fit in the buffer.
   [[maybe_unused]] std::array<std::byte, sizeof(TestProtocol)> padding_;
 
  public:
@@ -783,6 +782,9 @@ TEST(ProtocolTest, ConstructionException) {
 // and move constructors must not throw.
 class ThrowingCopyTester {
   int val_{0};
+
+  // Too large for protocol's small buffer, so that it is heap-allocated.
+  [[maybe_unused]] std::array<std::byte, sizeof(TestProtocol)> padding_{};
 
  public:
   explicit ThrowingCopyTester(int value) noexcept : val_(value) {}
