@@ -785,5 +785,23 @@ TEST(ReflectionProtocolTest, ValuelessAfterMoveFunctionDoesNotCollide) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
+// The pointer the member function thunks pass to the vtable is internal:
+// neither a free function found by ADL nor an accessible member.
+template <typename P>
+concept exposes_erased_object = requires(P& p) {
+  erased_object(p);
+} || requires(P& p) { p.xyz_protocol_erased_object(); };
+
+TEST(ReflectionProtocolTest, ErasedObjectIsNotExposed) {
+  struct Interface {
+    int get() const;
+  };
+
+  static_assert(!exposes_erased_object<protocol<Interface>>);
+  static_assert(!exposes_erased_object<const protocol<Interface>>);
+  static_assert(!exposes_erased_object<protocol_view<Interface>>);
+  static_assert(!exposes_erased_object<protocol_view<const Interface>>);
+}
+
 }  // namespace
 }  // namespace xyz::tests

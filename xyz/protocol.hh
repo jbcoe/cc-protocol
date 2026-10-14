@@ -367,14 +367,12 @@ class protocol
   }
 
   // The pointer the synthesised member thunks pass to the vtable entries.
-  // Hidden friends so they can't collide with a forwarded interface member
-  // function of the same name.
-  friend constexpr void* erased_object(protocol& p) noexcept {
-    return &p.storage_;
-  }
+  // Private, so not part of the interface; prefixed, as a private member name
+  // still hides an interface member function of the same name.
+  constexpr void* xyz_protocol_erased_object() noexcept { return &storage_; }
 
-  friend constexpr const void* erased_object(const protocol& p) noexcept {
-    return &p.storage_;
+  constexpr const void* xyz_protocol_erased_object() const noexcept {
+    return &storage_;
   }
 
   // Delegated to by the allocator-aware in-place constructors.
@@ -711,8 +709,9 @@ class protocol_view
 
   // The pointer the synthesised member thunks pass to the vtable entries. The
   // view's const is shallow, so a const view passes a mutable pointer.
-  friend constexpr void* erased_object(const protocol_view& p) noexcept {
-    return p.object_;
+  // Private and prefixed, as for `protocol`.
+  constexpr void* xyz_protocol_erased_object() const noexcept {
+    return object_;
   }
 
   // Non-owning pointer to the viewed object.
@@ -823,8 +822,9 @@ class protocol_view<const T>
   }
 
   // The pointer the synthesised member thunks pass to the vtable entries.
-  friend constexpr const void* erased_object(const protocol_view& p) noexcept {
-    return p.object_;
+  // Private and prefixed, as for `protocol`.
+  constexpr const void* xyz_protocol_erased_object() const noexcept {
+    return object_;
   }
 
   // Non-owning pointer to the viewed object.
