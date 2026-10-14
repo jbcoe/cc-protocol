@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <cassert>
 #include <meta>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -34,6 +35,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "xyz/detail/name_mangling.hh"
 #include "xyz/detail/overload_spec.hh"
 #include "xyz/detail/protocol_traits.hh"
+#include "xyz/detail/small_buffer.hh"
 
 namespace xyz::detail {
 
@@ -119,38 +121,59 @@ using vtable_t = typename vtable_generator<T>::type;
 
 // Trampolines translate type-erased calls to vtable functions to member
 // function calls on the underlying (owned or viewed) object.
-template <typename FnPtrType, typename U, std::meta::info CandidateMember>
+//
+// A direct trampoline is passed the object's address: a viewed object, or an
+// owned object in a protocol's small buffer. `std::launder` is needed for the
+// latter, as the address passed is that of the protocol's
+// `small_buffer_storage`, and is a no-op for the former. An indirect
+// trampoline is passed the address of a protocol's `small_buffer_storage`
+// holding a pointer to a heap-allocated object.
+template <typename FnPtrType, typename U, std::meta::info CandidateMember,
+          bool Indirect = false>
 struct mutable_view_trampoline;
 
 template <typename R, typename... Args, bool Noexcept, typename U,
-          std::meta::info CandidateMember>
+          std::meta::info CandidateMember, bool Indirect>
 struct mutable_view_trampoline<R (*)(void*, Args...) noexcept(Noexcept), U,
-                               CandidateMember> {
+                               CandidateMember, Indirect> {
   static R operator()(void* ptr, Args... args) noexcept(Noexcept) {
-    return static_cast<U*>(ptr)->[:CandidateMember:](
-        std::forward<Args>(args)...);
+    U* object = nullptr;
+    if constexpr (Indirect) {
+      object =
+          static_cast<U*>(static_cast<small_buffer_storage*>(ptr)->pointer_);
+    } else {
+      object = std::launder(static_cast<U*>(ptr));
+    }
+    return object->[:CandidateMember:](std::forward<Args>(args)...);
   }
 };
 
-template <typename FnPtrType, typename U, std::meta::info CandidateMember>
+template <typename FnPtrType, typename U, std::meta::info CandidateMember,
+          bool Indirect = false>
 struct const_view_trampoline;
 
 template <typename R, typename... Args, bool Noexcept, typename U,
-          std::meta::info CandidateMember>
+          std::meta::info CandidateMember, bool Indirect>
 struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
-                             CandidateMember> {
+                             CandidateMember, Indirect> {
   static R operator()(const void* ptr, Args... args) noexcept(Noexcept) {
-    return static_cast<const U*>(ptr)->[:CandidateMember:](
-        std::forward<Args>(args)...);
+    const U* object = nullptr;
+    if constexpr (Indirect) {
+      object = static_cast<const U*>(
+          static_cast<const small_buffer_storage*>(ptr)->pointer_);
+    } else {
+      object = std::launder(static_cast<const U*>(ptr));
+    }
+    return object->[:CandidateMember:](std::forward<Args>(args)...);
   }
 };
 
 // Builds a vtable for `T` whose entries call through to the corresponding
-// member of `U`.
+// member of `U`, using indirect trampolines if `Indirect`.
 // For `protocol_view` some vtable entries may be unused due to const
 // qualifiers. We opt for simple vtable construction logic and rely on
 // generation of forwarding wrappers to determine which functions are forwarded.
-template <typename T, typename U>
+template <typename T, typename U, bool Indirect = false>
 consteval vtable_t<T> make_view_vtable() {
   vtable_t<T> vtable{};
 
@@ -164,13 +187,14 @@ consteval vtable_t<T> make_view_vtable() {
     if constexpr (is_const(member)) {
       constexpr std::meta::info candidate =
           find_conforming_member<member, ^^U>();
-      vtable.[:vtable_member:] = &const_view_trampoline<FnPtrType, U,
-                                                        candidate>::operator();
+      vtable.[:vtable_member:] = &const_view_trampoline<FnPtrType, U, candidate,
+                                                        Indirect>::operator();
     } else /*constexpr*/ {
       constexpr std::meta::info candidate =
           find_conforming_member<member, ^^U>();
-      vtable.[:vtable_member:] = &mutable_view_trampoline<
-                                   FnPtrType, U, candidate>::operator();
+      vtable
+          .[:vtable_member:] = &mutable_view_trampoline<FnPtrType, U, candidate,
+                                                        Indirect>::operator();
     }
   }
   return vtable;
