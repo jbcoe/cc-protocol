@@ -47,6 +47,14 @@ union small_buffer_storage {
 // Objects in the buffer are constructed without the allocator, so
 // allocator-aware types are always stored on the heap: whether a type
 // receives the allocator does not depend on its size.
+//
+// Known gap: `std::uses_allocator_v` is checked against `Alloc` itself, but an
+// allocator's `construct` may pass a different allocator. With a
+// `std::scoped_allocator_adaptor`, a small type that uses only the inner
+// allocator is buffered and so never receives it, while a large one does.
+// Never buffering when `Alloc` has a `construct` member would close the gap at
+// the cost of disabling the buffer for `std::pmr` allocators; this is to be
+// decided.
 template <typename T, typename Alloc>
 inline constexpr bool fits_in_small_buffer_v =
     sizeof(T) <= small_buffer_size && alignof(T) <= small_buffer_alignment &&
