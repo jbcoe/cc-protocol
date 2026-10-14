@@ -23,11 +23,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // A C++26-reflection-based implementation of protocol and protocol_view.
 //
 // Both `protocol` and `protocol_view` dispatch member function calls at
-// runtime through a generated vtable; `protocol`'s vtable extends
-// `protocol_view`'s with destroy/copy/move entries used for allocator-aware
-// ownership. Vtable entries are named by mangling the interface member
-// function's signature (see "xyz/detail/name_mangling.hh"), so an entry can
-// be found by the signature it implements rather than by declaration order.
+// runtime through a generated vtable. `protocol`'s entries take its storage
+// rather than the object's address, and its vtable adds destroy/copy/move
+// entries used for allocator-aware ownership. Vtable entries are named by
+// mangling the interface member function's signature (see
+// "xyz/detail/name_mangling.hh"), so an entry can be found by the signature it
+// implements rather than by declaration order.
 //
 // `protocol` stores a small, nothrow-movable object in a buffer inside itself
 // and any other object on the heap (see "xyz/detail/small_buffer.hh"). Which
@@ -144,7 +145,7 @@ template <detail::is_valid_interface I,
           typename Alloc = std::allocator<std::byte>>
 class protocol
     : public detail::protocol_wrappers_t<I, protocol<I, Alloc>,
-                                         detail::vtable_t<I>,
+                                         detail::storage_vtable_t<I>,
                                          detail::const_policy::propagate> {
   using traits = std::allocator_traits<Alloc>;
 
@@ -158,17 +159,19 @@ class protocol
 
   static constexpr bool always_equal = traits::is_always_equal::value;
 
+  using storage_vtable = detail::storage_vtable_t<I>;
+
   using view_vtable = detail::vtable_t<I>;
 
   // Extends the generated per-member-function vtable with the entries needed
-  // for ownership. Because it derives from `view_vtable`, the synthesised
-  // member function thunks (which take a `const view_vtable*`) can call
+  // for ownership. Because it derives from `storage_vtable`, the synthesised
+  // member function thunks (which take a `const storage_vtable*`) can call
   // through a `const vtable*` unchanged.
   //
-  // The member function entries take the address of `storage_`. Whether the
-  // object is in the small buffer or on the heap is fixed for each stored
-  // type, so each type's entries know where to find it without a branch.
-  struct vtable : view_vtable {
+  // The member function entries take `storage_`. Whether the object is in the
+  // small buffer or on the heap is fixed for each stored type, so each type's
+  // entries know where to find it without a branch.
+  struct vtable : storage_vtable {
     // Destroys the object and leaves the storage empty.
     void (*destroy)(const Alloc& alloc,
                     detail::small_buffer_storage& storage) noexcept;
@@ -184,7 +187,7 @@ class protocol
     void (*relocate)(detail::small_buffer_storage& source,
                      detail::small_buffer_storage& destination) noexcept;
     // The vtable a `protocol_view` of the stored object uses: its entries
-    // take the object's address, not the address of `storage_`.
+    // take the object's address, not `storage_`.
     const view_vtable* object_vtable;
     // Whether the object is in the small buffer outside constant evaluation.
     bool is_buffered;
@@ -199,8 +202,8 @@ class protocol
     using operations = detail::small_buffer_operations<TNorm, Alloc>;
 
     vtable vtable{};
-    static_cast<view_vtable&>(vtable) =
-        detail::make_view_vtable<I, TNorm, !operations::fits>();
+    static_cast<storage_vtable&>(vtable) =
+        detail::make_vtable<storage_vtable, I, TNorm, operations>();
 
     vtable.destroy = &operations::destroy;
 
@@ -247,7 +250,7 @@ class protocol
   // valueless protocol is a precondition violation.
   static consteval vtable make_null_vtable() {
     vtable result{};
-    static_cast<view_vtable&>(result) = detail::make_null_view_vtable<I>();
+    result.xyz_protocol_typeid = &typeid(void);
     result.destroy =
         +[](const Alloc&, detail::small_buffer_storage&) noexcept {};
     result.copy = +[](const Alloc&, const detail::small_buffer_storage&,
@@ -366,13 +369,17 @@ class protocol
     return *p.vtable_->xyz_protocol_typeid;
   }
 
-  // The pointer the synthesised member thunks pass to the vtable entries.
-  // Private, so not part of the interface; prefixed, as a private member name
-  // still hides an interface member function of the same name.
-  constexpr void* xyz_protocol_erased_object() noexcept { return &storage_; }
+  // What the synthesised member thunks pass to the vtable entries. Private,
+  // so not part of the interface; prefixed, as a private member name still
+  // hides an interface member function of the same name.
+  constexpr detail::small_buffer_storage&
+  xyz_protocol_erased_object() noexcept {
+    return storage_;
+  }
 
-  constexpr const void* xyz_protocol_erased_object() const noexcept {
-    return &storage_;
+  constexpr const detail::small_buffer_storage& xyz_protocol_erased_object()
+      const noexcept {
+    return storage_;
   }
 
   // Delegated to by the allocator-aware in-place constructors.
