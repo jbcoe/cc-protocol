@@ -253,8 +253,8 @@ plain shell in the container.
 `claude` starts in the permission mode set in your host `~/.claude/settings.json`,
 which is mounted into the container. The container keeps the agent away from
 the rest of the host file system, but the network is unrestricted and the
-project and `~/.claude`, credentials included, are mounted read-write. Pass
-`--skip-permissions` only when that is acceptable.
+project and the host config of every supported agent, credentials included,
+are mounted read-write. Pass `--skip-permissions` only when that is acceptable.
 
 ### Sandbox image inputs
 

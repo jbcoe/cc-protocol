@@ -127,45 +127,46 @@ def _identity_args() -> list[str]:
     return args
 
 
-def _agent_mount_args(agent: str | None) -> list[str]:
-    """Seed and mount host config so an agent CLI keeps its auth state."""
+def _seed_agent_config() -> None:
+    """Create default host config files and directories for agent mounts."""
     # Use os.open with restrictive permissions in _seed_config_file to avoid
     # exposing credentials to other local users on multi-user systems.
-    if agent == "agy":
-        gemini_config_dir = os.path.expanduser("~/.gemini")
-        os.makedirs(gemini_config_dir, mode=0o700, exist_ok=True)
-        _seed_config_file(
-            os.path.join(gemini_config_dir, "trustedFolders.json"),
-            b'{"/workspace": "TRUST_FOLDER"}',
-        )
-        _seed_config_file(
-            os.path.join(gemini_config_dir, "settings.json"),
-            b'{"selectedAuthType": "oauth-personal"}',
-        )
-        return ["-v", f"{gemini_config_dir}:/home/vscode/.gemini"]
+    gemini_config_dir = os.path.expanduser("~/.gemini")
+    os.makedirs(gemini_config_dir, mode=0o700, exist_ok=True)
+    _seed_config_file(
+        os.path.join(gemini_config_dir, "trustedFolders.json"),
+        b'{"/workspace": "TRUST_FOLDER"}',
+    )
+    _seed_config_file(
+        os.path.join(gemini_config_dir, "settings.json"),
+        b'{"selectedAuthType": "oauth-personal"}',
+    )
 
-    if agent == "claude":
-        host_claude_dir = os.path.expanduser("~/.claude")
-        host_claude_json = os.path.expanduser("~/.claude.json")
-        os.makedirs(host_claude_dir, mode=0o700, exist_ok=True)
-        # Ensure the file exists on the host so Docker doesn't create it as a
-        # directory.
-        if os.path.exists(host_claude_json):
-            if not os.path.isfile(host_claude_json):
-                sys.exit(
-                    f"Expected {host_claude_json} to be a regular file, but found "
-                    "a different filesystem object. Remove or rename it and rerun."
-                )
-        else:
-            _seed_config_file(host_claude_json, b"")
-        return [
-            "-v",
-            f"{host_claude_dir}:/home/vscode/.claude",
-            "-v",
-            f"{host_claude_json}:/home/vscode/.claude.json",
-        ]
+    host_claude_dir = os.path.expanduser("~/.claude")
+    host_claude_json = os.path.expanduser("~/.claude.json")
+    os.makedirs(host_claude_dir, mode=0o700, exist_ok=True)
+    # Ensure the file exists on the host so Docker doesn't create it as a
+    # directory.
+    if os.path.exists(host_claude_json):
+        if not os.path.isfile(host_claude_json):
+            sys.exit(
+                f"Expected {host_claude_json} to be a regular file, but found "
+                "a different filesystem object. Remove or rename it and rerun."
+            )
+    else:
+        _seed_config_file(host_claude_json, b"")
 
-    return []
+
+def _agent_mount_args() -> list[str]:
+    """Mount host config so agent CLIs keep their auth state."""
+    return [
+        "-v",
+        f"{os.path.expanduser('~/.gemini')}:/home/vscode/.gemini",
+        "-v",
+        f"{os.path.expanduser('~/.claude')}:/home/vscode/.claude",
+        "-v",
+        f"{os.path.expanduser('~/.claude.json')}:/home/vscode/.claude.json",
+    ]
 
 
 def main() -> None:
@@ -212,6 +213,8 @@ def main() -> None:
         parser.error("--offline cannot be used with an agent")
     if args.skip_permissions and args.agent != "claude":
         parser.error("--skip-permissions requires the claude agent")
+
+    _seed_agent_config()
 
     def log(msg: str) -> None:
         if args.verbose:
@@ -273,7 +276,7 @@ def main() -> None:
     if args.offline:
         run_args.extend(["--network", "none"])
 
-    run_args.extend(_agent_mount_args(args.agent))
+    run_args.extend(_agent_mount_args())
     run_args.extend(_identity_args())
 
     if "TERM" in os.environ:
