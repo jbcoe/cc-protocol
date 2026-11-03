@@ -778,6 +778,20 @@ TEST(ReflectionProtocolTest, SwapWithValuelessProtocol) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
+TEST(ReflectionProtocolTest, SwapRequiresMoveConstructibleInterface) {
+  struct MovableInterface {
+    int value() const;
+  };
+
+  struct ImmovableInterface {
+    ImmovableInterface(ImmovableInterface&&) = delete;
+    int value() const;
+  };
+
+  static_assert(std::is_nothrow_swappable_v<protocol<MovableInterface>>);
+  static_assert(!std::is_swappable_v<protocol<ImmovableInterface>>);
+}
+
 TEST(ReflectionProtocolTest, SpecialMembersInConstantEvaluation) {
   struct Interface {
     int value() const;
