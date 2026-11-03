@@ -192,7 +192,9 @@ class protocol
   template <typename T, typename TNorm = std::decay_t<T>>
   static consteval vtable make_vtable_for() {
     vtable vtable{};
-    static_cast<view_vtable&>(vtable) = detail::make_view_vtable<I, TNorm>();
+    static_cast<view_vtable&>(vtable) =
+        detail::make_vtable<view_vtable, I, TNorm,
+                            detail::view_object_access<TNorm>>();
 
     vtable.destroy = +[](const Alloc& alloc, void* data) -> void {
       rebound<TNorm> new_alloc{alloc};
