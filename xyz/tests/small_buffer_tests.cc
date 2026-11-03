@@ -118,8 +118,14 @@ TEST(SmallBufferTest, OveralignedTypeDoesNotFit) {
 TEST(SmallBufferTest, TypeWithThrowingMoveDoesNotFit) {
   struct ThrowingMove {
     ThrowingMove() = default;
-
-    ThrowingMove(ThrowingMove&&) {}
+    ThrowingMove(const ThrowingMove&) = default;
+    // NOLINTBEGIN(cppcoreguidelines-noexcept-move-operations,hicpp-noexcept-move,performance-noexcept-move-constructor):
+    // the test needs a move constructor that can throw.
+    ThrowingMove(ThrowingMove&&) noexcept(false) = default;
+    // NOLINTEND(cppcoreguidelines-noexcept-move-operations,hicpp-noexcept-move,performance-noexcept-move-constructor)
+    ThrowingMove& operator=(const ThrowingMove&) = default;
+    ThrowingMove& operator=(ThrowingMove&&) = default;
+    ~ThrowingMove() = default;
   };
 
   static_assert(!fits_in_small_buffer_v<ThrowingMove, Alloc>);
@@ -206,7 +212,10 @@ void check_copy_construction(unsigned expected_allocations) {
   {
     TrackingProtocol p(std::allocator_arg, alloc, std::in_place_type<T>,
                        &counts, 1);
+    // NOLINTBEGIN(performance-unnecessary-copy-initialization): the test
+    // checks copy construction.
     TrackingProtocol copy(p);
+    // NOLINTEND(performance-unnecessary-copy-initialization)
 
     EXPECT_EQ(copy.value(), 1);
     EXPECT_EQ(p.value(), 1);
@@ -474,7 +483,7 @@ TEST(SmallBufferTest, SwapLargeAndLarge) {
 
 template <typename T>
 struct ThrowingDefaultAllocator : std::allocator<T> {
-  ThrowingDefaultAllocator() {}
+  ThrowingDefaultAllocator() noexcept(false) = default;
 
   template <typename U>
   ThrowingDefaultAllocator(const ThrowingDefaultAllocator<U>&) noexcept {}

@@ -784,7 +784,12 @@ TEST(ReflectionProtocolTest, SwapRequiresMoveConstructibleInterface) {
   };
 
   struct ImmovableInterface {
+    ImmovableInterface(const ImmovableInterface&) = delete;
     ImmovableInterface(ImmovableInterface&&) = delete;
+    ImmovableInterface& operator=(const ImmovableInterface&) = delete;
+    ImmovableInterface& operator=(ImmovableInterface&&) = delete;
+    ~ImmovableInterface() = default;
+
     int value() const;
   };
 
