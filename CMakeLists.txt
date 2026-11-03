@@ -131,6 +131,7 @@ target_sources(
             xyz/detail/overload_spec.hh
             xyz/detail/protocol_traits.hh
             xyz/detail/protocol_wrappers.hh
+            xyz/detail/small_buffer.hh
             xyz/detail/vtable.hh
             xyz/detail/name_mangling.hh)
 # Consumers need the reflection flags of whichever compiler they build with,

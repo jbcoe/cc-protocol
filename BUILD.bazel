@@ -16,6 +16,7 @@ cc_library(
         "xyz/detail/overload_spec.hh",
         "xyz/detail/protocol_traits.hh",
         "xyz/detail/protocol_wrappers.hh",
+        "xyz/detail/small_buffer.hh",
         "xyz/detail/vtable.hh",
     ],
     visibility = ["//:__subpackages__"],

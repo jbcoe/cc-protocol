@@ -763,6 +763,34 @@ TEST(ReflectionProtocolViewTest, MovedFromTargetType) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
+TEST(ReflectionProtocolTest, SpecialMembersInConstantEvaluation) {
+  struct Interface {
+    int value() const;
+  };
+
+  struct Literal {
+    int value_;
+
+    constexpr int value() const { return value_; }
+  };
+
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
+  static_assert([] consteval {
+    protocol<Interface> p(Literal{1});
+    protocol<Interface> copy(p);
+    protocol<Interface> moved(std::move(copy));
+    protocol<Interface> q(Literal{2});
+    q = moved;
+    q = std::move(moved);
+    swap(p, q);
+    return protocol_cast<Literal>(&p)->value() == 1 &&
+           protocol_cast<Literal>(&q)->value() == 1 &&
+           valueless_after_move(copy) && valueless_after_move(moved);
+  }());
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
 TEST(ReflectionProtocolTest, ValuelessAfterMoveFunctionDoesNotCollide) {
   struct Interface {
     bool valueless_after_move() const noexcept;
