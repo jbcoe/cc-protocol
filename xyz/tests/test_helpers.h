@@ -21,9 +21,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef XYZ_TEST_HELPERS_H
 #define XYZ_TEST_HELPERS_H
 
+#include <array>
+#include <cstddef>
+
 #include "xyz/protocol.hh"
 
 namespace xyz::tests {
+
+// A member of this type makes the type holding it too large for protocol's
+// small buffer, so that protocol allocates its object.
+using TooLargeForSmallBuffer =
+    std::array<std::byte, xyz::detail::small_buffer_size + 1>;
 
 template <bool B>
 constexpr bool static_test() {

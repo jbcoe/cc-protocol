@@ -755,6 +755,8 @@ TEST(ReflectionProtocolViewTest, ViewOfProtocolRemainsValidAfterMove) {
   };
 
   struct Conforming {
+    [[maybe_unused]] TooLargeForSmallBuffer padding{};
+
     int get() const { return 5; }
   };
 

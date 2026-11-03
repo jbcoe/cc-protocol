@@ -20,13 +20,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <gtest/gtest.h>
 
-#include <array>
 #include <cstddef>
 #include <new>
 #include <type_traits>
 
 #include "xyz/protocol.hh"
 #include "xyz/tests/tagged_allocator.h"
+#include "xyz/tests/test_helpers.h"
 #include "xyz/tests/tracking_allocator.h"
 
 namespace xyz::tests {
@@ -48,11 +48,7 @@ using TestProtocol = xyz::protocol<IntLike, TestAlloc>;
 class Tester {
   int val_;
 
-  // protocol should probably implement small buffer optimization, and therefore
-  // we may find there are fewer allocations than these tests suggest. To
-  // sidestep this, we can use a type that is guaranteed to be larger than
-  // protocol.
-  [[maybe_unused]] std::array<std::byte, sizeof(TestProtocol)> padding_;
+  [[maybe_unused]] TooLargeForSmallBuffer padding_;
 
  public:
   Tester(int value) noexcept : val_(value), padding_{} {}
@@ -100,7 +96,7 @@ TEST(ProtocolTest, ClassSpecificAllocationFunctionsAreNotUsed) {
   // Like std::polymorphic, protocol allocates and constructs only through its
   // allocator, so it can own a type whose allocation functions are deleted.
   struct NoNew {
-    [[maybe_unused]] std::array<std::byte, sizeof(TestProtocol)> padding_{};
+    [[maybe_unused]] TooLargeForSmallBuffer padding_{};
 
     static void* operator new(std::size_t) = delete;
     static void operator delete(void*) = delete;
@@ -783,6 +779,8 @@ TEST(ProtocolTest, ConstructionException) {
 // and move constructors must not throw.
 class ThrowingCopyTester {
   int val_{0};
+
+  [[maybe_unused]] TooLargeForSmallBuffer padding_{};
 
  public:
   explicit ThrowingCopyTester(int value) noexcept : val_(value) {}

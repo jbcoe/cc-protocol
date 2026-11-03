@@ -20,16 +20,43 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef XYZ_PROTOCOL_SMALL_BUFFER_HH_
 #define XYZ_PROTOCOL_SMALL_BUFFER_HH_
 
-// Storage for the object a `protocol` owns.
+// Storage for the object a `protocol` owns: either the object itself, in a
+// small buffer, or a pointer to it on the heap.
 
+#include <array>
+#include <cstddef>
 #include <memory>
+#include <new>
+#include <type_traits>
 #include <utility>
 
 namespace xyz::detail {
 
+inline constexpr std::size_t small_buffer_size = 3 * sizeof(void*);
+
+inline constexpr std::size_t small_buffer_alignment = alignof(void*);
+
 union small_buffer_storage {
   void* pointer_ = nullptr;
+  alignas(
+      small_buffer_alignment) std::array<std::byte, small_buffer_size> buffer_;
 };
+
+// Objects in the buffer are constructed without the allocator, so
+// allocator-aware types are always stored on the heap: whether a type
+// receives the allocator does not depend on its size.
+//
+// Known gap: `std::uses_allocator_v` is checked against `Alloc` itself, but an
+// allocator's `construct` may pass a different allocator. With a
+// `std::scoped_allocator_adaptor`, a small type that uses only the inner
+// allocator is buffered and so never receives it, while a large one does.
+// Never buffering when `Alloc` has a `construct` member would close the gap at
+// the cost of disabling the buffer for `std::pmr` allocators; this is to be
+// decided.
+template <typename T, typename Alloc>
+inline constexpr bool fits_in_small_buffer_v =
+    sizeof(T) <= small_buffer_size && alignof(T) <= small_buffer_alignment &&
+    std::is_nothrow_move_constructible_v<T> && !std::uses_allocator_v<T, Alloc>;
 
 // Selects the constructor that stores the object, which the public
 // constructors delegate to.
@@ -40,17 +67,33 @@ struct construct_in_storage_t {
 inline constexpr construct_in_storage_t construct_in_storage{};
 
 // Constructs, accesses, destroys and relocates a `T` held in a
-// `small_buffer_storage`, on the heap through the allocator, rebound to `T`.
+// `small_buffer_storage`: in the buffer if `T` fits, otherwise on the heap
+// through the allocator, rebound to `T`.
+//
+// Constant evaluation cannot place an object in a byte buffer, so a `T` is
+// always stored on the heap there. A protocol created during constant
+// evaluation cannot outlive it, so a stored object is only ever accessed in
+// the kind of evaluation that stored it. Each function below is the only place
+// that makes its choice.
 template <typename T, typename Alloc>
 struct small_buffer_operations {
   using rebound_allocator =
       typename std::allocator_traits<Alloc>::template rebind_alloc<T>;
   using rebound_traits = std::allocator_traits<rebound_allocator>;
 
+  static constexpr bool fits = fits_in_small_buffer_v<T, Alloc>;
+
   template <typename... Args>
   static constexpr void construct(const Alloc& alloc,
                                   small_buffer_storage& destination,
                                   Args&&... args) {
+    if !consteval {
+      if constexpr (fits) {
+        construct_in_buffer(destination, std::forward<Args>(args)...);
+        return;
+      }
+    }
+
     rebound_allocator rebound{alloc};
     T* object = rebound_traits::allocate(rebound, 1);
     try {
@@ -63,17 +106,35 @@ struct small_buffer_operations {
   }
 
   static constexpr T* object(small_buffer_storage& storage) noexcept {
+    if !consteval {
+      if constexpr (fits) {
+        return std::launder(reinterpret_cast<T*>(storage.buffer_.data()));
+      }
+    }
     return static_cast<T*>(storage.pointer_);
   }
 
   static constexpr const T* object(
       const small_buffer_storage& storage) noexcept {
+    if !consteval {
+      if constexpr (fits) {
+        return std::launder(reinterpret_cast<const T*>(storage.buffer_.data()));
+      }
+    }
     return static_cast<const T*>(storage.pointer_);
   }
 
   // Destroys the stored object and leaves `storage` empty.
   static constexpr void destroy(const Alloc& alloc,
                                 small_buffer_storage& storage) noexcept {
+    if !consteval {
+      if constexpr (fits) {
+        std::destroy_at(object(storage));
+        storage.pointer_ = nullptr;
+        return;
+      }
+    }
+
     rebound_allocator rebound{alloc};
     T* stored = static_cast<T*>(storage.pointer_);
     rebound_traits::destroy(rebound, stored);
@@ -99,7 +160,27 @@ struct small_buffer_operations {
   // its ownership is transferred, so both storages must use equal allocators.
   static constexpr void relocate(small_buffer_storage& source,
                                  small_buffer_storage& destination) noexcept {
+    if !consteval {
+      if constexpr (fits) {
+        T* source_object = object(source);
+        construct_in_buffer(destination, std::move(*source_object));
+        std::destroy_at(source_object);
+        source.pointer_ = nullptr;
+        return;
+      }
+    }
     destination.pointer_ = std::exchange(source.pointer_, nullptr);
+  }
+
+ private:
+  template <typename... Args>
+  static void construct_in_buffer(small_buffer_storage& destination,
+                                  Args&&... args) {
+    // Start the array's lifetime, making it the active member, so that it
+    // provides storage for the `T`.
+    std::construct_at(&destination.buffer_);
+    std::construct_at(reinterpret_cast<T*>(destination.buffer_.data()),
+                      std::forward<Args>(args)...);
   }
 };
 
