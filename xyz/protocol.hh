@@ -23,11 +23,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // A C++26-reflection-based implementation of protocol and protocol_view.
 //
 // Both `protocol` and `protocol_view` dispatch member function calls at
-// runtime through a generated vtable; `protocol`'s vtable extends
-// `protocol_view`'s with destroy/copy/move entries used for allocator-aware
-// ownership. Vtable entries are named by mangling the interface member
-// function's signature (see "xyz/detail/name_mangling.hh"), so an entry can
-// be found by the signature it implements rather than by declaration order.
+// runtime through a generated vtable. `protocol`'s entries take its storage
+// rather than the object's address, and its vtable adds destroy/copy/move
+// entries used for allocator-aware ownership. Vtable entries are named by
+// mangling the interface member function's signature (see
+// "xyz/detail/name_mangling.hh"), so an entry can be found by the signature it
+// implements rather than by declaration order.
 //
 // Neither implementation currently supports operators other than operator().
 
@@ -55,6 +56,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "xyz/detail/operator_thunks.hh"
 #include "xyz/detail/protocol_traits.hh"
 #include "xyz/detail/protocol_wrappers.hh"
+#include "xyz/detail/small_buffer.hh"
 #include "xyz/detail/vtable.hh"
 
 namespace xyz {
@@ -136,17 +138,9 @@ template <detail::is_valid_interface I,
           typename Alloc = std::allocator<std::byte>>
 class protocol
     : public detail::protocol_wrappers_t<I, protocol<I, Alloc>,
-                                         detail::vtable_t<I>,
+                                         detail::storage_vtable_t<I>,
                                          detail::const_policy::propagate> {
   using traits = std::allocator_traits<Alloc>;
-
-  // When using allocators in a type-erased context, we must rebind
-  // the allocator for whatever type the user provides.
-  template <typename T>
-  using rebound = traits::template rebind_alloc<T>;
-
-  template <typename T>
-  using rebound_traits = std::allocator_traits<rebound<T>>;
 
   static constexpr bool pocca =
       traits::propagate_on_container_copy_assignment::value;
@@ -158,70 +152,75 @@ class protocol
 
   static constexpr bool always_equal = traits::is_always_equal::value;
 
-  template <typename T, typename TNorm = std::decay_t<T>, typename... Args>
-  static constexpr TNorm* create(const Alloc& alloc, Args&&... args) {
-    rebound<TNorm> new_alloc{alloc};
-
-    auto obj = rebound_traits<TNorm>::allocate(new_alloc, 1);
-    try {
-      rebound_traits<TNorm>::construct(new_alloc, obj,
-                                       std::forward<Args>(args)...);
-    } catch (...) {
-      rebound_traits<TNorm>::deallocate(new_alloc, obj, 1);
-      throw;
-    }
-
-    return obj;
-  }
+  using storage_vtable = detail::storage_vtable_t<I>;
 
   using view_vtable = detail::vtable_t<I>;
 
   // Extends the generated per-member-function vtable with the entries needed
-  // for ownership. Because it derives from `view_vtable`, the synthesised
-  // member function thunks (which take a `const view_vtable*`) can call
+  // for ownership. Because it derives from `storage_vtable`, the synthesised
+  // member function thunks (which take a `const storage_vtable*`) can call
   // through a `const vtable*` unchanged.
-  struct vtable : view_vtable {
-    void (*destroy)(const Alloc& alloc, void* data);
-    void* (*copy)(const Alloc& alloc, const void* data);
-    void* (*move)(const Alloc& alloc, void* data);
+  struct vtable : storage_vtable {
+    // Destroys the object and leaves the storage empty.
+    void (*destroy)(const Alloc& alloc,
+                    detail::small_buffer_storage& storage) noexcept;
+    // Constructs a copy of the object in empty `destination`.
+    void (*copy)(const Alloc& alloc, const detail::small_buffer_storage& source,
+                 detail::small_buffer_storage& destination);
+    // Move-constructs the object into empty `destination`, using `alloc`.
+    void (*move)(const Alloc& alloc, detail::small_buffer_storage& source,
+                 detail::small_buffer_storage& destination);
+    // Moves the object to empty `destination`, which uses an allocator equal
+    // to the source's, and leaves the source empty.
+    void (*relocate)(detail::small_buffer_storage& source,
+                     detail::small_buffer_storage& destination) noexcept;
+    // The vtable a `protocol_view` of the stored object uses: its entries
+    // take the object's address, not `storage_`.
+    const view_vtable* object_vtable;
   };
 
   // Builds the vtable for the stored type `TNorm`: the member function
   // entries call through to `TNorm`'s conforming member functions and the
-  // ownership entries use the (rebound) allocator.
+  // ownership entries store it (see "xyz/detail/small_buffer.hh").
   template <typename T, typename TNorm = std::decay_t<T>>
   static consteval vtable make_vtable_for() {
-    vtable vtable{};
-    static_cast<view_vtable&>(vtable) =
-        detail::make_vtable<view_vtable, I, TNorm,
-                            detail::view_object_access<TNorm>>();
+    using operations = detail::small_buffer_operations<TNorm, Alloc>;
 
-    vtable.destroy = +[](const Alloc& alloc, void* data) -> void {
-      rebound<TNorm> new_alloc{alloc};
-      auto* typed = static_cast<TNorm*>(data);
-      rebound_traits<TNorm>::destroy(new_alloc, typed);
-      rebound_traits<TNorm>::deallocate(new_alloc, typed, 1);
-    };
+    vtable vtable{};
+    static_cast<storage_vtable&>(vtable) =
+        detail::make_vtable<storage_vtable, I, TNorm,
+                            detail::storage_object_access<TNorm, Alloc>>();
+
+    vtable.destroy = &operations::destroy;
 
     // Copy construction and assignment should only reach this
     // if the interface is copy constructible.
-    vtable.copy = +[](const Alloc& alloc, const void* data) -> void* {
-      if constexpr (std::is_copy_constructible_v<I>) {
-        return create<TNorm>(alloc, *static_cast<const TNorm*>(data));
+    vtable.copy =
+        +[](const Alloc& alloc, const detail::small_buffer_storage& source,
+            detail::small_buffer_storage& destination) {
+          if constexpr (std::is_copy_constructible_v<I>) {
+            operations::copy_construct(alloc, source, destination);
+          } else {
+            std::unreachable();
+          }
+        };
+
+    // Move construction and assignment should only reach this
+    // if the interface is move constructible.
+    vtable.move = +[](const Alloc& alloc, detail::small_buffer_storage& source,
+                      detail::small_buffer_storage& destination) {
+      if constexpr (std::is_move_constructible_v<I>) {
+        operations::move_construct(alloc, source, destination);
       } else {
         std::unreachable();
       }
     };
 
-    // Move construction and assignment should only reach this
-    // if the interface is move constructible.
-    vtable.move = +[](const Alloc& alloc, void* data) -> void* {
-      if constexpr (std::is_move_constructible_v<I>) {
-        return create<TNorm>(alloc, std::move(*static_cast<TNorm*>(data)));
-      } else {
-        std::unreachable();
-      }
-    };
+    // Not limited to move constructible interfaces: copy assignment
+    // relocates a copy into place.
+    vtable.relocate = &operations::relocate;
+
+    vtable.object_vtable = &detail::view_vtable_for<I, TNorm>;
 
     return vtable;
   }
@@ -237,15 +236,36 @@ class protocol
   static consteval vtable make_null_vtable() {
     vtable result{};
     result.xyz_protocol_typeid = &typeid(void);
-    result.destroy = +[](const Alloc&, void*) -> void {};
-    result.copy = +[](const Alloc&, const void*) -> void* { return nullptr; };
-    result.move = +[](const Alloc&, void*) -> void* { return nullptr; };
+    result.destroy =
+        +[](const Alloc&, detail::small_buffer_storage&) noexcept {};
+    result.copy = +[](const Alloc&, const detail::small_buffer_storage&,
+                      detail::small_buffer_storage& destination) {
+      destination.pointer_ = nullptr;
+    };
+    result.move = +[](const Alloc&, detail::small_buffer_storage&,
+                      detail::small_buffer_storage& destination) {
+      destination.pointer_ = nullptr;
+    };
+    result.relocate = +[](detail::small_buffer_storage&,
+                          detail::small_buffer_storage& destination) noexcept {
+      destination.pointer_ = nullptr;
+    };
+    result.object_vtable = &detail::null_view_vtable_for<I>;
     return result;
   }
 
   static constexpr vtable null_vtable = make_null_vtable();
 
-  // Grants the synthesised member thunks access to `object_`/`vtable_` so
+  // The address of the stored object, or null if valueless.
+  constexpr void* xyz_protocol_object_address() noexcept {
+    return storage_.pointer_;
+  }
+
+  constexpr const void* xyz_protocol_object_address() const noexcept {
+    return storage_.pointer_;
+  }
+
+  // Grants the synthesised member thunks access to `vtable_` and `storage_` so
   // they can locate and call through the matching vtable entry.
   template <typename FnPtrType, typename EnclosingType, typename ProtocolType,
             typename Vtable, std::meta::info Member,
@@ -261,8 +281,8 @@ class protocol
             detail::member_qualifiers MemberQualifiers>
   friend struct detail::conversion_thunk;
 
-  // Grants `protocol_view` access so that a view of a protocol can share its
-  // vtable.
+  // Grants `protocol_view` access so that a view of a protocol can find the
+  // object and its vtable.
   template <detail::is_valid_view_interface>
   friend class protocol_view;
 
@@ -278,7 +298,7 @@ class protocol
         std::conditional_t<std::is_const_v<std::remove_reference_t<Protocol>>,
                            const std::decay_t<T>*, std::decay_t<T>*>;
     return std::forward_like<Protocol>(
-        *static_cast<pointer_type>(operand.object_));
+        *static_cast<pointer_type>(operand.xyz_protocol_object_address()));
   }
 
   template <typename T>
@@ -288,7 +308,7 @@ class protocol
       return nullptr;
     }
 
-    return static_cast<T*>(operand->object_);
+    return static_cast<T*>(operand->xyz_protocol_object_address());
   }
 
   template <typename T>
@@ -298,7 +318,7 @@ class protocol
       return nullptr;
     }
 
-    return static_cast<const T*>(operand->object_);
+    return static_cast<const T*>(operand->xyz_protocol_object_address());
   }
 
   friend constexpr const std::type_info& target_type(
@@ -309,16 +329,32 @@ class protocol
   // The pointer the synthesised member thunks pass to the vtable entries.
   // Private, so not part of the interface; prefixed, as a private member name
   // still hides an interface member function of the same name.
-  constexpr void* xyz_protocol_erased_object() noexcept { return object_; }
+  constexpr detail::small_buffer_storage*
+  xyz_protocol_erased_object() noexcept {
+    return &storage_;
+  }
 
-  constexpr const void* xyz_protocol_erased_object() const noexcept {
-    return object_;
+  constexpr const detail::small_buffer_storage* xyz_protocol_erased_object()
+      const noexcept {
+    return &storage_;
+  }
+
+  // Delegated to by the allocator-aware in-place constructors.
+  template <typename T, typename... Args>
+  constexpr explicit protocol(detail::construct_in_storage_t, const Alloc& a,
+                              std::in_place_type_t<T>, Args&&... args)
+      : alloc_(a) {
+    detail::small_buffer_operations<T, Alloc>::construct(
+        alloc_, storage_, std::forward<Args>(args)...);
+    vtable_ = &vtable_for<T>;
   }
 
   [[no_unique_address]] Alloc alloc_;
 
-  void* object_ = nullptr;
   const vtable* vtable_ = &null_vtable;
+
+  // The owned object, or a pointer to it (see "xyz/detail/small_buffer.hh").
+  detail::small_buffer_storage storage_;
 
  public:
   using allocator_type = Alloc;
@@ -340,9 +376,8 @@ class protocol
              has_conformant_special_members_v<I, TNorm> &&
              is_protocol_conformant_v<I, TNorm>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, T&& obj)
-      : alloc_(a),
-        object_(create<T>(alloc_, std::forward<T>(obj))),
-        vtable_(&vtable_for<T>) {}
+      : protocol(detail::construct_in_storage, a, std::in_place_type<TNorm>,
+                 std::forward<T>(obj)) {}
 
   // In-place construction from conforming T.
   template <typename T, typename... Args>
@@ -361,9 +396,8 @@ class protocol
              has_conformant_special_members_v<I, T>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
                               std::in_place_type_t<T>, Args&&... args)
-      : alloc_(a),
-        object_(create<T>(alloc_, std::forward<Args>(args)...)),
-        vtable_(&vtable_for<T>) {}
+      : protocol(detail::construct_in_storage, a, std::in_place_type<T>,
+                 std::forward<Args>(args)...) {}
 
   // In-place construction needs this overload because templates cannot
   // deduce initializer lists.
@@ -385,11 +419,10 @@ class protocol
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
                               std::in_place_type_t<T>,
                               std::initializer_list<U> il, Args&&... args)
-      : alloc_(a),
-        object_(create<T>(alloc_, il, std::forward<Args>(args)...)),
-        vtable_(&vtable_for<T>) {}
+      : protocol(detail::construct_in_storage, a, std::in_place_type<T>, il,
+                 std::forward<Args>(args)...) {}
 
-  constexpr ~protocol() { vtable_->destroy(alloc_, object_); }
+  constexpr ~protocol() { vtable_->destroy(alloc_, storage_); }
 
   // Copy construction.
   constexpr protocol(const protocol& other)
@@ -402,9 +435,10 @@ class protocol
   constexpr protocol(std::allocator_arg_t, const Alloc& a,
                      const protocol& other)
     requires std::is_copy_constructible_v<I>
-      : alloc_(a),
-        object_(other.vtable_->copy(alloc_, other.object_)),
-        vtable_(other.vtable_) {}
+      : alloc_(a) {
+    other.vtable_->copy(alloc_, other.storage_, storage_);
+    vtable_ = other.vtable_;
+  }
 
   // Move construction.
   constexpr protocol(protocol&& other) noexcept
@@ -415,18 +449,17 @@ class protocol
   constexpr protocol(std::allocator_arg_t, const Alloc& a,
                      protocol&& other) noexcept(always_equal)
     requires std::is_move_constructible_v<I>
-      : alloc_(a), vtable_(other.vtable_) {
+      : alloc_(a) {
     if (always_equal || alloc_ == other.alloc_) {
-      // Fast path, we can just do a pointer swap.
-      object_ = other.object_;
+      // Fast path: take the object.
+      other.vtable_->relocate(other.storage_, storage_);
     } else {
-      // Slow path, we have to heap allocate and move construct.
-      object_ = other.vtable_->move(alloc_, other.object_);
-      other.vtable_->destroy(other.alloc_, other.object_);
+      // Slow path: move construct with our allocator.
+      other.vtable_->move(alloc_, other.storage_, storage_);
+      other.vtable_->destroy(other.alloc_, other.storage_);
     }
 
-    other.object_ = nullptr;
-    other.vtable_ = &null_vtable;
+    vtable_ = std::exchange(other.vtable_, &null_vtable);
   }
 
   // Copy assignment.
@@ -437,18 +470,18 @@ class protocol
       return *this;
     }
 
+    detail::small_buffer_storage copy;
     if constexpr (pocca) {
       // Allocate before destruction for strong exception safety.
-      void* new_object = other.vtable_->copy(other.alloc_, other.object_);
+      other.vtable_->copy(other.alloc_, other.storage_, copy);
 
-      vtable_->destroy(alloc_, object_);
-      object_ = new_object;
+      vtable_->destroy(alloc_, storage_);
       alloc_ = other.alloc_;
     } else {
-      void* new_object = other.vtable_->copy(alloc_, other.object_);
-      vtable_->destroy(alloc_, object_);
-      object_ = new_object;
+      other.vtable_->copy(alloc_, other.storage_, copy);
+      vtable_->destroy(alloc_, storage_);
     }
+    other.vtable_->relocate(copy, storage_);
     vtable_ = other.vtable_;
 
     return *this;
@@ -464,23 +497,22 @@ class protocol
     }
 
     if (always_equal || pocma || alloc_ == other.alloc_) {
-      // Fast path: just swap the pointers and (conditionally) the allocators.
-      vtable_->destroy(alloc_, object_);
-      object_ = other.object_;
+      // Fast path: take the object and (conditionally) the allocator.
+      vtable_->destroy(alloc_, storage_);
+      other.vtable_->relocate(other.storage_, storage_);
       if constexpr (pocma) {
         alloc_ = other.alloc_;
       }
     } else {
-      // Slow path: heap construct and move the object directly. Allocate first
-      // for strong exception safety.
-      void* new_object = other.vtable_->move(alloc_, other.object_);
-      vtable_->destroy(alloc_, object_);
-      other.vtable_->destroy(other.alloc_, other.object_);
-
-      object_ = new_object;
+      // Slow path: move construct with our allocator. Allocate first for
+      // strong exception safety.
+      detail::small_buffer_storage moved;
+      other.vtable_->move(alloc_, other.storage_, moved);
+      vtable_->destroy(alloc_, storage_);
+      other.vtable_->destroy(other.alloc_, other.storage_);
+      other.vtable_->relocate(moved, storage_);
     }
 
-    other.object_ = nullptr;
     vtable_ = std::exchange(other.vtable_, &null_vtable);
 
     return *this;
@@ -497,7 +529,7 @@ class protocol
     if constexpr (pocs) {
       swap(alloc_, other.alloc_);
     }
-    swap(object_, other.object_);
+    swap(storage_, other.storage_);
     swap(vtable_, other.vtable_);
   }
 
@@ -514,7 +546,7 @@ class protocol
   friend constexpr bool valueless_after_move(const protocol& p) noexcept
     requires std::is_move_constructible_v<I>
   {
-    return p.object_ == nullptr;
+    return p.vtable_ == &null_vtable;
   }
 };
 
@@ -564,7 +596,8 @@ class protocol_view
   // Precondition: `p` is not valueless.
   template <typename Alloc>
   protocol_view(protocol<T, Alloc>& p) noexcept
-      : object_(p.object_), vtable_(p.vtable_) {}
+      : object_(p.xyz_protocol_object_address()),
+        vtable_(p.vtable_->object_vtable) {}
 
   // A view of a temporary would dangle.
   template <typename Alloc>
@@ -670,7 +703,8 @@ class protocol_view<const T>
   // Precondition: `p` is not valueless.
   template <typename Alloc>
   protocol_view(const protocol<T, Alloc>& p) noexcept
-      : object_(p.object_), vtable_(p.vtable_) {}
+      : object_(p.xyz_protocol_object_address()),
+        vtable_(p.vtable_->object_vtable) {}
 
   // A view of a temporary would dangle.
   template <typename Alloc>

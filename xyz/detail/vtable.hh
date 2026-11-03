@@ -34,6 +34,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "xyz/detail/name_mangling.hh"
 #include "xyz/detail/overload_spec.hh"
 #include "xyz/detail/protocol_traits.hh"
+#include "xyz/detail/small_buffer.hh"
 
 namespace xyz::detail {
 
@@ -122,6 +123,12 @@ struct vtable_generator {
 template <typename T>
 using vtable_t = typename vtable_generator<T, void>::type;
 
+// The vtable whose entries take the storage of a `protocol`, which holds the
+// object.
+template <typename T>
+using storage_vtable_t =
+    typename vtable_generator<T, small_buffer_storage>::type;
+
 // Finds the `U` that a `vtable_t` entry is passed the address of.
 template <typename U>
 struct view_object_access {
@@ -176,6 +183,18 @@ consteval Vtable make_vtable() {
 template <typename T, typename U>
 inline constexpr vtable_t<T> view_vtable_for =
     make_vtable<vtable_t<T>, T, U, view_object_access<U>>();
+
+// A vtable for `T` with no member function entries, describing no object.
+template <typename T>
+consteval vtable_t<T> make_null_view_vtable() {
+  vtable_t<T> vtable{};
+  vtable.xyz_protocol_typeid = &typeid(void);
+  return vtable;
+}
+
+// The vtable a view of a valueless protocol<T> points to.
+template <typename T>
+inline constexpr vtable_t<T> null_view_vtable_for = make_null_view_vtable<T>();
 
 }  // namespace xyz::detail
 
