@@ -532,17 +532,29 @@ class protocol
   }
 
   constexpr void swap(protocol& other) noexcept(always_equal || pocs) {
+    // Relocating out of an emptied storage would read an object that is no
+    // longer there.
+    if (this == std::addressof(other)) {
+      return;
+    }
+
     if constexpr (!always_equal && !pocs) {
       // The behavior is undefined if the allocators are not equal.
       assert(alloc_ == other.alloc_ &&
              "allocators must compare equal or propagate on swap");
     }
 
+    // The storages are swapped through their objects' relocate entries rather
+    // than as values, so that an object stored in place is moved properly.
+    detail::small_buffer_storage storage;
+    vtable_->relocate(storage_, storage);
+    other.vtable_->relocate(other.storage_, storage_);
+    vtable_->relocate(storage, other.storage_);
+
     using std::swap;
     if constexpr (pocs) {
       swap(alloc_, other.alloc_);
     }
-    swap(storage_, other.storage_);
     swap(vtable_, other.vtable_);
   }
 
