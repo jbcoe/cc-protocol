@@ -58,6 +58,19 @@ inline constexpr bool fits_in_small_buffer_v =
     sizeof(T) <= small_buffer_size && alignof(T) <= small_buffer_alignment &&
     std::is_nothrow_move_constructible_v<T> && !std::uses_allocator_v<T, Alloc>;
 
+// Storing a `T` constructed from `Args...` cannot throw: it fits in the buffer,
+// so nothing is allocated, and its constructor does not throw.
+template <typename T, typename Alloc, typename... Args>
+inline constexpr bool is_nothrow_storable_v =
+    fits_in_small_buffer_v<T, Alloc> &&
+    std::is_nothrow_constructible_v<T, Args...>;
+
+// As `is_nothrow_storable_v`, when the allocator is also default-constructed.
+template <typename T, typename Alloc, typename... Args>
+inline constexpr bool is_nothrow_default_storable_v =
+    is_nothrow_storable_v<T, Alloc, Args...> &&
+    std::is_nothrow_default_constructible_v<Alloc>;
+
 // Selects the constructor that stores the object, which the public
 // constructors delegate to.
 struct construct_in_storage_t {
