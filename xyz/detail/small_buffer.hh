@@ -169,9 +169,11 @@ struct small_buffer_operations {
   }
 
   // Moves the stored object from `source` to `destination`, which must be
-  // empty, and leaves `source` empty. A heap-allocated object is not moved:
-  // its ownership is transferred, so both storages must use equal allocators.
-  static constexpr void relocate(small_buffer_storage& source,
+  // empty, and leaves `source` empty. `alloc` is the allocator the object was
+  // stored with. A heap-allocated object is not moved: its ownership is
+  // transferred, so both storages must use allocators equal to `alloc`.
+  static constexpr void relocate([[maybe_unused]] const Alloc& alloc,
+                                 small_buffer_storage& source,
                                  small_buffer_storage& destination) noexcept {
     if !consteval {
       if constexpr (fits) {

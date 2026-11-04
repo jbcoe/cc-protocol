@@ -182,9 +182,9 @@ class protocol
     // a heap-allocated object.
     void (*move)(const Alloc& alloc, detail::small_buffer_storage& source,
                  detail::small_buffer_storage& destination);
-    // Moves the object to empty `destination`, which uses an allocator equal
-    // to the source's, and leaves the source empty.
-    void (*relocate)(detail::small_buffer_storage& source,
+    // Moves the object, stored with `alloc`, to empty `destination`, which
+    // uses an allocator equal to `alloc`, and leaves the source empty.
+    void (*relocate)(const Alloc& alloc, detail::small_buffer_storage& source,
                      detail::small_buffer_storage& destination) noexcept;
     // The vtable a `protocol_view` of the stored object uses: its entries
     // take the object's address, not `storage_`.
@@ -262,7 +262,7 @@ class protocol
                       detail::small_buffer_storage& destination) {
       destination.pointer_ = nullptr;
     };
-    result.relocate = +[](detail::small_buffer_storage&,
+    result.relocate = +[](const Alloc&, detail::small_buffer_storage&,
                           detail::small_buffer_storage& destination) noexcept {
       destination.pointer_ = nullptr;
     };
@@ -505,7 +505,7 @@ class protocol
     if (always_equal || alloc_ == other.alloc_) {
       // Fast path: take the heap-allocated object, or move the object out of
       // the small buffer.
-      other.vtable_->relocate(other.storage_, storage_);
+      other.vtable_->relocate(other.alloc_, other.storage_, storage_);
     } else {
       // Slow path: move construct, allocating with our allocator if the
       // object is not stored in the small buffer.
@@ -535,7 +535,7 @@ class protocol
       other.vtable_->copy(alloc_, other.storage_, copy);
       vtable_->destroy(alloc_, storage_);
     }
-    other.vtable_->relocate(copy, storage_);
+    other.vtable_->relocate(alloc_, copy, storage_);
     vtable_ = other.vtable_;
 
     return *this;
@@ -553,7 +553,7 @@ class protocol
     if (always_equal || pocma || alloc_ == other.alloc_) {
       // Fast path: take the object and (conditionally) the allocator.
       vtable_->destroy(alloc_, storage_);
-      other.vtable_->relocate(other.storage_, storage_);
+      other.vtable_->relocate(other.alloc_, other.storage_, storage_);
       if constexpr (pocma) {
         alloc_ = other.alloc_;
       }
@@ -564,7 +564,7 @@ class protocol
       other.vtable_->move(alloc_, other.storage_, moved);
       vtable_->destroy(alloc_, storage_);
       other.vtable_->destroy(other.alloc_, other.storage_);
-      other.vtable_->relocate(moved, storage_);
+      other.vtable_->relocate(alloc_, moved, storage_);
     }
 
     vtable_ = std::exchange(other.vtable_, &null_vtable);
@@ -591,10 +591,12 @@ class protocol
 
     // The storages are swapped through their objects' relocate entries rather
     // than as values, so that an object stored in place is moved properly.
+    // Each object is relocated with the allocator it was stored with, which
+    // stays with it if the allocators are swapped below.
     detail::small_buffer_storage storage;
-    vtable_->relocate(storage_, storage);
-    other.vtable_->relocate(other.storage_, storage_);
-    vtable_->relocate(storage, other.storage_);
+    vtable_->relocate(alloc_, storage_, storage);
+    other.vtable_->relocate(other.alloc_, other.storage_, storage_);
+    vtable_->relocate(alloc_, storage, other.storage_);
 
     using std::swap;
     if constexpr (pocs) {
