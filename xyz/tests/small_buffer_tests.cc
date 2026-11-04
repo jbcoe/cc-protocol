@@ -8,8 +8,10 @@
 #include <cstddef>
 #include <initializer_list>
 #include <memory>
+#include <memory_resource>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "xyz/protocol.hh"
 #include "xyz/tests/tracking_allocator.h"
@@ -131,27 +133,157 @@ TEST(SmallBufferTest, TypeWithThrowingMoveDoesNotFit) {
   static_assert(!fits_in_small_buffer_v<ThrowingMove, Alloc>);
 }
 
-// Objects in the buffer are constructed without the allocator, so an
-// allocator-aware type is always allocated.
-struct AllocatorAware {
-  using allocator_type = Alloc;
+// Objects in the buffer are constructed and destroyed through the allocator,
+// so a buffered object still receives an allocator that passes itself on.
+// Relocation constructs through the allocator too, so an allocator whose
+// `construct` can throw never uses the buffer.
 
-  int value() const { return 7; }
+TEST(SmallBufferTest, AllocatorAwareTypeFitsWithTheDefaultAllocator) {
+  static_assert(
+      fits_in_small_buffer_v<std::vector<int>, std::allocator<std::byte>>);
+}
+
+TEST(SmallBufferTest, NothingFitsWithAnAllocatorWhoseConstructCanThrow) {
+  using PolymorphicAllocator = std::pmr::polymorphic_allocator<std::byte>;
+
+  static_assert(!fits_in_small_buffer_v<SmallTracker, PolymorphicAllocator>);
+  static_assert(!std::is_nothrow_constructible_v<
+                protocol<Interface, PolymorphicAllocator>, std::allocator_arg_t,
+                const PolymorphicAllocator&, SmallTracker>);
+}
+
+// Counts the calls made to the `ConstructingAllocator`s that share it.
+struct AllocatorCalls {
+  unsigned allocations = 0;
+  unsigned deallocations = 0;
+  unsigned constructions = 0;
+  unsigned destructions = 0;
 };
 
-TEST(SmallBufferTest, AllocatorAwareTypeIsAllocated) {
-  static_assert(sizeof(AllocatorAware) <= small_buffer_size);
-  static_assert(!fits_in_small_buffer_v<AllocatorAware, Alloc>);
+// Constructs objects with uses-allocator construction, passing itself to
+// those that take an allocator, as `std::pmr::polymorphic_allocator` does,
+// but without throwing.
+template <typename T>
+struct ConstructingAllocator {
+  using value_type = T;
 
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  Alloc alloc(&allocs, &deallocs);
-  {
-    TrackingProtocol p(std::allocator_arg, alloc, AllocatorAware{});
-    EXPECT_EQ(p.value(), 7);
-    EXPECT_EQ(allocs, 1);
+  AllocatorCalls* calls_;
+
+  explicit ConstructingAllocator(AllocatorCalls* calls) noexcept
+      : calls_(calls) {}
+
+  template <typename U>
+  ConstructingAllocator(const ConstructingAllocator<U>& other) noexcept
+      : calls_(other.calls_) {}
+
+  T* allocate(std::size_t n) {
+    ++calls_->allocations;
+    return std::allocator<T>{}.allocate(n);
   }
-  EXPECT_EQ(deallocs, 1);
+
+  void deallocate(T* pointer, std::size_t n) noexcept {
+    ++calls_->deallocations;
+    std::allocator<T>{}.deallocate(pointer, n);
+  }
+
+  template <typename U, typename... Args>
+  void construct(U* pointer, Args&&... args) noexcept {
+    ++calls_->constructions;
+    std::uninitialized_construct_using_allocator(pointer, *this,
+                                                 std::forward<Args>(args)...);
+  }
+
+  template <typename U>
+  void destroy(U* pointer) noexcept {
+    ++calls_->destructions;
+    std::destroy_at(pointer);
+  }
+
+  friend bool operator==(const ConstructingAllocator&,
+                         const ConstructingAllocator&) = default;
+};
+
+using ConstructingProtocol =
+    protocol<Interface, ConstructingAllocator<std::byte>>;
+
+// Small and allocator-aware: `value` reports whether it received an
+// allocator when it was constructed.
+class AllocatorAware {
+ public:
+  using allocator_type = ConstructingAllocator<std::byte>;
+
+  AllocatorAware() = default;
+
+  AllocatorAware(std::allocator_arg_t, const allocator_type&) noexcept
+      : received_allocator_(true) {}
+
+  AllocatorAware(const AllocatorAware&) = default;
+
+  AllocatorAware(std::allocator_arg_t, const allocator_type&,
+                 const AllocatorAware&) noexcept
+      : received_allocator_(true) {}
+
+  AllocatorAware(AllocatorAware&&) noexcept = default;
+
+  AllocatorAware(std::allocator_arg_t, const allocator_type&,
+                 AllocatorAware&&) noexcept
+      : received_allocator_(true) {}
+
+  AllocatorAware& operator=(const AllocatorAware&) = default;
+  AllocatorAware& operator=(AllocatorAware&&) noexcept = default;
+  ~AllocatorAware() = default;
+
+  int value() const { return received_allocator_ ? 1 : 0; }
+
+ private:
+  bool received_allocator_ = false;
+};
+
+static_assert(
+    fits_in_small_buffer_v<AllocatorAware, ConstructingAllocator<std::byte>>);
+
+TEST(SmallBufferTest, BufferedAllocatorAwareObjectReceivesTheAllocator) {
+  AllocatorCalls calls;
+  ConstructingAllocator<std::byte> alloc(&calls);
+  {
+    ConstructingProtocol p(std::allocator_arg, alloc,
+                           std::in_place_type<AllocatorAware>);
+    EXPECT_EQ(p.value(), 1);
+
+    ConstructingProtocol moved(std::move(p));
+    EXPECT_EQ(moved.value(), 1);
+
+    ConstructingProtocol copy(moved);
+    EXPECT_EQ(copy.value(), 1);
+  }
+  EXPECT_EQ(calls.allocations, 0);
+  EXPECT_EQ(calls.constructions, calls.destructions);
+}
+
+// Every object the allocator constructs is destroyed through it, however
+// often the protocols holding it are moved, swapped and assigned.
+TEST(SmallBufferTest, BufferedObjectConstructionsAndDestructionsBalance) {
+  AllocatorCalls calls;
+  ConstructingAllocator<std::byte> alloc(&calls);
+  Counts counts;
+  {
+    ConstructingProtocol p(std::allocator_arg, alloc,
+                           std::in_place_type<SmallTracker>, &counts, 1);
+    ConstructingProtocol q(std::allocator_arg, alloc,
+                           std::in_place_type<SmallTracker>, &counts, 2);
+    EXPECT_EQ(calls.constructions, 2);
+
+    ConstructingProtocol moved(std::move(p));
+    swap(moved, q);
+    q = moved;
+    moved = std::move(q);
+
+    EXPECT_EQ(moved.value(), 2);
+    EXPECT_EQ(calls.constructions - calls.destructions, 1);
+  }
+  EXPECT_EQ(calls.allocations, 0);
+  EXPECT_EQ(calls.constructions, calls.destructions);
+  EXPECT_EQ(counts.live, 0);
 }
 
 // ---------------------------------------------------------------------------

@@ -30,11 +30,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // "xyz/detail/name_mangling.hh"), so an entry can be found by the signature it
 // implements rather than by declaration order.
 //
-// `protocol` stores a small, nothrow-movable object in a buffer inside itself
-// and any other object on the heap (see "xyz/detail/small_buffer.hh"). Which
-// one is an implementation detail. Either way a moved-from `protocol` is
-// valueless, and a view of, or reference to, an object in the buffer is
-// invalidated when the `protocol` is moved, swapped or assigned to.
+// `protocol` stores a small object that its allocator can move without
+// throwing in a buffer inside itself, and any other object on the heap (see
+// "xyz/detail/small_buffer.hh"). Which one is an implementation detail. Either
+// way the object is constructed and destroyed through the allocator, which
+// allocates it only on the heap. A moved-from `protocol` is valueless, and a
+// view of, or reference to, an object in the buffer is invalidated when the
+// `protocol` is moved, swapped or assigned to.
 //
 // Neither implementation currently supports operators other than operator().
 
@@ -178,8 +180,8 @@ class protocol
     // Constructs a copy of the object in empty `destination`.
     void (*copy)(const Alloc& alloc, const detail::small_buffer_storage& source,
                  detail::small_buffer_storage& destination);
-    // Move-constructs the object into empty `destination`, using `alloc` for
-    // a heap-allocated object.
+    // Move-constructs the object into empty `destination` through `alloc`,
+    // which allocates it unless it is stored in the small buffer.
     void (*move)(const Alloc& alloc, detail::small_buffer_storage& source,
                  detail::small_buffer_storage& destination);
     // Moves the object, stored with `alloc`, to empty `destination`, which
@@ -395,10 +397,10 @@ class protocol
 
   // The constructors from a conforming T strengthen their exception
   // specification ([res.on.exception.handling]): they cannot throw if T is
-  // stored in the small buffer and its constructor cannot throw. Whether T is
-  // stored in the small buffer is up to the implementation, so this is not
-  // part of the proposed specification and must not be relied on by portable
-  // code.
+  // stored in the small buffer and constructing it through the allocator
+  // cannot throw. Whether T is stored in the small buffer is up to the
+  // implementation, so this is not part of the proposed specification and must
+  // not be relied on by portable code.
 
   // Construction from conforming T.
   template <typename T, typename TNorm = std::decay_t<T>>

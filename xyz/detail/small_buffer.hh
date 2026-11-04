@@ -42,28 +42,53 @@ union small_buffer_storage {
       small_buffer_alignment) std::array<std::byte, small_buffer_size> buffer_;
 };
 
-// Objects in the buffer are constructed without the allocator, so
-// allocator-aware types are always stored on the heap: whether a type
-// receives the allocator does not depend on its size.
-//
-// Known gap: `std::uses_allocator_v` is checked against `Alloc` itself, but an
-// allocator's `construct` may pass a different allocator. With a
-// `std::scoped_allocator_adaptor`, a small type that uses only the inner
-// allocator is buffered and so never receives it, while a large one does.
-// Never buffering when `Alloc` has a `construct` member would close the gap at
-// the cost of disabling the buffer for `std::pmr` allocators; this is to be
-// decided.
+// The allocator that constructs, destroys and, on the heap, allocates a
+// stored `T`.
+template <typename T, typename Alloc>
+using rebound_allocator_t =
+    typename std::allocator_traits<Alloc>::template rebind_alloc<T>;
+
+// `Alloc` has a `construct` member that `std::allocator_traits<Alloc>` calls
+// to construct a `T` from `Args...`.
+template <typename Alloc, typename T, typename... Args>
+concept has_construct_member =
+    requires(Alloc& alloc, T* object, Args&&... args) {
+      alloc.construct(object, std::forward<Args>(args)...);
+    };
+
+// Constructing a `T` from `Args...` with
+// `std::allocator_traits<Alloc>::construct` cannot throw. That function is
+// not declared `noexcept`, so this asks what it calls: `Alloc::construct` if
+// there is one, otherwise `T`'s constructor.
+template <typename Alloc, typename T, typename... Args>
+inline constexpr bool is_nothrow_allocator_constructible_v = [] {
+  if constexpr (has_construct_member<Alloc, T, Args...>) {
+    return noexcept(std::declval<Alloc&>().construct(std::declval<T*>(),
+                                                     std::declval<Args>()...));
+  } else {
+    return std::is_nothrow_constructible_v<T, Args...>;
+  }
+}();
+
+// A `T` is stored in the buffer if it fits and relocating it cannot throw.
+// Relocation, which protocol's `noexcept` move constructor and swap rely on,
+// constructs the moved object through the allocator, so an allocator whose
+// `construct` can throw, such as `std::pmr::polymorphic_allocator`, never
+// uses the buffer.
 template <typename T, typename Alloc>
 inline constexpr bool fits_in_small_buffer_v =
     sizeof(T) <= small_buffer_size && alignof(T) <= small_buffer_alignment &&
-    std::is_nothrow_move_constructible_v<T> && !std::uses_allocator_v<T, Alloc>;
+    std::is_move_constructible_v<T> &&
+    is_nothrow_allocator_constructible_v<rebound_allocator_t<T, Alloc>, T, T&&>;
 
 // Storing a `T` constructed from `Args...` cannot throw: it fits in the buffer,
-// so nothing is allocated, and its constructor does not throw.
+// so nothing is allocated, and constructing it through the allocator does not
+// throw.
 template <typename T, typename Alloc, typename... Args>
 inline constexpr bool is_nothrow_storable_v =
     fits_in_small_buffer_v<T, Alloc> &&
-    std::is_nothrow_constructible_v<T, Args...>;
+    is_nothrow_allocator_constructible_v<rebound_allocator_t<T, Alloc>, T,
+                                         Args...>;
 
 // As `is_nothrow_storable_v`, when the allocator is also default-constructed.
 template <typename T, typename Alloc, typename... Args>
@@ -80,8 +105,9 @@ struct construct_in_storage_t {
 inline constexpr construct_in_storage_t construct_in_storage{};
 
 // Constructs, accesses, destroys and relocates a `T` held in a
-// `small_buffer_storage`: in the buffer if `T` fits, otherwise on the heap
-// through the allocator, rebound to `T`.
+// `small_buffer_storage`: in the buffer if `T` fits, otherwise on the heap.
+// Either way the object is constructed and destroyed through the allocator,
+// rebound to `T`; only an object on the heap is allocated by it.
 //
 // Constant evaluation cannot place an object in a byte buffer, so a `T` is
 // always stored on the heap there. A protocol created during constant
@@ -90,8 +116,7 @@ inline constexpr construct_in_storage_t construct_in_storage{};
 // that makes its choice.
 template <typename T, typename Alloc>
 struct small_buffer_operations {
-  using rebound_allocator =
-      typename std::allocator_traits<Alloc>::template rebind_alloc<T>;
+  using rebound_allocator = rebound_allocator_t<T, Alloc>;
   using rebound_traits = std::allocator_traits<rebound_allocator>;
 
   static constexpr bool fits = fits_in_small_buffer_v<T, Alloc>;
@@ -102,7 +127,7 @@ struct small_buffer_operations {
                                   Args&&... args) {
     if !consteval {
       if constexpr (fits) {
-        construct_in_buffer(destination, std::forward<Args>(args)...);
+        construct_in_buffer(alloc, destination, std::forward<Args>(args)...);
         return;
       }
     }
@@ -142,7 +167,8 @@ struct small_buffer_operations {
                                 small_buffer_storage& storage) noexcept {
     if !consteval {
       if constexpr (fits) {
-        std::destroy_at(object(storage));
+        rebound_allocator rebound{alloc};
+        rebound_traits::destroy(rebound, object(storage));
         storage.pointer_ = nullptr;
         return;
       }
@@ -178,8 +204,9 @@ struct small_buffer_operations {
     if !consteval {
       if constexpr (fits) {
         T* source_object = object(source);
-        construct_in_buffer(destination, std::move(*source_object));
-        std::destroy_at(source_object);
+        construct_in_buffer(alloc, destination, std::move(*source_object));
+        rebound_allocator rebound{alloc};
+        rebound_traits::destroy(rebound, source_object);
         source.pointer_ = nullptr;
         return;
       }
@@ -189,13 +216,16 @@ struct small_buffer_operations {
 
  private:
   template <typename... Args>
-  static void construct_in_buffer(small_buffer_storage& destination,
+  static void construct_in_buffer(const Alloc& alloc,
+                                  small_buffer_storage& destination,
                                   Args&&... args) {
     // Start the array's lifetime, making it the active member, so that it
     // provides storage for the `T`.
     std::construct_at(&destination.buffer_);
-    std::construct_at(reinterpret_cast<T*>(destination.buffer_.data()),
-                      std::forward<Args>(args)...);
+    rebound_allocator rebound{alloc};
+    rebound_traits::construct(rebound,
+                              reinterpret_cast<T*>(destination.buffer_.data()),
+                              std::forward<Args>(args)...);
   }
 };
 
