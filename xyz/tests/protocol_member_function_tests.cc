@@ -607,5 +607,32 @@ TEST(ReflectionProtocolTest, VolatileConformingType) {
   EXPECT_EQ(p.foo(), 10);
 }
 
+// A protocol of an immovable interface is never valueless, and its member
+// functions can be called in builds that check for a valueless protocol.
+TEST(ReflectionProtocolTest, MemberFunctionCallWithImmovableInterface) {
+  struct Interface {
+    Interface(const Interface&) = delete;
+    Interface(Interface&&) = delete;
+    Interface& operator=(const Interface&) = delete;
+    Interface& operator=(Interface&&) = delete;
+    ~Interface() = default;
+
+    int get() const;
+    void set(int value);
+  };
+
+  struct Conforming {
+    int value_ = 0;
+
+    int get() const { return value_; }
+
+    void set(int value) { value_ = value; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  p.set(3);
+  EXPECT_EQ(p.get(), 3);
+}
+
 }  // namespace
 }  // namespace xyz::tests
