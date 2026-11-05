@@ -7,11 +7,15 @@
 #include <gtest/gtest.h>
 
 #include <concepts>
+#include <cstddef>
 #include <exception>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
+
+#include "xyz/tests/test_helpers.h"
 
 using xyz::detail::is_protocol_v;
 using xyz::detail::is_protocol_view_v;
@@ -778,11 +782,10 @@ TEST(ReflectionProtocolTest, SwapWithValuelessProtocol) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
-TEST(ReflectionProtocolTest, SwapRequiresMoveConstructibleInterface) {
-  struct MovableInterface {
-    int value() const;
-  };
-
+// An object in the small buffer is movable whatever the interface, so
+// protocols of an immovable interface can be swapped, whether their objects
+// are in the buffer, allocated or one of each.
+TEST(ReflectionProtocolTest, SwapWithImmovableInterface) {
   struct ImmovableInterface {
     ImmovableInterface(const ImmovableInterface&) = delete;
     ImmovableInterface(ImmovableInterface&&) = delete;
@@ -793,8 +796,41 @@ TEST(ReflectionProtocolTest, SwapRequiresMoveConstructibleInterface) {
     int value() const;
   };
 
-  static_assert(std::is_nothrow_swappable_v<protocol<MovableInterface>>);
-  static_assert(!std::is_swappable_v<protocol<ImmovableInterface>>);
+  struct Small {
+    int value_;
+
+    int value() const { return value_; }
+  };
+
+  struct Large {
+    int value_;
+    [[maybe_unused]] TooLargeForSmallBuffer padding_{};
+
+    int value() const { return value_; }
+  };
+
+  static_assert(
+      xyz::detail::fits_in_small_buffer_v<Small, std::allocator<std::byte>>);
+  static_assert(
+      !xyz::detail::fits_in_small_buffer_v<Large, std::allocator<std::byte>>);
+  static_assert(std::is_nothrow_swappable_v<protocol<ImmovableInterface>>);
+
+  protocol<ImmovableInterface> small_1(Small{1});
+  protocol<ImmovableInterface> small_2(Small{2});
+  protocol<ImmovableInterface> large_3(Large{3});
+  protocol<ImmovableInterface> large_4(Large{4});
+
+  swap(small_1, small_2);
+  EXPECT_EQ(small_1.value(), 2);
+  EXPECT_EQ(small_2.value(), 1);
+
+  swap(large_3, large_4);
+  EXPECT_EQ(large_3.value(), 4);
+  EXPECT_EQ(large_4.value(), 3);
+
+  swap(small_1, large_3);
+  EXPECT_EQ(small_1.value(), 4);
+  EXPECT_EQ(large_3.value(), 2);
 }
 
 TEST(ReflectionProtocolTest, SpecialMembersInConstantEvaluation) {

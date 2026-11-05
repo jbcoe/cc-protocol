@@ -574,11 +574,9 @@ class protocol
     return *this;
   }
 
-  // Swapping can move the owned objects, so, like move construction and
-  // assignment, it requires a move constructible interface.
-  constexpr void swap(protocol& other) noexcept(always_equal || pocs)
-    requires std::is_move_constructible_v<I>
-  {
+  // Swapping moves an object in the small buffer, which is movable whatever
+  // the interface, so swap does not require a move constructible interface.
+  constexpr void swap(protocol& other) noexcept(always_equal || pocs) {
     // Relocating out of an emptied storage would read an object that is no
     // longer there.
     if (this == std::addressof(other)) {
@@ -609,9 +607,7 @@ class protocol
 
   // Can be discovered by ADL for more optimal swapping than std::swap.
   friend constexpr void swap(protocol& lhs,
-                             protocol& rhs) noexcept(always_equal || pocs)
-    requires std::is_move_constructible_v<I>
-  {
+                             protocol& rhs) noexcept(always_equal || pocs) {
     return lhs.swap(rhs);
   }
 
