@@ -225,9 +225,14 @@ class AllocatorAware {
 
   AllocatorAware(AllocatorAware&&) noexcept = default;
 
+  // NOLINTBEGIN(cppcoreguidelines-rvalue-reference-param-not-moved): there is
+  // nothing to move; the constructor only records that it was given an
+  // allocator.
   AllocatorAware(std::allocator_arg_t, const allocator_type&,
                  AllocatorAware&&) noexcept
       : received_allocator_(true) {}
+
+  // NOLINTEND(cppcoreguidelines-rvalue-reference-param-not-moved)
 
   AllocatorAware& operator=(const AllocatorAware&) = default;
   AllocatorAware& operator=(AllocatorAware&&) noexcept = default;
@@ -253,7 +258,10 @@ TEST(SmallBufferTest, BufferedAllocatorAwareObjectReceivesTheAllocator) {
     ConstructingProtocol moved(std::move(p));
     EXPECT_EQ(moved.value(), 1);
 
+    // NOLINTBEGIN(performance-unnecessary-copy-initialization): the test
+    // checks copy construction.
     ConstructingProtocol copy(moved);
+    // NOLINTEND(performance-unnecessary-copy-initialization)
     EXPECT_EQ(copy.value(), 1);
   }
   EXPECT_EQ(calls.allocations, 0);
