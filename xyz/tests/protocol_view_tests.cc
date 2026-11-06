@@ -729,12 +729,34 @@ TEST(ReflectionProtocolViewTest, ViewOfProtocolWithOverloadsAndCallOperator) {
   EXPECT_EQ(view(21), 42);
 }
 
+TEST(ReflectionProtocolViewTest, ViewOfProtocolFindsOwnedObject) {
+  struct Interface {
+    int get() const;
+  };
+
+  struct Conforming {
+    int get() const { return 3; }
+  };
+
+  protocol<Interface> p(Conforming{});
+  protocol_view<Interface> view(p);
+  protocol_view<const Interface> const_view(p);
+
+  EXPECT_EQ(target_type(view), typeid(Conforming));
+  EXPECT_EQ(target_type(const_view), typeid(Conforming));
+  EXPECT_EQ(protocol_cast<Conforming>(&view), protocol_cast<Conforming>(&p));
+  EXPECT_EQ(protocol_cast<Conforming>(&const_view),
+            protocol_cast<Conforming>(&p));
+}
+
 TEST(ReflectionProtocolViewTest, ViewOfProtocolRemainsValidAfterMove) {
   struct Interface {
     int get() const;
   };
 
   struct Conforming {
+    [[maybe_unused]] TooLargeForSmallBuffer padding{};
+
     int get() const { return 5; }
   };
 

@@ -131,6 +131,7 @@ target_sources(
             xyz/detail/overload_spec.hh
             xyz/detail/protocol_traits.hh
             xyz/detail/protocol_wrappers.hh
+            xyz/detail/small_buffer.hh
             xyz/detail/vtable.hh
             xyz/detail/name_mangling.hh)
 # Consumers need the reflection flags of whichever compiler they build with,
@@ -186,6 +187,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       xyz/tests/protocol_member_function_tests.cc
       xyz/tests/protocol_operator_tests.cc
       xyz/tests/protocol_view_tests.cc
+      xyz/tests/small_buffer_tests.cc
       xyz/tests/conformance_tests.cc
       xyz/tests/allocator_tests.cc
       xyz/tests/consteval_check_test.cc

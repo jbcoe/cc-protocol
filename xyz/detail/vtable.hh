@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <cassert>
 #include <meta>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -34,6 +35,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "xyz/detail/name_mangling.hh"
 #include "xyz/detail/overload_spec.hh"
 #include "xyz/detail/protocol_traits.hh"
+#include "xyz/detail/small_buffer.hh"
 
 namespace xyz::detail {
 
@@ -63,7 +65,10 @@ template <std::meta::info Member, typename Vtable, typename ProtocolObject,
 [[gnu::always_inline]] inline decltype(auto) call_through_vtable(
     [[maybe_unused]] ProtocolObject* protocol_object, const Vtable* vtable,
     Object object, Args&&... args) {
-  if constexpr (is_protocol_v<std::remove_cv_t<ProtocolObject>>) {
+  // A protocol of an interface that is not move constructible cannot be moved
+  // from, so it is never valueless and has no `valueless_after_move`.
+  if constexpr (is_protocol_v<std::remove_cv_t<ProtocolObject>> &&
+                requires { valueless_after_move(*protocol_object); }) {
     assert(!valueless_after_move(*protocol_object) &&
            "cannot call member function of valueless protocol");
   }
@@ -74,10 +79,10 @@ template <std::meta::info Member, typename Vtable, typename ProtocolObject,
 
 // Returns a list of data_member_spec values, one for each member function
 // implemented by `protocol`, each describing a vtable function pointer with
-// signature R(*)(void*, Args...) noexcept(...) for a mutable interface
-// method, or R(*)(const void*, Args...) noexcept(...) for a const one, named
+// signature R(*)(Erased*, Args...) noexcept(...) for a mutable interface
+// method, or R(*)(const Erased*, Args...) noexcept(...) for a const one, named
 // by the member function's mangled signature (see `xyz::detail::mangle`).
-template <std::meta::info interface_type>
+template <std::meta::info interface_type, std::meta::info erased_type>
 consteval std::vector<std::meta::info> generate_vtable_specs() {
   std::vector<std::meta::info> function_pointer_specs;
 
@@ -87,10 +92,12 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
 
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<interface_type>) {
-    // A const method takes `const void*`, matching the constness of the
+    // A const method takes `const Erased*`, matching the constness of the
     // access path it's called through.
-    std::meta::info fn_ptr_type = function_pointer_type_of(
-        member, {is_const(member) ? ^^const void* : ^^void* });
+    std::meta::info object_parameter_type =
+        add_pointer(is_const(member) ? add_const(erased_type) : erased_type);
+    std::meta::info fn_ptr_type =
+        function_pointer_type_of(member, {object_parameter_type});
 
     // GCC UBSAN workaround: `std::string`'s pointer-taking constructors have a
     // null check GCC trunk can't constant-fold under `-fsanitize=undefined`,
@@ -108,70 +115,75 @@ consteval std::vector<std::meta::info> generate_vtable_specs() {
 // Generates a vtable with named function pointers for each public,
 // non-special, member function from `T`. Name mangling ensures that
 // names for overloads are unique.
-template <typename T>
+template <typename T, typename Erased>
 struct vtable_generator {
   struct type;
-  consteval { define_aggregate(^^type, generate_vtable_specs<^^T>()); }
+  consteval {
+    define_aggregate(^^type, generate_vtable_specs<^^T, ^^Erased>());
+  }
 };
 
+// The vtable whose entries take the address of the object.
 template <typename T>
-using vtable_t = typename vtable_generator<T>::type;
+using vtable_t = typename vtable_generator<T, void>::type;
+
+// The vtable whose entries take the storage of a `protocol`, which holds the
+// object.
+template <typename T>
+using storage_vtable_t =
+    typename vtable_generator<T, small_buffer_storage>::type;
+
+// Finds the `U` that a `vtable_t` entry is passed the address of.
+//
+// `std::launder` is needed when a view of a protocol is passed the address of
+// an object in the protocol's small buffer, which is the address of the
+// buffer's bytes.
+template <typename U>
+struct view_object_access {
+  static U* object(void* object) noexcept {
+    return std::launder(static_cast<U*>(object));
+  }
+
+  static const U* object(const void* object) noexcept {
+    return std::launder(static_cast<const U*>(object));
+  }
+};
 
 // Trampolines translate type-erased calls to vtable functions to member
-// function calls on the underlying (owned or viewed) object.
-template <typename FnPtrType, typename U, std::meta::info CandidateMember>
-struct mutable_view_trampoline;
+// function calls on the underlying (owned or viewed) object, which
+// `Access::object` finds from the erased object.
+template <typename FnPtrType, typename Access, std::meta::info CandidateMember>
+struct trampoline;
 
-template <typename R, typename... Args, bool Noexcept, typename U,
-          std::meta::info CandidateMember>
-struct mutable_view_trampoline<R (*)(void*, Args...) noexcept(Noexcept), U,
-                               CandidateMember> {
-  static R operator()(void* ptr, Args... args) noexcept(Noexcept) {
-    return static_cast<U*>(ptr)->[:CandidateMember:](
+template <typename R, typename Object, typename... Args, bool Noexcept,
+          typename Access, std::meta::info CandidateMember>
+struct trampoline<R (*)(Object, Args...) noexcept(Noexcept), Access,
+                  CandidateMember> {
+  static R operator()(Object object, Args... args) noexcept(Noexcept) {
+    return Access::object(object)->[:CandidateMember:](
         std::forward<Args>(args)...);
   }
 };
 
-template <typename FnPtrType, typename U, std::meta::info CandidateMember>
-struct const_view_trampoline;
-
-template <typename R, typename... Args, bool Noexcept, typename U,
-          std::meta::info CandidateMember>
-struct const_view_trampoline<R (*)(const void*, Args...) noexcept(Noexcept), U,
-                             CandidateMember> {
-  static R operator()(const void* ptr, Args... args) noexcept(Noexcept) {
-    return static_cast<const U*>(ptr)->[:CandidateMember:](
-        std::forward<Args>(args)...);
-  }
-};
-
-// Builds a vtable for `T` whose entries call through to the corresponding
-// member of `U`.
+// Builds a `Vtable` for the interface `T` whose entries call through to the
+// corresponding member of `U`, which `Access` finds from the erased object.
 // For `protocol_view` some vtable entries may be unused due to const
 // qualifiers. We opt for simple vtable construction logic and rely on
 // generation of forwarding wrappers to determine which functions are forwarded.
-template <typename T, typename U>
-consteval vtable_t<T> make_view_vtable() {
-  vtable_t<T> vtable{};
+template <typename Vtable, typename T, typename U, typename Access>
+consteval Vtable make_vtable() {
+  Vtable vtable{};
 
   vtable.xyz_protocol_typeid = &typeid(U);
 
   template for (constexpr std::meta::info member :
                 protocol_interface_functions_of<^^T>) {
     constexpr std::meta::info vtable_member =
-        find_vtable_entry<^^vtable_t<T>, member>();
+        find_vtable_entry<^^Vtable, member>();
     using FnPtrType = typename[:type_of(vtable_member):];
-    if constexpr (is_const(member)) {
-      constexpr std::meta::info candidate =
-          find_conforming_member<member, ^^U>();
-      vtable.[:vtable_member:] = &const_view_trampoline<FnPtrType, U,
-                                                        candidate>::operator();
-    } else /*constexpr*/ {
-      constexpr std::meta::info candidate =
-          find_conforming_member<member, ^^U>();
-      vtable.[:vtable_member:] = &mutable_view_trampoline<
-                                   FnPtrType, U, candidate>::operator();
-    }
+    constexpr std::meta::info candidate = find_conforming_member<member, ^^U>();
+    vtable.[:vtable_member:] = &trampoline<FnPtrType, Access,
+                                           candidate>::operator();
   }
   return vtable;
 }
@@ -179,7 +191,20 @@ consteval vtable_t<T> make_view_vtable() {
 // The shared, compile-time vtable every protocol_view<T> (or
 // protocol_view<const T>) that views a `U` points to.
 template <typename T, typename U>
-inline constexpr vtable_t<T> view_vtable_for = make_view_vtable<T, U>();
+inline constexpr vtable_t<T> view_vtable_for =
+    make_vtable<vtable_t<T>, T, U, view_object_access<U>>();
+
+// A vtable for `T` with no member function entries, describing no object.
+template <typename T>
+consteval vtable_t<T> make_null_view_vtable() {
+  vtable_t<T> vtable{};
+  vtable.xyz_protocol_typeid = &typeid(void);
+  return vtable;
+}
+
+// The vtable a view of a valueless protocol<T> points to.
+template <typename T>
+inline constexpr vtable_t<T> null_view_vtable_for = make_null_view_vtable<T>();
 
 }  // namespace xyz::detail
 

@@ -7,11 +7,15 @@
 #include <gtest/gtest.h>
 
 #include <concepts>
+#include <cstddef>
 #include <exception>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
+
+#include "xyz/tests/test_helpers.h"
 
 using xyz::detail::is_protocol_v;
 using xyz::detail::is_protocol_view_v;
@@ -732,6 +736,128 @@ TEST(ReflectionProtocolViewTest, MovedFromTargetType) {
   // exercises the moved-from state on purpose.
   protocol_view<Interface> pv(movedFrom);
   EXPECT_EQ(target_type(pv), typeid(void));
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+TEST(ReflectionProtocolTest, SelfSwapKeepsTheObject) {
+  struct Interface {
+    int value() const;
+  };
+
+  struct Conforming {
+    int value_;
+
+    int value() const { return value_; }
+  };
+
+  protocol<Interface> p(Conforming{4});
+  swap(p, p);
+  EXPECT_EQ(p.value(), 4);
+}
+
+TEST(ReflectionProtocolTest, SwapWithValuelessProtocol) {
+  struct Interface {
+    int value() const;
+  };
+
+  struct Conforming {
+    int value_;
+
+    int value() const { return value_; }
+  };
+
+  protocol<Interface> p(Conforming{4});
+  protocol<Interface> valueless(Conforming{5});
+  auto _ = std::move(valueless);
+
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // swaps with the moved-from state on purpose.
+  swap(p, valueless);
+  EXPECT_TRUE(valueless_after_move(p));
+  EXPECT_EQ(valueless.value(), 4);
+
+  swap(p, valueless);
+  EXPECT_EQ(p.value(), 4);
+  EXPECT_TRUE(valueless_after_move(valueless));
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
+// An object in the small buffer is movable whatever the interface, so
+// protocols of an immovable interface can be swapped, whether their objects
+// are in the buffer, allocated or one of each.
+TEST(ReflectionProtocolTest, SwapWithImmovableInterface) {
+  struct ImmovableInterface {
+    ImmovableInterface(const ImmovableInterface&) = delete;
+    ImmovableInterface(ImmovableInterface&&) = delete;
+    ImmovableInterface& operator=(const ImmovableInterface&) = delete;
+    ImmovableInterface& operator=(ImmovableInterface&&) = delete;
+    ~ImmovableInterface() = default;
+
+    int value() const;
+  };
+
+  struct Small {
+    int value_;
+
+    int value() const { return value_; }
+  };
+
+  struct Large {
+    int value_;
+    [[maybe_unused]] TooLargeForSmallBuffer padding_{};
+
+    int value() const { return value_; }
+  };
+
+  static_assert(
+      xyz::detail::fits_in_small_buffer_v<Small, std::allocator<std::byte>>);
+  static_assert(
+      !xyz::detail::fits_in_small_buffer_v<Large, std::allocator<std::byte>>);
+  static_assert(std::is_nothrow_swappable_v<protocol<ImmovableInterface>>);
+
+  protocol<ImmovableInterface> small_1(Small{1});
+  protocol<ImmovableInterface> small_2(Small{2});
+  protocol<ImmovableInterface> large_3(Large{3});
+  protocol<ImmovableInterface> large_4(Large{4});
+
+  swap(small_1, small_2);
+  EXPECT_EQ(small_1.value(), 2);
+  EXPECT_EQ(small_2.value(), 1);
+
+  swap(large_3, large_4);
+  EXPECT_EQ(large_3.value(), 4);
+  EXPECT_EQ(large_4.value(), 3);
+
+  swap(small_1, large_3);
+  EXPECT_EQ(small_1.value(), 4);
+  EXPECT_EQ(large_3.value(), 2);
+}
+
+TEST(ReflectionProtocolTest, SpecialMembersInConstantEvaluation) {
+  struct Interface {
+    int value() const;
+  };
+
+  struct Literal {
+    int value_;
+
+    constexpr int value() const { return value_; }
+  };
+
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // checks the moved-from state on purpose.
+  static_assert([] consteval {
+    protocol<Interface> p(Literal{1});
+    protocol<Interface> copy(p);
+    protocol<Interface> moved(std::move(copy));
+    protocol<Interface> q(Literal{2});
+    q = moved;
+    q = std::move(moved);
+    swap(p, q);
+    return protocol_cast<Literal>(&p)->value() == 1 &&
+           protocol_cast<Literal>(&q)->value() == 1 &&
+           valueless_after_move(copy) && valueless_after_move(moved);
+  }());
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
