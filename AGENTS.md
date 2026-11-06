@@ -19,3 +19,6 @@ CI checks. The points below are the ones that are easy to get wrong.
 - `DRAFT.md` is a WG21 proposal rendered with pandoc: pure Markdown, no YAML
   front matter, no HTML blocks.
 - Never rewrite history, force-push, or delete branches.
+- To review a pull request, follow
+  [the review skill](.claude/skills/review/SKILL.md), including
+  when running `/code-review` directly.
