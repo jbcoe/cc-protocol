@@ -369,6 +369,32 @@ TEST(ReflectionProtocolTest, SelfAssignmentLeavesValueUnchanged) {
   EXPECT_FALSE(valueless_after_move(p));
 }
 
+TEST(ReflectionProtocolTest, AssignmentFromOwnedProtocol) {
+  struct A {
+    int get() const;
+  };
+
+  struct Leaf {
+    int get() const { return 7; }
+  };
+
+  struct Node {
+    protocol<A> child;
+
+    int get() const { return child.get() + 100; }
+  };
+
+  // Each assignment's source is owned by the object the target holds, so it
+  // is destroyed during the assignment.
+  protocol<A> copy_assigned(Node{protocol<A>(Leaf{})});
+  copy_assigned = protocol_cast<const Node&>(copy_assigned).child;
+  EXPECT_EQ(copy_assigned.get(), 7);
+
+  protocol<A> move_assigned(Node{protocol<A>(Leaf{})});
+  move_assigned = std::move(protocol_cast<Node&>(move_assigned).child);
+  EXPECT_EQ(move_assigned.get(), 7);
+}
+
 // ---------------------------------------------------------------------------
 // Constructability tests.
 // ---------------------------------------------------------------------------
