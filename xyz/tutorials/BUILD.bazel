@@ -20,6 +20,10 @@ cc_test(
     name = "reflection_tutorial",
     size = "small",
     srcs = ["03_reflection.cc"],
+    # GCC trunk's null, alignment and vptr sanitizer checks reject a
+    # `template for` over std::meta::info outside a consteval function (GCC
+    # PR127592). Drop this once a snapshot fixes it.
+    copts = ["-fno-sanitize=null,alignment,vptr"],
     deps = [
         "//:consteval_check",
         "@googletest//:gtest_main",

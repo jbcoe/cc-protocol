@@ -18,6 +18,13 @@ xyz_add_test(
     xyz_protocol::protocol
     FILES
     03_reflection.cc)
+# GCC trunk's null, alignment and vptr sanitizer checks reject a `template for`
+# over std::meta::info outside a consteval function (GCC PR127592). Drop this
+# once a snapshot fixes it. A source property, unlike target_compile_options,
+# follows the -fsanitize=undefined that the test target inherits.
+set_source_files_properties(
+    03_reflection.cc PROPERTIES COMPILE_OPTIONS
+                                "-fno-sanitize=null,alignment,vptr")
 
 xyz_add_test(
     NAME
