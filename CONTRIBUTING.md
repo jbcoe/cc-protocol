@@ -149,6 +149,9 @@ evaluated that line, because a constant evaluation has no other observable
 side effect. Rounds repeat until no new trap fires. The design and its
 limitations are documented in `scripts/consteval_coverage.py`. Pass
 `--lcov-output <path>` for an LCOV trace that merges with the runtime one.
+`scripts/consteval_coverage_test.py` tests where the instrumenter places
+probes; run it with `uv run scripts/consteval_coverage_test.py` after changing
+the scanner.
 
 The "Coverage" workflow runs both measurements and uploads them to Codecov
 under the `runtime` and `consteval` flags; it is not a required status

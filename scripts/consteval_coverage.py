@@ -41,10 +41,9 @@ abort compilation, and that one bit per evaluation is enough:
 Limitations: probe points sit at block and return/throw granularity, not on
 every line; a branch of `if constexpr` that no instantiation includes is
 reported unevaluated (correctly so); the arm of a consteval-if that runs
-outside constant evaluation is not instrumented, and an `else if` after a
-consteval-if is left as it is, whatever arm it belongs to; and a
-`catch (...)` that swallowed the trap exception without rethrowing would mask
-probes beneath it (none of the instrumented headers has one).
+outside constant evaluation is not instrumented; and a `catch (...)` that
+swallowed the trap exception without rethrowing would mask probes beneath it
+(none of the instrumented headers has one).
 
 Requires a reflection-capable GCC (found via compiler_discovery) and a prior
 `./scripts/cmake.sh build` to provide the googletest headers.
