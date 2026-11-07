@@ -387,10 +387,12 @@ TEST(ReflectionProtocolTest, AssignmentFromOwnedProtocol) {
   // Each assignment's source is owned by the object the target holds, so it
   // is destroyed during the assignment.
   protocol<A> copy_assigned(Node{protocol<A>(Leaf{})});
+  EXPECT_EQ(copy_assigned.get(), 107);
   copy_assigned = protocol_cast<const Node&>(copy_assigned).child;
   EXPECT_EQ(copy_assigned.get(), 7);
 
   protocol<A> move_assigned(Node{protocol<A>(Leaf{})});
+  EXPECT_EQ(move_assigned.get(), 107);
   move_assigned = std::move(protocol_cast<Node&>(move_assigned).child);
   EXPECT_EQ(move_assigned.get(), 7);
 }

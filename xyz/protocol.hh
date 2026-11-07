@@ -181,7 +181,7 @@ class protocol
   // member function thunks (which take a `const view_vtable*`) can call
   // through a `const vtable*` unchanged.
   struct vtable : view_vtable {
-    void (*destroy)(const Alloc& alloc, void* data);
+    void (*destroy)(const Alloc& alloc, void* data) noexcept;
     void* (*copy)(const Alloc& alloc, const void* data);
     void* (*move)(const Alloc& alloc, void* data);
   };
@@ -194,7 +194,7 @@ class protocol
     vtable vtable{};
     static_cast<view_vtable&>(vtable) = detail::make_view_vtable<I, TNorm>();
 
-    vtable.destroy = +[](const Alloc& alloc, void* data) -> void {
+    vtable.destroy = +[](const Alloc& alloc, void* data) noexcept -> void {
       rebound<TNorm> new_alloc{alloc};
       auto* typed = static_cast<TNorm*>(data);
       rebound_traits<TNorm>::destroy(new_alloc, typed);
@@ -235,7 +235,7 @@ class protocol
   static consteval vtable make_null_vtable() {
     vtable result{};
     result.xyz_protocol_typeid = &typeid(void);
-    result.destroy = +[](const Alloc&, void*) -> void {};
+    result.destroy = +[](const Alloc&, void*) noexcept -> void {};
     result.copy = +[](const Alloc&, const void*) -> void* { return nullptr; };
     result.move = +[](const Alloc&, void*) -> void* { return nullptr; };
     return result;
@@ -431,10 +431,9 @@ class protocol
     // after that object is destroyed.
     const vtable* new_vtable = other.vtable_;
     if constexpr (pocca) {
-      Alloc new_alloc = other.alloc_;
-      void* new_object = new_vtable->copy(new_alloc, other.object_);
-      vtable_->destroy(alloc_, object_);
-      alloc_ = std::move(new_alloc);
+      void* new_object = new_vtable->copy(other.alloc_, other.object_);
+      // Take `other`'s allocator and destroy the old object with the old one.
+      vtable_->destroy(std::exchange(alloc_, other.alloc_), object_);
       object_ = new_object;
     } else {
       void* new_object = new_vtable->copy(alloc_, other.object_);
@@ -471,9 +470,7 @@ class protocol
     const vtable* new_vtable = std::exchange(other.vtable_, &null_vtable);
 
     if constexpr (pocma) {
-      Alloc new_alloc = other.alloc_;
-      vtable_->destroy(alloc_, object_);
-      alloc_ = std::move(new_alloc);
+      vtable_->destroy(std::exchange(alloc_, other.alloc_), object_);
     } else {
       vtable_->destroy(alloc_, object_);
     }
