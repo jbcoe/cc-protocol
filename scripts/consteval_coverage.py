@@ -40,10 +40,10 @@ abort compilation, and that one bit per evaluation is enough:
 
 Limitations: probe points sit at block and return/throw granularity, not on
 every line; a branch of `if constexpr` that no instantiation includes is
-reported unevaluated (correctly so); the block of an `if !consteval` is not
-instrumented, as it never runs during constant evaluation; and a
-`catch (...)` that swallowed the trap exception without rethrowing would mask
-probes beneath it (none of the instrumented headers has one).
+reported unevaluated (correctly so); the arm of a consteval-if that runs
+outside constant evaluation is not instrumented; and a `catch (...)` that
+swallowed the trap exception without rethrowing would mask probes beneath it
+(none of the instrumented headers has one).
 
 Requires a reflection-capable GCC (found via compiler_discovery) and a prior
 `./scripts/cmake.sh build` to provide the googletest headers.
@@ -200,26 +200,41 @@ class Instrumenter:
         self.pending_consteval = False
         self.pending_function_name = ""
         self.pending_name_frozen = False
+        # The brace depth of the pending `consteval` token: a `;` at that
+        # depth ends a declaration that has no body.
+        self.pending_consteval_depth = 0
+        # A consteval-if was seen; its first `{` opens an arm. The value is
+        # whether the condition is negated (`if !consteval`).
+        self.pending_consteval_if: bool | None = None
+        # The brace depth and negation of each open first arm of a
+        # consteval-if.
+        self.consteval_if_arm_stack: list[tuple[int, bool]] = []
+        # The negation of the consteval-if whose first arm just closed, while
+        # an `else` may follow, then of the one whose `else` was just seen,
+        # while its `{` may follow.
+        self.closed_consteval_if_arm: bool | None = None
+        self.pending_consteval_else: bool | None = None
         self.in_block_comment = False
         # Set when a `switch` header is seen; its block gets no entry trap
         # because a statement before the first case label is unreachable.
         self.suppress_next_block_trap = False
         self.last_token = ""
         # While wrapping `return expr;` as `{ trap; return expr; }`: the
-        # parenthesis/bracket nesting until the terminating `;`.
+        # parenthesis, bracket and brace nesting until the terminating `;`.
         self.wrap_nesting: int | None = None
         # `+[` introduces a captureless lambda converted to a function
         # pointer: a runtime thunk stored in a vtable. Its body executes at
         # runtime (gcov's domain, not the constant evaluator's), so probes
-        # inside it are suppressed. The stack holds the brace depth of each
-        # such lambda body.
+        # inside it are suppressed, as they are in the arm of a consteval-if
+        # that runs outside constant evaluation. The stack holds the brace
+        # depth of each such lambda body or arm.
         self.pending_runtime_lambda = False
-        self.runtime_lambda_stack: list[int] = []
+        self.runtime_block_stack: list[int] = []
         self.probe_points: list[ProbePoint] = []
 
     def in_consteval_region(self) -> bool:
         """Return whether the scanner is inside compile-time-evaluated code."""
-        return bool(self.region_stack) and not self.runtime_lambda_stack
+        return bool(self.region_stack) and not self.runtime_block_stack
 
     def instrument(self, source_lines: list[str]) -> list[str]:
         """Return instrumented copies of `source_lines` (without newlines)."""
@@ -302,14 +317,18 @@ class Instrumenter:
 
     def _on_token(self, token: str, line: str, line_number: int) -> str:
         prefix = ""
-        if token == "consteval" and self.last_token == "!":
-            # `if !consteval`: its block runs only outside constant
-            # evaluation, so it is gcov's domain, not a consteval region.
-            pass
+        closed_consteval_if_arm = self.closed_consteval_if_arm
+        self.closed_consteval_if_arm = None
+        self.pending_consteval_else = None
+        if token == "else":
+            self.pending_consteval_else = closed_consteval_if_arm
+        if token == "consteval" and self.last_token in ("if", "!", "not"):
+            self.pending_consteval_if = self.last_token != "if"
         elif token == "consteval" and self.wrap_nesting is None:
             self.pending_consteval = True
             self.pending_name_frozen = False
             self.pending_function_name = f"<consteval block at line {line_number}>"
+            self.pending_consteval_depth = self.brace_depth
         elif token == "switch":
             self.suppress_next_block_trap = True
         elif (
@@ -333,6 +352,10 @@ class Instrumenter:
     def _on_punctuation(self, character: str, line: str, line_number: int) -> str:
         if character == "{":
             return self._on_open_brace(line, line_number)
+        if character.isspace():
+            return character
+        self.closed_consteval_if_arm = None
+        self.pending_consteval_else = None
         if character == "}":
             self._on_close_brace()
             self.last_token = "}"
@@ -354,23 +377,37 @@ class Instrumenter:
                 self.wrap_nesting = None
                 self.last_token = ";"
                 return "; }"
-            if self.paren_depth == 0 and self.brace_depth == 0:
+            if (
+                self.paren_depth == 0
+                and self.brace_depth == self.pending_consteval_depth
+            ):
                 # A declaration (e.g. a forward declaration) ended before any
                 # body opened; it cannot start a consteval region.
                 self.pending_consteval = False
-        if not character.isspace():
-            self.last_token = character
+        self.last_token = character
         return character
 
     def _on_open_brace(self, line: str, line_number: int) -> str:
         self.brace_depth += 1
+        if self.wrap_nesting is not None:
+            self.wrap_nesting += 1
+        consteval_else = self.pending_consteval_else
+        self.closed_consteval_if_arm = None
+        self.pending_consteval_else = None
         if self.pending_runtime_lambda:
             # The first `{` after `+[` is the lambda body: a captureless
             # lambda's capture list and parameter list cannot contain braces.
-            self.runtime_lambda_stack.append(self.brace_depth)
+            self.runtime_block_stack.append(self.brace_depth)
             self.pending_runtime_lambda = False
             self.last_token = "{"
             return "{"
+        if self.pending_consteval_if is not None:
+            negated = self.pending_consteval_if
+            self.pending_consteval_if = None
+            self.consteval_if_arm_stack.append((self.brace_depth, negated))
+            self._open_consteval_if_arm(not negated, line_number)
+        elif consteval_else is not None:
+            self._open_consteval_if_arm(consteval_else, line_number)
         is_block_open = self.last_token in BLOCK_OPEN_TOKENS
         if self.pending_consteval and is_block_open:
             self.region_stack.append(self.brace_depth)
@@ -389,15 +426,35 @@ class Instrumenter:
         self.last_token = "{"
         return "{"
 
+    def _open_consteval_if_arm(self, compile_time: bool, line_number: int) -> None:
+        """Open the arm of a consteval-if whose `{` was just seen."""
+        if not compile_time:
+            self.runtime_block_stack.append(self.brace_depth)
+            return
+        self.region_stack.append(self.brace_depth)
+        self.function_stack.append(
+            self.function_stack[-1]
+            if self.function_stack
+            else f"<if consteval at line {line_number}>"
+        )
+
     def _on_close_brace(self) -> None:
+        if self.wrap_nesting is not None:
+            self.wrap_nesting -= 1
         if self.region_stack and self.brace_depth == self.region_stack[-1]:
             self.region_stack.pop()
             self.function_stack.pop()
         if (
-            self.runtime_lambda_stack
-            and self.brace_depth == self.runtime_lambda_stack[-1]
+            self.runtime_block_stack
+            and self.brace_depth == self.runtime_block_stack[-1]
         ):
-            self.runtime_lambda_stack.pop()
+            self.runtime_block_stack.pop()
+        if (
+            self.consteval_if_arm_stack
+            and self.brace_depth == self.consteval_if_arm_stack[-1][0]
+        ):
+            _, negated = self.consteval_if_arm_stack.pop()
+            self.closed_consteval_if_arm = negated
         self.brace_depth -= 1
 
 
