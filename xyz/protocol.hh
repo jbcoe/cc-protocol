@@ -181,7 +181,7 @@ class protocol
   // member function thunks (which take a `const view_vtable*`) can call
   // through a `const vtable*` unchanged.
   struct vtable : view_vtable {
-    void (*destroy)(const Alloc& alloc, void* data);
+    void (*destroy)(const Alloc& alloc, void* data) noexcept;
     void* (*copy)(const Alloc& alloc, const void* data);
     void* (*move)(const Alloc& alloc, void* data);
   };
@@ -194,7 +194,7 @@ class protocol
     vtable vtable{};
     static_cast<view_vtable&>(vtable) = detail::make_view_vtable<I, TNorm>();
 
-    vtable.destroy = +[](const Alloc& alloc, void* data) -> void {
+    vtable.destroy = +[](const Alloc& alloc, void* data) noexcept -> void {
       rebound<TNorm> new_alloc{alloc};
       auto* typed = static_cast<TNorm*>(data);
       rebound_traits<TNorm>::destroy(new_alloc, typed);
@@ -235,7 +235,7 @@ class protocol
   static consteval vtable make_null_vtable() {
     vtable result{};
     result.xyz_protocol_typeid = &typeid(void);
-    result.destroy = +[](const Alloc&, void*) -> void {};
+    result.destroy = +[](const Alloc&, void*) noexcept -> void {};
     result.copy = +[](const Alloc&, const void*) -> void* { return nullptr; };
     result.move = +[](const Alloc&, void*) -> void* { return nullptr; };
     return result;
@@ -426,19 +426,21 @@ class protocol
       return *this;
     }
 
+    // Copy before destruction for strong exception safety. `other` may be
+    // owned by the object this protocol holds, so nothing is read from it
+    // after that object is destroyed.
+    const vtable* new_vtable = other.vtable_;
     if constexpr (pocca) {
-      // Allocate before destruction for strong exception safety.
-      void* new_object = other.vtable_->copy(other.alloc_, other.object_);
-
-      vtable_->destroy(alloc_, object_);
+      void* new_object = new_vtable->copy(other.alloc_, other.object_);
+      // Take `other`'s allocator and destroy the old object with the old one.
+      vtable_->destroy(std::exchange(alloc_, other.alloc_), object_);
       object_ = new_object;
-      alloc_ = other.alloc_;
     } else {
-      void* new_object = other.vtable_->copy(alloc_, other.object_);
+      void* new_object = new_vtable->copy(alloc_, other.object_);
       vtable_->destroy(alloc_, object_);
       object_ = new_object;
     }
-    vtable_ = other.vtable_;
+    vtable_ = new_vtable;
 
     return *this;
   }
@@ -452,25 +454,28 @@ class protocol
       return *this;
     }
 
+    // `other` may be owned by the object this protocol holds, so it is left
+    // valueless before that object is destroyed and is not touched after.
+    void* new_object = nullptr;
     if (always_equal || pocma || alloc_ == other.alloc_) {
-      // Fast path: just swap the pointers and (conditionally) the allocators.
-      vtable_->destroy(alloc_, object_);
-      object_ = other.object_;
-      if constexpr (pocma) {
-        alloc_ = other.alloc_;
-      }
+      // Fast path: take the pointer.
+      new_object = std::exchange(other.object_, nullptr);
     } else {
       // Slow path: heap construct and move the object directly. Allocate first
       // for strong exception safety.
-      void* new_object = other.vtable_->move(alloc_, other.object_);
-      vtable_->destroy(alloc_, object_);
-      other.vtable_->destroy(other.alloc_, other.object_);
-
-      object_ = new_object;
+      new_object = other.vtable_->move(alloc_, other.object_);
+      other.vtable_->destroy(other.alloc_,
+                             std::exchange(other.object_, nullptr));
     }
+    const vtable* new_vtable = std::exchange(other.vtable_, &null_vtable);
 
-    other.object_ = nullptr;
-    vtable_ = std::exchange(other.vtable_, &null_vtable);
+    if constexpr (pocma) {
+      vtable_->destroy(std::exchange(alloc_, other.alloc_), object_);
+    } else {
+      vtable_->destroy(alloc_, object_);
+    }
+    object_ = new_object;
+    vtable_ = new_vtable;
 
     return *this;
   }
