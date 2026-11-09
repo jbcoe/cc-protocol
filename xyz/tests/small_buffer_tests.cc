@@ -161,8 +161,8 @@ struct AllocatorCalls {
 };
 
 // Constructs objects with uses-allocator construction, passing itself to
-// those that take an allocator, as `std::pmr::polymorphic_allocator` does,
-// but without throwing.
+// those that take an allocator, as `std::pmr::polymorphic_allocator` does.
+// Unlike it, `construct` is `noexcept` whenever the constructor it calls is.
 template <typename T>
 struct ConstructingAllocator {
   using value_type = T;
@@ -187,7 +187,23 @@ struct ConstructingAllocator {
   }
 
   template <typename U, typename... Args>
-  void construct(U* pointer, Args&&... args) noexcept {
+  static constexpr bool is_nothrow_constructible_using_allocator() {
+    if constexpr (!std::uses_allocator_v<U, ConstructingAllocator>) {
+      return std::is_nothrow_constructible_v<U, Args...>;
+    } else if constexpr (std::is_constructible_v<U, std::allocator_arg_t,
+                                                 const ConstructingAllocator&,
+                                                 Args...>) {
+      return std::is_nothrow_constructible_v<
+          U, std::allocator_arg_t, const ConstructingAllocator&, Args...>;
+    } else {
+      return std::is_nothrow_constructible_v<U, Args...,
+                                             const ConstructingAllocator&>;
+    }
+  }
+
+  template <typename U, typename... Args>
+  void construct(U* pointer, Args&&... args) noexcept(
+      is_nothrow_constructible_using_allocator<U, Args...>()) {
     ++calls_->constructions;
     std::uninitialized_construct_using_allocator(pointer, *this,
                                                  std::forward<Args>(args)...);
