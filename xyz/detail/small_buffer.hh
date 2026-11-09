@@ -70,6 +70,16 @@ inline constexpr bool is_nothrow_allocator_constructible_v = [] {
   }
 }();
 
+template <typename T, typename Alloc>
+inline constexpr bool is_nothrow_allocator_move_constructible_v = [] consteval {
+  if constexpr (std::is_move_constructible_v<T>) {
+    return is_nothrow_allocator_constructible_v<rebound_allocator_t<T, Alloc>,
+                                                T, T&&>;
+  } else {
+    return false;
+  }
+}();
+
 // A `T` is stored in the buffer if it fits and relocating it cannot throw.
 // Relocation, which protocol's `noexcept` move constructor and swap rely on,
 // constructs the moved object through the allocator, so an allocator whose
@@ -78,8 +88,7 @@ inline constexpr bool is_nothrow_allocator_constructible_v = [] {
 template <typename T, typename Alloc>
 inline constexpr bool fits_in_small_buffer_v =
     sizeof(T) <= small_buffer_size && alignof(T) <= small_buffer_alignment &&
-    std::is_move_constructible_v<T> &&
-    is_nothrow_allocator_constructible_v<rebound_allocator_t<T, Alloc>, T, T&&>;
+    is_nothrow_allocator_move_constructible_v<T, Alloc>;
 
 // Storing a `T` constructed from `Args...` cannot throw: it fits in the buffer,
 // so nothing is allocated, and constructing it through the allocator does not
