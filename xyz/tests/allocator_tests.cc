@@ -812,6 +812,44 @@ TEST(ProtocolTest, ValueConstructionExceptionReleasesTheAllocation) {
   EXPECT_EQ(deallocs, 1);
 }
 
+class SmallThrowingCopyTester {
+  int val_{0};
+
+ public:
+  explicit SmallThrowingCopyTester(int value) noexcept : val_(value) {}
+
+  SmallThrowingCopyTester(const SmallThrowingCopyTester&) {
+    throw TestException{};
+  }
+
+  SmallThrowingCopyTester(SmallThrowingCopyTester&&) noexcept = default;
+  SmallThrowingCopyTester& operator=(const SmallThrowingCopyTester&) = delete;
+  SmallThrowingCopyTester& operator=(SmallThrowingCopyTester&&) = delete;
+  ~SmallThrowingCopyTester() = default;
+
+  int value() const noexcept { return val_; }
+};
+
+static_assert(xyz::detail::fits_in_small_buffer_v<SmallThrowingCopyTester,
+                                                  ThrowingAlloc>);
+
+TEST(ProtocolTest, BufferedValueConstructionExceptionAllocatesNothing) {
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+  bool should_throw{false};
+
+  ThrowingAlloc alloc{&allocs, &deallocs, &should_throw};
+  SmallThrowingCopyTester original(5);
+
+  // Copying `original` into the small buffer throws; nothing was allocated,
+  // so protocol's construction path only has to rethrow.
+  EXPECT_THROW((xyz::protocol<IntLike, ThrowingAlloc>{std::allocator_arg, alloc,
+                                                      original}),
+               TestException);
+  EXPECT_EQ(allocs, 0);
+  EXPECT_EQ(deallocs, 0);
+}
+
 TEST(ProtocolTest, CopyConstructionException) {
   unsigned allocs = 0;
   unsigned deallocs = 0;
