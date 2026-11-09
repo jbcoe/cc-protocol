@@ -221,7 +221,8 @@ struct small_buffer_operations {
                                   Args&&... args) {
     // Start the array's lifetime, making it the active member, so that it
     // provides storage for the `T`.
-    std::construct_at(&destination.buffer_);
+    ::new (static_cast<void*>(&destination.buffer_))
+        std::array<std::byte, small_buffer_size>;
     rebound_allocator rebound{alloc};
     rebound_traits::construct(rebound,
                               reinterpret_cast<T*>(destination.buffer_.data()),
