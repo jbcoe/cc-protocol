@@ -40,9 +40,10 @@ abort compilation, and that one bit per evaluation is enough:
 
 Limitations: probe points sit at block and return/throw granularity, not on
 every line; a branch of `if constexpr` that no instantiation includes is
-reported unevaluated (correctly so); and a `catch (...)` that swallowed the
-trap exception without rethrowing would mask probes beneath it (none of the
-instrumented headers has one).
+reported unevaluated (correctly so); the block of an `if !consteval` is not
+instrumented, as it never runs during constant evaluation; and a
+`catch (...)` that swallowed the trap exception without rethrowing would mask
+probes beneath it (none of the instrumented headers has one).
 
 Requires a reflection-capable GCC (found via compiler_discovery) and a prior
 `./scripts/cmake.sh build` to provide the googletest headers.
@@ -301,7 +302,11 @@ class Instrumenter:
 
     def _on_token(self, token: str, line: str, line_number: int) -> str:
         prefix = ""
-        if token == "consteval" and self.wrap_nesting is None:
+        if token == "consteval" and self.last_token == "!":
+            # `if !consteval`: its block runs only outside constant
+            # evaluation, so it is gcov's domain, not a consteval region.
+            pass
+        elif token == "consteval" and self.wrap_nesting is None:
             self.pending_consteval = True
             self.pending_name_frozen = False
             self.pending_function_name = f"<consteval block at line {line_number}>"
