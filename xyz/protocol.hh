@@ -379,9 +379,8 @@ class protocol
 
   // Delegated to by the allocator-aware in-place constructors.
   template <typename T, typename... Args>
-  constexpr explicit protocol(
-      detail::construct_in_storage_t, const Alloc& a, std::in_place_type_t<T>,
-      Args&&... args) noexcept(detail::is_nothrow_storable_v<T, Alloc, Args...>)
+  constexpr explicit protocol(detail::construct_in_storage_t, const Alloc& a,
+                              std::in_place_type_t<T>, Args&&... args)
       : alloc_(a) {
     detail::small_buffer_operations<T, Alloc>::construct(
         alloc_, storage_, std::forward<Args>(args)...);
@@ -400,21 +399,13 @@ class protocol
 
   protocol() = delete;
 
-  // The constructors from a conforming T strengthen their exception
-  // specification ([res.on.exception.handling]): they cannot throw if T is
-  // stored in the small buffer and constructing it through the allocator
-  // cannot throw. Whether T is stored in the small buffer is up to the
-  // implementation, so this is not part of the proposed specification and must
-  // not be relied on by portable code.
-
   // Construction from conforming T.
   template <typename T, typename TNorm = std::decay_t<T>>
     requires(!std::same_as<TNorm, protocol> &&
              is_protocol_conformant_v<I, TNorm> &&
              has_conformant_special_members_v<I, TNorm> &&
              std::default_initializable<Alloc>)
-  constexpr explicit protocol(T&& obj) noexcept(
-      detail::is_nothrow_default_storable_v<TNorm, Alloc, T>)
+  constexpr explicit protocol(T&& obj)
       : protocol(std::allocator_arg, Alloc{}, std::forward<T>(obj)) {}
 
   // Allocator-aware construction from conforming T.
@@ -422,9 +413,7 @@ class protocol
     requires(!std::same_as<TNorm, protocol> &&
              has_conformant_special_members_v<I, TNorm> &&
              is_protocol_conformant_v<I, TNorm>)
-  constexpr explicit protocol(
-      std::allocator_arg_t, const Alloc& a,
-      T&& obj) noexcept(detail::is_nothrow_storable_v<TNorm, Alloc, T>)
+  constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, T&& obj)
       : protocol(detail::construct_in_storage, a, std::in_place_type<TNorm>,
                  std::forward<T>(obj)) {}
 
@@ -434,8 +423,7 @@ class protocol
              is_protocol_conformant_v<I, T> &&
              has_conformant_special_members_v<I, T> &&
              std::default_initializable<Alloc>)
-  constexpr explicit protocol(std::in_place_type_t<T>, Args&&... args) noexcept(
-      detail::is_nothrow_default_storable_v<T, Alloc, Args...>)
+  constexpr explicit protocol(std::in_place_type_t<T>, Args&&... args)
       : protocol(std::allocator_arg, Alloc{}, std::in_place_type<T>,
                  std::forward<Args>(args)...) {}
 
@@ -444,9 +432,8 @@ class protocol
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T> &&
              has_conformant_special_members_v<I, T>)
-  constexpr explicit protocol(
-      std::allocator_arg_t, const Alloc& a, std::in_place_type_t<T>,
-      Args&&... args) noexcept(detail::is_nothrow_storable_v<T, Alloc, Args...>)
+  constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
+                              std::in_place_type_t<T>, Args&&... args)
       : protocol(detail::construct_in_storage, a, std::in_place_type<T>,
                  std::forward<Args>(args)...) {}
 
@@ -457,12 +444,8 @@ class protocol
              is_protocol_conformant_v<I, T> &&
              has_conformant_special_members_v<I, T> &&
              std::default_initializable<Alloc>)
-  constexpr explicit protocol(
-      std::in_place_type_t<T>, std::initializer_list<U> il,
-      Args&&... args) noexcept(detail::
-                                   is_nothrow_default_storable_v<
-                                       T, Alloc, std::initializer_list<U>&,
-                                       Args...>)
+  constexpr explicit protocol(std::in_place_type_t<T>,
+                              std::initializer_list<U> il, Args&&... args)
       : protocol(std::allocator_arg, Alloc{}, std::in_place_type<T>, il,
                  std::forward<Args>(args)...) {}
 
@@ -471,13 +454,9 @@ class protocol
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T> &&
              has_conformant_special_members_v<I, T>)
-  constexpr explicit protocol(
-      std::allocator_arg_t, const Alloc& a, std::in_place_type_t<T>,
-      std::initializer_list<U> il,
-      Args&&... args) noexcept(detail::
-                                   is_nothrow_storable_v<
-                                       T, Alloc, std::initializer_list<U>&,
-                                       Args...>)
+  constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
+                              std::in_place_type_t<T>,
+                              std::initializer_list<U> il, Args&&... args)
       : protocol(detail::construct_in_storage, a, std::in_place_type<T>, il,
                  std::forward<Args>(args)...) {}
 

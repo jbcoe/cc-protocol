@@ -6,7 +6,6 @@
 
 #include <array>
 #include <cstddef>
-#include <initializer_list>
 #include <memory>
 #include <memory_resource>
 #include <type_traits>
@@ -147,9 +146,6 @@ TEST(SmallBufferTest, NothingFitsWithAnAllocatorWhoseConstructCanThrow) {
   using PolymorphicAllocator = std::pmr::polymorphic_allocator<std::byte>;
 
   static_assert(!fits_in_small_buffer_v<SmallTracker, PolymorphicAllocator>);
-  static_assert(!std::is_nothrow_constructible_v<
-                protocol<Interface, PolymorphicAllocator>, std::allocator_arg_t,
-                const PolymorphicAllocator&, SmallTracker>);
 }
 
 // Counts the calls made to the `ConstructingAllocator`s that share it.
@@ -629,80 +625,6 @@ TEST(SmallBufferTest, SwapLargeAndSmall) {
 
 TEST(SmallBufferTest, SwapLargeAndLarge) {
   check_swap<LargeTracker, LargeTracker>(0);
-}
-
-// ---------------------------------------------------------------------------
-// Exception specifications. These are a strengthening by this
-// implementation, not part of the proposed specification: whether an object
-// is in the small buffer is up to the implementation.
-// ---------------------------------------------------------------------------
-
-template <typename T>
-struct ThrowingDefaultAllocator : std::allocator<T> {
-  ThrowingDefaultAllocator() noexcept(false) = default;
-
-  template <typename U>
-  ThrowingDefaultAllocator(const ThrowingDefaultAllocator<U>&) noexcept {}
-
-  template <typename Other>
-  struct rebind {
-    using other = ThrowingDefaultAllocator<Other>;
-  };
-};
-
-TEST(SmallBufferTest, ConstructingSmallObjectFromRvalueIsNoexcept) {
-  static_assert(
-      std::is_nothrow_constructible_v<protocol<Interface>, SmallTracker>);
-  static_assert(
-      std::is_nothrow_constructible_v<protocol<Interface>,
-                                      std::in_place_type_t<SmallTracker>,
-                                      Counts*, int>);
-  static_assert(
-      std::is_nothrow_constructible_v<TrackingProtocol, std::allocator_arg_t,
-                                      const Alloc&, SmallTracker>);
-}
-
-// Conforms to `Interface`, and is small and constructed from an initializer
-// list.
-struct ListConstructed {
-  int value_;
-
-  ListConstructed(std::initializer_list<int> values) noexcept
-      : value_(static_cast<int>(values.size())) {}
-
-  int value() const { return value_; }
-};
-
-TEST(SmallBufferTest, InitializerListConstructionOfSmallObjectIsNoexcept) {
-  static_assert(
-      std::is_nothrow_constructible_v<protocol<Interface>,
-                                      std::in_place_type_t<ListConstructed>,
-                                      std::initializer_list<int>>);
-  static_assert(
-      std::is_nothrow_constructible_v<
-          TrackingProtocol, std::allocator_arg_t, const Alloc&,
-          std::in_place_type_t<ListConstructed>, std::initializer_list<int>>);
-}
-
-TEST(SmallBufferTest, ConstructingWithThrowingConstructorIsNotNoexcept) {
-  static_assert(!std::is_nothrow_constructible_v<protocol<Interface>,
-                                                 const SmallTracker&>);
-}
-
-TEST(SmallBufferTest, ConstructingLargeObjectIsNotNoexcept) {
-  static_assert(
-      !std::is_nothrow_constructible_v<protocol<Interface>, LargeTracker>);
-}
-
-TEST(SmallBufferTest, DefaultConstructingThrowingAllocatorIsNotNoexcept) {
-  using ThrowingDefaultProtocol =
-      protocol<Interface, ThrowingDefaultAllocator<std::byte>>;
-
-  static_assert(
-      !std::is_nothrow_constructible_v<ThrowingDefaultProtocol, SmallTracker>);
-  static_assert(std::is_nothrow_constructible_v<
-                ThrowingDefaultProtocol, std::allocator_arg_t,
-                const ThrowingDefaultAllocator<std::byte>&, SmallTracker>);
 }
 
 // ---------------------------------------------------------------------------
