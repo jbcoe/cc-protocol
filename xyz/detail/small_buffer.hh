@@ -229,9 +229,11 @@ struct small_buffer_operations {
                                   small_buffer_storage& destination,
                                   Args&&... args) {
     // Start the array's lifetime, making it the active member, so that it
-    // provides storage for the `T`.
-    ::new (static_cast<void*>(&destination.buffer_))
-        std::array<std::byte, small_buffer_size>;
+    // provides storage for the `T`. This zero-fills the buffer, which costs a
+    // few stores on every construction and relocation into it. Leaving the
+    // bytes the object does not fill uninitialized makes GCC's
+    // -Wmaybe-uninitialized report member function calls.
+    std::construct_at(&destination.buffer_);
     rebound_allocator rebound{alloc};
     rebound_traits::construct(rebound,
                               reinterpret_cast<T*>(destination.buffer_.data()),

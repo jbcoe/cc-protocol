@@ -74,18 +74,7 @@ template <std::meta::info Member, typename Vtable, typename ProtocolObject,
   }
   constexpr std::meta::info vtable_entry =
       find_vtable_entry<^^Vtable, Member>();
-  // A protocol passes a pointer to its storage, whose buffer bytes need not
-  // all be initialized: an object in the small buffer may not fill it, and an
-  // empty one initializes none of it. GCC assumes that a function taking a
-  // pointer to const reads through it, and warns.
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
   return vtable->[:vtable_entry:](object, std::forward<Args>(args)...);
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
 }
 
 // Returns a list of data_member_spec values, one for each member function
