@@ -193,6 +193,10 @@ class protocol
     const view_vtable* object_vtable;
     // Whether the object is in the small buffer outside constant evaluation.
     bool is_buffered;
+    // Whether this is the null vtable of a valueless protocol. Tested rather
+    // than the null vtable's address, which need not be unique: a shared
+    // library built with hidden visibility has its own copy.
+    bool is_valueless;
   };
 
   // Builds the vtable for the stored type `TNorm`: the member function
@@ -270,6 +274,7 @@ class protocol
     };
     result.object_vtable = &detail::null_view_vtable_for<I>;
     result.is_buffered = false;
+    result.is_valueless = true;
     return result;
   }
 
@@ -618,7 +623,7 @@ class protocol
   friend constexpr bool valueless_after_move(const protocol& p) noexcept
     requires std::is_move_constructible_v<I>
   {
-    return p.vtable_ == &null_vtable;
+    return p.vtable_->is_valueless;
   }
 };
 
