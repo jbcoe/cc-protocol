@@ -177,9 +177,7 @@ class protocol
     // The vtable a `protocol_view` of the stored object uses: its entries
     // take the object's address, not `storage_`.
     const view_vtable* object_vtable;
-    // Where the object is stored. Tested rather than the null vtable's
-    // address, which need not be unique: a shared library built with hidden
-    // visibility has its own copy.
+    // Where the object is stored (heap, SBO, or no object).
     detail::storage_kind storage_kind;
   };
 
