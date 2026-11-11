@@ -177,6 +177,10 @@ class protocol
     // The vtable a `protocol_view` of the stored object uses: its entries
     // take the object's address, not `storage_`.
     const view_vtable* object_vtable;
+    // Where the object is stored. Tested rather than the null vtable's
+    // address, which need not be unique: a shared library built with hidden
+    // visibility has its own copy.
+    detail::storage_kind storage_kind;
   };
 
   // Builds the vtable for the stored type `TNorm`: the member function
@@ -221,6 +225,7 @@ class protocol
     vtable.relocate = &operations::relocate;
 
     vtable.object_vtable = &detail::view_vtable_for<I, TNorm>;
+    vtable.storage_kind = detail::storage_kind::indirect;
 
     return vtable;
   }
@@ -251,6 +256,7 @@ class protocol
       destination.pointer_ = nullptr;
     };
     result.object_vtable = &detail::null_view_vtable_for<I>;
+    result.storage_kind = detail::storage_kind::none;
     return result;
   }
 
@@ -555,7 +561,7 @@ class protocol
   friend constexpr bool valueless_after_move(const protocol& p) noexcept
     requires std::is_move_constructible_v<I>
   {
-    return p.vtable_ == &null_vtable;
+    return p.vtable_->storage_kind == detail::storage_kind::none;
   }
 };
 

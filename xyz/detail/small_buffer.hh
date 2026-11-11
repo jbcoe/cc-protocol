@@ -31,6 +31,13 @@ union small_buffer_storage {
   void* pointer_ = nullptr;
 };
 
+// Where a `protocol`'s object is stored: nowhere, if the protocol is
+// valueless, or on the heap.
+enum class storage_kind {
+  none,
+  indirect,
+};
+
 // Selects the constructor that stores the object, which the public
 // constructors delegate to.
 struct construct_in_storage_t {
