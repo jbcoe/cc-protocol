@@ -863,6 +863,54 @@ TEST(ProtocolTest, CopyAssignmentException) {
   EXPECT_EQ(deallocs, 2);
 }
 
+// Extends ThrowingAllocator with POCCA set to true.
+template <typename T>
+struct ThrowingPoccaAllocator : ThrowingAllocator<T> {
+  using ThrowingAllocator<T>::ThrowingAllocator;
+  using propagate_on_container_copy_assignment = std::true_type;
+
+  template <typename Other>
+  struct rebind {
+    using other = ThrowingPoccaAllocator<Other>;
+  };
+};
+
+TEST(ProtocolTest, CopyAssignmentExceptionPocca) {
+  using Alloc = ThrowingPoccaAllocator<std::byte>;
+  using Protocol = xyz::protocol<IntLike, Alloc>;
+
+  unsigned allocs1 = 0;
+  unsigned deallocs1 = 0;
+
+  unsigned allocs2 = 0;
+  unsigned deallocs2 = 0;
+
+  {
+    bool should_throw1{false};
+    bool should_throw2{false};
+
+    Alloc alloc1{&allocs1, &deallocs1, &should_throw1};
+    Protocol p1{std::allocator_arg, alloc1, Tester(10)};
+
+    Alloc alloc2{&allocs2, &deallocs2, &should_throw2};
+    Protocol p2{std::allocator_arg, alloc2, Tester(20)};
+
+    // POCCA is true, so copy assignment allocates with p1's allocator, which
+    // now throws.
+    should_throw1 = true;
+    EXPECT_THROW(p2 = p1, TestException);
+
+    // Strong exception guarantee: p2 keeps its value and its allocator.
+    EXPECT_EQ(p1.value(), 10);
+    EXPECT_EQ(p2.value(), 20);
+    EXPECT_EQ(p2.get_allocator(), alloc2);
+    EXPECT_EQ(allocs1, 1);
+    EXPECT_EQ(deallocs2, 0);
+  }
+  EXPECT_EQ(deallocs1, 1);
+  EXPECT_EQ(deallocs2, 1);
+}
+
 TEST(ProtocolTest, EqualMoveConstructionNoException) {
   unsigned allocs = 0;
   unsigned deallocs = 0;

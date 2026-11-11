@@ -426,19 +426,22 @@ class protocol
       return *this;
     }
 
+    // Copy before destruction for strong exception safety. `other` may be
+    // owned by the object this protocol holds, so nothing is read from it
+    // after that object is destroyed.
+    const vtable* new_vtable = other.vtable_;
     if constexpr (pocca) {
-      // Allocate before destruction for strong exception safety.
-      void* new_object = other.vtable_->copy(other.alloc_, other.object_);
-
+      void* new_object = new_vtable->copy(other.alloc_, other.object_);
+      Alloc new_alloc = other.alloc_;
       vtable_->destroy(alloc_, object_);
+      alloc_ = new_alloc;
       object_ = new_object;
-      alloc_ = other.alloc_;
     } else {
-      void* new_object = other.vtable_->copy(alloc_, other.object_);
+      void* new_object = new_vtable->copy(alloc_, other.object_);
       vtable_->destroy(alloc_, object_);
       object_ = new_object;
     }
-    vtable_ = other.vtable_;
+    vtable_ = new_vtable;
 
     return *this;
   }
@@ -452,25 +455,31 @@ class protocol
       return *this;
     }
 
+    // `other` may be owned by the object this protocol holds, so it is left
+    // valueless before that object is destroyed and is not touched after.
+    void* new_object = nullptr;
     if (always_equal || pocma || alloc_ == other.alloc_) {
-      // Fast path: just swap the pointers and (conditionally) the allocators.
-      vtable_->destroy(alloc_, object_);
-      object_ = other.object_;
-      if constexpr (pocma) {
-        alloc_ = other.alloc_;
-      }
+      // Fast path: take the pointer.
+      new_object = other.object_;
     } else {
       // Slow path: heap construct and move the object directly. Allocate first
       // for strong exception safety.
-      void* new_object = other.vtable_->move(alloc_, other.object_);
-      vtable_->destroy(alloc_, object_);
+      new_object = other.vtable_->move(alloc_, other.object_);
       other.vtable_->destroy(other.alloc_, other.object_);
-
-      object_ = new_object;
     }
-
+    const vtable* new_vtable = other.vtable_;
     other.object_ = nullptr;
-    vtable_ = std::exchange(other.vtable_, &null_vtable);
+    other.vtable_ = &null_vtable;
+
+    if constexpr (pocma) {
+      Alloc new_alloc = other.alloc_;
+      vtable_->destroy(alloc_, object_);
+      alloc_ = new_alloc;
+    } else {
+      vtable_->destroy(alloc_, object_);
+    }
+    object_ = new_object;
+    vtable_ = new_vtable;
 
     return *this;
   }
