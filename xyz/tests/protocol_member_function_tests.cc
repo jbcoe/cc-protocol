@@ -604,8 +604,6 @@ TEST(ReflectionProtocolTest, VolatileConformingType) {
   EXPECT_EQ(p.foo(), 10);
 }
 
-// A protocol of an immovable interface is never valueless, and its member
-// functions can be called in builds that check for a valueless protocol.
 TEST(ReflectionProtocolTest, MemberFunctionCallWithImmovableInterface) {
   struct Interface {
     Interface(const Interface&) = delete;
