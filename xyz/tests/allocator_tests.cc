@@ -759,7 +759,7 @@ struct ThrowingAllocator : xyz::tests::TrackingAllocator<T> {
   }
 
   template <typename U>
-  ThrowingAllocator(const ThrowingAllocator<U>& other)
+  ThrowingAllocator(const ThrowingAllocator<U>& other) noexcept
       : xyz::tests::TrackingAllocator<T>(other),
         should_throw_(other.should_throw_) {}
 };
