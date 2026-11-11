@@ -34,8 +34,9 @@ struct TrackingAllocator {
   TrackingAllocator(unsigned* alloc_counter, unsigned* dealloc_counter)
       : alloc_counter_(alloc_counter), dealloc_counter_(dealloc_counter) {}
 
+  // Rebinding and deallocating must not throw ([allocator.requirements]).
   template <typename U>
-  TrackingAllocator(const TrackingAllocator<U>& other)
+  TrackingAllocator(const TrackingAllocator<U>& other) noexcept
       : alloc_counter_(other.alloc_counter_),
         dealloc_counter_(other.dealloc_counter_) {}
 
@@ -52,7 +53,7 @@ struct TrackingAllocator {
     return default_allocator.allocate(n);
   }
 
-  void deallocate(T* p, std::size_t n) {
+  void deallocate(T* p, std::size_t n) noexcept {
     ++(*dealloc_counter_);
     std::allocator<T> default_allocator{};
     default_allocator.deallocate(p, n);

@@ -39,8 +39,9 @@ struct TaggedAllocator {
 
   TaggedAllocator(size_t tag) : tag(tag) {}
 
+  // Rebinding and deallocating must not throw ([allocator.requirements]).
   template <typename U>
-  TaggedAllocator(const TaggedAllocator<U>& other) : tag(other.tag) {}
+  TaggedAllocator(const TaggedAllocator<U>& other) noexcept : tag(other.tag) {}
 
   template <typename Other>
   struct rebind {
@@ -60,7 +61,7 @@ struct TaggedAllocator {
     return default_allocator.allocate(n);
   }
 
-  void deallocate(T* p, std::size_t n) {
+  void deallocate(T* p, std::size_t n) noexcept {
     std::allocator<T> default_allocator{};
     default_allocator.deallocate(p, n);
   }
