@@ -193,7 +193,10 @@ Their public, non-virtual, non-template member functions define the protocol;
 - Allocation: `protocol`, like `std::polymorphic`, allocates and constructs
   the object it owns only through its allocator. Class-specific allocation
   functions are never called, whether declared on the interface or on the
-  conforming type.
+  conforming type. A small object that the allocator can move without
+  throwing is stored in a buffer inside the `protocol` rather than allocated,
+  but is still constructed and destroyed through the allocator (see
+  `xyz/detail/small_buffer.hh`).
 
 - Guidance: Developers should refer to `xyz/tests/protocol_test.cc`,
   `xyz/tests/forwarding_test.cc`, `xyz/tests/allocator_tests.cc` and

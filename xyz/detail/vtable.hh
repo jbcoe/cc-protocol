@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <cassert>
 #include <meta>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -132,10 +133,12 @@ using storage_vtable_t =
 // Finds the `U` that a `vtable_t` entry is passed the address of.
 template <typename U>
 struct view_object_access {
-  static U* object(void* object) noexcept { return static_cast<U*>(object); }
+  static U* object(void* object) noexcept {
+    return std::launder(static_cast<U*>(object));
+  }
 
   static const U* object(const void* object) noexcept {
-    return static_cast<const U*>(object);
+    return std::launder(static_cast<const U*>(object));
   }
 };
 
