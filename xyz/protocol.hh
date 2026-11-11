@@ -181,7 +181,7 @@ class protocol
   // member function thunks (which take a `const view_vtable*`) can call
   // through a `const vtable*` unchanged.
   struct vtable : view_vtable {
-    void (*destroy)(const Alloc& alloc, void* data);
+    void (*destroy)(const Alloc& alloc, void* data) noexcept;
     void* (*copy)(const Alloc& alloc, const void* data);
     void* (*move)(const Alloc& alloc, void* data);
   };
@@ -196,7 +196,7 @@ class protocol
         detail::make_vtable<view_vtable, I, TNorm,
                             detail::view_object_access<TNorm>>();
 
-    vtable.destroy = +[](const Alloc& alloc, void* data) -> void {
+    vtable.destroy = +[](const Alloc& alloc, void* data) noexcept -> void {
       rebound<TNorm> new_alloc{alloc};
       auto* typed = static_cast<TNorm*>(data);
       rebound_traits<TNorm>::destroy(new_alloc, typed);
@@ -237,7 +237,7 @@ class protocol
   static consteval vtable make_null_vtable() {
     vtable result{};
     result.xyz_protocol_typeid = &typeid(void);
-    result.destroy = +[](const Alloc&, void*) -> void {};
+    result.destroy = +[](const Alloc&, void*) noexcept -> void {};
     result.copy = +[](const Alloc&, const void*) -> void* { return nullptr; };
     result.move = +[](const Alloc&, void*) -> void* { return nullptr; };
     return result;
