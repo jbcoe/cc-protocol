@@ -63,10 +63,7 @@ template <std::meta::info Member, typename Vtable, typename ProtocolObject,
 [[gnu::always_inline]] inline decltype(auto) call_through_vtable(
     [[maybe_unused]] ProtocolObject* protocol_object, const Vtable* vtable,
     Object object, Args&&... args) {
-  // A protocol of an interface that is not move constructible cannot be moved
-  // from, so it is never valueless and has no `valueless_after_move`.
-  if constexpr (is_protocol_v<std::remove_cv_t<ProtocolObject>> &&
-                requires { valueless_after_move(*protocol_object); }) {
+  if constexpr (is_protocol_v<std::remove_cv_t<ProtocolObject>>) {
     assert(!valueless_after_move(*protocol_object) &&
            "cannot call member function of valueless protocol");
   }
