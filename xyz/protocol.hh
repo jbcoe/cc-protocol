@@ -432,8 +432,9 @@ class protocol
     const vtable* new_vtable = other.vtable_;
     if constexpr (pocca) {
       void* new_object = new_vtable->copy(other.alloc_, other.object_);
-      // Take `other`'s allocator and destroy the old object with the old one.
-      vtable_->destroy(std::exchange(alloc_, other.alloc_), object_);
+      Alloc new_alloc = other.alloc_;
+      vtable_->destroy(alloc_, object_);
+      alloc_ = new_alloc;
       object_ = new_object;
     } else {
       void* new_object = new_vtable->copy(alloc_, other.object_);
@@ -459,18 +460,21 @@ class protocol
     void* new_object = nullptr;
     if (always_equal || pocma || alloc_ == other.alloc_) {
       // Fast path: take the pointer.
-      new_object = std::exchange(other.object_, nullptr);
+      new_object = other.object_;
     } else {
       // Slow path: heap construct and move the object directly. Allocate first
       // for strong exception safety.
       new_object = other.vtable_->move(alloc_, other.object_);
-      other.vtable_->destroy(other.alloc_,
-                             std::exchange(other.object_, nullptr));
+      other.vtable_->destroy(other.alloc_, other.object_);
     }
-    const vtable* new_vtable = std::exchange(other.vtable_, &null_vtable);
+    const vtable* new_vtable = other.vtable_;
+    other.object_ = nullptr;
+    other.vtable_ = &null_vtable;
 
     if constexpr (pocma) {
-      vtable_->destroy(std::exchange(alloc_, other.alloc_), object_);
+      Alloc new_alloc = other.alloc_;
+      vtable_->destroy(alloc_, object_);
+      alloc_ = new_alloc;
     } else {
       vtable_->destroy(alloc_, object_);
     }
