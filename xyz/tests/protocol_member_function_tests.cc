@@ -632,15 +632,18 @@ TEST(ReflectionProtocolTest, CopyOnlyInterfaceMemberFunction) {
     Interface& operator=(Interface&&) = delete;
     ~Interface() = default;
 
-    int get();
+    int get() const;
   };
 
   struct Conforming {
-    int get() { return 1; }
+    int get() const { return 1; }
   };
 
   protocol<Interface> p(std::in_place_type<Conforming>);
+  // NOLINTBEGIN(performance-unnecessary-copy-initialization): the test
+  // exercises copy construction on purpose.
   protocol<Interface> copy(p);
+  // NOLINTEND(performance-unnecessary-copy-initialization)
   EXPECT_EQ(p.get(), 1);
   EXPECT_EQ(copy.get(), 1);
   EXPECT_FALSE(valueless_after_move(copy));
