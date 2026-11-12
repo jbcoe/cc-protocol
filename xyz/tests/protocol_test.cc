@@ -783,8 +783,12 @@ TEST(ReflectionProtocolTest, SpecialMembersInConstantEvaluation) {
     protocol<Interface> q(Literal{2});
     q = moved;
     q = std::move(moved);
+
+    if (protocol_cast<Literal>(&q)->value() != 1) return false;
+
+    q = protocol<Interface>(Literal{3});
     swap(p, q);
-    return protocol_cast<Literal>(&p)->value() == 1 &&
+    return protocol_cast<Literal>(&p)->value() == 3 &&
            protocol_cast<Literal>(&q)->value() == 1 &&
            valueless_after_move(copy) && valueless_after_move(moved);
   }());

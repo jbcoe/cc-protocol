@@ -604,7 +604,7 @@ class protocol_view
                  (!std::is_const_v<U>)
   protocol_view(const U&&) = delete;
 
-  // Views the object a `protocol<T>` owns, sharing its vtable.
+  // Views the object a `protocol<T>` owns.
   //
   // Precondition: `p` is not valueless.
   template <typename Alloc>
@@ -711,7 +711,7 @@ class protocol_view<const T>
                  (!detail::is_protocol_view_v<std::remove_cvref_t<U>>)
   protocol_view(const U&&) = delete;
 
-  // Views the object a `protocol<T>` owns, sharing its vtable.
+  // Views the object a `protocol<T>` owns.
   //
   // Precondition: `p` is not valueless.
   template <typename Alloc>
