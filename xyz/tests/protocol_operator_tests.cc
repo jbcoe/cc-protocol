@@ -230,7 +230,12 @@ TEST(ReflectionProtocolTest, ConstCallOperatorValuelessCall) {
 
 TEST(ReflectionProtocolTest, ImmovableInterfaceCallOperator) {
   struct Interface {
+    Interface(const Interface&) = delete;
     Interface(Interface&&) = delete;
+    Interface& operator=(const Interface&) = delete;
+    Interface& operator=(Interface&&) = delete;
+    ~Interface() = default;
+
     int operator()(int x) const;
   };
 

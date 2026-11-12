@@ -606,7 +606,12 @@ TEST(ReflectionProtocolTest, VolatileConformingType) {
 
 TEST(ReflectionProtocolTest, ImmovableInterfaceMemberFunction) {
   struct Interface {
+    Interface(const Interface&) = delete;
     Interface(Interface&&) = delete;
+    Interface& operator=(const Interface&) = delete;
+    Interface& operator=(Interface&&) = delete;
+    ~Interface() = default;
+
     int get() const;
   };
 
@@ -623,11 +628,15 @@ TEST(ReflectionProtocolTest, CopyOnlyInterfaceMemberFunction) {
   struct Interface {
     Interface(const Interface&) = default;
     Interface(Interface&&) = delete;
-    int get() const;
+    Interface& operator=(const Interface&) = default;
+    Interface& operator=(Interface&&) = delete;
+    ~Interface() = default;
+
+    int get();
   };
 
   struct Conforming {
-    int get() const { return 1; }
+    int get() { return 1; }
   };
 
   protocol<Interface> p(std::in_place_type<Conforming>);
