@@ -22,6 +22,7 @@ on:
       - "scripts/cmake.sh"
       - "scripts/compiler_discovery.py"
       - "scripts/consteval_coverage.py"
+      - "scripts/consteval_coverage_test.py"
       - "scripts/consteval_coverage.sh"
   pull_request:
     paths:
@@ -40,6 +41,7 @@ on:
       - "scripts/cmake.sh"
       - "scripts/compiler_discovery.py"
       - "scripts/consteval_coverage.py"
+      - "scripts/consteval_coverage_test.py"
       - "scripts/consteval_coverage.sh"
 
 # One group per PR, or per ref for pushes and scheduled runs. A new push to a
@@ -98,6 +100,8 @@ jobs:
         uses: astral-sh/setup-uv@v10.0.1
       - name: Set up Python
         run: uv sync
+      - name: Test the consteval coverage scanner
+        run: uv run scripts/consteval_coverage_test.py
       - name: Build (provides the googletest headers)
         run: ./scripts/cmake.sh build -B coverage
       - name: Probe consteval coverage

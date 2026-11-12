@@ -568,9 +568,7 @@ class protocol
 
   // Hidden friend rather than a member so it can't collide with a forwarded
   // interface member function of the same name.
-  friend constexpr bool valueless_after_move(const protocol& p) noexcept
-    requires std::is_move_constructible_v<I>
-  {
+  friend constexpr bool valueless_after_move(const protocol& p) noexcept {
     return p.vtable_->storage_kind == detail::storage_kind::none;
   }
 };
