@@ -604,5 +604,38 @@ TEST(ReflectionProtocolTest, VolatileConformingType) {
   EXPECT_EQ(p.foo(), 10);
 }
 
+TEST(ReflectionProtocolTest, ImmovableInterfaceMemberFunction) {
+  struct Interface {
+    Interface(Interface&&) = delete;
+    int get() const;
+  };
+
+  struct Conforming {
+    int get() const { return 1; }
+  };
+
+  protocol<Interface> p(std::in_place_type<Conforming>);
+  EXPECT_EQ(p.get(), 1);
+  EXPECT_FALSE(valueless_after_move(p));
+}
+
+TEST(ReflectionProtocolTest, CopyOnlyInterfaceMemberFunction) {
+  struct Interface {
+    Interface(const Interface&) = default;
+    Interface(Interface&&) = delete;
+    int get() const;
+  };
+
+  struct Conforming {
+    int get() const { return 1; }
+  };
+
+  protocol<Interface> p(std::in_place_type<Conforming>);
+  protocol<Interface> copy(p);
+  EXPECT_EQ(p.get(), 1);
+  EXPECT_EQ(copy.get(), 1);
+  EXPECT_FALSE(valueless_after_move(copy));
+}
+
 }  // namespace
 }  // namespace xyz::tests

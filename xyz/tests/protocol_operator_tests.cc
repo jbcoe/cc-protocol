@@ -27,6 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <stdexcept>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 
 #include "xyz/protocol.hh"
 #include "xyz/tests/test_helpers.h"
@@ -226,6 +227,20 @@ TEST(ReflectionProtocolTest, ConstCallOperatorValuelessCall) {
 }
 
 #endif
+
+TEST(ReflectionProtocolTest, ImmovableInterfaceCallOperator) {
+  struct Interface {
+    Interface(Interface&&) = delete;
+    int operator()(int x) const;
+  };
+
+  struct Conforming {
+    int operator()(int x) const { return x * 2; }
+  };
+
+  protocol<Interface> p(std::in_place_type<Conforming>);
+  EXPECT_EQ(p(21), 42);
+}
 
 TEST(ReflectionProtocolTest, OperatorSquareBrackets) {
   struct Interface {
