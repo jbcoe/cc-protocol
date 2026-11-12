@@ -45,7 +45,8 @@ struct conversion_thunk {
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_);
+        protocol_object, protocol_object->vtable_,
+        protocol_object->xyz_protocol_erased_object());
   }
 
   explicit(is_explicit(Member)) operator conversion_target_t<Member>() const
@@ -54,7 +55,8 @@ struct conversion_thunk {
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_);
+        protocol_object, protocol_object->vtable_,
+        protocol_object->xyz_protocol_erased_object());
   }
 
  protected:

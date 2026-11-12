@@ -51,7 +51,8 @@ struct member_function_thunk<R (*)(Args...) noexcept(IsNoexcept), EnclosingType,
     auto* enclosing = reinterpret_cast<EnclosingType*>(this);
     auto* protocol_object = static_cast<ProtocolType*>(enclosing);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        protocol_object, protocol_object->vtable_,
+        protocol_object->xyz_protocol_erased_object(),
         std::forward<Args>(args)...);
   }
 
@@ -61,7 +62,8 @@ struct member_function_thunk<R (*)(Args...) noexcept(IsNoexcept), EnclosingType,
     const auto* enclosing = reinterpret_cast<const EnclosingType*>(this);
     const auto* protocol_object = static_cast<const ProtocolType*>(enclosing);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_, protocol_object->object_,
+        protocol_object, protocol_object->vtable_,
+        protocol_object->xyz_protocol_erased_object(),
         std::forward<Args>(args)...);
   }
 
