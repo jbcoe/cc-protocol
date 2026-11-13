@@ -287,6 +287,11 @@ TEST(ProtocolTest, ValuelessSpecialMembersAreNoOps) {
   // through the null vtable's move and destroy entries.
   TestProtocol moved{std::allocator_arg, alloc2, std::move(source)};
   EXPECT_TRUE(valueless_after_move(moved));
+
+  // Moving a valueless protocol with an equal allocator takes the fast path
+  // through the null vtable's relocate entry.
+  TestProtocol relocated{std::move(copy)};
+  EXPECT_TRUE(valueless_after_move(relocated));
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_EQ(allocs1, 1);
   EXPECT_EQ(allocs2, 0);
@@ -754,7 +759,7 @@ struct ThrowingAllocator : xyz::tests::TrackingAllocator<T> {
   }
 
   template <typename U>
-  ThrowingAllocator(const ThrowingAllocator<U>& other)
+  ThrowingAllocator(const ThrowingAllocator<U>& other) noexcept
       : xyz::tests::TrackingAllocator<T>(other),
         should_throw_(other.should_throw_) {}
 };
