@@ -405,10 +405,10 @@ TEST(ReflectionProtocolViewTest, CallOperatorOverloadSetCannotBeDetached) {
   Conforming c;
   protocol_view<Interface> view(c);
 
-  // Slicing `view` into its `operator_overload_set` base would detach the
-  // rest of `view`'s layout, so the base's own `static_cast<ProtocolType*>`
-  // back to the full object inside `operator()` would be undefined
-  // behaviour.
+  // Slicing `view` into its `xyz_protocol_operator_overload_set` base would
+  // detach the rest of `view`'s layout, so the base's own
+  // `static_cast<ProtocolType*>` back to the full object inside `operator()`
+  // would be undefined behaviour.
   static_assert(!operator_overload_set_can_be_sliced_from<decltype(view)>);
 }
 

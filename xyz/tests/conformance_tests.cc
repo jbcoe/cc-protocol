@@ -675,6 +675,30 @@ TEST(ConformsToTest, ReservedMemberNamesAreRejected) {
 #endif  // __cpp_constexpr_exceptions
 }
 
+TEST(ConformsToTest, ReservedClassNamesAreRejected) {
+  struct ProtocolInterface {
+    int protocol() const;
+  };
+
+  struct ProtocolViewInterface {
+    int protocol_view() const;
+  };
+
+  struct Candidate {
+    int protocol() const { return 0; }
+
+    int protocol_view() const { return 0; }
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(conformance_check_rejects<ProtocolInterface, Candidate>());
+  static_assert(conformance_check_rejects<ProtocolViewInterface, Candidate>());
+  static_assert(
+      conformance_rejection_message_contains<ProtocolViewInterface, Candidate>(
+          "reserved member name 'protocol_view'"));
+#endif  // __cpp_constexpr_exceptions
+}
+
 TEST(ConformsToTest, StaticInterfaceMemberWithReservedNameIsIgnored) {
   struct Interface {
     static void swap(Interface&, Interface&) noexcept;
@@ -727,6 +751,59 @@ TEST(ConformsToTest, ReservedMemberNamesAreThePublicMembersOfProtocol) {
   static_assert(
       public_member_names_are(^^xyz::protocol_view<const Interface>, {
                                                                      }));
+#endif  // __clang__
+}
+
+#ifndef __clang__
+// Returns `true` if every name member lookup on `type` can find that does not
+// come from the interface carries the `xyz_protocol_` prefix: its non-public
+// members and the names of the classes in its base hierarchy. The class's own
+// name, `top`, is in `reserved_class_names` instead.
+consteval bool internal_names_are_prefixed(std::meta::info type,
+                                           std::meta::info top) {
+  std::meta::info named =
+      has_template_arguments(type) ? template_of(type) : type;
+  if (type != top && has_identifier(named) &&
+      !identifier_of(named).starts_with("xyz_protocol_")) {
+    return false;
+  }
+  for (std::meta::info member :
+       members_of(type, std::meta::access_context::unchecked())) {
+    if (has_identifier(member) && !is_public(member) &&
+        !identifier_of(member).starts_with("xyz_protocol_")) {
+      return false;
+    }
+  }
+  for (std::meta::info base :
+       bases_of(type, std::meta::access_context::unchecked())) {
+    if (!internal_names_are_prefixed(type_of(base), top)) return false;
+  }
+  return true;
+}
+
+template <typename T>
+consteval bool internal_names_are_prefixed() {
+  return internal_names_are_prefixed(dealias(^^T), dealias(^^T));
+}
+#endif  // __clang__
+
+// Any name `protocol` or `protocol_view` declares, private ones included, or
+// that names a class among their bases hides an interface member function of
+// the same name. Such names are prefixed `xyz_protocol_`, as a standard
+// library would use reserved identifiers.
+TEST(ConformsToTest, InternalNamesOfProtocolArePrefixed) {
+  struct Interface {
+    int f() const;
+    int g() const;
+    void operator+=(int);
+    explicit operator bool() const;
+  };
+
+#ifndef __clang__
+  static_assert(internal_names_are_prefixed<xyz::protocol<Interface>>());
+  static_assert(internal_names_are_prefixed<xyz::protocol_view<Interface>>());
+  static_assert(
+      internal_names_are_prefixed<xyz::protocol_view<const Interface>>());
 #endif  // __clang__
 }
 

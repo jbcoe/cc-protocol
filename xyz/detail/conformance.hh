@@ -224,10 +224,17 @@ consteval bool is_comparison_operator(std::meta::operators op) {
 inline constexpr std::array<std::string_view, 3> reserved_member_names = {
     "allocator_type", "get_allocator", "swap"};
 
-// Returns `true` if `member` has a name `reserved_member_names` lists.
+// The class names of `protocol` and `protocol_view`. A class's own name is in
+// its scope, so it hides an interface member function of that name too.
+inline constexpr std::array<std::string_view, 2> reserved_class_names = {
+    "protocol", "protocol_view"};
+
+// Returns `true` if `member` has a name `reserved_member_names` or
+// `reserved_class_names` lists.
 consteval bool has_reserved_member_name(std::meta::info member) {
   return has_identifier(member) &&
-         std::ranges::contains(reserved_member_names, identifier_of(member));
+         (std::ranges::contains(reserved_member_names, identifier_of(member)) ||
+          std::ranges::contains(reserved_class_names, identifier_of(member)));
 }
 
 // Throws if `type` has a non-static member function template, operator
