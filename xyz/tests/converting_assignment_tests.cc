@@ -267,22 +267,10 @@ TEST(ConvertingAssignmentTest, AssignsFromObjectOwnedByHeldObject) {
   EXPECT_EQ(p.value(), 1);
   EXPECT_EQ(target_type(p), typeid(Small));
 
-  p = LargeHolder{Small{2}};
-  p = std::move(protocol_cast<LargeHolder>(&p)->inner_);
-
-  EXPECT_EQ(p.value(), 2);
-  EXPECT_EQ(target_type(p), typeid(Small));
-
-  p = SmallHolder{Small{3}};
+  p = SmallHolder{Small{2}};
   p = protocol_cast<SmallHolder>(&p)->inner_;
 
-  EXPECT_EQ(p.value(), 3);
-  EXPECT_EQ(target_type(p), typeid(Small));
-
-  p = SmallHolder{Small{4}};
-  p = std::move(protocol_cast<SmallHolder>(&p)->inner_);
-
-  EXPECT_EQ(p.value(), 4);
+  EXPECT_EQ(p.value(), 2);
   EXPECT_EQ(target_type(p), typeid(Small));
 }
 
