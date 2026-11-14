@@ -562,6 +562,25 @@ class protocol
     return *this;
   }
 
+  // Assignment from conforming T.
+  template <typename T, typename TNorm = std::decay_t<T>>
+    requires(!std::same_as<TNorm, protocol> && !detail::is_protocol_v<TNorm> &&
+             is_protocol_conformant_v<I, TNorm> &&
+             has_conformant_special_members_v<I, TNorm>)
+  constexpr protocol& operator=(T&& obj) {
+    // Construct before destruction for strong exception safety. `obj` may be
+    // owned by the object this protocol holds, so it is not read after that
+    // object is destroyed.
+    detail::small_buffer_storage constructed;
+    detail::small_buffer_operations<TNorm, Alloc>::construct(
+        alloc_, constructed, std::forward<T>(obj));
+    vtable_->destroy(alloc_, storage_);
+    vtable_for<TNorm>.relocate(alloc_, constructed, storage_);
+    vtable_ = &vtable_for<TNorm>;
+
+    return *this;
+  }
+
   constexpr void swap(protocol& other) noexcept(always_equal || pocs) {
     // Relocating out of an emptied storage would read an object that is no
     // longer there.

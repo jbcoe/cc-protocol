@@ -191,6 +191,7 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
       xyz/tests/conformance_tests.cc
       xyz/tests/allocator_tests.cc
       xyz/tests/consteval_check_test.cc
+      xyz/tests/converting_assignment_tests.cc
       xyz/tests/forwarding_test.cc
       xyz/tests/name_mangling_tests.cc
       xyz/tests/vtable_tests.cc)

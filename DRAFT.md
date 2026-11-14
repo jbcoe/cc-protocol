@@ -123,6 +123,10 @@ custom allocators. Like `polymorphic`, `protocol` has a valueless state after
 being moved from to allow move construction and move assignment without
 dynamic memory allocation.
 
+Unlike `polymorphic`, `protocol` can be assigned an object of any conforming
+type, as `any`, `optional` and `variant` can. Its constructor from a
+conforming value stays explicit.
+
 Where `polymorphic<T>` is owning, `T*`, or `const T*` can be used as a
 non-owning reference type. There is no base class to take a pointer to for
 `protocol<T>` so we propose the addition of `protocol_view<T>` (and
@@ -253,6 +257,10 @@ class protocol<I, Allocator=std::allocator<void>> {
 
     // Destructor.
     ~protocol();
+
+    // Assignment from any conforming value.
+    template <class U>
+    constexpr protocol& operator=(U&& u);
 
     // structural-subtype (const and non-const) member functions.
     std::string func0(std::string_view) const noexcept;
