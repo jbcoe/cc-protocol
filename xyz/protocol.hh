@@ -30,6 +30,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // "xyz/detail/name_mangling.hh"), so an entry can be found by the signature it
 // implements rather than by declaration order.
 //
+// `protocol` stores a small object that its allocator can move without
+// throwing in a buffer inside itself, and any other object on the heap (see
+// "xyz/detail/small_buffer.hh"). Which one is an implementation detail. Either
+// way the object is constructed and destroyed through the allocator, which
+// allocates it only on the heap. A moved-from `protocol` is valueless, and
+// moving, swapping or assigning to a `protocol` may invalidate views of and
+// references to its object.
+//
 // Neither implementation currently supports operators other than operator().
 
 #include <algorithm>
@@ -39,6 +47,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <functional>
 #include <memory>
 #include <meta>
+#include <new>
 #include <ranges>
 #include <span>
 #include <stdexcept>
@@ -160,6 +169,10 @@ class protocol
   // for ownership. Because it derives from `storage_vtable`, the synthesised
   // member function thunks (which take a `const storage_vtable*`) can call
   // through a `const vtable*` unchanged.
+  //
+  // The member function entries take `storage_`. Whether the object is in the
+  // small buffer or on the heap is fixed for each stored type, so each type's
+  // entries know where to find it without a branch.
   struct vtable : storage_vtable {
     // Destroys the object and leaves the storage empty.
     void (*destroy)(const Alloc& alloc,
@@ -167,12 +180,13 @@ class protocol
     // Constructs a copy of the object in empty `destination`.
     void (*copy)(const Alloc& alloc, const detail::small_buffer_storage& source,
                  detail::small_buffer_storage& destination);
-    // Move-constructs the object into empty `destination`, using `alloc`.
+    // Move-constructs the object into empty `destination` through `alloc`,
+    // which allocates it unless it is stored in the small buffer.
     void (*move)(const Alloc& alloc, detail::small_buffer_storage& source,
                  detail::small_buffer_storage& destination);
-    // Moves the object to empty `destination`, which uses an allocator equal
-    // to the source's, and leaves the source empty.
-    void (*relocate)(detail::small_buffer_storage& source,
+    // Moves the object, stored with `alloc`, to empty `destination`, which
+    // uses an allocator equal to `alloc`, and leaves the source empty.
+    void (*relocate)(const Alloc& alloc, detail::small_buffer_storage& source,
                      detail::small_buffer_storage& destination) noexcept;
     // The vtable a `protocol_view` of the stored object uses: its entries
     // take the object's address, not `storage_`.
@@ -183,7 +197,8 @@ class protocol
 
   // Builds the vtable for the stored type `TNorm`: the member function
   // entries call through to `TNorm`'s conforming member functions and the
-  // ownership entries store it (see "xyz/detail/small_buffer.hh").
+  // ownership entries store it in the small buffer or on the heap (see
+  // "xyz/detail/small_buffer.hh").
   template <typename T, typename TNorm = std::decay_t<T>>
   static consteval vtable make_vtable_for() {
     using operations = detail::small_buffer_operations<TNorm, Alloc>;
@@ -223,7 +238,8 @@ class protocol
     vtable.relocate = &operations::relocate;
 
     vtable.object_vtable = &detail::view_vtable_for<I, TNorm>;
-    vtable.storage_kind = detail::storage_kind::indirect;
+    vtable.storage_kind = operations::fits ? detail::storage_kind::buffer
+                                           : detail::storage_kind::indirect;
 
     return vtable;
   }
@@ -249,7 +265,7 @@ class protocol
                       detail::small_buffer_storage& destination) {
       destination.pointer_ = nullptr;
     };
-    result.relocate = +[](detail::small_buffer_storage&,
+    result.relocate = +[](const Alloc&, detail::small_buffer_storage&,
                           detail::small_buffer_storage& destination) noexcept {
       destination.pointer_ = nullptr;
     };
@@ -260,12 +276,23 @@ class protocol
 
   static constexpr vtable null_vtable = make_null_vtable();
 
-  // The address of the stored object, or null if valueless.
+  // The address of the stored object, or null if valueless. During constant
+  // evaluation every object is on the heap (see "xyz/detail/small_buffer.hh").
   constexpr void* xyz_protocol_object_address() noexcept {
+    if !consteval {
+      if (vtable_->storage_kind == detail::storage_kind::buffer) {
+        return storage_.buffer_.data();
+      }
+    }
     return storage_.pointer_;
   }
 
   constexpr const void* xyz_protocol_object_address() const noexcept {
+    if !consteval {
+      if (vtable_->storage_kind == detail::storage_kind::buffer) {
+        return storage_.buffer_.data();
+      }
+    }
     return storage_.pointer_;
   }
 
@@ -301,8 +328,8 @@ class protocol
     using pointer_type =
         std::conditional_t<std::is_const_v<std::remove_reference_t<Protocol>>,
                            const std::decay_t<T>*, std::decay_t<T>*>;
-    return std::forward_like<Protocol>(
-        *static_cast<pointer_type>(operand.xyz_protocol_object_address()));
+    return std::forward_like<Protocol>(*std::launder(
+        static_cast<pointer_type>(operand.xyz_protocol_object_address())));
   }
 
   template <typename T>
@@ -312,7 +339,8 @@ class protocol
       return nullptr;
     }
 
-    return static_cast<T*>(operand->xyz_protocol_object_address());
+    return std::launder(
+        static_cast<T*>(operand->xyz_protocol_object_address()));
   }
 
   template <typename T>
@@ -322,7 +350,8 @@ class protocol
       return nullptr;
     }
 
-    return static_cast<const T*>(operand->xyz_protocol_object_address());
+    return std::launder(
+        static_cast<const T*>(operand->xyz_protocol_object_address()));
   }
 
   friend constexpr const std::type_info& target_type(
@@ -455,10 +484,12 @@ class protocol
     requires std::is_move_constructible_v<I>
       : alloc_(a) {
     if (always_equal || alloc_ == other.alloc_) {
-      // Fast path: take the object.
-      other.vtable_->relocate(other.storage_, storage_);
+      // Fast path: take the heap-allocated object, or move the object out of
+      // the small buffer.
+      other.vtable_->relocate(other.alloc_, other.storage_, storage_);
     } else {
-      // Slow path: move construct with our allocator.
+      // Slow path: move construct, allocating with our allocator if the
+      // object is not stored in the small buffer.
       other.vtable_->move(alloc_, other.storage_, storage_);
       other.vtable_->destroy(other.alloc_, other.storage_);
     }
@@ -488,7 +519,7 @@ class protocol
       new_vtable->copy(alloc_, other.storage_, copy);
       vtable_->destroy(alloc_, storage_);
     }
-    new_vtable->relocate(copy, storage_);
+    new_vtable->relocate(alloc_, copy, storage_);
     vtable_ = new_vtable;
 
     return *this;
@@ -509,7 +540,7 @@ class protocol
     detail::small_buffer_storage moved;
     if (always_equal || pocma || alloc_ == other.alloc_) {
       // Fast path: take the object.
-      new_vtable->relocate(other.storage_, moved);
+      new_vtable->relocate(other.alloc_, other.storage_, moved);
     } else {
       // Slow path: move construct with our allocator. Allocate first for
       // strong exception safety.
@@ -525,7 +556,7 @@ class protocol
     } else {
       vtable_->destroy(alloc_, storage_);
     }
-    new_vtable->relocate(moved, storage_);
+    new_vtable->relocate(alloc_, moved, storage_);
     vtable_ = new_vtable;
 
     return *this;
@@ -546,10 +577,11 @@ class protocol
 
     // The storages are swapped through their objects' relocate entries rather
     // than as values, so that an object stored in place is moved properly.
+    // Each object is relocated with the allocator it was stored with.
     detail::small_buffer_storage storage;
-    vtable_->relocate(storage_, storage);
-    other.vtable_->relocate(other.storage_, storage_);
-    vtable_->relocate(storage, other.storage_);
+    vtable_->relocate(alloc_, storage_, storage);
+    other.vtable_->relocate(other.alloc_, other.storage_, storage_);
+    vtable_->relocate(alloc_, storage, other.storage_);
 
     using std::swap;
     if constexpr (pocs) {
@@ -617,6 +649,7 @@ class protocol_view
   // Views the object a `protocol<T>` owns.
   //
   // Precondition: `p` is not valueless.
+  // Moving, swapping or assigning to `p` may invalidate the view.
   template <typename Alloc>
   protocol_view(protocol<T, Alloc>& p) noexcept
       : object_(p.xyz_protocol_object_address()),
@@ -655,7 +688,7 @@ class protocol_view
       throw bad_protocol_cast{};
     }
 
-    return *static_cast<std::decay_t<U>*>(operand.object_);
+    return *std::launder(static_cast<std::decay_t<U>*>(operand.object_));
   }
 
   template <typename U>
@@ -665,7 +698,7 @@ class protocol_view
       return nullptr;
     }
 
-    return static_cast<U*>(operand->object_);
+    return std::launder(static_cast<U*>(operand->object_));
   }
 
   friend constexpr const std::type_info& target_type(protocol_view p) noexcept {
@@ -724,6 +757,7 @@ class protocol_view<const T>
   // Views the object a `protocol<T>` owns.
   //
   // Precondition: `p` is not valueless.
+  // Moving, swapping or assigning to `p` may invalidate the view.
   template <typename Alloc>
   protocol_view(const protocol<T, Alloc>& p) noexcept
       : object_(p.xyz_protocol_object_address()),
@@ -766,7 +800,7 @@ class protocol_view<const T>
       throw bad_protocol_cast{};
     }
 
-    return *static_cast<const std::decay_t<U>*>(operand.object_);
+    return *std::launder(static_cast<const std::decay_t<U>*>(operand.object_));
   }
 
   template <typename U>
@@ -776,7 +810,7 @@ class protocol_view<const T>
       return nullptr;
     }
 
-    return static_cast<const U*>(operand->object_);
+    return std::launder(static_cast<const U*>(operand->object_));
   }
 
   friend constexpr const std::type_info& target_type(protocol_view p) noexcept {

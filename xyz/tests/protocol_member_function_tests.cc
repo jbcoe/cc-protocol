@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "xyz/protocol.hh"
+#include "xyz/tests/test_helpers.h"
 #include "xyz/tests/tracking_allocator.h"
 
 namespace xyz::tests {
@@ -365,6 +366,8 @@ TEST(ReflectionProtocolTest, ForwardingWithCustomAllocator) {
 
   struct Conforming {
     int value;
+
+    [[maybe_unused]] TooLargeForSmallBuffer padding{};
 
     explicit Conforming(int initial_value) : value(initial_value) {}
 

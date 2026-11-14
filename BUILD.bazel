@@ -46,6 +46,7 @@ cc_test(
         "xyz/tests/protocol_operator_tests.cc",
         "xyz/tests/protocol_test.cc",
         "xyz/tests/protocol_view_tests.cc",
+        "xyz/tests/small_buffer_tests.cc",
         "xyz/tests/tagged_allocator.h",
         "xyz/tests/test_helpers.h",
         "xyz/tests/tracking_allocator.h",
