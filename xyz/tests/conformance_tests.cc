@@ -767,15 +767,19 @@ consteval bool internal_names_are_prefixed(std::meta::info type,
       !identifier_of(named).starts_with("xyz_protocol_")) {
     return false;
   }
-  for (std::meta::info member :
-       members_of(type, std::meta::access_context::unchecked())) {
+  // GCC 16 Workaround: iterating the vectors as range-for temporaries in this
+  // recursion reads them outside their lifetime during constant evaluation.
+  std::vector<std::meta::info> members =
+      members_of(type, std::meta::access_context::unchecked());
+  for (std::meta::info member : members) {
     if (has_identifier(member) && !is_public(member) &&
         !identifier_of(member).starts_with("xyz_protocol_")) {
       return false;
     }
   }
-  for (std::meta::info base :
-       bases_of(type, std::meta::access_context::unchecked())) {
+  std::vector<std::meta::info> bases =
+      bases_of(type, std::meta::access_context::unchecked());
+  for (std::meta::info base : bases) {
     if (!internal_names_are_prefixed(type_of(base), top)) return false;
   }
   return true;
