@@ -763,6 +763,49 @@ TEST(ReflectionProtocolViewTest, MovedFromTargetType) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
+TEST(ReflectionProtocolTest, SelfSwapKeepsTheObject) {
+  struct Interface {
+    int value() const;
+  };
+
+  struct Conforming {
+    int value_;
+
+    int value() const { return value_; }
+  };
+
+  protocol<Interface> p(Conforming{4});
+  swap(p, p);
+  EXPECT_EQ(p.value(), 4);
+}
+
+TEST(ReflectionProtocolTest, SwapWithValuelessProtocol) {
+  struct Interface {
+    int value() const;
+  };
+
+  struct Conforming {
+    int value_;
+
+    int value() const { return value_; }
+  };
+
+  protocol<Interface> p(Conforming{4});
+  protocol<Interface> valueless(Conforming{5});
+  auto _ = std::move(valueless);
+
+  // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved): the test
+  // swaps with the moved-from state on purpose.
+  swap(p, valueless);
+  EXPECT_TRUE(valueless_after_move(p));
+  EXPECT_EQ(valueless.value(), 4);
+
+  swap(p, valueless);
+  EXPECT_EQ(p.value(), 4);
+  EXPECT_TRUE(valueless_after_move(valueless));
+  // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
+}
+
 TEST(ReflectionProtocolTest, SpecialMembersInConstantEvaluation) {
   struct Interface {
     int value() const;
