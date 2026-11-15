@@ -652,5 +652,71 @@ TEST(ReflectionProtocolTest, CopyOnlyInterfaceMemberFunction) {
   EXPECT_FALSE(valueless_after_move(copy));
 }
 
+TEST(ReflectionProtocolTest, MembersNamedLikeImplementationDetails) {
+  // Each name was once declared by `protocol`, `protocol_view` or one of their
+  // generated bases, which hid the interface member function. The operator and
+  // the conversion function make the protocols derive from the operator and
+  // conversion bases.
+  struct Interface {
+    int vtable() const;
+    int pocs() const;
+    int storage_() const;
+    int object_() const;
+    int vtable_() const;
+    int type() const;
+    int member_bases_wrapper() const;
+    int operator_thunk() const;
+    int conversion_thunk() const;
+    int operator-() const;
+    explicit operator bool() const;
+  };
+
+  struct Conforming {
+    int vtable() const { return 1; }
+
+    int pocs() const { return 2; }
+
+    int storage_() const { return 3; }
+
+    int object_() const { return 4; }
+
+    int vtable_() const { return 5; }
+
+    int type() const { return 6; }
+
+    int member_bases_wrapper() const { return 7; }
+
+    int operator_thunk() const { return 8; }
+
+    int conversion_thunk() const { return 9; }
+
+    int operator-() const { return 10; }
+
+    explicit operator bool() const { return true; }
+  };
+
+  Conforming conforming;
+  protocol<Interface> p(conforming);
+  protocol_view<Interface> view(conforming);
+  protocol_view<const Interface> const_view(conforming);
+
+  auto names_resolve = [](const auto& q) {
+    EXPECT_EQ(q.vtable(), 1);
+    EXPECT_EQ(q.pocs(), 2);
+    EXPECT_EQ(q.storage_(), 3);
+    EXPECT_EQ(q.object_(), 4);
+    EXPECT_EQ(q.vtable_(), 5);
+    EXPECT_EQ(q.type(), 6);
+    EXPECT_EQ(q.member_bases_wrapper(), 7);
+    EXPECT_EQ(q.operator_thunk(), 8);
+    EXPECT_EQ(q.conversion_thunk(), 9);
+    EXPECT_EQ(-q, 10);
+    EXPECT_TRUE(static_cast<bool>(q));
+  };
+  names_resolve(p);
+  names_resolve(view);
+  names_resolve(const_view);
+}
+
 }  // namespace
 }  // namespace xyz::tests
