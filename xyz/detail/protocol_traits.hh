@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <algorithm>
 #include <concepts>
+#include <memory>
 #include <meta>
 #include <ranges>
 #include <type_traits>
@@ -50,6 +51,24 @@ struct is_protocol_view : std::false_type {};
 
 template <typename T>
 inline constexpr bool is_protocol_view_v = is_protocol_view<T>::value;
+
+// The allocator propagation traits `protocol`'s special members consult,
+// outside `protocol` so that they hide no interface member function.
+template <typename Alloc>
+inline constexpr bool propagate_on_copy_assignment_v =
+    std::allocator_traits<Alloc>::propagate_on_container_copy_assignment::value;
+
+template <typename Alloc>
+inline constexpr bool propagate_on_move_assignment_v =
+    std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value;
+
+template <typename Alloc>
+inline constexpr bool propagate_on_swap_v =
+    std::allocator_traits<Alloc>::propagate_on_container_swap::value;
+
+template <typename Alloc>
+inline constexpr bool allocator_is_always_equal_v =
+    std::allocator_traits<Alloc>::is_always_equal::value;
 
 }  // namespace xyz::detail
 

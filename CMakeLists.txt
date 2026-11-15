@@ -129,6 +129,7 @@ target_sources(
             xyz/detail/member_function_thunks.hh
             xyz/detail/operator_thunks.hh
             xyz/detail/overload_spec.hh
+            xyz/detail/owning_vtable.hh
             xyz/detail/protocol_traits.hh
             xyz/detail/protocol_wrappers.hh
             xyz/detail/small_buffer.hh

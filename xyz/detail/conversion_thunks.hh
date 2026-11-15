@@ -33,19 +33,19 @@ using conversion_target_t = typename[:dealias(return_type_of(Member)):];
 
 // Thunk for one overload of a synthesised conversion function. A conversion
 // function can't be reached through a named member, so
-// `conversion_overload_set` derives from this thunk directly instead of
-// holding it as a data member, letting `ProtocolType` be recovered with a
-// plain static_cast.
+// `xyz_protocol_conversion_overload_set` derives from this thunk directly
+// instead of holding it as a data member, letting `ProtocolType` be recovered
+// with a plain static_cast.
 template <typename ProtocolType, typename Vtable, std::meta::info Member,
           member_qualifiers MemberQualifiers>
-struct conversion_thunk {
+struct xyz_protocol_conversion_thunk {
   explicit(is_explicit(Member)) operator conversion_target_t<Member>() noexcept(
       is_noexcept(Member))
     requires(MemberQualifiers == member_qualifiers::unqualified)
   {
     auto* protocol_object = static_cast<ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_,
+        protocol_object, protocol_object->xyz_protocol_vtable_,
         protocol_object->xyz_protocol_erased_object());
   }
 
@@ -55,20 +55,22 @@ struct conversion_thunk {
   {
     const auto* protocol_object = static_cast<const ProtocolType*>(this);
     return call_through_vtable<Member, Vtable>(
-        protocol_object, protocol_object->vtable_,
+        protocol_object, protocol_object->xyz_protocol_vtable_,
         protocol_object->xyz_protocol_erased_object());
   }
 
  protected:
-  conversion_thunk() = default;
-  ~conversion_thunk() = default;
-  conversion_thunk(const conversion_thunk&) = default;
-  conversion_thunk(conversion_thunk&&) = default;
-  conversion_thunk& operator=(const conversion_thunk&) = default;
-  conversion_thunk& operator=(conversion_thunk&&) = default;
+  xyz_protocol_conversion_thunk() = default;
+  ~xyz_protocol_conversion_thunk() = default;
+  xyz_protocol_conversion_thunk(const xyz_protocol_conversion_thunk&) = default;
+  xyz_protocol_conversion_thunk(xyz_protocol_conversion_thunk&&) = default;
+  xyz_protocol_conversion_thunk& operator=(
+      const xyz_protocol_conversion_thunk&) = default;
+  xyz_protocol_conversion_thunk& operator=(xyz_protocol_conversion_thunk&&) =
+      default;
 };
 
-// The `conversion_thunk` for an `overload_spec`.
+// The `xyz_protocol_conversion_thunk` for an `overload_spec`.
 template <typename OverloadSpec, typename ProtocolType, typename Vtable>
 struct conversion_thunk_for;
 
@@ -76,7 +78,8 @@ template <std::meta::info Member, member_qualifiers MemberQualifiers,
           typename ProtocolType, typename Vtable>
 struct conversion_thunk_for<overload_spec<Member, MemberQualifiers>,
                             ProtocolType, Vtable> {
-  using type = conversion_thunk<ProtocolType, Vtable, Member, MemberQualifiers>;
+  using type = xyz_protocol_conversion_thunk<ProtocolType, Vtable, Member,
+                                             MemberQualifiers>;
 };
 
 template <typename Spec, typename ProtocolType, typename Vtable>
@@ -84,24 +87,28 @@ using conversion_thunk_t =
     conversion_thunk_for<Spec, ProtocolType, Vtable>::type;
 
 // The overload set for one synthesised conversion target: a
-// `conversion_thunk` per overload converting to `TargetType`. Distinct
-// conversion targets on one interface don't hide each other (each has a
-// distinct conversion-function-id), so this only ever needs to merge
+// `xyz_protocol_conversion_thunk` per overload converting to `TargetType`.
+// Distinct conversion targets on one interface don't hide each other (each has
+// a distinct conversion-function-id), so this only ever needs to merge
 // overloads that share `TargetType`.
 template <typename TargetType, typename ProtocolType, typename Vtable,
           typename... OverloadSpecs>
-struct conversion_overload_set
+struct xyz_protocol_conversion_overload_set
     : conversion_thunk_t<OverloadSpecs, ProtocolType, Vtable>... {
   using conversion_thunk_t<OverloadSpecs, ProtocolType,
                            Vtable>::operator TargetType...;
 
  protected:
-  conversion_overload_set() = default;
-  ~conversion_overload_set() = default;
-  conversion_overload_set(const conversion_overload_set&) = default;
-  conversion_overload_set(conversion_overload_set&&) = default;
-  conversion_overload_set& operator=(const conversion_overload_set&) = default;
-  conversion_overload_set& operator=(conversion_overload_set&&) = default;
+  xyz_protocol_conversion_overload_set() = default;
+  ~xyz_protocol_conversion_overload_set() = default;
+  xyz_protocol_conversion_overload_set(
+      const xyz_protocol_conversion_overload_set&) = default;
+  xyz_protocol_conversion_overload_set(xyz_protocol_conversion_overload_set&&) =
+      default;
+  xyz_protocol_conversion_overload_set& operator=(
+      const xyz_protocol_conversion_overload_set&) = default;
+  xyz_protocol_conversion_overload_set& operator=(
+      xyz_protocol_conversion_overload_set&&) = default;
 };
 
 }  // namespace xyz::detail

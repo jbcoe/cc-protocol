@@ -59,8 +59,8 @@ TEST(ReflectionProtocolTest, CallOperatorOverloadSetCannotBeDetached) {
 
   protocol<Interface> p(Conforming{});
 
-  // Slicing `p` into its `operator_overload_set` base would detach the
-  // rest of `p`'s layout, so the base's own `static_cast<ProtocolType*>`
+  // Slicing `p` into its `xyz_protocol_operator_overload_set` base would detach
+  // the rest of `p`'s layout, so the base's own `static_cast<ProtocolType*>`
   // back to the full object inside `operator()` would be undefined
   // behaviour.
   static_assert(!operator_overload_set_can_be_sliced_from<decltype(p)>);
@@ -927,8 +927,8 @@ TEST(ReflectionProtocolTest, OperatorPipe) {
 
 // `+`, `-` and `*` mangle differently as unary than as binary; a test in
 // name_mangling_tests.cc checks that at the mangling level. This checks
-// the same split through `operator_overload_set` and the vtable, by
-// declaring both arities of each on one interface and dispatching both
+// the same split through `xyz_protocol_operator_overload_set` and the vtable,
+// by declaring both arities of each on one interface and dispatching both
 // through a protocol.
 TEST(ReflectionProtocolTest, UnaryAndBinaryFormsOfAmbiguousOperatorsCoexist) {
   struct Interface {

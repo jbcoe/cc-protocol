@@ -110,11 +110,11 @@ consteval void reject_conversion_functions_of_mixed_constness(
 template <std::meta::info Member, typename ProtocolType, typename Vtable,
           typename... OverloadSpecs>
 struct member_base_generator {
-  struct type;
+  struct xyz_protocol_member_base;
   consteval {
     // clang-format off
     std::meta::info thunk_type = substitute(
-        ^^member_function_overload_set, {^^type, ^^ProtocolType, ^^Vtable, ^^OverloadSpecs...});
+        ^^member_function_overload_set, {^^xyz_protocol_member_base, ^^ProtocolType, ^^Vtable, ^^OverloadSpecs...});
 
     // clang-p2996 deprecates data_member_options::no_unique_address in
     // favour of a fork-specific attributes member that GCC does not have,
@@ -123,7 +123,7 @@ struct member_base_generator {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     define_aggregate(
-      ^^type, {data_member_spec(thunk_type,
+      ^^xyz_protocol_member_base, {data_member_spec(thunk_type,
                              std::meta::data_member_options{
                               .name = identifier_of(Member),
                               .no_unique_address = true
@@ -136,16 +136,20 @@ struct member_base_generator {
 template <std::meta::info Member, typename ProtocolType, typename Vtable,
           typename... OverloadSpecs>
 using member_base_t =
-    member_base_generator<Member, ProtocolType, Vtable, OverloadSpecs...>::type;
+    member_base_generator<Member, ProtocolType, Vtable,
+                          OverloadSpecs...>::xyz_protocol_member_base;
 
 // Combines the single-member base types and overload sets produced by
-// `member_base_generator`, `X_operator_overload_set` and
-// `conversion_overload_set` into one type via multiple inheritance.
+// `member_base_generator`, `xyz_protocol_operator_overload_set` and
+// `xyz_protocol_conversion_overload_set` into one type via multiple
+// inheritance. The classes that become bases of `protocol` and `protocol_view`
+// carry the `xyz_protocol_` prefix: their names are found by member lookup on
+// the protocol, so would hide an interface member function of the same name.
 template <typename... MemberBases>
-struct member_bases_wrapper : MemberBases... {};
+struct xyz_protocol_member_bases_wrapper : MemberBases... {};
 
-// Returns a `member_bases_wrapper` to enable forwarding of named member
-// functions, operators and conversion functions.
+// Returns a `xyz_protocol_member_bases_wrapper` to enable forwarding of named
+// member functions, operators and conversion functions.
 // TODO: Rewrite this hard-to-read function.
 template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable,
           const_policy ConstPolicy>
@@ -198,20 +202,20 @@ consteval std::meta::info generate_member_bases_wrapper() {
           substitute(^^member_base_t, member_base_args));
     } else if (is_operator_function(member)) {
       member_base_types.push_back(
-          substitute(^^operator_overload_set, member_base_args));
+          substitute(^^xyz_protocol_operator_overload_set, member_base_args));
     } else if (is_conversion_function(member)) {
       member_base_types.push_back(
-          substitute(^^conversion_overload_set, member_base_args));
+          substitute(^^xyz_protocol_conversion_overload_set, member_base_args));
     } else {
       std::unreachable();
     }
   }
-  return substitute(^^member_bases_wrapper, member_base_types);
+  return substitute(^^xyz_protocol_member_bases_wrapper, member_base_types);
 }
 
-// The generated wrapper type for `T`: a `member_bases_wrapper` specialisation
-// with named members with `operator()` for each public, non-special, member
-// function from `T` selected by `ConstPolicy`.
+// The generated wrapper type for `T`: a `xyz_protocol_member_bases_wrapper`
+// specialisation with named members with `operator()` for each public,
+// non-special, member function from `T` selected by `ConstPolicy`.
 template <typename T, typename ProtocolType, typename Vtable,
           const_policy ConstPolicy>
 using protocol_wrappers_t =

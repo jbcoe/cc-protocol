@@ -417,6 +417,11 @@ function from `I`.
 the containers. An operation that need not be a member, such as
 `valueless_after_move`, is a hidden friend so that it reserves no name.
 
+An interface member function named `protocol` or `protocol_view` is also
+ill-formed: the class's own name is found in its scope, so it would hide the
+generated member. Names an implementation uses internally are reserved
+identifiers and cannot collide with an interface.
+
 ### Function-like examples
 
 We can use `protocol` and `protocol_view` with appropriate
