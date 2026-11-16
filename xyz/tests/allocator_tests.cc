@@ -739,7 +739,7 @@ TEST(ProtocolTest, ConstructionException) {
   AllocationCounter counter;
   bool should_throw{true};
 
-  ThrowingAlloc alloc = counter.allocator<ThrowingAlloc>(&should_throw);
+  auto alloc = counter.allocator<ThrowingAlloc>(&should_throw);
   EXPECT_THROW((ThrowingProtocol{std::allocator_arg, alloc, Tester(0)}),
                TestException);
   // alloc threw before any allocations were performed.
@@ -774,7 +774,7 @@ TEST(ProtocolTest, ValueConstructionExceptionReleasesTheAllocation) {
   AllocationCounter counter;
   bool should_throw{false};
 
-  ThrowingAlloc alloc = counter.allocator<ThrowingAlloc>(&should_throw);
+  auto alloc = counter.allocator<ThrowingAlloc>(&should_throw);
   ThrowingCopyTester original(5);
 
   // The allocation succeeds, then copying `original` into it throws;
@@ -812,7 +812,7 @@ TEST(ProtocolTest, BufferedValueConstructionExceptionAllocatesNothing) {
   AllocationCounter counter;
   bool should_throw{false};
 
-  ThrowingAlloc alloc = counter.allocator<ThrowingAlloc>(&should_throw);
+  auto alloc = counter.allocator<ThrowingAlloc>(&should_throw);
   SmallThrowingCopyTester original(5);
 
   // Copying `original` into the small buffer throws; nothing was allocated,
@@ -830,7 +830,7 @@ TEST(ProtocolTest, CopyConstructionException) {
   {
     bool should_throw{false};
 
-    ThrowingAlloc alloc = counter.allocator<ThrowingAlloc>(&should_throw);
+    auto alloc = counter.allocator<ThrowingAlloc>(&should_throw);
     ThrowingProtocol p1{std::allocator_arg, alloc, Tester(10)};
     // p1 was allocated safely.
     EXPECT_EQ(counter.allocs, 1);
@@ -852,7 +852,7 @@ TEST(ProtocolTest, CopyAssignmentException) {
     bool should_throw{false};
 
     // p1 and p2 are both constructed without issue.
-    ThrowingAlloc alloc = counter.allocator<ThrowingAlloc>(&should_throw);
+    auto alloc = counter.allocator<ThrowingAlloc>(&should_throw);
     ThrowingProtocol p1{std::allocator_arg, alloc, Tester(10)};
     ThrowingProtocol p2{std::allocator_arg, alloc, Tester(20)};
 
@@ -895,10 +895,10 @@ TEST(ProtocolTest, CopyAssignmentExceptionPocca) {
     bool should_throw1{false};
     bool should_throw2{false};
 
-    Alloc alloc1 = counter1.allocator<Alloc>(&should_throw1);
+    auto alloc1 = counter1.allocator<Alloc>(&should_throw1);
     Protocol p1{std::allocator_arg, alloc1, Tester(10)};
 
-    Alloc alloc2 = counter2.allocator<Alloc>(&should_throw2);
+    auto alloc2 = counter2.allocator<Alloc>(&should_throw2);
     Protocol p2{std::allocator_arg, alloc2, Tester(20)};
 
     // POCCA is true, so copy assignment allocates with p1's allocator, which
@@ -922,7 +922,7 @@ TEST(ProtocolTest, EqualMoveConstructionNoException) {
 
   bool should_throw{false};
 
-  ThrowingAlloc alloc = counter.allocator<ThrowingAlloc>(&should_throw);
+  auto alloc = counter.allocator<ThrowingAlloc>(&should_throw);
   ThrowingProtocol p1{std::allocator_arg, alloc, Tester(15)};
   EXPECT_EQ(counter.allocs, 1);
 
@@ -942,11 +942,11 @@ TEST(ProtocolTest, UnequalMoveConstructionException) {
   {
     bool should_throw{false};
 
-    ThrowingAlloc alloc1 = counter1.allocator<ThrowingAlloc>(&should_throw);
+    auto alloc1 = counter1.allocator<ThrowingAlloc>(&should_throw);
     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
 
     should_throw = true;
-    ThrowingAlloc alloc2 = counter2.allocator<ThrowingAlloc>(&should_throw);
+    auto alloc2 = counter2.allocator<ThrowingAlloc>(&should_throw);
 
     // We now construct with an alloc2, which is not equal to alloc1. This
     // requires us to allocate space and then move from p1, which triggers an
@@ -975,7 +975,7 @@ TEST(ProtocolTest, EqualMoveAssignmentNoException) {
   {
     bool should_throw{false};
 
-    ThrowingAlloc alloc = counter.allocator<ThrowingAlloc>(&should_throw);
+    auto alloc = counter.allocator<ThrowingAlloc>(&should_throw);
     ThrowingProtocol p1{std::allocator_arg, alloc, Tester(15)};
     ThrowingProtocol p2{std::allocator_arg, alloc, Tester(35)};
     EXPECT_EQ(counter.allocs, 2);
@@ -1000,10 +1000,10 @@ TEST(ProtocolTest, UnequalMoveAssignmentException) {
     bool should_throw1{false};
     bool should_throw2{false};
 
-    ThrowingAlloc alloc1 = counter1.allocator<ThrowingAlloc>(&should_throw1);
+    auto alloc1 = counter1.allocator<ThrowingAlloc>(&should_throw1);
     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
 
-    ThrowingAlloc alloc2 = counter2.allocator<ThrowingAlloc>(&should_throw2);
+    auto alloc2 = counter2.allocator<ThrowingAlloc>(&should_throw2);
     ThrowingProtocol p2{std::allocator_arg, alloc2, Tester(55)};
 
     EXPECT_EQ(counter1.allocs, 1);
@@ -1038,13 +1038,13 @@ TEST(ProtocolTest, UnequalMoveConstruction) {
   bool should_throw{false};
 
   {
-    ThrowingAlloc alloc1 = counter1.allocator<ThrowingAlloc>(&should_throw);
+    auto alloc1 = counter1.allocator<ThrowingAlloc>(&should_throw);
     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
 
     // Move construction with an unequal allocator cannot steal the pointer:
     // it allocates with the new allocator, moves the object across and
     // releases the source's storage.
-    ThrowingAlloc alloc2 = counter2.allocator<ThrowingAlloc>(&should_throw);
+    auto alloc2 = counter2.allocator<ThrowingAlloc>(&should_throw);
     ThrowingProtocol p2{std::allocator_arg, alloc2, std::move(p1)};
 
     EXPECT_EQ(counter2.allocs, 1);
@@ -1067,10 +1067,10 @@ TEST(ProtocolTest, UnequalMoveAssignment) {
   bool should_throw{false};
 
   {
-    ThrowingAlloc alloc1 = counter1.allocator<ThrowingAlloc>(&should_throw);
+    auto alloc1 = counter1.allocator<ThrowingAlloc>(&should_throw);
     ThrowingProtocol p1{std::allocator_arg, alloc1, Tester(25)};
 
-    ThrowingAlloc alloc2 = counter2.allocator<ThrowingAlloc>(&should_throw);
+    auto alloc2 = counter2.allocator<ThrowingAlloc>(&should_throw);
     ThrowingProtocol p2{std::allocator_arg, alloc2, Tester(55)};
 
     // Move assignment with unequal, non-propagating allocators takes the
