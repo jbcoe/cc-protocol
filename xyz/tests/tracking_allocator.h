@@ -23,6 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <cstddef>
 #include <memory>
+#include <utility>
 
 namespace xyz::tests {
 
@@ -68,6 +69,22 @@ struct TrackingAllocator {
   friend bool operator!=(const TrackingAllocator& lhs,
                          const TrackingAllocator& rhs) noexcept {
     return !(lhs == rhs);
+  }
+};
+
+// Owns the counters that the allocators it hands out increment.
+struct AllocationCounter {
+  unsigned allocs = 0;
+  unsigned deallocs = 0;
+
+  AllocationCounter() = default;
+  // Allocators point at the counters, so the counter must not move.
+  AllocationCounter(const AllocationCounter&) = delete;
+  AllocationCounter& operator=(const AllocationCounter&) = delete;
+
+  template <typename Alloc = TrackingAllocator<std::byte>, typename... Args>
+  Alloc allocator(Args&&... args) {
+    return Alloc(&allocs, &deallocs, std::forward<Args>(args)...);
   }
 };
 
