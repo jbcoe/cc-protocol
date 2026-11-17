@@ -275,30 +275,29 @@ TEST(ConvertingAssignmentTest, AssignsFromObjectOwnedByHeldObject) {
 }
 
 TEST(ConvertingAssignmentTest, AllocatesThroughOwnAllocator) {
-  unsigned allocations = 0;
-  unsigned deallocations = 0;
+  AllocationCounter counter;
   {
-    protocol<Interface, Alloc> p(std::allocator_arg,
-                                 Alloc(&allocations, &deallocations), Small{1});
-    EXPECT_EQ(allocations, 0);
+    protocol<Interface, Alloc> p(std::allocator_arg, counter.allocator(),
+                                 Small{1});
+    EXPECT_EQ(counter.allocs, 0);
 
     p = Large{2};
 
-    EXPECT_EQ(allocations, 1);
-    EXPECT_EQ(deallocations, 0);
+    EXPECT_EQ(counter.allocs, 1);
+    EXPECT_EQ(counter.deallocs, 0);
 
     p = Small{3};
 
-    EXPECT_EQ(allocations, 1);
-    EXPECT_EQ(deallocations, 1);
+    EXPECT_EQ(counter.allocs, 1);
+    EXPECT_EQ(counter.deallocs, 1);
 
     p = Large{4};
 
-    EXPECT_EQ(allocations, 2);
-    EXPECT_EQ(deallocations, 1);
+    EXPECT_EQ(counter.allocs, 2);
+    EXPECT_EQ(counter.deallocs, 1);
   }
 
-  EXPECT_EQ(allocations, deallocations);
+  EXPECT_EQ(counter.allocs, counter.deallocs);
 }
 
 constexpr int AssignInConstantExpression() {
