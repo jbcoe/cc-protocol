@@ -777,9 +777,8 @@ TEST(ReflectionProtocolViewTest, ViewOfProtocolWithCustomAllocator) {
     int get() const { return 9; }
   };
 
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  xyz::tests::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
+  xyz::tests::AllocationCounter counter;
+  xyz::tests::TrackingAllocator<std::byte> alloc = counter.allocator();
 
   protocol<Interface, xyz::tests::TrackingAllocator<std::byte>> p(
       std::allocator_arg, alloc, Conforming{});

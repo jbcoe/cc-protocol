@@ -380,42 +380,39 @@ TEST(SmallBufferTest, SwapRelocatesEachObjectThroughItsOwnAllocator) {
 
 TEST(SmallBufferTest, SmallObjectIsNotAllocated) {
   Counts counts;
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  Alloc alloc(&allocs, &deallocs);
+  AllocationCounter counter;
+  Alloc alloc = counter.allocator();
 
   TrackingProtocol p(std::allocator_arg, alloc, SmallTracker(&counts, 1));
 
   EXPECT_EQ(p.value(), 1);
-  EXPECT_EQ(allocs, 0);
+  EXPECT_EQ(counter.allocs, 0);
   EXPECT_EQ(counts.live, 1);
 }
 
 TEST(SmallBufferTest, LargeObjectIsAllocated) {
   Counts counts;
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  Alloc alloc(&allocs, &deallocs);
+  AllocationCounter counter;
+  Alloc alloc = counter.allocator();
   {
     TrackingProtocol p(std::allocator_arg, alloc, LargeTracker(&counts, 1));
 
     EXPECT_EQ(p.value(), 1);
-    EXPECT_EQ(allocs, 1);
+    EXPECT_EQ(counter.allocs, 1);
   }
-  EXPECT_EQ(deallocs, 1);
+  EXPECT_EQ(counter.deallocs, 1);
 }
 
 TEST(SmallBufferTest, InPlaceConstructionOfSmallObject) {
   Counts counts;
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  Alloc alloc(&allocs, &deallocs);
+  AllocationCounter counter;
+  Alloc alloc = counter.allocator();
 
   TrackingProtocol p(std::allocator_arg, alloc,
                      std::in_place_type<SmallTracker>, &counts, 3);
 
   EXPECT_EQ(p.value(), 3);
-  EXPECT_EQ(allocs, 0);
+  EXPECT_EQ(counter.allocs, 0);
   EXPECT_EQ(counts.moves, 0);
 }
 
@@ -426,9 +423,8 @@ TEST(SmallBufferTest, InPlaceConstructionOfSmallObject) {
 template <typename T>
 void check_copy_construction(unsigned expected_allocations) {
   Counts counts;
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  Alloc alloc(&allocs, &deallocs);
+  AllocationCounter counter;
+  Alloc alloc = counter.allocator();
   {
     TrackingProtocol p(std::allocator_arg, alloc, std::in_place_type<T>,
                        &counts, 1);
@@ -441,9 +437,9 @@ void check_copy_construction(unsigned expected_allocations) {
     EXPECT_EQ(p.value(), 1);
     EXPECT_EQ(counts.copies, 1);
     EXPECT_EQ(counts.live, 2);
-    EXPECT_EQ(allocs, expected_allocations);
+    EXPECT_EQ(counter.allocs, expected_allocations);
   }
-  EXPECT_EQ(deallocs, expected_allocations);
+  EXPECT_EQ(counter.deallocs, expected_allocations);
 }
 
 TEST(SmallBufferTest, CopyConstructSmall) {
@@ -459,9 +455,8 @@ TEST(SmallBufferTest, CopyConstructLarge) {
 template <typename T>
 void check_move_construction(std::size_t expected_moves) {
   Counts counts;
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  Alloc alloc(&allocs, &deallocs);
+  AllocationCounter counter;
+  Alloc alloc = counter.allocator();
 
   TrackingProtocol p(std::allocator_arg, alloc, std::in_place_type<T>, &counts,
                      1);
@@ -486,12 +481,10 @@ TEST(SmallBufferTest, MoveConstructLarge) {
 
 TEST(SmallBufferTest, MoveConstructSmallWithUnequalAllocator) {
   Counts counts;
-  unsigned source_allocs = 0;
-  unsigned source_deallocs = 0;
-  Alloc source_alloc(&source_allocs, &source_deallocs);
-  unsigned target_allocs = 0;
-  unsigned target_deallocs = 0;
-  Alloc target_alloc(&target_allocs, &target_deallocs);
+  AllocationCounter source_counter;
+  Alloc source_alloc = source_counter.allocator();
+  AllocationCounter target_counter;
+  Alloc target_alloc = target_counter.allocator();
 
   TrackingProtocol p(std::allocator_arg, source_alloc,
                      SmallTracker(&counts, 1));
@@ -505,18 +498,16 @@ TEST(SmallBufferTest, MoveConstructSmallWithUnequalAllocator) {
   // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
   EXPECT_EQ(counts.moves, 1);
   EXPECT_EQ(counts.live, 1);
-  EXPECT_EQ(source_allocs, 0);
-  EXPECT_EQ(target_allocs, 0);
+  EXPECT_EQ(source_counter.allocs, 0);
+  EXPECT_EQ(target_counter.allocs, 0);
 }
 
 TEST(SmallBufferTest, MoveConstructLargeWithUnequalAllocator) {
   Counts counts;
-  unsigned source_allocs = 0;
-  unsigned source_deallocs = 0;
-  Alloc source_alloc(&source_allocs, &source_deallocs);
-  unsigned target_allocs = 0;
-  unsigned target_deallocs = 0;
-  Alloc target_alloc(&target_allocs, &target_deallocs);
+  AllocationCounter source_counter;
+  Alloc source_alloc = source_counter.allocator();
+  AllocationCounter target_counter;
+  Alloc target_alloc = target_counter.allocator();
   {
     TrackingProtocol p(std::allocator_arg, source_alloc,
                        LargeTracker(&counts, 1));
@@ -530,10 +521,10 @@ TEST(SmallBufferTest, MoveConstructLargeWithUnequalAllocator) {
     // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
     EXPECT_EQ(counts.moves, 1);
     EXPECT_EQ(counts.live, 1);
-    EXPECT_EQ(source_deallocs, 1);
-    EXPECT_EQ(target_allocs, 1);
+    EXPECT_EQ(source_counter.deallocs, 1);
+    EXPECT_EQ(target_counter.allocs, 1);
   }
-  EXPECT_EQ(target_deallocs, 1);
+  EXPECT_EQ(target_counter.deallocs, 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -543,9 +534,8 @@ TEST(SmallBufferTest, MoveConstructLargeWithUnequalAllocator) {
 template <typename Target, typename Source>
 void check_copy_assignment() {
   Counts counts;
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  Alloc alloc(&allocs, &deallocs);
+  AllocationCounter counter;
+  Alloc alloc = counter.allocator();
 
   TrackingProtocol target(std::allocator_arg, alloc, std::in_place_type<Target>,
                           &counts, 1);
@@ -582,9 +572,8 @@ TEST(SmallBufferTest, CopyAssignLargeToLarge) {
 template <typename Target, typename Source>
 void check_move_assignment(std::size_t expected_moves) {
   Counts counts;
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  Alloc alloc(&allocs, &deallocs);
+  AllocationCounter counter;
+  Alloc alloc = counter.allocator();
 
   TrackingProtocol target(std::allocator_arg, alloc, std::in_place_type<Target>,
                           &counts, 1);
@@ -623,12 +612,10 @@ template <typename Source>
 void check_move_assignment_with_unequal_allocator(
     std::size_t expected_moves, unsigned expected_target_allocations) {
   Counts counts;
-  unsigned source_allocs = 0;
-  unsigned source_deallocs = 0;
-  Alloc source_alloc(&source_allocs, &source_deallocs);
-  unsigned target_allocs = 0;
-  unsigned target_deallocs = 0;
-  Alloc target_alloc(&target_allocs, &target_deallocs);
+  AllocationCounter source_counter;
+  Alloc source_alloc = source_counter.allocator();
+  AllocationCounter target_counter;
+  Alloc target_alloc = target_counter.allocator();
   {
     TrackingProtocol target(std::allocator_arg, target_alloc,
                             SmallTracker(&counts, 1));
@@ -644,10 +631,10 @@ void check_move_assignment_with_unequal_allocator(
     // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
     EXPECT_EQ(counts.moves, expected_moves);
     EXPECT_EQ(counts.live, 1);
-    EXPECT_EQ(target_allocs, expected_target_allocations);
-    EXPECT_EQ(source_allocs, source_deallocs);
+    EXPECT_EQ(target_counter.allocs, expected_target_allocations);
+    EXPECT_EQ(source_counter.allocs, source_counter.deallocs);
   }
-  EXPECT_EQ(target_deallocs, expected_target_allocations);
+  EXPECT_EQ(target_counter.deallocs, expected_target_allocations);
 }
 
 TEST(SmallBufferTest, MoveAssignSmallWithUnequalAllocator) {
@@ -667,9 +654,8 @@ TEST(SmallBufferTest, MoveAssignLargeWithUnequalAllocator) {
 template <typename Left, typename Right>
 void check_swap(std::size_t expected_moves) {
   Counts counts;
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  Alloc alloc(&allocs, &deallocs);
+  AllocationCounter counter;
+  Alloc alloc = counter.allocator();
 
   TrackingProtocol left(std::allocator_arg, alloc, std::in_place_type<Left>,
                         &counts, 1);
@@ -704,9 +690,8 @@ TEST(SmallBufferTest, SwapLargeAndLarge) {
 // there.
 TEST(SmallBufferTest, SelfSwapOfSmallObjectMovesNothing) {
   Counts counts;
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  Alloc alloc(&allocs, &deallocs);
+  AllocationCounter counter;
+  Alloc alloc = counter.allocator();
 
   TrackingProtocol p(std::allocator_arg, alloc,
                      std::in_place_type<SmallTracker>, &counts, 1);
