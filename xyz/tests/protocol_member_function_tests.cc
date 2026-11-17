@@ -374,15 +374,14 @@ TEST(ReflectionProtocolTest, ForwardingWithCustomAllocator) {
     int get() const { return value; }
   };
 
-  unsigned allocs = 0;
-  unsigned deallocs = 0;
-  xyz::tests::TrackingAllocator<std::byte> alloc{&allocs, &deallocs};
+  xyz::tests::AllocationCounter counter;
+  xyz::tests::TrackingAllocator<std::byte> alloc = counter.allocator();
 
   protocol<Interface, xyz::tests::TrackingAllocator<std::byte>> p(
       std::allocator_arg, alloc, Conforming(42));
 
   EXPECT_EQ(p.get(), 42);
-  EXPECT_EQ(allocs, 1);
+  EXPECT_EQ(counter.allocs, 1);
 }
 
 TEST(ReflectionProtocolTest, ConstMemberFunctionOnConstProtocol) {

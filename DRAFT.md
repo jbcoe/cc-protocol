@@ -16,8 +16,6 @@ _Antony Peacock \<<ant.peacock@gmail.com>\>_
 
 _Philip Craig \<<philip@pobox.com>\>_
 
-_Neelofer Banglawala \<<dr.nbanglawala@gmail.com>\>_
-
 ## Abstract
 
 We propose `protocol<T, A>` and `protocol_view<T>`, standard library vocabulary
