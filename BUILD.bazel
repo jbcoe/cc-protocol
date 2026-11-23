@@ -51,6 +51,7 @@ cc_test(
         "xyz/tests/small_buffer_tests.cc",
         "xyz/tests/tagged_allocator.h",
         "xyz/tests/test_helpers.h",
+        "xyz/tests/tracker.h",
         "xyz/tests/tracking_allocator.h",
         "xyz/tests/vtable_tests.cc",
     ],

@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "xyz/protocol.hh"
+#include "xyz/tests/tracker.h"
 #include "xyz/tests/tracking_allocator.h"
 
 namespace xyz::tests {
@@ -27,56 +28,6 @@ using Alloc = TrackingAllocator<std::byte>;
 struct Interface {
   int value() const;
 };
-
-// Counts the copies, moves and live objects of `Tracker`s.
-struct Counts {
-  std::size_t copies = 0;
-  std::size_t moves = 0;
-  std::size_t live = 0;
-
-  Counts() = default;
-  Counts(const Counts&) = delete ("Unused");
-  Counts(Counts&&) = delete ("Unused");
-  Counts& operator=(const Counts&) = delete ("Unused");
-  Counts& operator=(Counts&&) = delete ("Unused");
-
-  ~Counts() { EXPECT_EQ(live, 0); }
-};
-
-// Conforms to `Interface`. `PaddingSize` bytes of padding decide whether it
-// fits in the small buffer.
-template <std::size_t PaddingSize>
-class Tracker {
-  Counts* counts_;
-  int value_;
-  [[maybe_unused]] std::array<std::byte, PaddingSize> padding_{};
-
- public:
-  Tracker(Counts* counts, int value) noexcept : counts_(counts), value_(value) {
-    ++counts_->live;
-  }
-
-  Tracker(const Tracker& other) : counts_(other.counts_), value_(other.value_) {
-    ++counts_->live;
-    ++counts_->copies;
-  }
-
-  Tracker(Tracker&& other) noexcept
-      : counts_(other.counts_), value_(other.value_) {
-    ++counts_->live;
-    ++counts_->moves;
-  }
-
-  Tracker& operator=(const Tracker&) = delete ("Unused");
-  Tracker& operator=(Tracker&&) = delete ("Unused");
-
-  ~Tracker() { --counts_->live; }
-
-  int value() const { return value_; }
-};
-
-using SmallTracker = Tracker<0>;
-using LargeTracker = Tracker<small_buffer_size>;
 
 static_assert(fits_in_small_buffer_v<SmallTracker, Alloc>);
 static_assert(!fits_in_small_buffer_v<LargeTracker, Alloc>);
