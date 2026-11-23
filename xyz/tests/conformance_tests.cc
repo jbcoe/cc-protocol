@@ -699,6 +699,72 @@ TEST(ConformsToTest, ReservedClassNamesAreRejected) {
 #endif  // __cpp_constexpr_exceptions
 }
 
+// An interface's inherited member functions would be ignored, so an interface
+// with a base class is rejected.
+TEST(ConformsToTest, InterfaceWithBaseClassIsRejected) {
+  struct Base {
+    void f();
+  };
+
+  struct OtherBase {
+    void g();
+  };
+
+  struct EmptyBase {};
+
+  struct SingleBaseInterface : Base {};
+
+  struct MultipleBaseInterface : Base, OtherBase {};
+
+  struct BaseAndMemberInterface : Base {
+    void h();
+  };
+
+  struct EmptyBaseInterface : EmptyBase {
+    void h();
+  };
+
+  class PrivateBaseInterface : Base {
+   public:
+    void h();
+  };
+
+  struct Candidate {
+    void f();
+    void g();
+    void h();
+  };
+
+#ifdef __cpp_constexpr_exceptions
+  static_assert(conformance_check_rejects<SingleBaseInterface, Candidate>());
+  static_assert(conformance_check_rejects<MultipleBaseInterface, Candidate>());
+  static_assert(conformance_check_rejects<BaseAndMemberInterface, Candidate>());
+  static_assert(conformance_check_rejects<EmptyBaseInterface, Candidate>());
+  static_assert(conformance_check_rejects<PrivateBaseInterface, Candidate>());
+  // The first base class is the one reported.
+  static_assert(
+      conformance_rejection_message_contains<MultipleBaseInterface, Candidate>(
+          "base class 'Base'"));
+  static_assert(
+      !conformance_rejection_message_contains<MultipleBaseInterface, Candidate>(
+          "OtherBase"));
+#endif  // __cpp_constexpr_exceptions
+}
+
+TEST(ConformsToTest, CandidateWithBaseClassIsNotRejected) {
+  struct Interface {
+    void f();
+  };
+
+  struct Base {};
+
+  struct Candidate : Base {
+    void f();
+  };
+
+  static_assert(is_protocol_conformant_v<Interface, Candidate>);
+}
+
 TEST(ConformsToTest, StaticInterfaceMemberWithReservedNameIsIgnored) {
   struct Interface {
     static void swap(Interface&, Interface&) noexcept;
