@@ -26,13 +26,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <map>
 #include <memory>
 #include <memory_resource>
+#include <scoped_allocator>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "xyz/detail/small_buffer.hh"
 #include "xyz/protocol.hh"
-#include "xyz/tests/test_helpers.h"
+#include "xyz/tests/tracker.h"
+#include "xyz/tests/tracking_allocator.h"
 
 // `protocol` as the element type of the standard containers. A container
 // moves, copies, swaps and assigns its elements, and passes its allocator to
@@ -41,107 +43,26 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 namespace xyz::tests {
 namespace {
 
-struct Shape {
-  int area() const;
-  void scale(int factor);
-};
-
-// Stored in the small buffer.
-struct Square {
-  int side_;
-
-  constexpr int area() const { return side_ * side_; }
-
-  constexpr void scale(int factor) { side_ *= factor; }
-};
-
-// Too large for the small buffer, so allocated.
-struct Rectangle {
-  int width_;
-  int height_;
-  [[maybe_unused]] TooLargeForSmallBuffer padding_{};
-
-  constexpr int area() const { return width_ * height_; }
-
-  constexpr void scale(int factor) {
-    width_ *= factor;
-    height_ *= factor;
-  }
+struct Interface {
+  int value() const;
 };
 
 using Alloc = std::allocator<std::byte>;
 
-static_assert(detail::fits_in_small_buffer_v<Square, Alloc>);
-static_assert(!detail::fits_in_small_buffer_v<Rectangle, Alloc>);
-
-using ShapeProtocol = protocol<Shape>;
-using PmrShapeProtocol =
-    protocol<Shape, std::pmr::polymorphic_allocator<std::byte>>;
-
-template <typename Shapes>
-std::vector<int> areas_of(const Shapes& shapes) {
-  std::vector<int> areas;
-  areas.reserve(shapes.size());
-  for (const auto& shape : shapes) {
-    areas.push_back(shape.area());
-  }
-  return areas;
-}
-
-// Counts the copies, moves and live objects of `Tracker`s.
-struct Counts {
-  std::size_t copies = 0;
-  std::size_t moves = 0;
-  std::size_t live = 0;
-
-  Counts() = default;
-  Counts(const Counts&) = delete ("Unused");
-  Counts(Counts&&) = delete ("Unused");
-  Counts& operator=(const Counts&) = delete ("Unused");
-  Counts& operator=(Counts&&) = delete ("Unused");
-
-  ~Counts() { EXPECT_EQ(live, 0); }
-};
-
-// Conforms to `Shape`. `PaddingSize` bytes of padding decide whether it fits
-// in the small buffer.
-template <std::size_t PaddingSize>
-class Tracker {
-  Counts* counts_;
-  int side_;
-  [[maybe_unused]] std::array<std::byte, PaddingSize> padding_{};
-
- public:
-  Tracker(Counts* counts, int side) noexcept : counts_(counts), side_(side) {
-    ++counts_->live;
-  }
-
-  Tracker(const Tracker& other) : counts_(other.counts_), side_(other.side_) {
-    ++counts_->live;
-    ++counts_->copies;
-  }
-
-  Tracker(Tracker&& other) noexcept
-      : counts_(other.counts_), side_(other.side_) {
-    ++counts_->live;
-    ++counts_->moves;
-  }
-
-  Tracker& operator=(const Tracker&) = delete ("Unused");
-  Tracker& operator=(Tracker&&) = delete ("Unused");
-
-  ~Tracker() { --counts_->live; }
-
-  int area() const { return side_ * side_; }
-
-  void scale(int factor) { side_ *= factor; }
-};
-
-using SmallTracker = Tracker<0>;
-using LargeTracker = Tracker<detail::small_buffer_size>;
-
 static_assert(detail::fits_in_small_buffer_v<SmallTracker, Alloc>);
 static_assert(!detail::fits_in_small_buffer_v<LargeTracker, Alloc>);
+
+using Protocol = protocol<Interface>;
+
+template <typename Protocols>
+std::vector<int> values_of(const Protocols& protocols) {
+  std::vector<int> values;
+  values.reserve(protocols.size());
+  for (const auto& element : protocols) {
+    values.push_back(element.value());
+  }
+  return values;
+}
 
 // ---------------------------------------------------------------------------
 // std::vector.
@@ -149,94 +70,172 @@ static_assert(!detail::fits_in_small_buffer_v<LargeTracker, Alloc>);
 
 TEST(ContainerTest, VectorReallocationMovesAnObjectInTheSmallBuffer) {
   Counts counts;
-  std::vector<ShapeProtocol> shapes;
-  shapes.emplace_back(std::in_place_type<SmallTracker>, &counts, 2);
+  std::vector<Protocol> protocols;
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
 
-  shapes.reserve(shapes.capacity() + 1);
+  protocols.reserve(protocols.capacity() + 1);
 
   EXPECT_EQ(counts.copies, 0);
   EXPECT_EQ(counts.moves, 1);
   EXPECT_EQ(counts.live, 1);
-  EXPECT_EQ(shapes.front().area(), 4);
+  EXPECT_EQ(protocols.front().value(), 1);
 }
 
 TEST(ContainerTest, VectorReallocationTakesAnAllocatedObject) {
   Counts counts;
-  std::vector<ShapeProtocol> shapes;
-  shapes.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
+  std::vector<Protocol> protocols;
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 1);
 
-  shapes.reserve(shapes.capacity() + 1);
+  protocols.reserve(protocols.capacity() + 1);
 
   EXPECT_EQ(counts.copies, 0);
   EXPECT_EQ(counts.moves, 0);
   EXPECT_EQ(counts.live, 1);
-  EXPECT_EQ(shapes.front().area(), 4);
+  EXPECT_EQ(protocols.front().value(), 1);
 }
 
 TEST(ContainerTest, VectorCopyCopiesEachObject) {
-  std::vector<ShapeProtocol> shapes;
-  shapes.emplace_back(Square{2});
-  shapes.emplace_back(Rectangle{2, 3});
+  Counts counts;
+  std::vector<Protocol> protocols;
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
 
-  std::vector<ShapeProtocol> copies = shapes;
-  for (ShapeProtocol& copy : copies) {
-    copy.scale(2);
-  }
+  std::vector<Protocol> copies = protocols;
 
-  EXPECT_EQ(areas_of(shapes), (std::vector<int>{4, 6}));
-  EXPECT_EQ(areas_of(copies), (std::vector<int>{16, 24}));
+  EXPECT_EQ(counts.copies, 2);
+  EXPECT_EQ(counts.live, 4);
+  EXPECT_EQ(values_of(copies), (std::vector<int>{1, 2}));
+}
+
+TEST(ContainerTest, VectorCopyAssignmentCopiesEachObject) {
+  Counts counts;
+  std::vector<Protocol> protocols;
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
+  std::vector<Protocol> assigned;
+  assigned.emplace_back(std::in_place_type<LargeTracker>, &counts, 3);
+  assigned.emplace_back(std::in_place_type<SmallTracker>, &counts, 4);
+
+  assigned = protocols;
+
+  EXPECT_EQ(counts.copies, 2);
+  EXPECT_EQ(counts.live, 4);
+  EXPECT_EQ(values_of(assigned), (std::vector<int>{1, 2}));
 }
 
 TEST(ContainerTest, VectorEraseAndInsertShiftElements) {
   Counts counts;
-  std::vector<ShapeProtocol> shapes;
-  shapes.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
-  shapes.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
-  shapes.emplace_back(std::in_place_type<SmallTracker>, &counts, 3);
-  shapes.emplace_back(std::in_place_type<LargeTracker>, &counts, 4);
+  std::vector<Protocol> protocols;
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 3);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 4);
 
-  shapes.erase(shapes.begin() + 1);
+  protocols.erase(protocols.begin() + 1);
   EXPECT_EQ(counts.live, 3);
-  EXPECT_EQ(areas_of(shapes), (std::vector<int>{1, 9, 16}));
+  EXPECT_EQ(values_of(protocols), (std::vector<int>{1, 3, 4}));
 
-  shapes.insert(shapes.begin(),
-                ShapeProtocol(std::in_place_type<LargeTracker>, &counts, 5));
+  protocols.insert(protocols.begin(),
+                   Protocol(std::in_place_type<LargeTracker>, &counts, 5));
   EXPECT_EQ(counts.live, 4);
-  EXPECT_EQ(areas_of(shapes), (std::vector<int>{25, 1, 9, 16}));
+  EXPECT_EQ(values_of(protocols), (std::vector<int>{5, 1, 3, 4}));
 
   EXPECT_EQ(counts.copies, 0);
+}
+
+TEST(ContainerTest, VectorReverseSwapsElements) {
+  Counts counts;
+  std::vector<Protocol> protocols;
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 2);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 3);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 4);
+
+  std::ranges::reverse(protocols);
+
+  EXPECT_EQ(values_of(protocols), (std::vector<int>{4, 3, 2, 1}));
+  EXPECT_EQ(counts.copies, 0);
+  EXPECT_EQ(counts.live, 4);
 }
 
 TEST(ContainerTest, VectorSortsByProjection) {
   Counts counts;
-  std::vector<ShapeProtocol> shapes;
-  shapes.emplace_back(std::in_place_type<LargeTracker>, &counts, 4);
-  shapes.emplace_back(std::in_place_type<SmallTracker>, &counts, 2);
-  shapes.emplace_back(std::in_place_type<LargeTracker>, &counts, 3);
-  shapes.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  std::vector<Protocol> protocols;
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 4);
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 2);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 3);
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
 
-  std::ranges::sort(shapes, {},
-                    [](const ShapeProtocol& shape) { return shape.area(); });
+  // `noexcept` so that libc++ does not initialize a variable template with an
+  // expression that clang-tidy's cert-err58-cpp takes to throw.
+  std::ranges::sort(protocols, {}, [](const Protocol& element) noexcept {
+    return element.value();
+  });
 
-  EXPECT_EQ(areas_of(shapes), (std::vector<int>{1, 4, 9, 16}));
+  EXPECT_EQ(values_of(protocols), (std::vector<int>{1, 2, 3, 4}));
   EXPECT_EQ(counts.copies, 0);
   EXPECT_EQ(counts.live, 4);
 }
 
-TEST(ContainerTest, VectorInConstantEvaluation) {
-  static_assert([] consteval {
-    std::vector<ShapeProtocol> shapes;
-    shapes.emplace_back(Square{1});
-    shapes.emplace_back(Rectangle{2, 3});
-    shapes.emplace_back(Square{4});
-    shapes.erase(shapes.begin());
+TEST(ContainerTest, VectorOfProtocolsThatCannotBeCopied) {
+  struct MoveOnlyInterface {
+    MoveOnlyInterface(const MoveOnlyInterface&) = delete;
+    MoveOnlyInterface(MoveOnlyInterface&&) = default;
 
-    std::vector<ShapeProtocol> copies = shapes;
+    MoveOnlyInterface& operator=(const MoveOnlyInterface&) = delete;
+    MoveOnlyInterface& operator=(MoveOnlyInterface&&) = default;
+
+    ~MoveOnlyInterface() = default;
+
+    int value() const;
+  };
+
+  using MoveOnlyProtocol = protocol<MoveOnlyInterface>;
+  static_assert(!std::is_copy_constructible_v<MoveOnlyProtocol>);
+
+  Counts counts;
+  std::vector<MoveOnlyProtocol> protocols;
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 3);
+
+  protocols.reserve(protocols.capacity() + 1);
+  protocols.erase(protocols.begin());
+  std::ranges::reverse(protocols);
+
+  EXPECT_EQ(values_of(protocols), (std::vector<int>{3, 2}));
+  EXPECT_EQ(counts.copies, 0);
+  EXPECT_EQ(counts.live, 2);
+}
+
+TEST(ContainerTest, VectorInConstantEvaluation) {
+  struct Small {
+    int value_;
+
+    constexpr int value() const { return value_; }
+  };
+
+  struct Large {
+    int value_;
+    [[maybe_unused]] std::array<std::byte, detail::small_buffer_size>
+        padding_{};
+
+    constexpr int value() const { return value_; }
+  };
+
+  static_assert([] consteval {
+    std::vector<Protocol> protocols;
+    protocols.emplace_back(Small{1});
+    protocols.emplace_back(Large{2});
+    protocols.emplace_back(Small{3});
+    protocols.erase(protocols.begin());
+
+    std::vector<Protocol> copies = protocols;
     std::ranges::reverse(copies);
 
     return copies.size() == 2 &&
-           protocol_cast<Square>(&copies.front())->area() == 16 &&
-           protocol_cast<Rectangle>(&copies.back())->area() == 6;
+           protocol_cast<Small>(&copies.front())->value() == 3 &&
+           protocol_cast<Large>(&copies.back())->value() == 2;
   }());
 }
 
@@ -246,66 +245,204 @@ TEST(ContainerTest, VectorInConstantEvaluation) {
 // ---------------------------------------------------------------------------
 
 TEST(ContainerTest, MapMappedValue) {
-  std::map<std::string, ShapeProtocol> shapes;
-  shapes.emplace("square", Square{2});
-  shapes.try_emplace("rectangle", Rectangle{2, 3});
+  Counts counts;
+  std::map<std::string, Protocol> protocols;
+  protocols.try_emplace("small", std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.try_emplace("large", std::in_place_type<LargeTracker>, &counts, 2);
 
-  shapes.insert_or_assign("square", ShapeProtocol(Rectangle{4, 5}));
+  protocols.insert_or_assign(
+      "small", Protocol(std::in_place_type<LargeTracker>, &counts, 3));
 
-  EXPECT_EQ(shapes.at("square").area(), 20);
-  EXPECT_EQ(shapes.at("rectangle").area(), 6);
+  EXPECT_EQ(protocols.at("small").value(), 3);
+  EXPECT_EQ(protocols.at("large").value(), 2);
+  EXPECT_EQ(counts.copies, 0);
+  EXPECT_EQ(counts.live, 2);
 }
 
 // ---------------------------------------------------------------------------
-// std::pmr::vector. The container constructs each element with its own
-// allocator.
+// Containers that pass their allocator to their elements.
 // ---------------------------------------------------------------------------
 
-static_assert(std::uses_allocator_v<
-              PmrShapeProtocol, std::pmr::polymorphic_allocator<std::byte>>);
+TEST(ContainerTest, ScopedAllocatorVectorPassesItsAllocatorToEachElement) {
+  using TrackingProtocol = protocol<Interface, TrackingAllocator<std::byte>>;
+  using VectorAllocator =
+      std::scoped_allocator_adaptor<TrackingAllocator<TrackingProtocol>>;
+
+  AllocationCounter counter;
+  Counts counts;
+  std::vector<TrackingProtocol, VectorAllocator> protocols(VectorAllocator(
+      counter.allocator<TrackingAllocator<TrackingProtocol>>()));
+  protocols.reserve(2);
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
+
+  // The vector's storage and the large object. The small object is in the
+  // small buffer.
+  EXPECT_EQ(counter.allocs, 2);
+  for (const TrackingProtocol& element : protocols) {
+    EXPECT_EQ(element.get_allocator(), counter.allocator());
+  }
+}
+
+// Counts the allocations that it passes on to the default resource.
+struct CountingResource : std::pmr::memory_resource {
+  std::size_t allocations = 0;
+  std::size_t deallocations = 0;
+
+  CountingResource() = default;
+  CountingResource(const CountingResource&) = delete ("Unused");
+  CountingResource(CountingResource&&) = delete ("Unused");
+  CountingResource& operator=(const CountingResource&) = delete ("Unused");
+  CountingResource& operator=(CountingResource&&) = delete ("Unused");
+
+  ~CountingResource() override { EXPECT_EQ(allocations, deallocations); }
+
+ private:
+  void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+    ++allocations;
+    return std::pmr::new_delete_resource()->allocate(bytes, alignment);
+  }
+
+  void do_deallocate(void* pointer, std::size_t bytes,
+                     std::size_t alignment) override {
+    ++deallocations;
+    std::pmr::new_delete_resource()->deallocate(pointer, bytes, alignment);
+  }
+
+  bool do_is_equal(
+      const std::pmr::memory_resource& other) const noexcept override {
+    return this == &other;
+  }
+};
+
+// Nothing is stored in the small buffer with this allocator, as its
+// `construct` can throw.
+using PmrProtocol = protocol<Interface, std::pmr::polymorphic_allocator<>>;
+
+static_assert(
+    std::uses_allocator_v<PmrProtocol, std::pmr::polymorphic_allocator<>>);
 
 TEST(ContainerTest, PmrVectorPassesItsAllocatorToEachElement) {
-  std::pmr::monotonic_buffer_resource resource;
-  std::pmr::vector<PmrShapeProtocol> shapes(&resource);
-  shapes.emplace_back(Square{2});
-  shapes.emplace_back(Rectangle{2, 3});
+  CountingResource resource;
+  Counts counts;
+  std::pmr::vector<PmrProtocol> protocols(&resource);
+  protocols.reserve(2);
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
 
-  for (const PmrShapeProtocol& shape : shapes) {
-    EXPECT_EQ(shape.get_allocator().resource(), &resource);
+  // The vector's storage and both objects.
+  EXPECT_EQ(resource.allocations, 3);
+  for (const PmrProtocol& element : protocols) {
+    EXPECT_EQ(element.get_allocator().resource(), &resource);
   }
 }
 
 TEST(ContainerTest, PmrVectorCopyWithAnotherAllocator) {
-  std::pmr::monotonic_buffer_resource resource;
-  std::pmr::vector<PmrShapeProtocol> shapes(&resource);
-  shapes.emplace_back(Square{2});
-  shapes.emplace_back(Rectangle{2, 3});
+  CountingResource resource;
+  CountingResource other_resource;
+  Counts counts;
+  std::pmr::vector<PmrProtocol> protocols(&resource);
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
 
-  std::pmr::monotonic_buffer_resource other_resource;
-  std::pmr::vector<PmrShapeProtocol> copies(shapes, &other_resource);
+  std::pmr::vector<PmrProtocol> copies(protocols, &other_resource);
 
-  for (const PmrShapeProtocol& copy : copies) {
+  // The vector's storage and both objects.
+  EXPECT_EQ(other_resource.allocations, 3);
+  for (const PmrProtocol& copy : copies) {
     EXPECT_EQ(copy.get_allocator().resource(), &other_resource);
   }
-  EXPECT_EQ(areas_of(copies), (std::vector<int>{4, 6}));
-  EXPECT_EQ(areas_of(shapes), (std::vector<int>{4, 6}));
+  EXPECT_EQ(values_of(copies), (std::vector<int>{1, 2}));
+  EXPECT_EQ(counts.copies, 2);
+  EXPECT_EQ(counts.live, 4);
 }
 
 TEST(ContainerTest, PmrVectorMoveWithAnotherAllocator) {
-  std::pmr::monotonic_buffer_resource resource;
-  std::pmr::vector<PmrShapeProtocol> shapes(&resource);
-  shapes.emplace_back(Square{2});
-  shapes.emplace_back(Rectangle{2, 3});
+  CountingResource resource;
+  CountingResource other_resource;
+  Counts counts;
+  std::pmr::vector<PmrProtocol> protocols(&resource);
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
 
-  // The allocators differ, so each element is moved rather than the
-  // container's storage taken.
-  std::pmr::monotonic_buffer_resource other_resource;
-  std::pmr::vector<PmrShapeProtocol> moved(std::move(shapes), &other_resource);
+  // The allocators differ, so each object is moved to storage from the other
+  // allocator rather than the vector's storage being taken.
+  std::pmr::vector<PmrProtocol> moved(std::move(protocols), &other_resource);
 
-  for (const PmrShapeProtocol& shape : moved) {
-    EXPECT_EQ(shape.get_allocator().resource(), &other_resource);
+  for (const PmrProtocol& element : moved) {
+    EXPECT_EQ(element.get_allocator().resource(), &other_resource);
   }
-  EXPECT_EQ(areas_of(moved), (std::vector<int>{4, 6}));
+  EXPECT_EQ(values_of(moved), (std::vector<int>{1, 2}));
+  EXPECT_EQ(counts.copies, 0);
+  EXPECT_EQ(counts.moves, 2);
+  EXPECT_EQ(counts.live, 2);
+}
+
+TEST(ContainerTest, PmrVectorCopyAssignmentWithAnotherAllocator) {
+  CountingResource resource;
+  CountingResource other_resource;
+  Counts counts;
+  std::pmr::vector<PmrProtocol> protocols(&resource);
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
+  std::pmr::vector<PmrProtocol> assigned(&other_resource);
+  assigned.emplace_back(std::in_place_type<LargeTracker>, &counts, 3);
+  assigned.emplace_back(std::in_place_type<SmallTracker>, &counts, 4);
+
+  assigned = protocols;
+
+  for (const PmrProtocol& element : assigned) {
+    EXPECT_EQ(element.get_allocator().resource(), &other_resource);
+  }
+  EXPECT_EQ(values_of(assigned), (std::vector<int>{1, 2}));
+  EXPECT_EQ(counts.copies, 2);
+  EXPECT_EQ(counts.live, 4);
+}
+
+TEST(ContainerTest, PmrVectorMoveAssignmentWithAnotherAllocator) {
+  CountingResource resource;
+  CountingResource other_resource;
+  Counts counts;
+  std::pmr::vector<PmrProtocol> protocols(&resource);
+  protocols.emplace_back(std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.emplace_back(std::in_place_type<LargeTracker>, &counts, 2);
+  std::pmr::vector<PmrProtocol> assigned(&other_resource);
+  assigned.emplace_back(std::in_place_type<LargeTracker>, &counts, 3);
+  assigned.emplace_back(std::in_place_type<SmallTracker>, &counts, 4);
+
+  assigned = std::move(protocols);
+
+  for (const PmrProtocol& element : assigned) {
+    EXPECT_EQ(element.get_allocator().resource(), &other_resource);
+  }
+  EXPECT_EQ(values_of(assigned), (std::vector<int>{1, 2}));
+  EXPECT_EQ(counts.copies, 0);
+  EXPECT_EQ(counts.moves, 2);
+  EXPECT_EQ(counts.live, 2);
+}
+
+TEST(ContainerTest, PmrMapPassesItsAllocatorToEachMappedValue) {
+  CountingResource resource;
+  CountingResource other_resource;
+  Counts counts;
+  std::pmr::map<int, PmrProtocol> protocols(&resource);
+  protocols.try_emplace(1, std::in_place_type<SmallTracker>, &counts, 1);
+  protocols.try_emplace(2, std::in_place_type<LargeTracker>, &counts, 2);
+
+  // The assigned protocol's allocator differs, so its object is moved to
+  // storage from the map's allocator.
+  protocols.insert_or_assign(
+      1, PmrProtocol(std::allocator_arg, &other_resource,
+                     std::in_place_type<LargeTracker>, &counts, 3));
+
+  for (const auto& [key, element] : protocols) {
+    EXPECT_EQ(element.get_allocator().resource(), &resource);
+  }
+  EXPECT_EQ(protocols.at(1).value(), 3);
+  EXPECT_EQ(protocols.at(2).value(), 2);
+  EXPECT_EQ(counts.copies, 0);
+  EXPECT_EQ(counts.moves, 1);
+  EXPECT_EQ(counts.live, 2);
 }
 
 }  // namespace
