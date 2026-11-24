@@ -274,8 +274,10 @@ TEST(TutorialsPolymorphism, PolymorphismWithTypeErasureAndVtable) {
 
 namespace xyz::tutorials::manual_intrusive_vtable {
 
+class Animal;
+
 struct vtable {
-  std::string_view (*noise_func_)(const void* data);
+  std::string_view (*noise_func_)(const Animal* animal);
 };
 
 class Animal {
@@ -291,8 +293,8 @@ class Cat : public Animal {
   Cat() {
     constexpr static vtable vtable_for_type = {
         .noise_func_ =
-            +[](const void* data) {
-              return static_cast<const Cat*>(data)->noise();
+            +[](const Animal* animal) {
+              return static_cast<const Cat*>(animal)->noise();
             },
     };
     vtable_ = &vtable_for_type;
@@ -306,8 +308,8 @@ class Dog : public Animal {
   Dog() {
     constexpr static vtable vtable_for_type = {
         .noise_func_ =
-            +[](const void* data) {
-              return static_cast<const Dog*>(data)->noise();
+            +[](const Animal* animal) {
+              return static_cast<const Dog*>(animal)->noise();
             },
     };
     vtable_ = &vtable_for_type;
