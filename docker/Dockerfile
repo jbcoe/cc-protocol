@@ -82,6 +82,27 @@ RUN ARCH=$(dpkg --print-architecture) && \
     && tar -xzf /tmp/jj.tar.gz -C /usr/local/bin ./jj \
     && rm /tmp/jj.tar.gz
 
+# Install the Marp CLI standalone binary to render the slides in presentations/.
+RUN ARCH=$(dpkg --print-architecture) && \
+    case "$ARCH" in \
+        amd64) MARP_ARCH=linux ;; \
+        arm64) MARP_ARCH=linux-arm64 ;; \
+        *) echo "Unsupported architecture for marp: $ARCH" >&2; exit 1 ;; \
+    esac && \
+    wget -nv "https://github.com/marp-team/marp-cli/releases/download/v4.5.1/marp-cli-v4.5.1-${MARP_ARCH}.tar.gz" -O /tmp/marp.tar.gz \
+    && tar -xzf /tmp/marp.tar.gz -C /usr/local/bin marp \
+    && rm /tmp/marp.tar.gz
+
+# Install Firefox from Mozilla's apt repository, per
+# https://support.mozilla.org/kb/install-firefox-linux, for Marp's PDF and
+# image output. Ubuntu's firefox package installs a snap, which does not run
+# in a container; the pin makes apt prefer Mozilla's package over it.
+RUN wget -nv -O /etc/apt/keyrings/packages.mozilla.org.asc https://packages.mozilla.org/apt/repo-signing-key.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" > /etc/apt/sources.list.d/mozilla.list \
+    && printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' > /etc/apt/preferences.d/mozilla \
+    && apt-get update && apt-get install -y --no-install-recommends firefox \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user.
 #
 # Ubuntu 24.04+ base images ship a default `ubuntu` user at UID/GID 1000, so
