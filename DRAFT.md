@@ -10,7 +10,7 @@ Date: 2026-06-11
 
 _Jonathan Coe \<<jonathanbcoe@gmail.com>\>_
 
-_Hana Dusikova \<<hanicka@hanicka.net>\>_
+_Hana Dusíková \<<hanicka@hanicka.net>\>_
 
 _Antony Peacock \<<ant.peacock@gmail.com>\>_
 
