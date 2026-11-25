@@ -484,8 +484,7 @@ class protocol
         xyz_protocol_allocator_, constructed, std::forward<T>(obj));
     xyz_protocol_vtable_->destroy(xyz_protocol_allocator_,
                                   xyz_protocol_storage_);
-    const detail::owning_vtable<I, Alloc>* new_vtable =
-        &detail::owning_vtable_for<I, Alloc, TNorm>;
+    const auto* new_vtable = &detail::owning_vtable_for<I, Alloc, TNorm>;
     new_vtable->relocate(xyz_protocol_allocator_, constructed,
                          xyz_protocol_storage_);
     xyz_protocol_vtable_ = new_vtable;
