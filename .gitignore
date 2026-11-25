@@ -10,3 +10,4 @@ build*/
 out/
 .cache
 __pycache__/
+presentations/*.html
