@@ -255,6 +255,18 @@ consteval void reject_member_function_templates(std::meta::info type) {
   }
 }
 
+// Throws if `type` has a base class, whatever its access. `members_of` does
+// not return the members of a base class, so without this check an interface
+// would silently lose the member functions it inherits. Not a template, for
+// the reason given on `named_member_function_infos`.
+consteval void reject_base_classes(std::meta::info type) {
+  std::vector<std::meta::info> bases =
+      bases_of(type, std::meta::access_context::unchecked());
+  if (!bases.empty()) {
+    reject_interface_member("base class", type_of(bases.front()));
+  }
+}
+
 // Throws if `member`, a conversion function named by
 // `reject_placeholder_conversion_functions`, is one `members_of` would have
 // returned had its return type been deduced. A compiler may also find a
@@ -290,6 +302,7 @@ consteval void reject_placeholder_conversion_functions() {
 
 // The named, non-static, non-special member functions, operators and
 // conversion functions of `Type`, in declaration order.
+// A `Type` with a base class is unsupported.
 // Functions with a name in `reserved_member_names`, ref-qualified functions,
 // explicit-object member functions, member function templates, conversion
 // functions to `auto` or `decltype(auto)`, defaulted comparison operators,
@@ -303,6 +316,7 @@ consteval void reject_placeholder_conversion_functions() {
 // allocation function has nothing to do.
 template <std::meta::info Type>
 consteval std::vector<std::meta::info> protocol_interface_function_infos() {
+  reject_base_classes(Type);
   reject_member_function_templates(Type);
   reject_placeholder_conversion_functions<typename[:Type:]>();
   std::vector<std::meta::info> result;

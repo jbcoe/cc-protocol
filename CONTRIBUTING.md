@@ -180,7 +180,9 @@ constraints.
 
 Interfaces for `protocol` and `protocol_view` are plain structs or classes.
 Their public, non-virtual, non-template member functions define the protocol;
-`xyz/protocol.hh` inspects them with C++26 reflection at compile time.
+`xyz/protocol.hh` inspects them with C++26 reflection at compile time. An
+interface with a base class is rejected, as the member functions it inherits
+would otherwise be ignored.
 
 ### Supported Features
 
