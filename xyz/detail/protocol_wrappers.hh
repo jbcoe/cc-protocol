@@ -42,9 +42,9 @@ enum class const_policy {
   propagate,
   // `protocol_view<I>`: every wrapper is const-qualified regardless of `I`
   // (shallow const, as for `std::span`).
-  all_const,
+  constify,
   // `protocol_view<const I>`: only the const member functions of `I`.
-  const_only,
+  only_const,
 };
 
 // Returns `true` if `member` if forwarded under `ConstPolicy`.
@@ -56,11 +56,11 @@ consteval bool is_forwarded_member_function(
       // `protocol<T>` propagates const through forwarded member function calls
       // so supports const and non-const qualified member functions.
       return true;
-    case const_policy::const_only:
+    case const_policy::only_const:
       // `protocol_view<const T>` forwards only const-qualified member
       // functions.
       return is_const(member);
-    case const_policy::all_const:
+    case const_policy::constify:
       // `protocol_view<T>` is a view type: overload resolution through
       // a const and non-const access path must yield the same result.
       // A const-qualified member function is only given a forwarding wrapper if
@@ -88,8 +88,8 @@ consteval void reject_conversion_functions_of_mixed_constness(
   std::meta::info first = {};
   for (std::meta::info member : members) {
     if (!is_conversion_function(member) ||
-        !is_forwarded_member_function<const_policy::all_const>(member,
-                                                               members)) {
+        !is_forwarded_member_function<const_policy::constify>(member,
+                                                              members)) {
       continue;
     }
     if (first == std::meta::info{}) {
@@ -156,7 +156,7 @@ template <std::meta::info InterfaceType, typename ProtocolType, typename Vtable,
 consteval std::meta::info generate_member_bases_wrapper() {
   std::span<const std::meta::info> members =
       protocol_interface_functions_of<InterfaceType>;
-  if (ConstPolicy == const_policy::all_const) {
+  if (ConstPolicy == const_policy::constify) {
     reject_conversion_functions_of_mixed_constness(members);
   }
   std::vector<std::meta::info> member_base_types;

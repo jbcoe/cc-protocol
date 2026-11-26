@@ -590,7 +590,7 @@ consteval bool view_wrappers_reject() {
   try {
     (void)xyz::detail::generate_member_bases_wrapper<
         ^^Interface, protocol_view<Interface>, xyz::detail::vtable_t<Interface>,
-        xyz::detail::const_policy::all_const>();
+        xyz::detail::const_policy::constify>();
   } catch (const std::runtime_error&) {
     return true;
   }
