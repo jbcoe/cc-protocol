@@ -52,19 +52,21 @@ consteval std::meta::info function_pointer_type_of(
 enum class member_qualifiers {
   unqualified,
   const_qualified,
-  // TODO(jbcoe): Add const and non-const rvalue and lvalue qualifiers.
+  lvalue_qualified,
+  const_lvalue_qualified,
+  rvalue_qualified,
+  const_rvalue_qualified,
 };
 
 consteval member_qualifiers member_qualifiers_of(std::meta::info member) {
-  // TODO(jbcoe): Remove this check once reference-qualified member functions
-  // are supported.
-  if (is_lvalue_reference_qualified(member) ||
-      is_rvalue_reference_qualified(member)) {
-    throw std::runtime_error(
-        "lvalue or rvalue qualified member functions are not currently "
-        "supported");
+  if (is_lvalue_reference_qualified(member)) {
+    return is_const(member) ? member_qualifiers::const_lvalue_qualified
+                            : member_qualifiers::lvalue_qualified;
   }
-
+  if (is_rvalue_reference_qualified(member)) {
+    return is_const(member) ? member_qualifiers::const_rvalue_qualified
+                            : member_qualifiers::rvalue_qualified;
+  }
   return is_const(member) ? member_qualifiers::const_qualified
                           : member_qualifiers::unqualified;
 }

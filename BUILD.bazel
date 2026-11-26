@@ -1,7 +1,21 @@
 load("@apple_support//xcode:xcode_config.bzl", "xcode_config")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_python//python:py_binary.bzl", "py_binary")
 
 package(default_visibility = ["//visibility:public"])
+
+py_binary(
+    name = "py_generate_operator_thunks",
+    srcs = ["scripts/generate_operator_thunks.py"],
+    main = "scripts/generate_operator_thunks.py",
+)
+
+genrule(
+    name = "generate_operator_thunks",
+    outs = ["xyz/detail/operator_thunks.hh"],
+    cmd = "$(location :py_generate_operator_thunks) > $@",
+    tools = [":py_generate_operator_thunks"],
+)
 
 # Implementation headers. Visible only inside this repository; tests that
 # include them depend on this target directly.
@@ -54,6 +68,21 @@ cc_test(
         "xyz/tests/tracking_allocator.h",
         "xyz/tests/vtable_tests.cc",
     ],
+    deps = [
+        ":consteval_check",
+        ":detail",
+        ":protocol",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "protocol_feature_test",
+    size = "small",
+    srcs = [
+        "xyz/tests/feature_tests.cc",
+    ],
+    tags = ["manual"],
     deps = [
         ":consteval_check",
         ":detail",
