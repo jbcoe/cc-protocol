@@ -325,10 +325,6 @@ consteval std::vector<std::meta::info> protocol_interface_function_infos() {
     if (has_reserved_member_name(member)) {
       reject_interface_member("reserved member name", member);
     }
-    if (is_lvalue_reference_qualified(member) ||
-        is_rvalue_reference_qualified(member)) {
-      reject_interface_member("ref-qualified member function", member);
-    }
     std::vector<std::meta::info> params = parameters_of(member);
     if (!params.empty() && is_explicit_object_parameter(params.front())) {
       reject_interface_member("explicit-object member function", member);
