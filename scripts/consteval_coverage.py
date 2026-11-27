@@ -61,6 +61,7 @@ import subprocess
 import sys
 
 from compiler_discovery import find_reflection_compilers
+from generate_operator_thunks import generate_header
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -531,6 +532,15 @@ def populate_work_dir(
     for header, lines in instrumented_by_header.items():
         with open(os.path.join(work_dir, header), "w") as out:
             out.write("\n".join(lines) + "\n")
+    # Generated headers are excluded from instrumentation (no consteval code),
+    # but must exist in `work_dir` so translation units including protocol.hh
+    # compile.
+    generated_operator_thunks = os.path.join(
+        work_dir, "xyz", "detail", "operator_thunks.hh"
+    )
+    os.makedirs(os.path.dirname(generated_operator_thunks), exist_ok=True)
+    with open(generated_operator_thunks, "w", encoding="utf-8") as out:
+        out.write(generate_header())
 
 
 def compile_batch(
