@@ -62,6 +62,21 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "protocol_feature_test",
+    size = "small",
+    srcs = [
+        "xyz/tests/feature_tests.cc",
+    ],
+    tags = ["manual"],
+    deps = [
+        ":consteval_check",
+        ":detail",
+        ":protocol",
+        "@googletest//:gtest_main",
+    ],
+)
+
 # An xcode_config with no Xcode versions. build:macos in .bazelrc selects it
 # so the C++ toolchain does not fetch @local_config_xcode, which compiles and
 # runs xcode-locator and then xcodebuild for every installed Xcode on each
