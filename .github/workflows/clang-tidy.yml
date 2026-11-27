@@ -18,6 +18,7 @@ on:
       - "**/.clang-tidy"
       - "scripts/cmake.py"
       - "scripts/cmake.sh"
+      - "scripts/generate_operator_thunks.py"
   # The clang-tidy job is not a required status check, so a `paths:` filter
   # here is safe: a pull request that touches nothing relevant simply gets no
   # check rather than an eternally pending one.
@@ -36,6 +37,7 @@ on:
       - "**/.clang-tidy"
       - "scripts/cmake.py"
       - "scripts/cmake.sh"
+      - "scripts/generate_operator_thunks.py"
   workflow_dispatch:
 
 # One group per PR, or per ref for pushes and scheduled runs. A new push to a
