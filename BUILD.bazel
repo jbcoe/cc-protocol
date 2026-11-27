@@ -13,7 +13,7 @@ py_binary(
 genrule(
     name = "generate_operator_thunks",
     outs = ["xyz/detail/operator_thunks.hh"],
-    cmd = "$(location :py_generate_operator_thunks) > $@",
+    cmd = "$(location :py_generate_operator_thunks) --output $@",
     tools = [":py_generate_operator_thunks"],
 )
 
