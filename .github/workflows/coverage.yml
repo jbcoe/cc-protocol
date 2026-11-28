@@ -24,6 +24,7 @@ on:
       - "scripts/consteval_coverage.py"
       - "scripts/consteval_coverage_test.py"
       - "scripts/consteval_coverage.sh"
+      - "scripts/generate_operator_thunks.py"
   pull_request:
     paths:
       # Keep in sync with the `push.paths` list above.
@@ -43,6 +44,7 @@ on:
       - "scripts/consteval_coverage.py"
       - "scripts/consteval_coverage_test.py"
       - "scripts/consteval_coverage.sh"
+      - "scripts/generate_operator_thunks.py"
 
 # One group per PR, or per ref for pushes and scheduled runs. A new push to a
 # PR cancels the runs for its previous head; main and scheduled runs only queue.
@@ -102,7 +104,7 @@ jobs:
         run: uv sync
       - name: Test the consteval coverage scanner
         run: uv run scripts/consteval_coverage_test.py
-      - name: Build (provides the googletest headers)
+      - name: Build (provides the googletest and generated headers)
         run: ./scripts/cmake.sh build -B coverage
       - name: Probe consteval coverage
         run: ./scripts/consteval_coverage.sh --lcov-output build/consteval-coverage/coverage.info

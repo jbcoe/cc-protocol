@@ -46,7 +46,7 @@ swallowed the trap exception without rethrowing would mask probes beneath it
 (none of the instrumented headers has one).
 
 Requires a reflection-capable GCC (found via compiler_discovery) and a prior
-`./scripts/cmake.sh build` to provide the googletest headers.
+`./scripts/cmake.sh build` to provide the googletest and generated headers.
 """
 
 import argparse
@@ -494,6 +494,18 @@ def find_googletest_include_directories() -> list[str]:
     )
 
 
+def find_generated_include_directories() -> list[str]:
+    """Locate generated headers produced by a prior CMake build."""
+    pattern = os.path.join(SOURCE_ROOT, "build", "*", "generated")
+    for generated_directory in sorted(glob.glob(pattern)):
+        if os.path.isdir(generated_directory):
+            return [generated_directory]
+    sys.exit(
+        "generated headers not found under build/*/generated; run "
+        "./scripts/cmake.sh build first"
+    )
+
+
 @dataclasses.dataclass
 class ProbeConfiguration:
     """Everything needed to compile one probe batch."""
@@ -755,7 +767,9 @@ def main() -> None:
     configuration = ProbeConfiguration(
         compiler=compiler,
         work_dir=arguments.work_dir,
-        include_directories=find_googletest_include_directories(),
+        include_directories=(
+            find_googletest_include_directories() + find_generated_include_directories()
+        ),
         jobs=arguments.jobs,
     )
 

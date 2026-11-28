@@ -110,10 +110,31 @@ include(xyz_add_test)
 include(xyz_add_object_library)
 
 find_package(ClangTidy)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+set(XYZ_PROTOCOL_GENERATED_INCLUDE_DIRECTORY
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(XYZ_PROTOCOL_OPERATOR_THUNKS_HEADER
+    "${XYZ_PROTOCOL_GENERATED_INCLUDE_DIRECTORY}/xyz/detail/operator_thunks.hh")
+
+add_custom_command(
+  OUTPUT "${XYZ_PROTOCOL_OPERATOR_THUNKS_HEADER}"
+  COMMAND
+    Python3::Interpreter
+    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_operator_thunks.py"
+    --output "${XYZ_PROTOCOL_OPERATOR_THUNKS_HEADER}"
+  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_operator_thunks.py"
+  COMMENT "Generating xyz/detail/operator_thunks.hh"
+  VERBATIM)
+
+add_custom_target(
+  generate_operator_thunks ALL
+  DEPENDS "${XYZ_PROTOCOL_OPERATOR_THUNKS_HEADER}")
 
 xyz_add_library(
   NAME protocol
   ALIAS xyz_protocol::protocol)
+add_dependencies(protocol generate_operator_thunks)
 # One header list drives the build tree, the export and the install: a
 # header missing here is missing from the installed package too.
 target_sources(
@@ -127,14 +148,21 @@ target_sources(
             xyz/detail/conformance.hh
             xyz/detail/conversion_thunks.hh
             xyz/detail/member_function_thunks.hh
-            xyz/detail/operator_thunks.hh
             xyz/detail/overload_spec.hh
             xyz/detail/owning_vtable.hh
             xyz/detail/protocol_traits.hh
             xyz/detail/protocol_wrappers.hh
             xyz/detail/small_buffer.hh
             xyz/detail/vtable.hh
-            xyz/detail/name_mangling.hh)
+            xyz/detail/name_mangling.hh
+            FILE_SET
+            generated_headers
+            TYPE
+            HEADERS
+            BASE_DIRS
+            "${XYZ_PROTOCOL_GENERATED_INCLUDE_DIRECTORY}"
+            FILES
+            "${XYZ_PROTOCOL_OPERATOR_THUNKS_HEADER}")
 # Consumers need the reflection flags of whichever compiler they build with,
 # so the options are generator expressions evaluated at their configure time
 # rather than the flags of the compiler that installed the package.
@@ -206,7 +234,8 @@ if(XYZ_PROTOCOL_IS_NOT_SUBPROJECT)
   install(
     TARGETS protocol
     EXPORT xyz_protocol-targets
-    FILE_SET HEADERS DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+    FILE_SET HEADERS DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+    FILE_SET generated_headers DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 
   install(
     EXPORT xyz_protocol-targets

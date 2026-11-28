@@ -18,6 +18,7 @@ on:
       - "scripts/cmake.py"
       - "scripts/cmake.sh"
       - "scripts/compiler_discovery.py"
+      - "scripts/generate_operator_thunks.py"
   # No `paths:` filter here. The `cmake` summary job is a required status
   # check for merging to main, and a workflow that is filtered out by
   # `paths:` never reports a check, which leaves unrelated pull requests
@@ -65,6 +66,7 @@ jobs:
               - "scripts/cmake.py"
               - "scripts/cmake.sh"
               - "scripts/compiler_discovery.py"
+              - "scripts/generate_operator_thunks.py"
 
   build:
     needs: detect-changes
