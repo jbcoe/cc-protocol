@@ -534,7 +534,7 @@ class protocol
     return lhs.swap(rhs);
   }
 
-  constexpr const Alloc& get_allocator() const {
+  constexpr allocator_type get_allocator() const noexcept {
     return xyz_protocol_allocator_;
   }
 
