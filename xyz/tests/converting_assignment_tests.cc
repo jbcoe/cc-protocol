@@ -338,5 +338,13 @@ TEST(ConvertingAssignmentTest, RejectsNonConformingAndProtocolSources) {
   static_assert(std::is_assignable_v<Target&, const Small&>);
 }
 
+TEST(ConvertingAssignmentTest, RejectsLvalueOfMoveOnlyType) {
+  using Target = protocol<MoveOnlyInterface>;
+
+  static_assert(std::is_assignable_v<Target&, MoveOnlyType>);
+  static_assert(!std::is_assignable_v<Target&, MoveOnlyType&>);
+  static_assert(!std::is_assignable_v<Target&, const MoveOnlyType&>);
+}
+
 }  // namespace
 }  // namespace xyz::tests

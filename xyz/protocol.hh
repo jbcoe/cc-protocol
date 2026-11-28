@@ -276,6 +276,7 @@ class protocol
   template <typename T, typename TNorm = std::decay_t<T>>
     requires(!std::same_as<TNorm, protocol> &&
              is_protocol_conformant_v<I, TNorm> &&
+             std::constructible_from<TNorm, T> &&
              has_conformant_special_members_v<I, TNorm> &&
              std::default_initializable<Alloc>)
   constexpr explicit protocol(T&& obj)
@@ -285,7 +286,8 @@ class protocol
   template <typename T, typename TNorm = std::decay_t<T>>
     requires(!std::same_as<TNorm, protocol> &&
              has_conformant_special_members_v<I, TNorm> &&
-             is_protocol_conformant_v<I, TNorm>)
+             is_protocol_conformant_v<I, TNorm> &&
+             std::constructible_from<TNorm, T>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a, T&& obj)
       : protocol(detail::construct_in_storage, a, std::in_place_type<TNorm>,
                  std::forward<T>(obj)) {}
@@ -294,6 +296,7 @@ class protocol
   template <typename T, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T> &&
+             std::constructible_from<T, Args...> &&
              has_conformant_special_members_v<I, T> &&
              std::default_initializable<Alloc>)
   constexpr explicit protocol(std::in_place_type_t<T>, Args&&... args)
@@ -304,6 +307,7 @@ class protocol
   template <typename T, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T> &&
+             std::constructible_from<T, Args...> &&
              has_conformant_special_members_v<I, T>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
                               std::in_place_type_t<T>, Args&&... args)
@@ -315,6 +319,7 @@ class protocol
   template <typename T, typename U, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T> &&
+             std::constructible_from<T, std::initializer_list<U>&, Args...> &&
              has_conformant_special_members_v<I, T> &&
              std::default_initializable<Alloc>)
   constexpr explicit protocol(std::in_place_type_t<T>,
@@ -326,6 +331,7 @@ class protocol
   template <typename T, typename U, typename... Args>
     requires(!std::same_as<std::decay_t<T>, protocol> &&
              is_protocol_conformant_v<I, T> &&
+             std::constructible_from<T, std::initializer_list<U>&, Args...> &&
              has_conformant_special_members_v<I, T>)
   constexpr explicit protocol(std::allocator_arg_t, const Alloc& a,
                               std::in_place_type_t<T>,
@@ -474,6 +480,7 @@ class protocol
   template <typename T, typename TNorm = std::decay_t<T>>
     requires(!std::same_as<TNorm, protocol> && !detail::is_protocol_v<TNorm> &&
              is_protocol_conformant_v<I, TNorm> &&
+             std::constructible_from<TNorm, T> &&
              has_conformant_special_members_v<I, TNorm>)
   constexpr protocol& operator=(T&& obj) {
     // Construct before destruction for strong exception safety. `obj` may be

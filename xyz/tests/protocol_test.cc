@@ -8,10 +8,13 @@
 
 #include <concepts>
 #include <exception>
+#include <initializer_list>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 using xyz::detail::is_protocol_v;
 using xyz::detail::is_protocol_view_v;
@@ -456,7 +459,80 @@ TEST(ReflectionProtocolTest, IsConstructibleFromMoveOnlyType) {
     ~Immovable() = default;
   };
 
-  static_assert(std::is_constructible_v<protocol<Interface>, Immovable>);
+  // Constructing from an object would move it.
+  static_assert(!std::is_constructible_v<protocol<Interface>, Immovable>);
+}
+
+TEST(ReflectionProtocolTest, IsNotConstructibleFromLvalueOfMoveOnlyType) {
+  struct Interface {
+    Interface() = default;
+    Interface(const Interface&) = delete;
+    Interface(Interface&&) = default;
+    int value() const;
+  };
+
+  struct MoveOnly {
+    std::unique_ptr<int> pointer;
+
+    int value() const { return *pointer; }
+  };
+
+  using Protocol = protocol<Interface>;
+  using Alloc = Protocol::allocator_type;
+
+  static_assert(std::is_constructible_v<Protocol, MoveOnly>);
+  static_assert(!std::is_constructible_v<Protocol, MoveOnly&>);
+  static_assert(!std::is_constructible_v<Protocol, const MoveOnly&>);
+  static_assert(std::is_constructible_v<Protocol, std::allocator_arg_t,
+                                        const Alloc&, MoveOnly>);
+  static_assert(!std::is_constructible_v<Protocol, std::allocator_arg_t,
+                                         const Alloc&, MoveOnly&>);
+}
+
+TEST(ReflectionProtocolTest, IsNotConstructibleInPlaceFromWrongArguments) {
+  struct Interface {
+    int value() const;
+  };
+
+  struct Small {
+    int value_;
+
+    int value() const { return value_; }
+  };
+
+  struct Numbers {
+    std::vector<int> numbers_;
+
+    Numbers(std::initializer_list<int> numbers, int extra) : numbers_(numbers) {
+      numbers_.push_back(extra);
+    }
+
+    int value() const { return numbers_.back(); }
+  };
+
+  using Protocol = protocol<Interface>;
+  using Alloc = Protocol::allocator_type;
+
+  static_assert(
+      std::is_constructible_v<Protocol, std::in_place_type_t<Small>, int>);
+  static_assert(!std::is_constructible_v<Protocol, std::in_place_type_t<Small>,
+                                         std::string>);
+  static_assert(
+      !std::is_constructible_v<Protocol, std::allocator_arg_t, const Alloc&,
+                               std::in_place_type_t<Small>, std::string>);
+
+  static_assert(std::is_constructible_v<Protocol, std::in_place_type_t<Numbers>,
+                                        std::initializer_list<int>, int>);
+  static_assert(
+      !std::is_constructible_v<Protocol, std::in_place_type_t<Numbers>,
+                               std::initializer_list<std::string>, int>);
+  static_assert(
+      !std::is_constructible_v<Protocol, std::allocator_arg_t, const Alloc&,
+                               std::in_place_type_t<Numbers>,
+                               std::initializer_list<std::string>, int>);
+
+  Protocol p(std::in_place_type<Numbers>, {1, 2}, 3);
+  EXPECT_EQ(p.value(), 3);
 }
 
 TEST(ReflectionProtocolViewTest, IsConstructibleFromConformingType) {
