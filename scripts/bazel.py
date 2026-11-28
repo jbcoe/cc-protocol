@@ -69,7 +69,7 @@ def main() -> None:
         log_message(f"Running: {' '.join(clean_command)}")
         subprocess.check_call(clean_command, cwd=SOURCE_ROOT, env=bazel_environment)
 
-    bazel_command = ["bazel", target_mode]
+    bazel_command = ["bazel", target_mode, "--keep_going"]
 
     # Each sanitizer is a named config in .bazelrc; `bazel test --config=...`
     # applies the build config to the test build as well.
