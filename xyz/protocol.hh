@@ -557,7 +557,7 @@ template <detail::is_valid_view_interface T>
 class protocol_view
     : public detail::protocol_wrappers_t<T, protocol_view<T>,
                                          detail::vtable_t<T>,
-                                         detail::const_policy::all_const> {
+                                         detail::const_policy::constify> {
  public:
   // The default constructor is deleted as a default constructed
   // `protocol_view` would be empty.
@@ -669,7 +669,7 @@ template <detail::is_valid_interface T>
 class protocol_view<const T>
     : public detail::protocol_wrappers_t<T, protocol_view<const T>,
                                          detail::vtable_t<T>,
-                                         detail::const_policy::const_only> {
+                                         detail::const_policy::only_const> {
  public:
   // The default constructor is deleted as a default constructed
   // `protocol_view` would be empty.
