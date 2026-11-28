@@ -23,6 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <cstddef>
 #include <new>
 #include <type_traits>
+#include <utility>
 
 #include "xyz/protocol.hh"
 #include "xyz/tests/tagged_allocator.h"
@@ -690,6 +691,29 @@ TEST(ProtocolTest, SwapUnequalPocs) {
 
   EXPECT_EQ(counter1.deallocs, 1);
   EXPECT_EQ(counter2.deallocs, 1);
+}
+
+TEST(ProtocolTest, GetAllocatorReturnsACopy) {
+  using PocsProtocol = xyz::protocol<IntLike, PocsAllocator<std::byte>>;
+  static_assert(std::is_same_v<
+                decltype(std::declval<const PocsProtocol&>().get_allocator()),
+                PocsAllocator<std::byte>>);
+  static_assert(noexcept(std::declval<const PocsProtocol&>().get_allocator()));
+
+  AllocationCounter counter1;
+  AllocationCounter counter2;
+  auto alloc1 = counter1.allocator<PocsAllocator<std::byte>>();
+  auto alloc2 = counter2.allocator<PocsAllocator<std::byte>>();
+  PocsProtocol p1{std::allocator_arg, alloc1, Tester(0)};
+  PocsProtocol p2{std::allocator_arg, alloc2, Tester(10)};
+
+  const auto& allocator = p1.get_allocator();
+  using std::swap;
+  swap(p1, p2);
+
+  // Swapping propagated the allocators but not into the earlier result.
+  EXPECT_EQ(allocator, alloc1);
+  EXPECT_EQ(p1.get_allocator(), alloc2);
 }
 
 // A simple exception to test catching.
